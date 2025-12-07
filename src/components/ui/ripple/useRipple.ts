@@ -7,6 +7,9 @@ export interface Wave {
   id: number;
   hiding: boolean;
 }
+interface RippleElement extends HTMLElement {
+  __rippleId?: number;
+}
 
 const RIPPLE_DURATION = 400;
 
@@ -33,12 +36,14 @@ const useRipple = () => {
   ): number => {
     const dx = Math.abs(x - width / 2) + width / 2;
     const dy = Math.abs(y - height / 2) + height / 2;
-    return Math.sqrt(dx * dx + dy * dy);
+    return Math.hypot(dx, dy);
   };
 
   const scheduleHide = (id: number) => {
     const data = waveData.get(id);
-    if (!data) return;
+    if (!data) {
+      return;
+    }
 
     const elapsedTime = Date.now() - data.startTime;
     const duration = RIPPLE_DURATION;
@@ -70,7 +75,7 @@ const useRipple = () => {
   };
 
   const onPointerDown = (e: PointerEvent) => {
-    const el = e.currentTarget as HTMLElement;
+    const el = e.currentTarget as RippleElement;
     const rect = el.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -83,39 +88,54 @@ const useRipple = () => {
       released: false,
     });
 
-    (e.currentTarget as any).__rippleId = id;
+    el.__rippleId = id;
 
     waves.value = [...waves.value, { x, y, size, id, hiding: false }];
   };
 
   const onPointerUp = (e: PointerEvent) => {
-    const id = (e.currentTarget as any).__rippleId;
-    if (id === undefined) return;
+    const el = e.currentTarget as RippleElement;
+    const id = el.__rippleId;
+    if (id === undefined) {
+      return;
+    }
 
     const data = waveData.get(id);
-    if (!data || data.released) return;
+    if (!data || data.released) {
+      return;
+    }
 
     data.released = true;
     scheduleHide(id);
   };
 
   const onPointerCancel = (e: PointerEvent) => {
-    const id = (e.currentTarget as any).__rippleId;
-    if (id === undefined) return;
+    const el = e.currentTarget as RippleElement;
+    const id = el.__rippleId;
+    if (id === undefined) {
+      return;
+    }
 
     const data = waveData.get(id);
-    if (!data || data.released) return;
+    if (!data || data.released) {
+      return;
+    }
 
     data.released = true;
     scheduleHide(id);
   };
 
   const onPointerLeave = (e: PointerEvent) => {
-    const id = (e.currentTarget as any).__rippleId;
-    if (id === undefined) return;
+    const el = e.currentTarget as RippleElement;
+    const id = el.__rippleId;
+    if (id === undefined) {
+      return;
+    }
 
     const data = waveData.get(id);
-    if (!data || data.released) return;
+    if (!data || data.released) {
+      return;
+    }
 
     data.released = true;
     scheduleHide(id);
@@ -123,8 +143,12 @@ const useRipple = () => {
 
   onUnmounted(() => {
     waveData.forEach((data) => {
-      if (data.hideTimer) clearTimeout(data.hideTimer);
-      if (data.removeTimer) clearTimeout(data.removeTimer);
+      if (data.hideTimer) {
+        clearTimeout(data.hideTimer);
+      }
+      if (data.removeTimer) {
+        clearTimeout(data.removeTimer);
+      }
     });
   });
 

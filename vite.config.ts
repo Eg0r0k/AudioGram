@@ -1,25 +1,36 @@
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
-import path from "path";
+// vite.config.ts
+/// <reference types="vitest/config" />
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import tailwindcss from "@tailwindcss/vite";
+import vue from "@vitejs/plugin-vue";
 import { visualizer } from "rollup-plugin-visualizer";
+import { defineConfig } from "vitest/config";
 import VueDevTools from "vite-plugin-vue-devtools";
 
-// @ts-expect-error process is a nodejs global
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const host = process.env.TAURI_DEV_HOST;
+const isAnalyze = process.env.ANALYZE === "true";
 
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [
     vue(),
     VueDevTools(),
     tailwindcss(),
-    visualizer({
-      gzipSize: true,
-      template: "treemap",
-    }),
+    isAnalyze &&
+      visualizer({
+        filename: "dist/stats.html",
+        open: true,
+        gzipSize: true,
+        brotliSize: true,
+        template: "treemap",
+      }),
   ],
+
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+
   server: {
     port: 1420,
     strictPort: true,
@@ -32,13 +43,22 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
 
   build: {
     target: "es2020",
+    sourcemap: isAnalyze,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vue-vendor": ["vue", "vue-router", "pinia"],
+          "ui-vendor": ["reka-ui", "vaul-vue", "motion-v"],
+          "utils-vendor": ["@vueuse/core", "clsx", "tailwind-merge"],
+        },
+      },
+    },
   },
 
   resolve: {
@@ -46,4 +66,24 @@ export default defineConfig(async () => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+
+  test: {
+    globals: true,
+    environment: "happy-dom",
+    include: ["src/**/*.{test,spec}.{js,ts,vue}"],
+    exclude: ["node_modules", "dist", "src-tauri"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: [
+        "node_modules/",
+        "src-tauri/",
+        "dist/",
+        "**/*.d.ts",
+        "**/*.config.*",
+        "**/types/**",
+      ],
+    },
+    setupFiles: ["./src/test/setup.ts"],
+  },
+});
