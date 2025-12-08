@@ -26,7 +26,7 @@ const props = withDefaults(
   >(),
   {
     showCloseButton: true,
-  }
+  },
 );
 const emits = defineEmits<DialogContentEmits>();
 
@@ -53,7 +53,10 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
     >
       <slot />
 
-      <DialogClose v-if="showCloseButton" as-child>
+      <DialogClose
+        v-if="showCloseButton"
+        as-child
+      >
         <Button
           variant="ghost"
           size="icon-lg"

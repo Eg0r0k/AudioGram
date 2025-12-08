@@ -1,12 +1,13 @@
+import { ElementOrComponent } from "@/types/utils";
 import { MaybeElementRef, useIntervalFn, useVibrate } from "@vueuse/core";
 import { ref, toValue, watch } from "vue";
 
-function resolveElement(el: any): HTMLElement | null {
+const resolveElement = (el: ElementOrComponent): HTMLElement | null => {
   if (!el) return null;
   if (el instanceof HTMLElement) return el;
   if (el.$el instanceof HTMLElement) return el.$el;
   return null;
-}
+};
 
 export interface UseHoldActionOptions {
   delay?: number;
@@ -22,7 +23,7 @@ export const useHoldAction = (
     onHold?: (count: number) => void;
     onHoldEnd?: () => void;
   },
-  options: UseHoldActionOptions = {}
+  options: UseHoldActionOptions = {},
 ) => {
   const { delay = 400, interval = 100, haptic = true } = options;
   const { vibrate } = useVibrate({ pattern: [5] });
@@ -38,7 +39,7 @@ export const useHoldAction = (
       callbacks.onHold?.(holdCount.value);
     },
     interval,
-    { immediate: false }
+    { immediate: false },
   );
 
   const startHold = () => {
@@ -99,7 +100,7 @@ export const useHoldAction = (
         el.removeEventListener("pointerleave", cancelHold);
       });
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   return {

@@ -9,7 +9,7 @@ export interface OpenedFile {
 }
 
 export async function listenForOpenedFiles(
-  callback: (files: OpenedFile[]) => void
+  callback: (files: OpenedFile[]) => void,
 ): Promise<() => void> {
   if (!IS_TAURI) {
     return () => {};
@@ -37,7 +37,8 @@ export async function listenForOpenedFiles(
 
           files.push({ path: filePath, name, data });
         }
-      } catch (error) {
+      }
+      catch (error) {
         console.error(`Failed to read file: ${filePath}`, error);
       }
     }

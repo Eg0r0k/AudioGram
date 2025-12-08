@@ -36,7 +36,7 @@ const updateState = () => {
   otherTabs.value = tabs;
   hasOtherTabs.value = tabs.length > 0;
 
-  const playing = tabs.find((t) => t.isPlaying);
+  const playing = tabs.find(t => t.isPlaying);
   isPlayingElsewhere.value = !!playing;
   playingTab.value = playing || null;
 };
@@ -70,11 +70,11 @@ const handleMessage = (event: MessageEvent<BroadcastMessage>) => {
       break;
 
     case "stop":
-      const existing = tabsMap.get(tab.id);
-      if (existing) {
-        existing.isPlaying = false;
-        tabsMap.set(tab.id, existing);
-      }
+      // const existing = tabsMap.get(tab.id);
+      // if (existing) {
+      //   existing.isPlaying = false;
+      //   tabsMap.set(tab.id, existing);
+      // }
       break;
 
     case "close":
@@ -89,7 +89,7 @@ export function initTabSync() {
   if (channel) return;
 
   console.log(
-    `[TabSync] Init with ID: ${TAB_ID}, Browser: ${BROWSER_INFO.name}`
+    `[TabSync] Init with ID: ${TAB_ID}, Browser: ${BROWSER_INFO.name}`,
   );
 
   channel = new BroadcastChannel("audiogram-tabs");

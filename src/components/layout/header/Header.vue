@@ -1,12 +1,17 @@
 <template>
-  <header role="banner" class="flex justify-between items-center p-2 bg-card">
+  <header
+    class="flex justify-between items-center p-2 bg-card"
+  >
     <Button
       class="rounded-full"
       variant="ghost"
       size="icon-lg"
       @click="toggleLeftSidebar"
     >
-      <Icon class="size-6" icon="tabler:menu-2" />
+      <Icon
+        class="size-6"
+        icon="tabler:menu-2"
+      />
     </Button>
     <!-- <div class="flex gap-2">
       <Button @click="handleThemeToggle" size="icon-sm" class="rounded-full">

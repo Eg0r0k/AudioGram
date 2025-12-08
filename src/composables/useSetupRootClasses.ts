@@ -27,10 +27,12 @@ export const useSetupRootClasses = () => {
 
     if (IS_APPLE_MOBILE) {
       add.push("is-ios");
-    } else {
+    }
+    else {
       add.push("is-mac");
     }
-  } else if (IS_ANDROID) {
+  }
+  else if (IS_ANDROID) {
     add.push("is-android");
   }
 

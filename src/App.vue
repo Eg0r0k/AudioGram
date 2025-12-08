@@ -1,10 +1,16 @@
 <template>
   <component :is="LayoutComponent">
     <RouterView v-slot="{ Component, route }">
-      <component :is="Component" :key="route.fullPath" />
+      <component
+        :is="Component"
+        :key="route.fullPath"
+      />
     </RouterView>
   </component>
-  <Toaster position="top-center" class="pointer-events-auto" />
+  <Toaster
+    position="top-center"
+    class="pointer-events-auto"
+  />
 </template>
 
 <script setup lang="ts">

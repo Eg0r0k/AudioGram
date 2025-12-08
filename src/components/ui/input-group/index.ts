@@ -1,14 +1,14 @@
-import type { VariantProps } from "class-variance-authority"
-import type { HTMLAttributes } from "vue"
-import type { ButtonVariants } from '@/components/ui/button'
-import { cva } from "class-variance-authority"
+import type { VariantProps } from "class-variance-authority";
+import type { HTMLAttributes } from "vue";
+import type { ButtonVariants } from "@/components/ui/button";
+import { cva } from "class-variance-authority";
 
-export { default as InputGroup } from "./InputGroup.vue"
-export { default as InputGroupAddon } from "./InputGroupAddon.vue"
-export { default as InputGroupButton } from "./InputGroupButton.vue"
-export { default as InputGroupInput } from "./InputGroupInput.vue"
-export { default as InputGroupText } from "./InputGroupText.vue"
-export { default as InputGroupTextarea } from "./InputGroupTextarea.vue"
+export { default as InputGroup } from "./InputGroup.vue";
+export { default as InputGroupAddon } from "./InputGroupAddon.vue";
+export { default as InputGroupButton } from "./InputGroupButton.vue";
+export { default as InputGroupInput } from "./InputGroupInput.vue";
+export { default as InputGroupText } from "./InputGroupText.vue";
+export { default as InputGroupTextarea } from "./InputGroupTextarea.vue";
 
 export const inputGroupAddonVariants = cva(
   "text-muted-foreground flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium select-none [&>svg:not([class*='size-'])]:size-4 [&>kbd]:rounded-[calc(var(--radius)-5px)] group-data-[disabled=true]/input-group:opacity-50",
@@ -29,9 +29,9 @@ export const inputGroupAddonVariants = cva(
       align: "inline-start",
     },
   },
-)
+);
 
-export type InputGroupVariants = VariantProps<typeof inputGroupAddonVariants>
+export type InputGroupVariants = VariantProps<typeof inputGroupAddonVariants>;
 
 export const inputGroupButtonVariants = cva(
   "text-sm shadow-none flex gap-2 items-center",
@@ -48,12 +48,12 @@ export const inputGroupButtonVariants = cva(
       size: "xs",
     },
   },
-)
+);
 
-export type InputGroupButtonVariants = VariantProps<typeof inputGroupButtonVariants>
+export type InputGroupButtonVariants = VariantProps<typeof inputGroupButtonVariants>;
 
 export interface InputGroupButtonProps {
-  variant?: ButtonVariants["variant"]
-  size?: InputGroupButtonVariants["size"]
-  class?: HTMLAttributes["class"]
+  variant?: ButtonVariants["variant"];
+  size?: InputGroupButtonVariants["size"];
+  class?: HTMLAttributes["class"];
 }

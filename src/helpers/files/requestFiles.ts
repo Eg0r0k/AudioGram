@@ -29,7 +29,7 @@ export function requestFiles(options?: {
       },
       {
         once: true,
-      }
+      },
     );
     window.addEventListener(
       "focus",
@@ -40,7 +40,7 @@ export function requestFiles(options?: {
           }
         }, 300);
       },
-      { once: true }
+      { once: true },
     );
   }).finally(() => {
     input.remove();

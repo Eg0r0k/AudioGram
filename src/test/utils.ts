@@ -32,7 +32,7 @@ interface CustomRenderOptions extends Omit<BaseRenderOptions, "global"> {
 }
 export function renderWithPlugins(
   component: Component,
-  options: CustomRenderOptions = {}
+  options: CustomRenderOptions = {},
 ) {
   const { initialRoute = "/", ...renderOptions } = options;
 

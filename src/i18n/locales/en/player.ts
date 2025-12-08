@@ -26,4 +26,5 @@ export default {
   castTo: "Cast to",
   airplay: "AirPlay",
   pip: "Picture in picture",
+  cover: "Cover",
 };

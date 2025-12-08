@@ -32,7 +32,7 @@ const useRipple = () => {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
   ): number => {
     const dx = Math.abs(x - width / 2) + width / 2;
     const dy = Math.abs(y - height / 2) + height / 2;
@@ -54,21 +54,22 @@ const useRipple = () => {
       const hideDelay = Math.max(delay - halfDuration, 0);
 
       data.hideTimer = setTimeout(() => {
-        waves.value = waves.value.map((w) =>
-          w.id === id ? { ...w, hiding: true } : w
+        waves.value = waves.value.map(w =>
+          w.id === id ? { ...w, hiding: true } : w,
         );
       }, hideDelay);
       data.removeTimer = setTimeout(() => {
-        waves.value = waves.value.filter((w) => w.id !== id);
+        waves.value = waves.value.filter(w => w.id !== id);
         waveData.delete(id);
       }, delay);
-    } else {
-      waves.value = waves.value.map((w) =>
-        w.id === id ? { ...w, hiding: true } : w
+    }
+    else {
+      waves.value = waves.value.map(w =>
+        w.id === id ? { ...w, hiding: true } : w,
       );
 
       data.removeTimer = setTimeout(() => {
-        waves.value = waves.value.filter((w) => w.id !== id);
+        waves.value = waves.value.filter(w => w.id !== id);
         waveData.delete(id);
       }, halfDuration);
     }

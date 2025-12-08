@@ -11,16 +11,16 @@
   </a>
   <RouterLink
     v-else
+    v-slot="{ isActive, isExactActive, href, route, navigate }"
     v-bind="routerLinkProps"
     custom
-    v-slot="{ isActive, isExactActive, href, route, navigate }"
   >
     <a
       v-bind="$attrs"
       :href="href"
-      @click="navigate"
       :class="computedActiveClass(isActive, isExactActive)"
       :aria-current="isExactActive ? 'page' : undefined"
+      @click="navigate"
     >
       <slot
         :is-active="isActive"
@@ -55,6 +55,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<LinkProps>(), {
+  target: "_self",
   exactMatch: true,
   disabled: false,
   replace: false,
@@ -63,11 +64,11 @@ const props = withDefaults(defineProps<LinkProps>(), {
 const isExternalLink = computed(() => {
   if (typeof props.to !== "string") return false;
   return (
-    props.to.startsWith("http://") ||
-    props.to.startsWith("https://") ||
-    props.to.startsWith("mailto:") ||
-    props.to.startsWith("tel:") ||
-    props.to.startsWith("//")
+    props.to.startsWith("http://")
+    || props.to.startsWith("https://")
+    || props.to.startsWith("mailto:")
+    || props.to.startsWith("tel:")
+    || props.to.startsWith("//")
   );
 });
 

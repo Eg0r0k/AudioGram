@@ -1,10 +1,10 @@
 <template>
   <Button
     v-if="PIP_SUPPORTED"
-    @click="togglePip"
     size="icon-sm"
     variant="ghost"
     :class="{ 'text-primary': isPipOpen }"
+    @click="togglePip"
   >
     <Icon
       class="size-4.5"
@@ -32,22 +32,22 @@ import {
 import PIPContent from "./PIPContent.vue";
 import vRipple from "@/directives/ripple";
 
-const PIP_SUPPORTED =
-  !IS_MOBILE && !IS_TAURI && "documentPictureInPicture" in window;
+const PIP_SUPPORTED
+  = !IS_MOBILE && !IS_TAURI && "documentPictureInPicture" in window;
 
 const pipWindow = shallowRef<Window | null>(null);
 const pipApp = shallowRef<App<Element> | null>(null);
 const isPipOpen = ref(false);
 
 const cloneStyles = (target: Document): void => {
-  document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
+  document.querySelectorAll("style, link[rel=\"stylesheet\"]").forEach((el) => {
     target.head.appendChild(el.cloneNode(true));
   });
 
   const rootStyles = getComputedStyle(document.documentElement);
   const cssVars = Array.from(rootStyles)
-    .filter((prop) => prop.startsWith("--"))
-    .map((prop) => `${prop}: ${rootStyles.getPropertyValue(prop)}`)
+    .filter(prop => prop.startsWith("--"))
+    .map(prop => `${prop}: ${rootStyles.getPropertyValue(prop)}`)
     .join(";");
 
   const style = target.createElement("style");
@@ -88,7 +88,8 @@ const togglePip = async (): Promise<void> => {
     });
 
     setupPip(win);
-  } catch (e) {
+  }
+  catch (e) {
     console.error("[PIP] Failed to open:", e);
   }
 };
@@ -123,7 +124,8 @@ onMounted(() => {
     if (existingWindow) {
       setupPip(existingWindow);
     }
-  } catch (e) {
+  }
+  catch (e) {
     console.error("[PIP] Init error:", e);
   }
 });

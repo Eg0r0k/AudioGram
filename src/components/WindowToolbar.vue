@@ -1,10 +1,23 @@
 <template>
-  <nav data-tauri-drag-region role="toolbar" class="titlebar" v-if="isTauriApp">
+  <nav
+    v-if="isTauriApp"
+    data-tauri-drag-region
+    role="toolbar"
+    class="titlebar"
+  >
     <div class="titlebar-text">
-      <Button @click="goBack" size="icon-xs" variant="ghost">
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        @click="goBack"
+      >
         <Icon icon="tabler:chevron-left" />
       </Button>
-      <Button @click="goNext" size="icon-xs" variant="ghost">
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        @click="goNext"
+      >
         <Icon icon="tabler:chevron-right" />
       </Button>
       <!-- <Button size="icon-xs" @click="handleThemeToggle">
@@ -14,26 +27,26 @@
     <div class="titlebar-controls">
       <button
         class="titlebar-button"
-        @click="minimizeWindow"
         :title="$t('common.window.minimize')"
+        @click="minimizeWindow"
       >
         —
       </button>
       <button
         class="titlebar-button"
-        @click="toggleMaximize"
         :title="
           isMaximized
             ? $t('common.window.restore')
             : $t('common.window.maximize')
         "
+        @click="toggleMaximize"
       >
         ☐
       </button>
       <button
         class="titlebar-button titlebar-close"
-        @click="closeWindow"
         :title="$t('common.window.close')"
+        @click="closeWindow"
       >
         ✕
       </button>
@@ -73,7 +86,8 @@ const toggleMaximize = async () => {
   isMaximized.value = await appWindow.value.isMaximized();
   if (isMaximized.value) {
     await appWindow.value.unmaximize();
-  } else {
+  }
+  else {
     await appWindow.value.maximize();
   }
   isMaximized.value = !isMaximized.value;

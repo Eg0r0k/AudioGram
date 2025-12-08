@@ -2,7 +2,7 @@ import { getFileFromEntry } from "./getFileFromEntry";
 
 export const scanDirectory = async (
   dirEntry: FileSystemDirectoryEntry,
-  path: string = ""
+  path: string = "",
 ): Promise<File[]> => {
   const files: File[] = [];
   const dirReader = dirEntry.createReader();
@@ -14,7 +14,8 @@ export const scanDirectory = async (
         dirReader.readEntries((entries) => {
           if (entries.length === 0) {
             resolve(allEntries);
-          } else {
+          }
+          else {
             allEntries.push(...entries);
             readBatch();
           }
@@ -37,11 +38,12 @@ export const scanDirectory = async (
         });
         files.push(file);
       }
-    } else if (entry.isDirectory) {
+    }
+    else if (entry.isDirectory) {
       const subPath = path ? `${path}/${entry.name}` : entry.name;
       const subFiles = await scanDirectory(
         entry as FileSystemDirectoryEntry,
-        subPath
+        subPath,
       );
       files.push(...subFiles);
     }

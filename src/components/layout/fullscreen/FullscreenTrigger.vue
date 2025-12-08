@@ -1,6 +1,11 @@
 <template>
   <div>
-    <Button v-if="isSupported" size="icon-sm" variant="ghost" @click="toggle">
+    <Button
+      v-if="isSupported"
+      size="icon-sm"
+      variant="ghost"
+      @click="toggle"
+    >
       <Icon
         class="size-4.5"
         :icon="
@@ -8,17 +13,23 @@
         "
       />
     </Button>
-    <div ref="overlayRef" class="bg-background">
+    <div
+      ref="overlayRef"
+      class="bg-background"
+    >
       <slot />
 
       <Button
         v-if="isFullscreen"
-        @click="exit"
         class="absolute top-4 right-4"
         size="icon-sm"
         variant="ghost"
+        @click="exit"
       >
-        <Icon class="size-4.5" icon="tabler:x" />
+        <Icon
+          class="size-4.5"
+          icon="tabler:x"
+        />
       </Button>
     </div>
   </div>
@@ -30,7 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify/vue";
 import { useFullscreen } from "@vueuse/core";
 
-//TODO: Make 2 components FullscreenButton and Overlay
+// TODO: Make 2 components FullscreenButton and Overlay
 const targetRef = useTemplateRef("overlayRef");
 
 const { isFullscreen, toggle, isSupported, exit } = useFullscreen(targetRef);

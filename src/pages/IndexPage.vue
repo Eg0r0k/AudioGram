@@ -1,8 +1,13 @@
 <template>
-  <Scrollable direction="vertical" class="p-2 flex-1">
+  <Scrollable
+    direction="vertical"
+    class="p-2 flex-1"
+  >
     <Dialog>
       <DialogTrigger as-child>
-        <Button variant="ghost-primary"> PIRMAY GHOST </Button>
+        <Button variant="ghost-primary">
+          PIRMAY GHOST
+        </Button>
       </DialogTrigger>
       <DialogContent class="sm:max-w-[425px]">
         <DialogHeader>
@@ -13,17 +18,30 @@
         </DialogHeader>
         <DialogFooter>
           <DialogClose as-child>
-            <Button variant="ghost-primary"> Cancel </Button>
+            <Button variant="ghost-primary">
+              Cancel
+            </Button>
           </DialogClose>
-          <Button variant="destructive-link"> Save changes </Button>
+          <Button variant="destructive-link">
+            Save changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    <Badge variant="destructive"> +23 </Badge>
-    <Badge variant="secondary"> +23 </Badge>
-    <Badge variant="outline"> +23 </Badge>
+    <Badge variant="destructive">
+      +23
+    </Badge>
+    <Badge variant="secondary">
+      +23
+    </Badge>
+    <Badge variant="outline">
+      +23
+    </Badge>
     <Badge> 2 </Badge>
-    <MusicRow v-for="i in 100" :key="i" />
+    <MusicRow
+      v-for="i in 100"
+      :key="i"
+    />
   </Scrollable>
 </template>
 

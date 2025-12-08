@@ -3,20 +3,45 @@
     <div class="flex flex-col w-full">
       <div class="flex gap-4 items-center mb-2 w-full">
         <div class="flex flex-1 gap-2 justify-end">
-          <Button class="rounded-full" size="icon" variant="ghost">
-            <Icon class="size-4.5" icon="tabler:arrows-shuffle-2" />
+          <Button
+            class="rounded-full"
+            size="icon"
+            variant="ghost"
+          >
+            <Icon
+              class="size-4.5"
+              icon="tabler:arrows-shuffle-2"
+            />
           </Button>
-          <Button class="rounded-full" size="icon" variant="ghost">
-            <Icon class="size-5" icon="tabler:player-track-prev-filled" />
+          <Button
+            class="rounded-full"
+            size="icon"
+            variant="ghost"
+          >
+            <Icon
+              class="size-5"
+              icon="tabler:player-track-prev-filled"
+            />
           </Button>
         </div>
         <PlayButton />
         <div class="flex flex-1 gap-2">
-          <Button class="rounded-full" size="icon" variant="ghost">
+          <Button
+            class="rounded-full"
+            size="icon"
+            variant="ghost"
+          >
             <Icon icon="tabler:player-track-next-filled" />
           </Button>
-          <Button class="rounded-full" size="icon" variant="ghost">
-            <Icon class="size-4.5" icon="material-symbols:repeat-rounded" />
+          <Button
+            class="rounded-full"
+            size="icon"
+            variant="ghost"
+          >
+            <Icon
+              class="size-4.5"
+              icon="material-symbols:repeat-rounded"
+            />
           </Button>
         </div>
       </div>
@@ -26,7 +51,10 @@
         >
           0:00:00
         </div>
-        <Slider :max="100" :step="0.5" />
+        <Slider
+          :max="100"
+          :step="0.5"
+        />
         <div
           class="text-xs text-muted-foreground min-w-10 text-left select-none"
         >

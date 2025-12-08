@@ -12,7 +12,7 @@ import { isPlayingElsewhere, playingTab } from "@/composables/tabSync";
     <span class="text-sm font-semibold">
       {{ $t("player.herePlaying") }}:
       <span class="ml-1">
-        {{ playingTab.browser.icon }} {{ playingTab.browser.name }}
+        {{ playingTab.browser }} {{ playingTab.browser.name }}
       </span>
     </span>
   </div>

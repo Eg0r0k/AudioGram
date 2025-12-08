@@ -5,6 +5,8 @@ import Link from "@/components/ui/link/Link.vue";
 <template>
   <div>
     Settings
-    <Link to="/"> Main </Link>
+    <Link to="/">
+      Main
+    </Link>
   </div>
 </template>

@@ -1,18 +1,43 @@
 <template>
   <div class="flex min-w-[180px] w-[30%] justify-end">
     <div class="flex w-full gap-0.5 justify-end items-center grow">
-      <Button size="icon-sm" variant="ghost-primary" class="rounded-full">
-        <Icon class="size-4.5" icon="tabler:volume" />
+      <Button
+        size="icon-sm"
+        variant="ghost-primary"
+        class="rounded-full"
+      >
+        <Icon
+          class="size-4.5"
+          icon="tabler:volume"
+        />
       </Button>
-      <Button size="icon-sm" variant="ghost">
-        <Icon class="size-4.5" icon="tabler:device-speaker-filled" />
+      <Button
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Icon
+          class="size-4.5"
+          icon="tabler:device-speaker-filled"
+        />
       </Button>
-      <Button size="icon-sm" variant="ghost">
-        <Icon class="size-4.5" icon="tabler:playlist" />
+      <Button
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Icon
+          class="size-4.5"
+          icon="tabler:playlist"
+        />
       </Button>
 
-      <Button size="icon-sm" variant="ghost">
-        <Icon class="size-4.5" icon="tabler:devices-2" />
+      <Button
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Icon
+          class="size-4.5"
+          icon="tabler:devices-2"
+        />
       </Button>
       <PIPTrigger />
       <FullscreenTrigger />

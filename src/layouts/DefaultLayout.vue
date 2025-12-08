@@ -57,7 +57,9 @@
         </Tabs> -->
       </ResizableSidebar>
 
-      <main role="main" class="main">
+      <main
+        class="main"
+      >
         <RouterView />
       </main>
     </div>
@@ -87,7 +89,7 @@ import { useFileDrop } from "@/composables/useFileDrop";
 function processFiles(files: File[]) {
   files.forEach((file) => {
     console.log("File:", file.name);
-    // @ts-ignore - relativePath добавляется динамически
+    // @ts-expect-error- relativePath добавляется динамически
     console.log("Path:", file.relativePath || file.path || file.name);
   });
 }

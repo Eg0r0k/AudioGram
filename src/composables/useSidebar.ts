@@ -13,7 +13,7 @@ const DEFAULT_LEFT_SIDEBAR: SidebarState = {
 
 const leftSidebarState = useLocalStorage<SidebarState>(
   "app-left-sidebar",
-  DEFAULT_LEFT_SIDEBAR
+  DEFAULT_LEFT_SIDEBAR,
 );
 
 export function useSidebar() {

@@ -2,12 +2,12 @@ import { getFileFromEntry } from "./getFileFromEntry";
 import { scanDirectory } from "./scanDirectory";
 
 export const getFilesFromEvent = async (
-  e: DragEvent | ClipboardEvent
+  e: DragEvent | ClipboardEvent,
 ): Promise<File[]> => {
   const files: File[] = [];
 
-  const dataTransfer =
-    e instanceof DragEvent
+  const dataTransfer
+    = e instanceof DragEvent
       ? e.dataTransfer
       : (e as ClipboardEvent).clipboardData;
 
@@ -29,15 +29,17 @@ export const getFilesFromEvent = async (
       if (entry.isFile) {
         const file = await getFileFromEntry(entry as FileSystemFileEntry);
         if (file) files.push(file);
-      } else if (entry.isDirectory) {
+      }
+      else if (entry.isDirectory) {
         const dirFiles = await scanDirectory(
           entry as FileSystemDirectoryEntry,
-          entry.name
+          entry.name,
         );
         files.push(...dirFiles);
       }
     }
-  } else if (dataTransfer.files?.length) {
+  }
+  else if (dataTransfer.files?.length) {
     files.push(...Array.from(dataTransfer.files));
   }
 

@@ -8,25 +8,25 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
+        "default": "bg-primary text-primary-foreground hover:bg-primary/90",
+        "destructive":
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline:
+        "outline":
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-        secondary:
+        "secondary":
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
+        "ghost":
           "hover:bg-accent text-muted-foreground hover:text-accent-foreground dark:hover:bg-accent/50",
         "ghost-primary": " text-primary hover:bg-primary/10",
-        link: "text-primary",
+        "link": "text-primary",
         "destructive-link":
           "text-destructive hover:text-destructive/80 focus-visible:ring-destructive/20 hover:bg-destructive/10 dark:focus-visible:ring-destructive/40",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
+        "default": "h-9 px-4 py-2 has-[>svg]:px-3",
+        "sm": "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        "lg": "h-10 rounded-md px-6 has-[>svg]:px-4",
+        "icon": "size-9",
         "icon-xs": "size-5 rounded-full",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
@@ -36,6 +36,6 @@ export const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 export type ButtonVariants = VariantProps<typeof buttonVariants>;

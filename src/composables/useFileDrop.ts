@@ -17,7 +17,7 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
   const setupTauri = async () => {
     const { getCurrentWebviewWindow } = await import(
-      "@tauri-apps/api/webviewWindow"
+      "@tauri-apps/api/webviewWindow",
     );
     const { readDir, stat } = await import("@tauri-apps/plugin-fs");
 
@@ -25,8 +25,8 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
     const hasValidExtension = (path: string): boolean => {
       if (!options?.acceptedExtensions?.length) return true;
-      return options.acceptedExtensions.some((ext) =>
-        path.toLowerCase().endsWith(ext.toLowerCase())
+      return options.acceptedExtensions.some(ext =>
+        path.toLowerCase().endsWith(ext.toLowerCase()),
       );
     };
 
@@ -38,11 +38,13 @@ export function useFileDrop(options?: UseFileDropOptions) {
           const fullPath = `${dirPath}/${entry.name}`;
           if (entry.isDirectory) {
             files.push(...(await collectFiles(fullPath)));
-          } else if (entry.isFile && hasValidExtension(entry.name)) {
+          }
+          else if (entry.isFile && hasValidExtension(entry.name)) {
             files.push(fullPath);
           }
         }
-      } catch (e) {
+      }
+      catch (e) {
         console.error(e);
       }
       return files;
@@ -55,10 +57,12 @@ export function useFileDrop(options?: UseFileDropOptions) {
           const info = await stat(path);
           if (info.isDirectory) {
             result.push(...(await collectFiles(path)));
-          } else if (info.isFile && hasValidExtension(path)) {
+          }
+          else if (info.isFile && hasValidExtension(path)) {
             result.push(path);
           }
-        } catch (e) {
+        }
+        catch (e) {
           console.error(e);
         }
       }
@@ -70,9 +74,11 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
       if (data.type === "over" || data.type === "enter") {
         isDragging.value = true;
-      } else if (data.type === "leave") {
+      }
+      else if (data.type === "leave") {
         isDragging.value = false;
-      } else if (data.type === "drop") {
+      }
+      else if (data.type === "drop") {
         isDragging.value = false;
         isProcessing.value = true;
 
@@ -89,7 +95,8 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
           droppedFiles.value = files;
           options?.onDrop?.(files);
-        } finally {
+        }
+        finally {
           isProcessing.value = false;
         }
       }
@@ -138,7 +145,8 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
         droppedFiles.value = files;
         options?.onDrop?.(files);
-      } finally {
+      }
+      finally {
         isProcessing.value = false;
       }
     };
@@ -159,7 +167,8 @@ export function useFileDrop(options?: UseFileDropOptions) {
   onMounted(() => {
     if (IS_TAURI) {
       setupTauri();
-    } else {
+    }
+    else {
       setupBrowser();
     }
   });

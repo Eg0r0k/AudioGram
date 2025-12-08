@@ -10,8 +10,10 @@ const isOpen = ref(false);
 </script>
 
 <template>
-  <footer role="contentinfo" class="p-2 bg-card border-t">
-    <aside role="complementary">
+  <footer
+    class="p-2 bg-card border-t"
+  >
+    <aside>
       <div class="flex items-center justify-between h-[78px]">
         <SidebarMusic />
 

@@ -150,7 +150,8 @@ const calculateOverflow = () => {
 
   if (nowOverflowing && !wasOverflowing) {
     emit("overflowDetected");
-  } else if (!nowOverflowing && wasOverflowing) {
+  }
+  else if (!nowOverflowing && wasOverflowing) {
     emit("overflowCleared");
   }
 
@@ -209,7 +210,8 @@ useResizeObserver(contentRef, (entries) => {
           forceReset.value = false;
         });
       });
-    } else {
+    }
+    else {
       resetAnimation();
       debouncedCalculate();
     }

@@ -1,10 +1,16 @@
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="show" class="drop-overlay">
+      <div
+        v-if="show"
+        class="drop-overlay"
+      >
         <div class="drop-zone">
           <div class="drop-outline-wrapper">
-            <svg width="100%" height="100%">
+            <svg
+              width="100%"
+              height="100%"
+            >
               <rect
                 class="drop-outline-path"
                 x="1"
@@ -18,8 +24,13 @@
           </div>
 
           <div class="drop-content text-primary">
-            <Icon icon="tabler:file-music" class="w-16 h-16" />
-            <h2 class="text-xl font-semibold mt-4">Перетащите файлы сюда</h2>
+            <Icon
+              icon="tabler:file-music"
+              class="w-16 h-16"
+            />
+            <h2 class="text-xl font-semibold mt-4">
+              Перетащите файлы сюда
+            </h2>
             <p class="text-xs mt-2 text-muted-foreground">
               MP3, FLAC, WAV, OGG
             </p>

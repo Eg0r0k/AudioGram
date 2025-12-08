@@ -1,5 +1,8 @@
 <template>
-  <span class="c-ripple" aria-hidden="true">
+  <span
+    class="c-ripple"
+    aria-hidden="true"
+  >
     <span
       v-for="wave in waves"
       :key="wave.id"

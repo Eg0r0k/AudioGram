@@ -9,17 +9,22 @@
       class="sidebar-wrapper"
       :class="{ 'is-resizing': isResizing }"
     >
-      <div class="sidebar-inner" :style="{ width: `${sidebar.width}px` }">
+      <div
+        class="sidebar-inner"
+        :style="{ width: `${sidebar.width}px` }"
+      >
         <div class="sidebar-content">
-          <div class="sidebar-header"></div>
+          <div class="sidebar-header" />
 
           <nav class="sidebar-nav">
             <slot />
           </nav>
         </div>
 
-        <div
+        <button
+          type="button"
           class="resize-handle"
+          aria-label="Resize sidebar"
           @mousedown="startResize"
           @touchstart="startResizeTouch"
         />
@@ -59,7 +64,7 @@ function startResize(e: MouseEvent) {
 
   cleanupListeners.push(
     useEventListener(document, "mousemove", handleResize),
-    useEventListener(document, "mouseup", stopResize)
+    useEventListener(document, "mouseup", stopResize),
   );
 
   document.body.style.cursor = "col-resize";
@@ -82,7 +87,7 @@ function startResizeTouch(e: TouchEvent) {
       passive: false,
     }),
     useEventListener(document, "touchend", stopResize),
-    useEventListener(document, "touchcancel", stopResize)
+    useEventListener(document, "touchcancel", stopResize),
   );
 }
 
@@ -110,7 +115,7 @@ function updateWidth(clientX: number) {
 function stopResize() {
   isResizing.value = false;
 
-  cleanupListeners.forEach((cleanup) => cleanup());
+  cleanupListeners.forEach(cleanup => cleanup());
   cleanupListeners.length = 0;
 
   document.body.style.cursor = "";

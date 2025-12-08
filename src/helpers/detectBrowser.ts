@@ -8,7 +8,7 @@ import {
 export interface BrowserInfo {
   name: string;
 }
-
+// TODO Delete after
 export function detectBrowser(): BrowserInfo {
   if (IS_FIREFOX) {
     return { name: "Firefox" };

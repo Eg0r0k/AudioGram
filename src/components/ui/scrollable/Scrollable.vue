@@ -88,7 +88,7 @@ const containerClasses = computed(() => [
 ]);
 
 const showThumbVisible = computed(
-  () => !props.hideThumb && scrollable.thumbSize.value > 0
+  () => !props.hideThumb && scrollable.thumbSize.value > 0,
 );
 
 const thumbStyle = computed(() => {

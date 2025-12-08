@@ -11,7 +11,7 @@ interface SwipeControlOptions extends UseSwipeOptions {
 
 export const useSwipeControl = (
   target: MaybeRefOrGetter<HTMLElement | null | undefined>,
-  options: SwipeControlOptions = {}
+  options: SwipeControlOptions = {},
 ) => {
   const {
     threshold = 50,
@@ -24,15 +24,15 @@ export const useSwipeControl = (
 
   const { isSwiping, direction, lengthX, lengthY } = useSwipe(
     target,
-    swipeOptions
+    swipeOptions,
   );
 
   watch(isSwiping, (isSwipingNow) => {
     if (isSwipingNow) return;
 
     const dir = direction.value;
-    const dist =
-      dir === "left" || dir === "right"
+    const dist
+      = dir === "left" || dir === "right"
         ? Math.abs(lengthX.value)
         : Math.abs(lengthY.value);
 

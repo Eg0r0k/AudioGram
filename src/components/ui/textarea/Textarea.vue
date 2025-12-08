@@ -19,6 +19,7 @@ const modelValue = useVModel(props, "modelValue", emits, {
 });
 </script>
 
+<!-- eslint-disable vuejs-accessibility/form-control-has-label -->
 <template>
   <textarea
     v-model="modelValue"

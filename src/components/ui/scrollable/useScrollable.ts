@@ -30,7 +30,7 @@ const cancelMeasurement = USE_OWN_SCROLL
 
 export default function useScrollable(
   containerRef: Ref<HTMLElement | null>,
-  options: ScrollableOptions = {}
+  options: ScrollableOptions = {},
 ) {
   const {
     direction = "vertical",
@@ -86,18 +86,18 @@ export default function useScrollable(
   });
 
   const scrollSize = computed(
-    () => containerRef.value?.[props.value.scrollSize] ?? 0
+    () => containerRef.value?.[props.value.scrollSize] ?? 0,
   );
   const clientSize = computed(
-    () => containerRef.value?.[props.value.clientSize] ?? 0
+    () => containerRef.value?.[props.value.clientSize] ?? 0,
   );
   const offsetSize = computed(
-    () => containerRef.value?.[props.value.offsetSize] ?? 0
+    () => containerRef.value?.[props.value.offsetSize] ?? 0,
   );
 
   const isScrolledToEnd = computed(() => {
-    const distance =
-      scrollSize.value - Math.round(scrollPosition.value + offsetSize.value);
+    const distance
+      = scrollSize.value - Math.round(scrollPosition.value + offsetSize.value);
     return distance <= 1;
   });
 
@@ -123,8 +123,8 @@ export default function useScrollable(
     const maxScroll = scrollSizeVal - clientSizeVal;
     const maxThumbPos = clientSizeVal - thumbSize.value;
 
-    thumbPosition.value =
-      maxScroll > 0 ? (position / maxScroll) * maxThumbPos : 0;
+    thumbPosition.value
+      = maxScroll > 0 ? (position / maxScroll) * maxThumbPos : 0;
   }
 
   function checkForTriggers() {
@@ -134,17 +134,17 @@ export default function useScrollable(
     const maxScrollPosition = scrollSize.value - clientSize.value;
 
     if (
-      onScrolledTop &&
-      scrollPosition.value <= onScrollOffset &&
-      lastScrollDirection.value <= 0
+      onScrolledTop
+      && scrollPosition.value <= onScrollOffset
+      && lastScrollDirection.value <= 0
     ) {
       onScrolledTop();
     }
 
     if (
-      onScrolledBottom &&
-      maxScrollPosition - scrollPosition.value <= onScrollOffset &&
-      lastScrollDirection.value >= 0
+      onScrolledBottom
+      && maxScrollPosition - scrollPosition.value <= onScrollOffset
+      && lastScrollDirection.value >= 0
     ) {
       onScrolledBottom();
     }
@@ -166,15 +166,15 @@ export default function useScrollable(
 
       if (isDragging.value) return;
 
-      const currentPosition =
-        containerRef.value?.[props.value.scrollPosition] ?? 0;
+      const currentPosition
+        = containerRef.value?.[props.value.scrollPosition] ?? 0;
 
-      lastScrollDirection.value =
-        lastScrollPosition.value === currentPosition
+      lastScrollDirection.value
+        = lastScrollPosition.value === currentPosition
           ? 0
           : lastScrollPosition.value < currentPosition
-          ? 1
-          : -1;
+            ? 1
+            : -1;
       lastScrollPosition.value = currentPosition;
 
       if (USE_OWN_SCROLL) {
@@ -230,7 +230,7 @@ export default function useScrollable(
 
     const newScrollPos = Math.max(
       0,
-      Math.min(maxScroll, startScrollPosition + scrollAmount)
+      Math.min(maxScroll, startScrollPosition + scrollAmount),
     );
 
     container[props.value.scrollPosition] = newScrollPos;
@@ -270,10 +270,12 @@ export default function useScrollable(
 
       if (direction === "vertical") {
         targetPosition = container.scrollTop + rect.top - containerRect.top;
-      } else {
+      }
+      else {
         targetPosition = container.scrollLeft + rect.left - containerRect.left;
       }
-    } else {
+    }
+    else {
       targetPosition = opts.position ?? 0;
     }
 

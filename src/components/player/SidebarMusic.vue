@@ -10,11 +10,11 @@
           :src="currentTrack.cover"
           loading="eager"
           alt=""
-        />
+        >
       </div>
 
       <div class="data-track min-w-0 overflow-hidden">
-        <Marquee
+        <MarqueeBlock
           :duration="10"
           animate-on-overflow-only
           pause-on-hover
@@ -23,7 +23,7 @@
           gradient-length="20px"
         >
           <span class="text-sm font-medium">{{ currentTrack.title }}</span>
-        </Marquee>
+        </MarqueeBlock>
         <div class="text-muted-foreground text-xs truncate capitalize">
           {{ currentTrack.artist }}
         </div>
@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import Marquee from "../ui/marquee/Marquee.vue";
+import MarqueeBlock from "../ui/marquee/MarqueeBlock.vue";
 
 const tracks = [
   {

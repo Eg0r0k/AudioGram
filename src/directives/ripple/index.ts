@@ -49,7 +49,7 @@ function calcRippleSize(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
 ): number {
   const dx = x > width / 2 ? x : width - x;
   const dy = y > height / 2 ? y : height - y;
@@ -67,7 +67,7 @@ function createWaveElement(
   x: number,
   y: number,
   size: number,
-  options: RippleOptions
+  options: RippleOptions,
 ): HTMLElement {
   const wave = document.createElement("span");
   const halfSize = size / 2;
@@ -112,7 +112,8 @@ function scheduleHide(el: RippleHTMLElement, waveId: number): void {
       wave.element.remove();
       ripple.waves.delete(waveId);
     }, delay);
-  } else {
+  }
+  else {
     wave.element.classList.add("hiding");
 
     wave.removeTimer = setTimeout(() => {
@@ -136,7 +137,7 @@ function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
 
   const handlers = {
     pointerdown(e: PointerEvent) {
-      //Middle click
+      // Middle click
       if (e.button === 1) return;
       const ripple = el._ripple;
       if (!ripple || ripple.options.disabled) return;

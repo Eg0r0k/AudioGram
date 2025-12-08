@@ -17,7 +17,7 @@ const applyTheme = (theme: "light" | "dark") => {
   document.documentElement.classList.toggle("dark", theme === "dark");
 
   const themeColor = theme === "dark" ? "#0a0a0a" : "#ffffff";
-  let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  const metaThemeColor = document.querySelector("meta[name=\"theme-color\"]");
   if (metaThemeColor) {
     metaThemeColor.setAttribute("content", themeColor);
   }
@@ -32,9 +32,9 @@ export const useTheme = () => {
     const newTheme = resolvedTheme.value === "dark" ? "light" : "dark";
 
     if (
-      !event ||
-      !document.startViewTransition ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      !event
+      || !document.startViewTransition
+      || window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
       mode.value = newTheme;
       return;
@@ -45,7 +45,7 @@ export const useTheme = () => {
 
     const endRadius = Math.hypot(
       Math.max(x, window.innerWidth - x),
-      Math.max(y, window.innerHeight - y)
+      Math.max(y, window.innerHeight - y),
     );
 
     const isLightToDark = resolvedTheme.value === "light";
@@ -53,7 +53,7 @@ export const useTheme = () => {
     document.documentElement.classList.add("theme-transitioning");
     document.documentElement.classList.toggle(
       "theme-transition-reverse",
-      !isLightToDark
+      !isLightToDark,
     );
 
     const transition = document.startViewTransition(() => {
@@ -78,14 +78,15 @@ export const useTheme = () => {
           pseudoElement: isLightToDark
             ? "::view-transition-new(root)"
             : "::view-transition-old(root)",
-        }
+        },
       );
 
       await animation.finished;
-    } finally {
+    }
+    finally {
       document.documentElement.classList.remove(
         "theme-transitioning",
-        "theme-transition-reverse"
+        "theme-transition-reverse",
       );
     }
   };

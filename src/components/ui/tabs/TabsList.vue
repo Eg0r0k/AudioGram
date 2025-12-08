@@ -29,7 +29,7 @@ const updateIndicator = () => {
   if (!containerRef.value) return;
 
   const activeTab = containerRef.value.querySelector<HTMLElement>(
-    '[data-state="active"]'
+    "[data-state=\"active\"]",
   );
 
   if (activeTab) {
@@ -73,7 +73,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="relative">
+  <div
+    ref="containerRef"
+    class="relative"
+  >
     <TabsList
       data-slot="tabs-list"
       v-bind="forwardedProps"
