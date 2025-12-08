@@ -1,4 +1,5 @@
 // vite.config.ts
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference types="vitest/config" />
 
 import path from "node:path";
@@ -19,14 +20,14 @@ export default defineConfig({
     vue(),
     VueDevTools(),
     tailwindcss(),
-    isAnalyze &&
-      visualizer({
-        filename: "dist/stats.html",
-        open: true,
-        gzipSize: true,
-        brotliSize: true,
-        template: "treemap",
-      }),
+    isAnalyze
+    && visualizer({
+      filename: "dist/stats.html",
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+      template: "treemap",
+    }),
   ],
 
   clearScreen: false,

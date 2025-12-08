@@ -41,6 +41,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@iconify/vue": "^5.0.0",
+    "@stylistic/eslint-plugin": "^5.6.1",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/user-event": "^14.6.1",
