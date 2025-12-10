@@ -1,6 +1,6 @@
 <template>
   <nav
-    v-if="isTauriApp"
+    v-if="IS_TAURI"
     data-tauri-drag-region
     role="toolbar"
     class="titlebar"
@@ -9,6 +9,7 @@
       <Button
         size="icon-xs"
         variant="ghost"
+        :disabled="!canGoBack"
         @click="goBack"
       >
         <Icon icon="tabler:chevron-left" />
@@ -16,6 +17,7 @@
       <Button
         size="icon-xs"
         variant="ghost"
+        :disabled="!canGoForward"
         @click="goNext"
       >
         <Icon icon="tabler:chevron-right" />
@@ -28,7 +30,7 @@
       <button
         class="titlebar-button"
         :title="$t('common.window.minimize')"
-        @click="minimizeWindow"
+        @click="minimize"
       >
         —
       </button>
@@ -46,7 +48,7 @@
       <button
         class="titlebar-button titlebar-close"
         :title="$t('common.window.close')"
-        @click="closeWindow"
+        @click="close"
       >
         ✕
       </button>
@@ -55,7 +57,6 @@
 </template>
 
 <script setup lang="ts">
-import { isTauri } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { computed, onMounted, ref } from "vue";
 import { Button } from "./ui/button";
@@ -63,14 +64,16 @@ import { Icon } from "@iconify/vue";
 import { useTheme } from "@/composables/useTheme";
 import { Moon, Sun } from "lucide-vue-next";
 import { useRouter } from "vue-router";
+import { IS_TAURI } from "@/helpers/environment/userAgent";
+import useTauriEvent from "@/composables/tauri/useTauriEvent";
 
 const router = useRouter();
-
+const canGoBack = computed(() => window.history.length > 1);
+const canGoForward = computed(() => false);
 const goNext = () => router.go(1);
 const goBack = () => router.back();
 
 const theme = useTheme();
-const isTauriApp = ref(false);
 const themeIcon = computed(() => (theme.isDark.value ? Sun : Moon));
 const handleThemeToggle = (event: MouseEvent) => {
   theme.toggleTheme(event);
@@ -78,28 +81,38 @@ const handleThemeToggle = (event: MouseEvent) => {
 const appWindow = ref<Window | null>(null);
 const isMaximized = ref(false);
 
-const minimizeWindow = () => appWindow.value?.minimize();
-const closeWindow = () => appWindow.value?.close();
+const minimize = () => appWindow.value?.minimize();
+const close = () => appWindow.value?.close();
 
 const toggleMaximize = async () => {
   if (!appWindow.value) return;
-  isMaximized.value = await appWindow.value.isMaximized();
-  if (isMaximized.value) {
-    await appWindow.value.unmaximize();
+  try {
+    if (isMaximized.value) {
+      await appWindow.value.unmaximize();
+    }
+    else {
+      await appWindow.value.maximize();
+    }
   }
-  else {
-    await appWindow.value.maximize();
+  catch (error) {
+    console.warn("Maximize toggle failed", error);
   }
-  isMaximized.value = !isMaximized.value;
 };
 
 onMounted(async () => {
-  isTauriApp.value = await isTauri();
-  if (isTauriApp.value) {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    appWindow.value = await getCurrentWindow();
-    isMaximized.value = await appWindow.value.isMaximized();
-  }
+  if (!IS_TAURI) return;
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  appWindow.value = await getCurrentWindow();
+  isMaximized.value = await appWindow.value.isMaximized();
+
+  useTauriEvent("tauri://resize", async () => {
+    try {
+      isMaximized.value = await appWindow.value?.isMaximized() ?? false;
+    }
+    catch {
+      // noop
+    }
+  });
 });
 </script>
 
