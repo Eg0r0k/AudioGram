@@ -26,4 +26,5 @@ export default {
   castTo: "Транслировать на",
   airplay: "AirPlay",
   pip: "Картинка в картинке",
+  cover: "Обложка",
 };
