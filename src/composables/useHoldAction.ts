@@ -1,13 +1,5 @@
-import { ElementOrComponent } from "@/types/utils";
-import { MaybeElementRef, useIntervalFn, useVibrate } from "@vueuse/core";
-import { ref, toValue, watch } from "vue";
-
-const resolveElement = (el: ElementOrComponent): HTMLElement | null => {
-  if (!el) return null;
-  if (el instanceof HTMLElement) return el;
-  if (el.$el instanceof HTMLElement) return el.$el;
-  return null;
-};
+import { MaybeElementRef, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
+import { ref, toValue, computed, readonly } from "vue";
 
 export interface UseHoldActionOptions {
   delay?: number;
@@ -74,37 +66,20 @@ export const useHoldAction = (
 
   const onPointerUp = () => {
     cancelHold();
-
     if (!wasHeld.value) {
       callbacks.onClick?.();
     }
-
     wasHeld.value = false;
   };
 
-  watch(
-    () => toValue(target),
-    (value, _, onCleanup) => {
-      const el = resolveElement(value);
-      if (!el) return;
-
-      el.addEventListener("pointerdown", onPointerDown);
-      el.addEventListener("pointerup", onPointerUp);
-      el.addEventListener("pointercancel", cancelHold);
-      el.addEventListener("pointerleave", cancelHold);
-
-      onCleanup(() => {
-        el.removeEventListener("pointerdown", onPointerDown);
-        el.removeEventListener("pointerup", onPointerUp);
-        el.removeEventListener("pointercancel", cancelHold);
-        el.removeEventListener("pointerleave", cancelHold);
-      });
-    },
-    { immediate: true },
-  );
+  useEventListener(target, "pointerdown", onPointerDown, { passive: true });
+  useEventListener(target, "pointerup", onPointerUp, { passive: true });
+  useEventListener(target, "pointercancel", cancelHold, { passive: true });
+  useEventListener(target, "pointerleave", cancelHold, { passive: true });
 
   return {
-    isHolding,
-    holdCount,
+    isHolding: readonly(isHolding),
+    holdCount: readonly(holdCount),
+    isActive: computed(() => isHolding.value || holdTimer !== null),
   };
 };
