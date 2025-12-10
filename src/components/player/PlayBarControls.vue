@@ -31,7 +31,10 @@
             size="icon"
             variant="ghost"
           >
-            <Icon icon="tabler:player-track-next-filled" />
+            <Icon
+              class="size-5"
+              icon="tabler:player-track-next-filled"
+            />
           </Button>
           <Button
             class="rounded-full"

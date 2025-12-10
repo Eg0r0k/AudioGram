@@ -1,16 +1,7 @@
 <template>
   <div class="flex min-w-[180px] w-[30%] justify-end">
     <div class="flex w-full gap-0.5 justify-end items-center grow">
-      <Button
-        size="icon-sm"
-        variant="ghost-primary"
-        class="rounded-full"
-      >
-        <Icon
-          class="size-4.5"
-          icon="tabler:volume"
-        />
-      </Button>
+      <VolumeButton />
       <Button
         size="icon-sm"
         variant="ghost"
@@ -48,6 +39,8 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify/vue";
+
 import PIPTrigger from "@/components/pip/PIPTrigger.vue";
-import FullscreenTrigger from "../layout/fullscreen/FullscreenTrigger.vue";
+import FullscreenTrigger from "@/components/layout/fullscreen/FullscreenTrigger.vue";
+import VolumeButton from "./actions/VolumeButton.vue";
 </script>

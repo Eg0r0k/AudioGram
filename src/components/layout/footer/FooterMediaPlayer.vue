@@ -14,9 +14,8 @@ const isOpen = ref(false);
     class="p-2 bg-card border-t"
   >
     <aside>
-      <div class="flex items-center justify-between h-[78px]">
+      <div class=" flex items-center justify-between h-[78px]">
         <SidebarMusic />
-
         <PlayBarControls />
         <SidebarControls />
       </div>

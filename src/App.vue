@@ -7,6 +7,7 @@
       />
     </RouterView>
   </component>
+
   <Toaster
     position="top-center"
     class="pointer-events-auto"

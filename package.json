@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:free": "vite build",
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "ANALYZE=true vite build",
     "preview": "vite preview",
