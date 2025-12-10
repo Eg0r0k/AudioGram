@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { IS_TAURI } from "../environment/userAgent";
+import { getMimeType, isAudioTypeSupported } from "../environment/mimeSupport";
 
 export interface OpenedFile {
   path: string;
@@ -14,32 +15,26 @@ export async function listenForOpenedFiles(
   if (!IS_TAURI) {
     return () => {};
   }
+
   const unlisten = await listen<string[]>("files-opened", async (event) => {
     const filePaths = event.payload;
     const files: OpenedFile[] = [];
 
     for (const filePath of filePaths) {
       try {
-        const ext = filePath.split(".").pop()?.toLowerCase();
-        const audioExtensions = [
-          "mp3",
-          "wav",
-          "flac",
-          "ogg",
-          "m4a",
-          "aac",
-          "wma",
-        ];
+        const name = filePath.split(/[/\\]/).pop() || filePath;
+        const mimeType = getMimeType(name);
 
-        if (ext && audioExtensions.includes(ext)) {
-          const data = await readFile(filePath);
-          const name = filePath.split(/[/\\]/).pop() || filePath;
-
-          files.push({ path: filePath, name, data });
+        if (!isAudioTypeSupported(mimeType)) {
+          console.warn(`[fileOpener] Skipped unsupported audio type: ${mimeType} (${name})`);
+          continue;
         }
+
+        const data = await readFile(filePath);
+        files.push({ path: filePath, name, data });
       }
       catch (error) {
-        console.error(`Failed to read file: ${filePath}`, error);
+        console.error(`[fileOpener] Failed to read file: ${filePath}`, error);
       }
     }
 
@@ -50,32 +45,6 @@ export async function listenForOpenedFiles(
 
   return unlisten;
 }
-
-export function openedFileToFile(opened: OpenedFile): File {
-  const buffer = new ArrayBuffer(opened.data.length);
-  const view = new Uint8Array(buffer);
-  view.set(opened.data);
-
-  const blob = new Blob([buffer], { type: getMimeType(opened.name) });
-  return new File([blob], opened.name, {
-    type: getMimeType(opened.name),
-  });
-}
-
-function getMimeType(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    flac: "audio/flac",
-    ogg: "audio/ogg",
-    m4a: "audio/mp4",
-    aac: "audio/aac",
-    wma: "audio/x-ms-wma",
-  };
-  return mimeTypes[ext || ""] || "application/octet-stream";
-}
-
 // import { listen } from "@tauri-apps/api/event";
 // import { readFile } from "@tauri-apps/plugin-fs";
 
