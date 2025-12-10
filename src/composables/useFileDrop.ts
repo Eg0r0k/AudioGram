@@ -1,7 +1,8 @@
 import { IS_TAURI } from "@/helpers/environment/userAgent";
 import { filterFilesByExtension } from "@/helpers/files/filterFiles";
 import { getFilesFromEvent } from "@/helpers/files/getFilesFromEvent";
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted } from "vue";
+import { useTauriDragDrop } from "./tauri/useTauriDragDrop";
 
 export interface UseFileDropOptions {
   acceptedExtensions?: string[];
@@ -13,84 +14,74 @@ export function useFileDrop(options?: UseFileDropOptions) {
   const droppedFiles = ref<File[]>([]);
   const isProcessing = ref(false);
 
-  let cleanup: (() => void) | null = null;
-
   const setupTauri = async () => {
-    const { getCurrentWebviewWindow } = await import(
-      "@tauri-apps/api/webviewWindow",
-    );
-    const { readDir, stat } = await import("@tauri-apps/plugin-fs");
-
-    const appWindow = getCurrentWebviewWindow();
-
-    const hasValidExtension = (path: string): boolean => {
-      if (!options?.acceptedExtensions?.length) return true;
-      return options.acceptedExtensions.some(ext =>
-        path.toLowerCase().endsWith(ext.toLowerCase()),
-      );
-    };
-
-    const collectFiles = async (dirPath: string): Promise<string[]> => {
-      const files: string[] = [];
-      try {
-        const entries = await readDir(dirPath);
-        for (const entry of entries) {
-          const fullPath = `${dirPath}/${entry.name}`;
-          if (entry.isDirectory) {
-            files.push(...(await collectFiles(fullPath)));
-          }
-          else if (entry.isFile && hasValidExtension(entry.name)) {
-            files.push(fullPath);
-          }
-        }
-      }
-      catch (e) {
-        console.error(e);
-      }
-      return files;
-    };
-
-    const processPaths = async (paths: string[]): Promise<string[]> => {
-      const result: string[] = [];
-      for (const path of paths) {
-        try {
-          const info = await stat(path);
-          if (info.isDirectory) {
-            result.push(...(await collectFiles(path)));
-          }
-          else if (info.isFile && hasValidExtension(path)) {
-            result.push(path);
-          }
-        }
-        catch (e) {
-          console.error(e);
-        }
-      }
-      return result;
-    };
-
-    const unlisten = await appWindow.onDragDropEvent(async (event) => {
-      const data = event.payload;
-
-      if (data.type === "over" || data.type === "enter") {
+    useTauriDragDrop(async (payload) => {
+      if (payload.type === "over" || payload.type === "enter") {
         isDragging.value = true;
       }
-      else if (data.type === "leave") {
+      else if (payload.type === "leave") {
         isDragging.value = false;
       }
-      else if (data.type === "drop") {
+      else if (payload.type === "drop") {
         isDragging.value = false;
         isProcessing.value = true;
 
         try {
-          const paths = await processPaths(data.paths);
+          const { readDir, stat } = await import("@tauri-apps/plugin-fs");
+
+          const hasValidExtension = (path: string): boolean => {
+            if (!options?.acceptedExtensions?.length) return true;
+            return options.acceptedExtensions.some(ext =>
+              path.toLowerCase().endsWith(ext.toLowerCase()),
+            );
+          };
+
+          const collectFiles = async (dirPath: string): Promise<string[]> => {
+            const files: string[] = [];
+            try {
+              const entries = await readDir(dirPath);
+              for (const entry of entries) {
+                const fullPath = `${dirPath}/${entry.name}`;
+                if (entry.isDirectory) {
+                  files.push(...(await collectFiles(fullPath)));
+                }
+                else if (entry.isFile && hasValidExtension(entry.name)) {
+                  files.push(fullPath);
+                }
+              }
+            }
+            catch (e) {
+              console.error("Error reading directory:", e);
+            }
+            return files;
+          };
+
+          const processPaths = async (paths: string[]): Promise<string[]> => {
+            const result: string[] = [];
+            for (const path of paths) {
+              try {
+                const info = await stat(path);
+                if (info.isDirectory) {
+                  result.push(...(await collectFiles(path)));
+                }
+                else if (info.isFile && hasValidExtension(path)) {
+                  result.push(path);
+                }
+              }
+              catch (e) {
+                console.error("Error processing path:", e);
+              }
+            }
+            return result;
+          };
+
+          const paths = await processPaths(payload.paths);
           const files = paths.map((path) => {
             const name = path.split(/[/\\]/).pop() || path;
-            return Object.assign(new Blob(), {
-              name,
+            return Object.assign(new File([], name), {
               path,
               relativePath: path,
-            }) as unknown as File;
+            }) as File & { path: string };
           });
 
           droppedFiles.value = files;
@@ -101,12 +92,9 @@ export function useFileDrop(options?: UseFileDropOptions) {
         }
       }
     });
-
-    cleanup = unlisten;
   };
 
-  // ============ BROWSER ============
-  const setupBrowser = () => {
+  const setupBrowser = async () => {
     let dragCounter = 0;
 
     const onDragEnter = (e: DragEvent) => {
@@ -133,16 +121,13 @@ export function useFileDrop(options?: UseFileDropOptions) {
       e.preventDefault();
       isDragging.value = false;
       dragCounter = 0;
-
       isProcessing.value = true;
 
       try {
         let files = await getFilesFromEvent(e);
-
         if (options?.acceptedExtensions?.length) {
           files = filterFilesByExtension(files, options.acceptedExtensions);
         }
-
         droppedFiles.value = files;
         options?.onDrop?.(files);
       }
@@ -150,31 +135,21 @@ export function useFileDrop(options?: UseFileDropOptions) {
         isProcessing.value = false;
       }
     };
+    const { useEventListener } = await import("@vueuse/core");
 
-    document.addEventListener("dragenter", onDragEnter);
-    document.addEventListener("dragleave", onDragLeave);
-    document.addEventListener("dragover", onDragOver);
-    document.addEventListener("drop", onDropHandler);
-
-    cleanup = () => {
-      document.removeEventListener("dragenter", onDragEnter);
-      document.removeEventListener("dragleave", onDragLeave);
-      document.removeEventListener("dragover", onDragOver);
-      document.removeEventListener("drop", onDropHandler);
-    };
+    useEventListener(document, "dragenter", onDragEnter, { passive: false });
+    useEventListener(document, "dragleave", onDragLeave, { passive: false });
+    useEventListener(document, "dragover", onDragOver, { passive: false });
+    useEventListener(document, "drop", onDropHandler, { passive: false });
   };
 
-  onMounted(() => {
+  onMounted(async () => {
     if (IS_TAURI) {
-      setupTauri();
+      await setupTauri();
     }
     else {
-      setupBrowser();
+      await setupBrowser();
     }
-  });
-
-  onUnmounted(() => {
-    cleanup?.();
   });
 
   return {
