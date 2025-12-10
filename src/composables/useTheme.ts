@@ -1,4 +1,4 @@
-import { watch, computed } from "vue";
+import { watch, computed, readonly } from "vue";
 import { usePreferredDark, useStorage } from "@vueuse/core";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -92,7 +92,7 @@ export const useTheme = () => {
   };
 
   return {
-    mode,
+    mode: readonly(mode),
     resolvedTheme,
     isDark: computed(() => resolvedTheme.value === "dark"),
     changeTheme,

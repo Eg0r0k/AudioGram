@@ -6,7 +6,7 @@
   >
     <div class="flex items-center">
       <img
-        :alt="$t('common.cover')"
+        :alt="$t('player.cover')"
         class="size-13 rounded-lg z-1 object-cover mr-3"
         loading="eager"
         width="40"

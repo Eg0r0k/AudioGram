@@ -31,6 +31,7 @@
     <Badge variant="destructive">
       +23
     </Badge>
+
     <Badge variant="secondary">
       +23
     </Badge>
@@ -60,4 +61,5 @@ import DialogDescription from "@/components/ui/dialog/DialogDescription.vue";
 import DialogHeader from "@/components/ui/dialog/DialogHeader.vue";
 import DialogTitle from "@/components/ui/dialog/DialogTitle.vue";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
+
 </script>
