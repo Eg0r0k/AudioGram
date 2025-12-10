@@ -7,7 +7,6 @@
     @pointerenter="onPointerEnter"
     @pointerleave="onPointerLeave"
   >
-    <!-- Gradient overlay -->
     <div
       v-if="gradient && isOverflowing"
       class="gradient-overlay"
@@ -15,7 +14,6 @@
       aria-hidden="true"
     />
 
-    <!-- Content -->
     <div class="marquee-content">
       <div
         ref="contentRef"
@@ -51,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useResizeObserver, useDebounceFn } from "@vueuse/core";
 
 type Direction = "normal" | "reverse";
@@ -97,6 +95,9 @@ const isOverflowing = ref(false);
 const isHovering = ref(false);
 const forceReset = ref(false);
 
+const lastContainerSize = ref(0);
+const lastContentSize = ref(0);
+
 const trackClasses = computed(() => ({
   animating: isOverflowing.value && !forceReset.value,
   paused: props.pause || (props.pauseOnHover && isHovering.value),
@@ -126,6 +127,14 @@ const cssVariables = computed(() => ({
   "--marquee-gradient-length": props.gradientLength,
 }));
 
+const getOwnerWindow = (): Window => {
+  return containerRef.value?.ownerDocument?.defaultView ?? window;
+};
+
+const getOwnerDocument = (): Document => {
+  return containerRef.value?.ownerDocument ?? document;
+};
+
 const calculateOverflow = () => {
   if (!containerRef.value || !contentRef.value) return;
 
@@ -139,11 +148,22 @@ const calculateOverflow = () => {
 
   if (container === 0 || content === 0) return;
 
+  const containerChanged = Math.abs(container - lastContainerSize.value) > 1;
+  const contentChanged = Math.abs(content - lastContentSize.value) > 1;
+
+  if (!containerChanged && !contentChanged) return;
+
+  lastContainerSize.value = container;
+  lastContentSize.value = content;
+
   const wasOverflowing = isOverflowing.value;
   const nowOverflowing = content > container + 1;
 
   if (wasOverflowing && !nowOverflowing) {
     forceReset.value = true;
+    queueMicrotask(() => {
+      forceReset.value = false;
+    });
   }
 
   isOverflowing.value = nowOverflowing;
@@ -160,14 +180,11 @@ const calculateOverflow = () => {
 
 const resetAnimation = async () => {
   forceReset.value = true;
-
   await nextTick();
 
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      forceReset.value = false;
-    });
-  });
+  setTimeout(() => {
+    forceReset.value = false;
+  }, 50);
 };
 
 const debouncedCalculate = useDebounceFn(() => {
@@ -186,9 +203,50 @@ const onPointerLeave = () => {
   }
 };
 
-useResizeObserver(containerRef, debouncedCalculate);
+let intervalId: ReturnType<typeof setInterval> | null = null;
+let cleanupFns: Array<() => void> = [];
 
-let lastContentSize = 0;
+const startIntervalCheck = () => {
+  if (intervalId) return;
+
+  intervalId = setInterval(() => {
+    calculateOverflow();
+  }, 400);
+};
+
+const stopIntervalCheck = () => {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+};
+
+const handleWindowResize = () => {
+  calculateOverflow();
+};
+
+const handleVisibilityChange = () => {
+  const doc = getOwnerDocument();
+  if (doc.visibilityState === "visible") {
+    lastContainerSize.value = 0;
+    lastContentSize.value = 0;
+    nextTick(() => {
+      calculateOverflow();
+    });
+  }
+};
+
+const handleWindowFocus = () => {
+  lastContainerSize.value = 0;
+  lastContentSize.value = 0;
+  nextTick(() => {
+    calculateOverflow();
+  });
+};
+
+useResizeObserver(containerRef, () => {
+  calculateOverflow();
+});
 
 useResizeObserver(contentRef, (entries) => {
   const entry = entries[0];
@@ -198,17 +256,16 @@ useResizeObserver(contentRef, (entries) => {
     ? entry.contentRect.height
     : entry.contentRect.width;
 
-  if (Math.abs(newSize - lastContentSize) > 3) {
-    const wasLarger = lastContentSize > newSize;
-    lastContentSize = newSize;
+  if (Math.abs(newSize - lastContentSize.value) > 3) {
+    const wasLarger = lastContentSize.value > newSize;
 
     if (wasLarger) {
       forceReset.value = true;
       nextTick(() => {
         calculateOverflow();
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           forceReset.value = false;
-        });
+        }, 50);
       });
     }
     else {
@@ -220,17 +277,43 @@ useResizeObserver(contentRef, (entries) => {
 
 onMounted(() => {
   nextTick(() => {
+    const win = getOwnerWindow();
+    const doc = getOwnerDocument();
+
     if (contentRef.value) {
-      lastContentSize = props.vertical
+      lastContentSize.value = props.vertical
         ? contentRef.value.scrollHeight
         : contentRef.value.scrollWidth;
     }
+
     calculateOverflow();
+
+    win.addEventListener("resize", handleWindowResize);
+    doc.addEventListener("visibilitychange", handleVisibilityChange);
+    win.addEventListener("focus", handleWindowFocus);
+
+    cleanupFns.push(
+      () => win.removeEventListener("resize", handleWindowResize),
+      () => doc.removeEventListener("visibilitychange", handleVisibilityChange),
+      () => win.removeEventListener("focus", handleWindowFocus),
+    );
+
+    startIntervalCheck();
   });
 });
 
+onUnmounted(() => {
+  stopIntervalCheck();
+  cleanupFns.forEach(fn => fn());
+  cleanupFns = [];
+});
+
 defineExpose({
-  recalculate: calculateOverflow,
+  recalculate: () => {
+    lastContainerSize.value = 0;
+    lastContentSize.value = 0;
+    calculateOverflow();
+  },
   resetAnimation,
   isOverflowing,
 });
