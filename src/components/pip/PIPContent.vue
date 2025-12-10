@@ -69,7 +69,18 @@
         gradient-color="var(--background)"
         gradient-length="20px"
       >
-        player
+        <span class=" context-info__title">TITLE</span>
+      </MarqueeBlock>
+
+      <MarqueeBlock
+        :duration="6"
+        animate-on-overflow-only
+        pause-on-hover
+        gradient
+        gradient-color="var(--background)"
+        gradient-length="20px"
+      >
+        <span class=" context-info__sub">Subtitlasdasdasdasdsadase</span>
       </MarqueeBlock>
     </div>
   </div>
@@ -80,12 +91,6 @@ import { Icon } from "@iconify/vue";
 import { Button } from "@/components/ui/button";
 import PlayButton from "../player/PlayButton.vue";
 import VolumeButton from "../player/actions/VolumeButton.vue";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import MarqueeBlock from "../ui/marquee/MarqueeBlock.vue";
 </script>
 
@@ -147,16 +152,34 @@ html, body, #app {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
 }
 
 .context-info {
   grid-area: contextinfo;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  justify-content: center;
+  flex-direction: column;
+  padding: 0 8px;
 }
 
+.context-info__title {
+  font-weight: 700;
+  font-size: clamp(16px, 3vw, 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-info__sub {
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  font-size: clamp(12px, 3vw, 18px);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 @media (max-height: 170px) {
   .pip-container {
     gap: 4px;
@@ -216,9 +239,16 @@ html, body, #app {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    padding: 0 4px;
+    padding: 0 6px;
     min-width: 0;
+    line-height: 1.1;
     overflow: hidden;
+  }
+  .context-info__title {
+    font-size: 16px;
+  }
+  .context-info__sub{
+    font-size: 12px;
   }
 
   .controls {
