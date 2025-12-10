@@ -26,6 +26,7 @@ import { type Component, computed, onMounted, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
 import { useSetupRootClasses } from "./composables/useSetupRootClasses";
 import { listenForOpenedFiles, OpenedFile } from "./helpers/files/fileOpener";
+import { usePreventPinchZoom } from "./composables/usePreventPinchZoom";
 
 const route = useRoute();
 const layouts: Record<string, Component> = {
@@ -57,6 +58,7 @@ onUnmounted(() => {
 
 useTheme();
 useSetupRootClasses();
+usePreventPinchZoom();
 </script>
 
 <style scoped>
