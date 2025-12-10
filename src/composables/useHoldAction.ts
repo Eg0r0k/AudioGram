@@ -1,5 +1,5 @@
 import { MaybeElementRef, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
-import { ref, toValue, computed, readonly } from "vue";
+import { ref, computed, readonly } from "vue";
 
 export interface UseHoldActionOptions {
   delay?: number;
