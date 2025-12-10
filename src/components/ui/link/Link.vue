@@ -1,11 +1,13 @@
 <template>
   <a
+
     v-if="isExternalLink"
     v-bind="$attrs"
     :href="normalizedHref"
     :target="computedTarget"
     :rel="computedRel"
     :class="linkClass"
+    :draggable="draggable"
   >
     <slot />
   </a>
@@ -20,6 +22,7 @@
       :href="href"
       :class="computedActiveClass(isActive, isExactActive)"
       :aria-current="isExactActive ? 'page' : undefined"
+      :draggable="draggable"
       @click="navigate"
     >
       <slot
@@ -46,6 +49,7 @@ interface LinkProps {
   inactiveClass?: HTMLAttributes["class"];
   disabled?: boolean;
   exactMatch?: boolean;
+  draggable?: boolean;
   rel?: string;
   replace?: boolean;
 }
@@ -59,6 +63,7 @@ const props = withDefaults(defineProps<LinkProps>(), {
   exactMatch: true,
   disabled: false,
   replace: false,
+  draggable: false,
 });
 
 const isExternalLink = computed(() => {
