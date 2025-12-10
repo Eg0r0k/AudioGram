@@ -38,3 +38,7 @@ export const IS_MOBILE
     ) != -1;
 
 export const IS_TAURI = isTauri();
+
+export const IS_PWA = window.matchMedia("(display-mode: standalone)").matches;
+
+export const IS_APP = IS_TAURI || IS_PWA;
