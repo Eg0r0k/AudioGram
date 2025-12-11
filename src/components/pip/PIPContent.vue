@@ -1,5 +1,5 @@
 <template>
-  <div class="pip-container">
+  <div class="pip-container ">
     <div class="content-cover">
       <div class="content" />
     </div>
@@ -192,7 +192,7 @@ html, body, #app {
   }
 
   .content-cover {
-    margin: 0;
+    margin: auto 0;
     aspect-ratio: 1;
     min-width: 60px;
     max-height: 100%;

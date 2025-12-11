@@ -1,18 +1,21 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { routes } from "./routes";
 import { titleMiddleware } from "@/router/middleware/title.middleware";
+import { routes } from "./routes/index";
 const router = createRouter({
   history: createWebHistory("/"),
-  scrollBehavior(to, _from, savedPosition) {
+  routes,
+  scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition;
     }
     if (to.hash) {
       return { el: to.hash, behavior: "smooth" };
     }
-    return { top: 0 };
+    if (to.matched[0]?.name !== from.matched[0]?.name) {
+      return { top: 0, behavior: "smooth" };
+    }
+    return false;
   },
-  routes,
 });
 router.beforeEach(titleMiddleware);
 

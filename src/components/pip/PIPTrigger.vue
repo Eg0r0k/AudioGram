@@ -8,11 +8,7 @@
   >
     <Icon
       class="size-4.5"
-      :icon="
-        pip.isPipOpen
-          ? 'ri:picture-in-picture-exit-fill'
-          : 'ri:picture-in-picture-fill'
-      "
+      icon="tabler:picture-in-picture-filled"
     />
   </Button>
 </template>
