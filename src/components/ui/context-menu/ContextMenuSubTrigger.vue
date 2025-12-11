@@ -18,6 +18,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 
 <template>
   <ContextMenuSubTrigger
+    v-ripple
     data-slot="context-menu-sub-trigger"
     :data-inset="inset ? '' : undefined"
     v-bind="forwardedProps"

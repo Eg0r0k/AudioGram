@@ -20,6 +20,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
 <template>
   <ContextMenuRadioItem
+    v-ripple
     data-slot="context-menu-radio-item"
     v-bind="forwarded"
     :class="cn(

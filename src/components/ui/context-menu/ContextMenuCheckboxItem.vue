@@ -20,6 +20,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
 <template>
   <ContextMenuCheckboxItem
+    v-ripple
     data-slot="context-menu-checkbox-item"
     v-bind="forwarded"
     :class="cn(

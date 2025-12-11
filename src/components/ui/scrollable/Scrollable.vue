@@ -32,6 +32,8 @@
 import { computed, provide, useTemplateRef } from "vue";
 import useScrollable from "./useScrollable";
 
+// TODO: Make overlay state to disable scroll (optional)
+
 interface Props {
   direction?: "vertical" | "horizontal";
   onScrollOffset?: number;
