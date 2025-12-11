@@ -150,8 +150,19 @@
   z-index: -1;
 }
 
+a{ 
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img, 
+video {
+  -webkit-user-drag: none;
+}
+
 :root {
   --z-toolbar: 9998;
   --z-dropoverlay: 9999;
   --z-fullscreen: 10000;
 }
+
