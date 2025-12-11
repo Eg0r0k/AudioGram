@@ -33,7 +33,7 @@ interface RippleHTMLElement extends HTMLElement {
   };
 }
 
-const RIPPLE_DURATION = 300;
+const RIPPLE_DURATION = 400;
 
 function parseBinding(binding: DirectiveBinding): RippleOptions {
   if (typeof binding.value === "boolean") {

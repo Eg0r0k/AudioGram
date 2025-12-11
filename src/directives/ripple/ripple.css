@@ -4,7 +4,7 @@
   overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
-  --ripple-duration: 0.4s;
+  --ripple-duration: 0.7s;
   --ripple-start-scale: 0;
   --ripple-end-scale: 2;
   --ripple-color: currentColor;
