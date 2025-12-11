@@ -19,6 +19,7 @@
       "allow": [
         { "path": "$APPDATA" },
         { "path": "$APPDATA/**" },
+        { "path": "$APPDATA/audio/**" },
         { "path": "$HOME/**" },
         { "path": "$AUDIO/**" },
         { "path": "$DOWNLOAD/**" },
