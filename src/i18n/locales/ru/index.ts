@@ -1,5 +1,5 @@
-import common from "./common";
-import player from "./player";
+import common from "./common.json";
+import player from "./player.json";
 
 export default {
   common,
