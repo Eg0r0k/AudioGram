@@ -2,12 +2,13 @@
 import type { ContextMenuSubTriggerProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import { reactiveOmit } from "@vueuse/core";
-import { ChevronRight } from "lucide-vue-next";
+
 import {
   ContextMenuSubTrigger,
   useForwardProps,
 } from "reka-ui";
 import { cn } from "@/lib/utils";
+import { Icon } from "@iconify/vue";
 
 const props = defineProps<ContextMenuSubTriggerProps & { class?: HTMLAttributes["class"]; inset?: boolean }>();
 
@@ -28,6 +29,9 @@ const forwardedProps = useForwardProps(delegatedProps);
     )"
   >
     <slot />
-    <ChevronRight class="ml-auto" />
+    <Icon
+      icon="tabler:chevron-right"
+      class="ml-auto"
+    />
   </ContextMenuSubTrigger>
 </template>
