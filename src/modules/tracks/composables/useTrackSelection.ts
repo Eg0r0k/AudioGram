@@ -1,5 +1,5 @@
+import { watch } from "vue";
 import type { ComputedRef, Ref } from "vue";
-import { watchEffect } from "vue";
 import type { Track } from "@/modules/player/types";
 import { useSelection } from "@/composables/useSelection";
 
@@ -9,18 +9,21 @@ export function useTrackSelection(
 ) {
   const selection = useSelection(tracks);
 
-  watchEffect((onCleanup) => {
-    const el = containerRef.value;
-    if (!el) return;
+  watch(
+    containerRef,
+    (el, _prev, onCleanup) => {
+      if (!el) return;
 
-    const cleanup = selection.attachDragListeners(el, {
-      rowSelector: "[data-track-id]",
-      idDataKey: "trackId",
-      indexDataKey: "trackIndex",
-    });
+      const cleanup = selection.attachDragListeners(el, {
+        rowSelector: "[data-track-id]",
+        idDataKey: "trackId",
+        indexDataKey: "trackIndex",
+      });
 
-    onCleanup(cleanup);
-  });
+      onCleanup(cleanup);
+    },
+    { flush: "post" },
+  );
 
   return {
     ...selection,
