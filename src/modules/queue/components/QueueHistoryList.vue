@@ -1,6 +1,13 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col bg-background">
-    <div
+  <div class="flex h-full min-h-0 flex-col justify-center items-center bg-background">
+    <div class="flex flex-col gap-2 items-center justify-center">
+      <IconLogo class=" text-muted-foreground" />
+
+      <span class=" font-medium text-2xl">
+        {{ $t('common.comingSoon') }}
+      </span>
+    </div>
+    <!-- <div
       v-if="isLoading"
       class="flex flex-col gap-2 p-2"
     >
@@ -46,53 +53,55 @@
       </VirtualScrollable>
     </TrackContextMenu>
 
-    <TrackDropdown context="history" />
+    <TrackDropdown context="history" /> -->
   </div>
 </template>
-
+<!-- eslint-disable sonarjs/no-commented-code -->
 <script setup lang="ts">
-import { computed } from "vue";
-import { useI18n } from "vue-i18n";
-import { useQueries, useQuery } from "@tanstack/vue-query";
-import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
-import TrackRow from "@/modules/tracks/components/TrackRow.vue";
-import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
-import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
-import { coverQueries } from "@/queries/cover.queries";
-import { statsQueries, type RecentHistoryEntry } from "@/queries/stats.queries";
-import IconHistory from "~icons/tabler/history";
-import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
+import IconLogo from "~icons/audiogram/logo";
 
-const HISTORY_LIMIT = 100;
-const ITEM_HEIGHT = 64;
+// import { computed } from "vue";
+// import { useI18n } from "vue-i18n";
+// import { useQueries, useQuery } from "@tanstack/vue-query";
+// import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
+// import { useQueueStore } from "@/modules/queue/store/queue.store";
+// import TrackRow from "@/modules/tracks/components/TrackRow.vue";
+// import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
+// import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
+// import { coverQueries } from "@/queries/cover.queries";
+// import { statsQueries, type RecentHistoryEntry } from "@/queries/stats.queries";
+// import IconHistory from "~icons/tabler/history";
+// import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 
-const { t } = useI18n();
-const queueStore = useQueueStore();
+// const HISTORY_LIMIT = 100;
+// const ITEM_HEIGHT = 64;
 
-const { data, isLoading } = useQuery(statsQueries.recentHistory(HISTORY_LIMIT));
+// const { t } = useI18n();
+// const queueStore = useQueueStore();
 
-const historyItems = computed<RecentHistoryEntry[]>(() => data.value ?? []);
-const historyTracks = computed(() => historyItems.value.map(item => item.track));
-const historyAlbumIds = computed(() => [
-  ...new Set(historyItems.value.map(item => item.track.albumId)),
-]);
+// const { data, isLoading } = useQuery(statsQueries.recentHistory(HISTORY_LIMIT));
 
-useQueries({
-  queries: computed(() => historyAlbumIds.value.map(albumId => coverQueries.detail("album", albumId))),
-});
+// const historyItems = computed<RecentHistoryEntry[]>(() => data.value ?? []);
+// const historyTracks = computed(() => historyItems.value.map(item => item.track));
+// const historyAlbumIds = computed(() => [
+//   ...new Set(historyItems.value.map(item => item.track.albumId)),
+// ]);
 
-function getItemKey(index: number): string | number {
-  return historyItems.value[index]?.eventId ?? index;
-}
+// useQueries({
+//   queries: computed(() => historyAlbumIds.value.map(albumId => coverQueries.detail("album", albumId))),
+// });
 
-async function playFromHistory(index: number): Promise<void> {
-  await queueStore.setQueue(historyTracks.value, index, { type: "history" });
-}
+// function getItemKey(index: number): string | number {
+//   return historyItems.value[index]?.eventId ?? index;
+// }
 
-function isCurrentHistoryItem(index: number): boolean {
-  return queueStore.currentIndex === index
-    && queueStore.currentItem?.source.type === "history";
-}
+// async function playFromHistory(index: number): Promise<void> {
+//   await queueStore.setQueue(historyTracks.value, index, { type: "history" });
+// }
+
+// function isCurrentHistoryItem(index: number): boolean {
+//   return queueStore.currentIndex === index
+//     && queueStore.currentItem?.source.type === "history";
+// }
 
 </script>

@@ -34,7 +34,7 @@
         </div>
         <template v-if="currentTrack">
           <div class="grid gap-3">
-            <div class="flex justify-between items-center relative select-none">
+            <div class="flex justify-between items-center relative select-none mb-1">
               <div class="grid gap-1 flex-1 min-w-0 max-w-fit overflow-hidden mx-2">
                 <MarqueeBlock
                   class="group"
@@ -98,7 +98,10 @@
               </Button>
             </div>
 
-            <div class="flex flex-col min-w-0 gap-1 pt-4">
+            <div
+              class="flex flex-col min-w-0 gap-1 p-2 rounded-sm"
+              :style="contentCoverStyle"
+            >
               <div class="flex items-center justify-between gap-3 px-2">
                 <div>
                   <p class="text-sm font-medium">
@@ -109,7 +112,7 @@
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="rounded-full"
+                  class="rounded-full px-2"
                   @click="rightPanel.openQueue()"
                 >
                   {{ $t('queue.showQueue') }}
@@ -166,6 +169,14 @@ import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/Trac
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { routeLocation } from "@/app/router/route-locations";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
+import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+
+const { color: playerColor } = useMobilePlayerColor();
+
+const contentCoverStyle = computed(() => ({
+  background: `linear-gradient(color-mix(in srgb, ${playerColor.value.hsl} 20%, black))`,
+
+}));
 
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();

@@ -31,15 +31,17 @@ export function useMobilePlayerColor() {
   });
 
   const color = ref<ColorResult>({ ...defaultFallback });
-
   watch(coverUrl, async (newCover) => {
-    if (newCover) {
-      try {
-        color.value = await getColorFromImage(newCover);
-      }
-      catch {
-        color.value = { ...defaultFallback };
-      }
+    if (!newCover) {
+      color.value = { ...defaultFallback };
+      return;
+    }
+
+    try {
+      color.value = await getColorFromImage(newCover);
+    }
+    catch {
+      color.value = { ...defaultFallback };
     }
   }, { immediate: true });
 
