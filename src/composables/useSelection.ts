@@ -22,7 +22,7 @@ export interface UseSelectionReturn<T extends Selectable> {
   selectRange: (anchorId: string, targetId: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
-  handleSelect: (item: T, event: MouseEvent) => void;
+  handleSelect: (item: T, event: MouseEvent | KeyboardEvent) => void;
   attachDragListeners: (
     containerEl: HTMLElement,
     options?: SelectionDragOptions,
@@ -65,9 +65,17 @@ export function useSelection<T extends Selectable>(
       ? [anchorIdx, targetIdx]
       : [targetIdx, anchorIdx];
 
+    const shouldSelectRange = !_selectedIds.value.has(targetId);
     const next = new Set(_selectedIds.value);
+
     for (let i = start; i <= end; i++) {
-      next.add(list[i].id);
+      const id = list[i].id;
+      if (shouldSelectRange) {
+        next.add(id);
+      }
+      else {
+        next.delete(id);
+      }
     }
 
     _selectedIds.value = next;
@@ -84,9 +92,15 @@ export function useSelection<T extends Selectable>(
     _lastToggledId.value = null;
   }
 
-  function handleSelect(item: T, event: MouseEvent): void {
+function handleSelect(item: T, event: MouseEvent | KeyboardEvent): void {
     if (event.shiftKey && _lastToggledId.value) {
       selectRange(_lastToggledId.value, item.id);
+      return;
+    }
+
+    if (event.shiftKey) {
+      toggleById(item.id);
+      _lastToggledId.value = item.id;
       return;
     }
 
