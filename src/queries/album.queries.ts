@@ -259,6 +259,7 @@ export async function deleteAlbumAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPageInfinite() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.artists.page(albumEntity.artistId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.artists.albums(albumEntity.artistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.artists.tracksPage(albumEntity.artistId) }),
     queryClient.invalidateQueries({
       predicate: query =>

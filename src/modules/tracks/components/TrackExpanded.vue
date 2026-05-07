@@ -347,18 +347,14 @@ function handleAlbumClick() {
 
 @container (max-width: 900px) {
   .track-expanded {
-    --grid-template-columns:
-      [index] var(--index-column-width)
-      [first] minmax(160px, 4fr)
-      [var1]  minmax(120px, 2fr)
-      [last]  minmax(var(--last-min-width), var(--last-max-width)) !important;
+    --grid-template-columns: var(--grid-template-columns-medium) !important;
   }
   .var2-col { display: none; }
 }
 
 @container (max-width: 620px) {
   .track-expanded {
-    --grid-template-columns: [first] minmax(0, 1fr) [last] var(--last-min-width) !important;
+    --grid-template-columns: var(--grid-template-columns-small) !important;
     gap: 8px;
   }
   .index-col,

@@ -17,6 +17,7 @@ import type {
   ArtistWithTrackCount,
   LibrarySummaryData,
   LikedTracksPageData,
+  PaginatedAlbumsResult,
   PaginatedTracksResult,
   PlaylistPageData,
   TracksIndexPageData,
@@ -79,6 +80,20 @@ function removeTracksFromInfinitePages(
       tracks: page.tracks.filter(track => !trackIdSet.has(track.id)),
       total: Math.max(0, page.total - removedCount),
       totalDuration: Math.max(0, page.totalDuration - removedDuration),
+    })),
+  };
+}
+
+function removeAlbumFromInfinitePages(
+  data: InfiniteData<PaginatedAlbumsResult>,
+  albumId: AlbumId,
+): InfiniteData<PaginatedAlbumsResult> {
+  return {
+    ...data,
+    pages: data.pages.map(page => ({
+      ...page,
+      albums: page.albums.filter(album => album.id !== albumId),
+      total: Math.max(0, page.total - 1),
     })),
   };
 }
@@ -197,6 +212,11 @@ export function removeAlbumCaches(
       ...data,
       albums: removeById(data.albums, albumId),
     }),
+  );
+  setQueryDataIfPresent<InfiniteData<PaginatedAlbumsResult>>(
+    queryClient,
+    queryKeys.artists.albums(artistId),
+    data => removeAlbumFromInfinitePages(data, albumId),
   );
   setQueryDataIfPresent<LibrarySummaryData>(
     queryClient,

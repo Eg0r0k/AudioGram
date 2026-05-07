@@ -3,7 +3,7 @@
     v-if="IS_TAURI && !IS_MOBILE"
     data-tauri-drag-region
     role="toolbar"
-    class="titlebar border-b border-background"
+    class="titlebar bg-accent"
   >
     <div class="titlebar-text">
       <Button
@@ -111,7 +111,7 @@ onMounted(async () => {
   z-index: var(--z-toolbar);
   height: 26px;
   padding: 0 0 0 8px;
-  background-color: var(--card);
+  /* background-color: var(--card); */
   display: flex;
   align-items: center;
   user-select: none;

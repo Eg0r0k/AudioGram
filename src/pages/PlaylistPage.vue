@@ -1,7 +1,6 @@
 <template>
   <div
-    class="flex-1 min-h-0"
-    :style="gridStyles"
+    class="track-list-grid flex-1 min-h-0"
   >
     <template v-if="isLoading">
       <div class="flex items-center justify-center h-full">
@@ -136,14 +135,13 @@ import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
 import IconPlus from "~icons/tabler/plus";
-import { isSameQueueSource } from "@/modules/queue/types";
-import { getSecureRandomIndex } from "@/lib/random";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
+import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 
 const { t } = useI18n();
 const queueStore = useQueueStore();
@@ -151,28 +149,9 @@ const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
+const shuffleQueue = useQueueShuffle();
 const route = useRoute();
 const sortKey = ref<TrackSortKey | null>(null);
-
-const gridStyles = {
-  "--index-column-width": "32px",
-  "--first-min-width": "180px",
-  "--first-max-width": "4fr",
-  "--var1-min-width": "120px",
-  "--var1-max-width": "2fr",
-  "--var2-min-width": "120px",
-  "--var2-max-width": "2fr",
-  "--last-min-width": "80px",
-  "--last-max-width": "1fr",
-
-  "--grid-template-columns": `
-    [index] var(--index-column-width) 
-    [first] minmax(var(--first-min-width), var(--first-max-width)) 
-    [var1] minmax(var(--var1-min-width), var(--var1-max-width)) 
-    [var2] minmax(var(--var2-min-width), var(--var2-max-width)) 
-    [last] minmax(var(--last-min-width), var(--last-max-width))
-  `,
-};
 
 const {
   playlist,
@@ -268,17 +247,7 @@ async function handleShuffle() {
     type: "playlist",
     playlistId: playlist.value.id,
   } as const;
-
-  if (queueStore.currentItem && isSameQueueSource(queueStore.currentItem.source, source)) {
-    queueStore.toggleShuffle();
-    return;
-  }
-
-  const data = await getPlaylistPageData(playlist.value.id, sortKey.value);
-  if (data.tracks.length === 0) return;
-
-  const randomIndex = getSecureRandomIndex(data.tracks.length);
-  await queueStore.setQueue(data.tracks, randomIndex, source, { shuffled: true });
+  await shuffleQueue(source, async () => (await getPlaylistPageData(playlist.value!.id, sortKey.value)).tracks);
 }
 
 function handleAddToQueue() {

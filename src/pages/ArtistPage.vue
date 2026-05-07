@@ -1,7 +1,6 @@
 <template>
   <div
-    class="flex-1 min-h-0"
-    :style="gridStyles"
+    class="track-list-grid flex-1 min-h-0"
   >
     <template v-if="isLoading">
       <div class="flex items-center justify-center h-full">
@@ -38,7 +37,7 @@
               @edit="showEditDialog = true"
               @delete="openDeleteDialog"
             >
-              <!-- <template #actions>
+              <template #actions>
                 <Button
                   class="text-white"
                   variant="ghost"
@@ -47,7 +46,7 @@
                   <IconPlus class="size-5" />
                   {{ $t("track.addTracks") }}
                 </Button>
-              </template> -->
+              </template>
             </MediaHero>
             <section
               v-if="albums.length > 0"
@@ -60,16 +59,24 @@
                   </h2>
 
                   <p class="text-sm text-muted-foreground">
-                    {{ $t('common.albums', {count: albumCount}) }}
+                    {{ $t('common.albums', { count: albumCount }) }}
                   </p>
                 </div>
               </div>
-              <div class="flex  items-center text-muted-foreground flex-col w-full">
-                <IconLogo class=" size-10 mb-1 " />
-                <span class=" font-medium">
-                  {{ $t('common.comingSoon') }}
-                </span>
-              </div>
+
+              <LibraryContextMenu @delete="deleteLibraryItem">
+                <ScrollableSlider
+                  class="mt-3 -mx-4"
+                  content-class="px-4"
+                >
+                  <AlbumItem
+                    v-for="albumItem in albumItems"
+                    :key="albumItem.id"
+                    :item="albumItem"
+                    @play="handlePlayAlbum"
+                  />
+                </ScrollableSlider>
+              </LibraryContextMenu>
             </section>
           </template>
 
@@ -121,15 +128,13 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
-import IconLogo from "~icons/audiogram/logo";
+import IconPlus from "~icons/tabler/plus";
 
 import { useArtistPage } from "@/modules/artists/composables/useArtistPage";
 import { getArtistPageData } from "@/queries/artist.queries";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
-import { isSameQueueSource } from "@/modules/queue/types";
-import { getSecureRandomIndex } from "@/lib/random";
 import EditArtistDialog from "@/modules/artists/components/dialogs/EditArtistDialog.vue";
 import type { ArtistChanges } from "@/modules/artists/composables/useArtistPage";
 import type { TrackSortKey } from "@/modules/tracks/types";
@@ -138,32 +143,29 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
+import AlbumItem from "@/modules/albums/components/AlbumItem.vue";
+import { ScrollableSlider } from "@/components/ui/scrollable";
+import { routeLocation } from "@/app/router/route-locations";
+import type { LibraryItem } from "@/modules/library/types";
+import { useLibrary } from "@/modules/library/composables/useLibrary";
+import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
+import { getAlbumPageData } from "@/queries/album.queries";
+import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
+import type { AlbumId } from "@/types/ids";
+import { Button } from "@/components/ui/button";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { useRoute } from "vue-router";
+
 const { t } = useI18n();
 const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
+const rightPanelStore = useRightPanelStore();
+const route = useRoute();
 const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
+const { isPinned, deleteItem: deleteLibraryItem } = useLibrary();
+const shuffleQueue = useQueueShuffle();
 const sortKey = ref<TrackSortKey | null>(null);
-
-const gridStyles = {
-  "--index-column-width": "32px",
-  "--first-min-width": "180px",
-  "--first-max-width": "4fr",
-  "--var1-min-width": "120px",
-  "--var1-max-width": "2fr",
-  "--var2-min-width": "120px",
-  "--var2-max-width": "2fr",
-  "--last-min-width": "80px",
-  "--last-max-width": "1fr",
-
-  "--grid-template-columns": `
-    [index] var(--index-column-width) 
-    [first] minmax(var(--first-min-width), var(--first-max-width)) 
-    [var1] minmax(var(--var1-min-width), var(--var1-max-width)) 
-    [var2] minmax(var(--var2-min-width), var(--var2-max-width)) 
-    [last] minmax(var(--last-min-width), var(--last-max-width))
-  `,
-};
 
 const {
   artist,
@@ -187,6 +189,19 @@ const {
 
 const showEditDialog = ref(false);
 const currentTrackId = computed(() => playerStore.currentTrack?.id ?? null);
+
+const albumItems = computed<LibraryItem[]>(() => albums.value.map(album => ({
+  id: album.id,
+  type: "album",
+  title: album.title,
+  subtitle: artist.value?.name,
+  isPinned: isPinned("album", album.id),
+  addedAt: album.addedAt,
+  updatedAt: album.updatedAt,
+  artistName: artist.value?.name,
+  to: routeLocation.album(album.id),
+  rounded: false,
+})));
 
 function getTrackKey(index: number) {
   return tracks.value[index]?.id ?? index;
@@ -236,21 +251,19 @@ async function handlePlayTrack(index: number) {
   await queueStore.setQueue(data.tracks, fullIndex, { type: "artist", artistId: artist.value.id });
 }
 
+async function handlePlayAlbum(item: LibraryItem) {
+  const albumId = item.id as AlbumId;
+  const data = await getAlbumPageData(albumId);
+  if (data.tracks.length === 0) return;
+
+  await queueStore.setQueue(data.tracks, 0, { type: "album", albumId });
+}
+
 async function handleShuffle() {
   if (!artist.value) return;
 
   const source = { type: "artist", artistId: artist.value.id } as const;
-
-  if (queueStore.currentItem && isSameQueueSource(queueStore.currentItem.source, source)) {
-    queueStore.toggleShuffle();
-    return;
-  }
-
-  const data = await getArtistPageData(artist.value.id, sortKey.value);
-  if (data.tracks.length === 0) return;
-
-  const randomIndex = getSecureRandomIndex(data.tracks.length);
-  await queueStore.setQueue(data.tracks, randomIndex, source, { shuffled: true });
+  await shuffleQueue(source, async () => (await getArtistPageData(artist.value!.id, sortKey.value)).tracks);
 }
 
 function openDeleteDialog() {
@@ -283,4 +296,18 @@ async function handleSave(changes: ArtistChanges) {
     toast.error(message);
   }
 }
+
+const openAddTracksPanel = () => {
+  if (!artist.value) return;
+
+  rightPanelStore.openAddTracks({
+    entityType: "artist",
+    entityId: artist.value.id,
+    onConfirmed: () => refetch(),
+  }, {
+    scope: { type: "route", routeKey: route.fullPath },
+    depth: 1,
+  });
+};
+
 </script>

@@ -34,7 +34,7 @@
         </div>
         <template v-if="currentTrack">
           <div class="grid gap-3">
-            <div class="flex justify-between items-center relative select-none mb-1">
+            <div class="flex justify-between items-center relative select-none">
               <div class="grid gap-1 flex-1 min-w-0 max-w-fit overflow-hidden mx-2">
                 <MarqueeBlock
                   class="group"

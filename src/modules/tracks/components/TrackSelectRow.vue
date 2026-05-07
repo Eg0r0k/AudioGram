@@ -4,6 +4,8 @@
     role="button"
     tabindex="0"
     data-track-row
+    :data-track-id="track.id"
+    :data-track-index="index"
     :class="[
       'group track-row flex h-16 w-full select-none items-center gap-3 rounded px-2.5 transition-colors',
       'cursor-pointer hover:bg-muted/50 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border-ring outline-none',
@@ -62,10 +64,12 @@ import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 interface Props {
   track: Track;
   isSelected?: boolean;
+  index?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSelected: false,
+  index: 0,
 });
 
 const emit = defineEmits<{

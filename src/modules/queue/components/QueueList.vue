@@ -26,7 +26,7 @@
           </TrackContextMenu>
         </div>
       </div>
-      <div class="px-4  pt-4 bg-card">
+      <div class="px-4 bg-card">
         <span class=" block font-medium pb-2  ">
           {{ t("queue.upNext") }}
         </span>

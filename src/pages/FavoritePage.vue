@@ -1,7 +1,6 @@
 <template>
   <div
-    class="flex-1 min-h-0"
-    :style="gridStyles"
+    class="track-list-grid flex-1 min-h-0"
   >
     <template v-if="isLoading">
       <div class="flex h-full items-center justify-center">
@@ -113,41 +112,21 @@ import { useLikedTracksPage } from "@/modules/favorite/composables/useLikedTrack
 import { getLikedTracksPageData } from "@/queries/track.queries";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
-import { isSameQueueSource } from "@/modules/queue/types";
-import { getSecureRandomIndex } from "@/lib/random";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
+import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 
 const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const { openMenu } = useTrackMenu();
+const shuffleQueue = useQueueShuffle();
 const route = useRoute();
 const sortKey = ref<TrackSortKey | null>(null);
-
-const gridStyles = {
-  "--index-column-width": "32px",
-  "--first-min-width": "180px",
-  "--first-max-width": "4fr",
-  "--var1-min-width": "120px",
-  "--var1-max-width": "2fr",
-  "--var2-min-width": "120px",
-  "--var2-max-width": "2fr",
-  "--last-min-width": "80px",
-  "--last-max-width": "1fr",
-
-  "--grid-template-columns": `
-    [index] var(--index-column-width) 
-    [first] minmax(var(--first-min-width), var(--first-max-width)) 
-    [var1] minmax(var(--var1-min-width), var(--var1-max-width)) 
-    [var2] minmax(var(--var2-min-width), var(--var2-max-width)) 
-    [last] minmax(var(--last-min-width), var(--last-max-width))
-  `,
-};
 
 const {
   tracks,
@@ -216,17 +195,7 @@ async function handlePlayTrack(index: number) {
 
 async function handleShuffle() {
   const source = { type: "liked" } as const;
-
-  if (queueStore.currentItem && isSameQueueSource(queueStore.currentItem.source, source)) {
-    queueStore.toggleShuffle();
-    return;
-  }
-
-  const data = await getLikedTracksPageData(sortKey.value);
-  if (data.tracks.length === 0) return;
-
-  const randomIndex = getSecureRandomIndex(data.tracks.length);
-  await queueStore.setQueue(data.tracks, randomIndex, source, { shuffled: true });
+  await shuffleQueue(source, async () => (await getLikedTracksPageData(sortKey.value)).tracks);
 }
 
 function handleAddToQueue() {

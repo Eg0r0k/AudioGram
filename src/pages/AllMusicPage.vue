@@ -121,8 +121,7 @@
       context="default"
     >
       <div
-        class="relative flex min-h-0 flex-1 flex-col"
-        :style="gridStyles"
+        class="track-list-grid relative flex min-h-0 flex-1 flex-col"
       >
         <LibrarySortHeader
           v-model:sort-key="sortKey"
@@ -193,25 +192,6 @@ const { t } = useI18n();
 const router = useRouter();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
-const gridStyles = {
-  "--index-column-width": "32px",
-  "--first-min-width": "180px",
-  "--first-max-width": "4fr",
-  "--var1-min-width": "120px",
-  "--var1-max-width": "2fr",
-  "--var2-min-width": "120px",
-  "--var2-max-width": "2fr",
-  "--last-min-width": "80px",
-  "--last-max-width": "1fr",
-
-  "--grid-template-columns": `
-    [index] var(--index-column-width) 
-    [first] minmax(var(--first-min-width), var(--first-max-width)) 
-    [var1] minmax(var(--var1-min-width), var(--var1-max-width)) 
-    [var2] minmax(var(--var2-min-width), var(--var2-max-width)) 
-    [last] minmax(var(--last-min-width), var(--last-max-width))
-  `,
-};
 const {
   normalizedSearchQuery,
   tracks,

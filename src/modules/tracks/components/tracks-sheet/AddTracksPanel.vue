@@ -36,7 +36,10 @@
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-hidden relative">
+    <div
+      ref="tracksListRef"
+      class="min-h-0 flex-1 overflow-hidden relative"
+    >
       <VirtualScrollable
         :items="tracks"
         :get-item-key="getTrackKey"
@@ -48,10 +51,11 @@
         class="h-full"
         @load-more="handleLoadMore"
       >
-        <template #default="{ item }">
+        <template #default="{ item, index }">
           <div class="px-2">
             <TrackSelectRow
               :track="item"
+              :index="index"
               :is-selected="isTrackSelected(item.id)"
               @toggle-select="toggleTrackSelect"
             />
@@ -80,7 +84,7 @@
 <script setup lang="ts">
 import { refDebounced } from "@vueuse/core";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import { computed, ref, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { Button } from "@/components/ui/button";
@@ -90,7 +94,6 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
-import type { Track } from "@/modules/player/types";
 import TrackSelectRow from "../TrackSelectRow.vue";
 import { addTracksToPlaylistAndSync } from "@/queries/playlist.queries";
 import { queryKeys } from "@/queries/query-keys";
@@ -107,6 +110,8 @@ import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.
 import IconX from "~icons/tabler/x";
 import AddFloatingButton from "./AddFloatingButton.vue";
 import TrackRowLoading from "../TrackRowLoading.vue";
+import { useSelection } from "@/composables/useSelection";
+
 const props = defineProps<{
   payload: RightPanelAddTracksPayload;
 }>();
@@ -117,8 +122,6 @@ const rightPanel = useRightPanelStore();
 
 const searchInput = ref("");
 const debouncedSearchQuery = refDebounced(searchInput, 200);
-const selectedTrackMap = ref(new Map<string, Track>());
-const lastSelectedTrackId = ref<string | null>(null);
 
 const normalizedEntityId = computed(() => String(props.payload.entityId));
 const normalizedSearchQuery = computed(() => debouncedSearchQuery.value.trim());
@@ -142,8 +145,35 @@ const tracks = computed(() =>
   infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
 );
 
-const selectedTracks = computed(() => Array.from(selectedTrackMap.value.values()));
-const selectedCount = computed(() => selectedTrackMap.value.size);
+const {
+  selectedIds,
+  selectedCount,
+  isSelected: isTrackSelected,
+  handleSelect: toggleTrackSelect,
+  clearSelection,
+  attachDragListeners,
+} = useSelection(tracks);
+
+const tracksListRef = useTemplateRef<HTMLElement>("tracksListRef");
+
+watch(
+  tracksListRef,
+  (el, _prev, onCleanup) => {
+    if (!el) return;
+    const cleanup = attachDragListeners(el, {
+      rowSelector: "[data-track-id]",
+      idDataKey: "trackId",
+      indexDataKey: "trackIndex",
+    });
+    onCleanup(cleanup);
+  },
+  { flush: "post" },
+);
+
+const selectedTracks = computed(() => {
+  const ids = selectedIds.value;
+  return tracks.value.filter(track => ids.has(track.id));
+});
 const isInitialLoading = computed(() => isLoading.value && tracks.value.length === 0);
 const emptyLabel = computed(() =>
   normalizedSearchQuery.value.length > 0
@@ -217,47 +247,6 @@ function handleLoadMore() {
   fetchNextPage();
 }
 
-function isTrackSelected(trackId: string) {
-  return selectedTrackMap.value.has(trackId);
-}
-
-function toggleTrackSelect(track: Track, event: MouseEvent | KeyboardEvent) {
-  const next = new Map(selectedTrackMap.value);
-  const currentIndex = tracks.value.findIndex(item => item.id === track.id);
-  const anchorIndex = lastSelectedTrackId.value === null
-    ? -1
-    : tracks.value.findIndex(item => item.id === lastSelectedTrackId.value);
-
-  if (event.shiftKey && currentIndex !== -1 && anchorIndex !== -1) {
-    const start = Math.min(anchorIndex, currentIndex);
-    const end = Math.max(anchorIndex, currentIndex);
-    const shouldSelectRange = !next.has(track.id);
-
-    for (const rangeTrack of tracks.value.slice(start, end + 1)) {
-      if (shouldSelectRange) {
-        next.set(rangeTrack.id, rangeTrack);
-      }
-      else {
-        next.delete(rangeTrack.id);
-      }
-    }
-
-    selectedTrackMap.value = next;
-    lastSelectedTrackId.value = track.id;
-    return;
-  }
-
-  if (next.has(track.id)) {
-    next.delete(track.id);
-  }
-  else {
-    next.set(track.id, track);
-  }
-
-  selectedTrackMap.value = next;
-  lastSelectedTrackId.value = track.id;
-}
-
 async function handleConfirm() {
   if (selectedCount.value === 0) {
     return;
@@ -275,8 +264,7 @@ async function handleConfirm() {
 }
 
 function resetState() {
-  selectedTrackMap.value = new Map();
-  lastSelectedTrackId.value = null;
+  clearSelection();
   searchInput.value = "";
 }
 

@@ -1,7 +1,7 @@
 <template>
   <div
-    class="flex-1 min-h-0"
-    :style="gridStyles"
+    ref="tracksListRef"
+    class="track-list-grid flex-1 min-h-0"
   >
     <template v-if="isLoading">
       <div class="flex items-center justify-center h-full">
@@ -21,13 +21,7 @@
         context="album"
         :album-id="album?.id"
       >
-        <!--
-          tracksListRef wraps VirtualScrollable so we have a stable DOM element
-          to attach drag-selection listeners to. We can't use a ref inside the
-          #default slot because it renders many times (once per visible row).
-        -->
         <div
-          ref="tracksListRef"
           class="h-full"
         >
           <VirtualScrollable
@@ -51,7 +45,6 @@
                 @edit="showEditDialog = true"
                 @delete="openDeleteDialog"
                 @add-to-queue="handleAddToQueue"
-                @share="handleShare"
               >
                 <template #actions>
                   <Button
@@ -67,16 +60,14 @@
             </template>
 
             <template #sticky>
-              <TrackSelectionBar
-                v-if="isSelecting"
+              <!-- <TrackSelectionBar
                 key="selection"
                 :selected-count="selectedCount"
                 can-delete
                 @cancel="clearSelection"
                 @select-all="selectAll"
-              />
+              /> -->
               <LibrarySortHeader
-                v-else
                 v-model:sort-key="sortKey"
               />
             </template>
@@ -122,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, onUnmounted, watch } from "vue";
+import { ref, computed, useTemplateRef, watch } from "vue";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -142,16 +133,14 @@ import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
 import IconPlus from "~icons/tabler/plus";
-import { isSameQueueSource } from "@/modules/queue/types";
-import { getSecureRandomIndex } from "@/lib/random";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
-import TrackSelectionBar from "@/modules/tracks/components/TrackSelectionBar.vue";
 import { useTrackSelection } from "@/modules/tracks/composables/useTrackSelection";
+import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 
 interface AlbumChanges {
   title?: string;
@@ -166,27 +155,9 @@ const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
+const shuffleQueue = useQueueShuffle();
 const route = useRoute();
 const sortKey = ref<TrackSortKey | null>(null);
-
-const gridStyles = {
-  "--index-column-width": "32px",
-  "--first-min-width": "180px",
-  "--first-max-width": "4fr",
-  "--var1-min-width": "120px",
-  "--var1-max-width": "2fr",
-  "--var2-min-width": "120px",
-  "--var2-max-width": "2fr",
-  "--last-min-width": "80px",
-  "--last-max-width": "1fr",
-  "--grid-template-columns": `
-    [index] var(--index-column-width)
-    [first] minmax(var(--first-min-width), var(--first-max-width))
-    [var1]  minmax(var(--var1-min-width), var(--var1-max-width))
-    [var2]  minmax(var(--var2-min-width), var(--var2-max-width))
-    [last]  minmax(var(--last-min-width), var(--last-max-width))
-  `,
-};
 
 const {
   album,
@@ -206,52 +177,21 @@ const {
   isFetchingNextPage,
 } = useAlbumPage(sortKey);
 
-// ── Selection ──────────────────────────────────────────────────────────────────
-
 const tracksListRef = useTemplateRef<HTMLElement>("tracksListRef");
-let removeDragListeners: (() => void) | null = null;
 
 const {
   isSelecting,
-  selectedCount,
   isSelected,
   clearSelection,
-  selectAll,
   handleTrackSelect,
-  attachDragListeners,
-} = useTrackSelection(tracks);
+} = useTrackSelection(tracks, tracksListRef);
 
-// A stable wrapper div around VirtualScrollable — safe to ref once, unlike
-// the #default slot which renders once per visible row.
-
-watch(
-  () => tracksListRef.value,
-  (el, _, onCleanup) => {
-    removeDragListeners?.();
-    removeDragListeners = null;
-
-    if (!el) return;
-
-    removeDragListeners = attachDragListeners(el);
-
-    onCleanup(() => {
-      removeDragListeners?.();
-      removeDragListeners = null;
-    });
-  },
-  { immediate: true, flush: "post" },
-);
-
-onUnmounted(() => {
-  removeDragListeners?.();
-});
+watch(() => route.params.id, () => clearSelection());
 
 // ESC cancels selection
 onKeyStroke("Escape", () => {
   if (isSelecting.value) clearSelection();
 });
-
-// ── Misc state ─────────────────────────────────────────────────────────────────
 
 const showEditDialog = ref(false);
 const currentTrackId = computed(() => playerStore.currentTrack?.id ?? null);
@@ -266,8 +206,6 @@ function getTrackKey(index: number) {
   return tracks.value[index]?.id ?? index;
 }
 
-// ── Panel / navigation ─────────────────────────────────────────────────────────
-
 function openAddTracksPanel() {
   if (!album.value) return;
   rightPanelStore.openAddTracks(
@@ -281,13 +219,9 @@ function handleLoadMore() {
   fetchNextPage();
 }
 
-// ── Context menu ───────────────────────────────────────────────────────────────
-
 function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "album" });
 }
-
-// ── Playback ───────────────────────────────────────────────────────────────────
 
 function handlePlayAll() {
   if (!album.value) return;
@@ -318,10 +252,6 @@ async function handlePlayTrack(index: number) {
 function handleAddToQueue() {
   if (tracks.value.length === 0) return;
   queueStore.addMultipleToQueue(tracks.value);
-}
-
-function handleShare() {
-  toast.info(t("common.comingSoon"));
 }
 
 function openDeleteDialog() {
@@ -356,18 +286,8 @@ async function handleSave(changes: AlbumChanges) {
 }
 
 async function handleShuffle() {
-  if (tracks.value.length === 0 || !album.value) return;
+  if (!album.value) return;
   const source = { type: "album", albumId: album.value.id } as const;
-
-  if (queueStore.currentItem && isSameQueueSource(queueStore.currentItem.source, source)) {
-    queueStore.toggleShuffle();
-    return;
-  }
-
-  const data = await getAlbumPageData(album.value.id, sortKey.value);
-  if (data.tracks.length === 0) return;
-
-  const randomIndex = getSecureRandomIndex(data.tracks.length);
-  await queueStore.setQueue(data.tracks, randomIndex, source, { shuffled: true });
+  await shuffleQueue(source, async () => (await getAlbumPageData(album.value!.id, sortKey.value)).tracks);
 }
 </script>

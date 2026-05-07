@@ -172,7 +172,7 @@ import { toTypedSchema } from "@vee-validate/valibot";
 
 const { t } = useI18n();
 
-const MAX_NAME_LENGTH = 50;
+const MAX_NAME_LENGTH = 100;
 const MAX_DESCRIPTION_LENGTH = 300;
 
 const playlistFormSchema = object({

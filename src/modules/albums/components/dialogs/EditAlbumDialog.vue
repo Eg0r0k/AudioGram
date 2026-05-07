@@ -172,7 +172,7 @@ import { toTypedSchema } from "@vee-validate/valibot";
 
 const { t } = useI18n();
 
-const MAX_TITLE_LENGTH = 50;
+const MAX_TITLE_LENGTH = 100;
 const MAX_DESCRIPTION_LENGTH = 200;
 
 const albumFormSchema = object({

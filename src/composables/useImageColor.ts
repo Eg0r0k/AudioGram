@@ -39,7 +39,6 @@ export async function getColorFromImage(
 ): Promise<ColorResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
-  // Try canvas analysis first
   const canvasResult = await analyzeWithCanvas(imageUrl);
   if (canvasResult) {
     const normalizedHex = normalizeColor(canvasResult, {
@@ -48,7 +47,6 @@ export async function getColorFromImage(
     return buildColorResult(normalizedHex);
   }
 
-  // Fallback to Vibrant
   const vibrantResult = await analyzeWithVibrant(imageUrl);
   if (vibrantResult) {
     const normalizedHex = normalizeColor(vibrantResult, {
@@ -57,7 +55,6 @@ export async function getColorFromImage(
     return buildColorResult(normalizedHex);
   }
 
-  // Use fallback
   console.warn("[useImageColor] All extraction failed, using fallback:", opts.fallback);
   return buildColorResult(opts.fallback);
 }

@@ -173,7 +173,7 @@ import IconAlertCircle from "~icons/tabler/alert-circle";
 
 const { t } = useI18n();
 
-const MAX_NAME_LENGTH = 80;
+const MAX_NAME_LENGTH = 100;
 const MAX_BIO_LENGTH = 500;
 
 const artistFormSchema = object({
