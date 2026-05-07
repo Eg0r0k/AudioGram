@@ -1,5 +1,8 @@
 <template>
-  <div class="flex items-center gap-3 shrink-0 px-4 pb-4 ">
+  <div
+    data-sidebar-header
+    class="flex items-center gap-3 shrink-0 px-4 pb-4 "
+  >
     <Transition
       enter-active-class="transition-all duration-200 ease-standard"
       enter-from-class="opacity-0 scale-75 rotate-[-90deg]"

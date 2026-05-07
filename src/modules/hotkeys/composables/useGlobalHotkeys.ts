@@ -4,14 +4,16 @@ import { computed, ref } from "vue";
 import { useActiveElement, useMagicKeys, whenever } from "@vueuse/core";
 import { SEEK_STEP, VOLUME_STEP } from "../constants";
 import { clamp } from "@/lib/math";
+import { useSearch } from "@/modules/search/composables/useSearch";
 
 const EDITABLE_TAGS = new Set(["INPUT", "SELECT", "TEXTAREA"]);
-const PREVENT_DEFAULT_KEYS = new Set([" ", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"]);
+const PREVENT_DEFAULT_KEYS = new Set([" ", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp", "f", "F"]);
 
 export const useGlobalHotKeys = () => {
   const player = usePlayerStore();
   const queue = useQueueStore();
   const isEnabled = ref(true);
+  const { openSearch } = useSearch();
 
   const activeElement = useActiveElement();
 
@@ -85,6 +87,20 @@ export const useGlobalHotKeys = () => {
   whenever(() => keys.m.value && canFire.value, () => player.toggleMute());
   whenever(() => keys.s.value && canFire.value, () => queue.toggleShuffle());
   whenever(() => keys.r.value && canFire.value, () => player.toggleRepeat());
+
+  // Search
+  whenever(
+    () => (keys["ctrl+f"].value || keys["meta+f"].value) && canFire.value,
+    () => {
+      openSearch();
+      requestAnimationFrame(() => {
+        const searchInput = document.querySelector<HTMLInputElement>(
+          "[data-sidebar-header] input",
+        );
+        searchInput?.focus();
+      });
+    },
+  );
 
   return { isEnabled };
 };
