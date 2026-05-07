@@ -13,6 +13,8 @@ export const ROUTE_NAMES = {
   SETTINGS_NOTIFICATIONS: "settings-notifications",
   SETTINGS_APPEARANCE: "settings-appearance",
   SETTINGS_ABOUT: "settings-about",
+  SETTINGS_TERMS: "settings-terms",
+  SETTINGS_PRIVACY: "settings-privacy",
   ALL_MUSIC: "all-music",
 } as const;
 

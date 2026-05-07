@@ -74,4 +74,22 @@ export const settingsRoutes: RouteRecordRaw[] = [
       depth: 4,
     },
   },
+  {
+    path: "/settings/about/terms",
+    name: ROUTE_NAMES.SETTINGS_TERMS,
+    component: () => import("@/pages/settings/TermsOfServiceSettings.vue"),
+    meta: {
+      titleKey: "settings.about.termsOfService",
+      depth: 5,
+    },
+  },
+  {
+    path: "/settings/about/privacy",
+    name: ROUTE_NAMES.SETTINGS_PRIVACY,
+    component: () => import("@/pages/settings/PrivacyPolicySettings.vue"),
+    meta: {
+      titleKey: "settings.about.privacyPolicy",
+      depth: 5,
+    },
+  },
 ];

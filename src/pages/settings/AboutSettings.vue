@@ -24,7 +24,7 @@
               as-child
             >
               <Link
-                to="https://github.com/Eg0r0k/AudioGram"
+                to="https://github.com/Eg0r0k/Audiogram"
                 confirm-external
               >
                 <IconGithub
@@ -74,40 +74,45 @@
             </div>
           </template>
         </SettingsItem>
-
-        <SettingsItem :title="$t('settings.about.shareWithFriends')">
-          <template #action>
-            <IconChevronRight
-              class="size-5 text-muted-foreground"
-            />
-          </template>
-        </SettingsItem>
       </SettingsGroup>
 
       <SettingsGroup class="mt-3">
-        <SettingsItem :title="$t('settings.about.termsOfService')">
-          <template #action>
-            <IconExternalLink
-              class="size-5 text-muted-foreground"
-            />
-          </template>
-        </SettingsItem>
-
-        <SettingsItem :title="$t('settings.about.privacyPolicy')">
-          <template #action>
-            <IconExternalLink
-              class="size-5 text-muted-foreground"
-            />
-          </template>
-        </SettingsItem>
-
-        <SettingsItem :title="$t('settings.about.licenses')">
+        <SettingsItem
+          :title="$t('settings.about.termsOfService')"
+          @click="router.push(routeLocation.settingsTerms())"
+        >
           <template #action>
             <IconChevronRight
               class="size-5 text-muted-foreground"
             />
           </template>
         </SettingsItem>
+
+        <SettingsItem
+          :title="$t('settings.about.privacyPolicy')"
+          @click="router.push(routeLocation.settingsPrivacy())"
+        >
+          <template #action>
+            <IconChevronRight
+              class="size-5 text-muted-foreground"
+            />
+          </template>
+        </SettingsItem>
+
+        <Link
+          to="https://github.com/Eg0r0k/Audiogram/blob/main/LICENSE"
+          confirm-external
+        >
+          <SettingsItem
+            :title="$t('settings.about.licenses')"
+          >
+            <template #action>
+              <IconExternalLink
+                class="size-5 text-muted-foreground"
+              />
+            </template>
+          </SettingsItem>
+        </Link>
       </SettingsGroup>
 
       <div class="px-4 py-6 text-center text-xs text-muted-foreground">
@@ -118,7 +123,7 @@
         </p>
 
         <p class="mt-1">
-          © {{ dateYear }} Audiogram.{{ $t('settings.about.allRightsReserved') }}.
+          © {{ dateYear }} Audiogram. {{ $t('settings.about.allRightsReserved') }}.
         </p>
       </div>
     </div>
@@ -130,7 +135,7 @@ import IconGithub from "~icons/tabler/brand-github-filled";
 import IconTelegram from "~icons/tabler/brand-telegram";
 import IconChevronRight from "~icons/tabler/chevron-right";
 import IconExternalLink from "~icons/tabler/external-link";
-import IconBarBell from "~icons/tabler/barbell-filled";
+import IconBarBell from "~icons/tabler/brand-among-us";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconLogo from "~icons/audiogram/logo";
 import { toast } from "vue-sonner";
@@ -144,6 +149,10 @@ import SettingsItem from "@/modules/settings/components/SettingsItem.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useReleaseNotesDialog } from "@/modules/update/composables/useReleaseNotesDialog";
 import { useChangelogStore } from "@/modules/update/store/changelog.store";
+import { routeLocation } from "@/app/router/route-locations";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
 
 const dateYear = new Date().getFullYear();
 const appVersion = __APP_VERSION__;
@@ -165,4 +174,5 @@ const handleOpenWhatsNew = async () => {
   toast.error(error.value ?? t("settings.about.releaseNotesLoadFailed"));
   clearError();
 };
+
 </script>
