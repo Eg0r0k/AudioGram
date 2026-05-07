@@ -8,7 +8,7 @@
       v-else
       class="relative flex flex-col gap-4  items-center justify-center  h-full overflow-hidden bg-background"
     >
-      <IconLogo class=" text-accent size-52" />
+      <IconLogo class=" text-accent size-45" />
       <div class="flex flex-col">
         <div class="flex flex-col gap-2 w-[256px]">
           <div class="flex w-full justify-between ">

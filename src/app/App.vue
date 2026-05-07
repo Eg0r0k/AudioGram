@@ -180,11 +180,7 @@ watch(
         duration: Infinity,
       });
     }
-    else if (status === "error") {
-      if (updateToastId) toast.dismiss(updateToastId);
-      const message = updateStore.error?.message ?? "Unknown error";
-      toast.error(t("update.updateError", { message }));
-    }
+
     else if (status === "up-to-date") {
       if (updateToastId) toast.dismiss(updateToastId);
     }
@@ -192,7 +188,6 @@ watch(
 );
 
 // Tray
-
 if (IS_TAURI) {
   useTrayBehavior();
 }
