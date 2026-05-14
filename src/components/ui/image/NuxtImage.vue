@@ -89,16 +89,32 @@ const normalizedAttrs = computed<ImgHTMLAttributes>(() => ({
   crossorigin: props.crossorigin,
 }));
 
-const imgAttrs = computed<ImgHTMLAttributes>(() => ({
-  ...normalizedAttrs.value,
-  ...(!props.placeholder || placeholderLoaded.value)
-    ? { sizes: props.sizes, srcset: props.srcset }
-    : {},
-  ...attrs,
-}));
+const isValidImageSrc = computed(() => {
+  if (!props.src) return false;
+
+  const src = props.src.trim();
+
+  if (!src || src === "/" || src === "//") return false;
+
+  if (src.startsWith("data:image/")) return true;
+
+  if (src.startsWith("blob:")) return true;
+
+  const hasImageExtension = /\.(jpe?g|png|gif|webp|avif|svg|ico|bmp|tiff?)(\?.*)?$/i.test(src);
+  const isAbsoluteUrl = /^https?:\/\//i.test(src);
+  const isRelativePath = src.startsWith("/") && src.length > 1;
+
+  return hasImageExtension || isAbsoluteUrl || isRelativePath;
+});
+
+const isUsingFallback = computed(() => !isValidImageSrc.value || useFallback.value || originalSrcFailed.value);
+
+const shouldUseResponsiveAttrs = computed(
+  () => !isUsingFallback.value && (!props.placeholder || placeholderLoaded.value),
+);
 
 const placeholderSrc = computed<string | false>(() => {
-  if (placeholderLoaded.value) {
+  if (isUsingFallback.value || placeholderLoaded.value) {
     return false;
   }
 
@@ -127,30 +143,14 @@ const placeholderSrc = computed<string | false>(() => {
   return generatePlaceholderDataUrl(width, height);
 });
 
-const isValidImageSrc = computed(() => {
-  if (!props.src) return false;
-
-  const src = props.src.trim();
-
-  if (!src || src === "/" || src === "//") return false;
-
-  if (src.startsWith("data:image/")) return true;
-
-  if (src.startsWith("blob:")) return true;
-
-  const hasImageExtension = /\.(jpe?g|png|gif|webp|avif|svg|ico|bmp|tiff?)(\?.*)?$/i.test(src);
-  const isAbsoluteUrl = /^https?:\/\//i.test(src);
-  const isRelativePath = src.startsWith("/") && src.length > 1;
-
-  return hasImageExtension || isAbsoluteUrl || isRelativePath;
-});
+const imgAttrs = computed<ImgHTMLAttributes>(() => ({
+  ...normalizedAttrs.value,
+  ...(shouldUseResponsiveAttrs.value ? { sizes: props.sizes, srcset: props.srcset } : {}),
+  ...attrs,
+}));
 
 const imageSrc = computed(() => {
-  if (!isValidImageSrc.value) {
-    return props.fallbackSrc;
-  }
-
-  if (useFallback.value || originalSrcFailed.value) {
+  if (isUsingFallback.value) {
     return props.fallbackSrc;
   }
 
@@ -189,6 +189,7 @@ function handleLoadError(error: unknown) {
 
   originalSrcFailed.value = true;
   useFallback.value = true;
+  placeholderLoaded.value = Boolean(props.fallbackSrc);
   emit("error", error instanceof Event ? error : String(error));
 }
 function loadMainImage() {
@@ -210,9 +211,9 @@ function loadMainImage() {
     img.srcset = props.srcset;
   }
 
-  img.src = props.src!;
-
   if (typeof img.decode === "function") {
+    img.src = props.src!;
+
     img.decode()
       .then(() => {
         originalSrcFailed.value = false;
@@ -226,6 +227,7 @@ function loadMainImage() {
       handleLoadSuccess(event);
     };
     img.onerror = event => handleLoadError(event);
+    img.src = props.src!;
   }
 }
 function setupImageListeners() {
