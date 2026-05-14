@@ -43,9 +43,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import MediaDropdown from "./menu/dropdown/MediaDropdown.vue";
-import IconPlay from "~icons/tabler/player-play-filled";
-import IconPause from "~icons/tabler/player-pause-filled";
+import IconPlay from "~icons/audiogram/play-rounded";
+import IconPause from "~icons/audiogram/pause-rounded";
 import IconShuffle from "~icons/tabler/arrows-shuffle";
+
 import type { QueueSource } from "@/modules/queue/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";

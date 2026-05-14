@@ -64,11 +64,11 @@
             </span>
             <IconPause
               v-else-if="isCurrentTrack && isPlaying && isRowHovered"
-              class="size-5 text-white drop-shadow-md"
+              class="size-4 text-white drop-shadow-md"
             />
             <IconPlay
               v-else
-              class="size-5 text-white drop-shadow-md"
+              class="size-4 text-white drop-shadow-md"
             />
           </div>
         </div>
@@ -183,8 +183,8 @@ import { routeLocation } from "@/app/router/route-locations";
 import IconDots from "~icons/tabler/dots";
 import IconLike from "~icons/tabler/heart";
 import IconLikedFilled from "~icons/tabler/heart-filled";
-import IconPause from "~icons/tabler/player-pause-filled";
-import IconPlay from "~icons/tabler/player-play-filled";
+import IconPlay from "~icons/audiogram/play-rounded";
+import IconPause from "~icons/audiogram/pause-rounded";
 
 const styles = {
   root: cva(

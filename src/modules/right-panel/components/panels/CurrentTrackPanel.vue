@@ -14,24 +14,72 @@
       </template>
     </RightPanelHeader>
     <Scrollable class="flex-1">
-      <div class="grid gap-4 py-4 px-5 pt-0">
-        <div class="relative min-w-0 overflow-hidden rounded-2xl bg-muted group">
-          <NuxtImage
-            v-slot="{ imgAttrs, isLoaded, src }"
-            :src="coverUrl"
-            fallback-src="/img/fallback.svg"
-            custom
-          >
-            <img
-              :key="src"
-              v-bind="imgAttrs"
-              :src="src"
-              alt=""
-              class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
-              :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+      <div
+        class="grid gap-4 py-4 px-5 pt-0"
+      >
+        <MorphingDialog
+          :transition="{
+            duration: 0.2,
+            ease: 'easeInOut',
+
+          }"
+        >
+          <MorphingDialogTrigger class="block w-full select-none  rounded-lg overflow-hidden ">
+            <NuxtImage
+              v-slot="{ imgAttrs, isLoaded, src }"
+              :src="coverUrl"
+              fallback-src="/img/fallback.svg"
+              custom
             >
-          </NuxtImage>
-        </div>
+              <img
+                :key="src"
+                v-bind="imgAttrs"
+                :src="src"
+                alt=""
+                class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
+                :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+              >
+            </NuxtImage>
+          </MorphingDialogTrigger>
+          <MorphingDialogContainer>
+            <MorphingDialogContent
+              class="
+        relative
+        select-none
+        overflow-hidden
+        rounded-3xl
+        bg-transparent
+        shadow-none
+      "
+            >
+              <NuxtImage
+                v-slot="{ imgAttrs, isLoaded, src }"
+                :src="coverUrl"
+                fallback-src="/img/fallback.svg"
+                class="
+          h-auto
+          w-full
+          max-w-[90vw]
+          object-cover
+          lg:h-[70vh]
+          lg:w-auto
+        "
+                custom
+              >
+                <img
+                  :key="src"
+                  v-bind="imgAttrs"
+                  :src="src"
+                  alt=""
+                  class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
+                  :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+                >
+              </NuxtImage>
+              <MorphingDialogClose />
+            </MorphingDialogContent>
+          </MorphingDialogContainer>
+        </MorphingDialog>
+
         <template v-if="currentTrack">
           <div class="grid gap-3">
             <div class="flex justify-between items-center relative select-none">
@@ -170,6 +218,14 @@ import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdo
 import { routeLocation } from "@/app/router/route-locations";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+
+import {
+  MorphingDialog,
+  MorphingDialogTrigger,
+  MorphingDialogContainer,
+  MorphingDialogContent,
+  MorphingDialogClose,
+} from "@/components/ui/motion/dialog";
 
 const { color: playerColor } = useMobilePlayerColor();
 

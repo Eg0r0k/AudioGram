@@ -15,6 +15,7 @@
             <span class=" text-sm text-muted-foreground font-medium">
               {{ $t('nav.search') }}
             </span>
+
             <KbdGroup>
               <Kbd>Ctrl + F</Kbd>
             </KbdGroup>

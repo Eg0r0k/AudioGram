@@ -9,7 +9,7 @@
       <SettingsGroup>
         <div class="px-4 py-6 flex flex-col items-center">
           <div class="size-20 rounded-2xl bg-primary flex items-center justify-center mb-4">
-            <IconLogo class="size-10 text-white" />
+            <IconLogo class="size-15 text-white" />
           </div>
           <div class="font-semibold text-lg">
             Audiogram
