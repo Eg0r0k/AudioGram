@@ -2,7 +2,7 @@
 import {
   inject,
   onMounted,
-  ref, Teleport,
+  ref,
 } from "vue";
 
 import {

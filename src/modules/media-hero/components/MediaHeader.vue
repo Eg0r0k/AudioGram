@@ -49,7 +49,7 @@
           :aria-label="$t('player.play')"
           @click="$emit('play')"
         >
-          <IconPlay class="size-5" />
+          <IconPlay class="size-4" />
         </Button>
       </Transition>
     </div>
@@ -60,7 +60,8 @@
 import { inject, computed, type ComputedRef } from "vue";
 import { Button } from "@/components/ui/button";
 import IconArrowLeft from "~icons/tabler/arrow-left";
-import IconPlay from "~icons/tabler/player-play-filled";
+import IconPlay from "~icons/audiogram/play-rounded";
+
 import { useRouter } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
 

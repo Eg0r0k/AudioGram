@@ -4,7 +4,7 @@ import type { StorageError } from "../errors/storage.errors";
 export interface IFileStorage {
   saveFile(path: string, data: Blob | ArrayBuffer | Uint8Array): ResultAsync<string, StorageError>;
   deleteFile(path: string): ResultAsync<void, StorageError>;
-  getFile(path: string): ResultAsync<File, StorageError>;
+  getFile(path: string): ResultAsync<File | Blob, StorageError>;
   getAudioUrl(path: string): ResultAsync<string, StorageError>;
   listFiles(folder: string): ResultAsync<string[], StorageError>;
   getFileSize(path: string): ResultAsync<number, StorageError>;

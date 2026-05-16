@@ -17,7 +17,7 @@
   >
     <button
       v-if="draggable"
-      class="shrink-0 w-8 h-full cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none flex items-center justify-center"
+      class="shrink-0 w-4 h-full cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none flex items-center justify-center"
       :aria-label="$t('queue.drag')"
       @pointerdown.stop="$emit('dragStart', $event)"
       @click.stop

@@ -49,7 +49,7 @@ export class WebOpfsStorage implements IFileStorage {
       );
   }
 
-  getFile(path: string): ResultAsync<Blob, StorageError> {
+  getFile(path: string): ResultAsync<File, StorageError> {
     return this.getRoot()
       .andThen(root => this.resolvePath(root, path, false))
       .andThen(({ dirHandle, filename }) =>

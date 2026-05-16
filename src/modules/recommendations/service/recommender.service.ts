@@ -41,16 +41,16 @@ async function getRecentlyPlayedIds(count: number): Promise<TrackId[]> {
   return result;
 }
 
-function cosineSimilarity(a: FeatureVector, b: FeatureVector): number {
+function euclideanSimilarity(a: FeatureVector, b: FeatureVector): number {
   const keys = Object.keys(a) as (keyof FeatureVector)[];
-  let dot = 0, normA = 0, normB = 0;
+  let sumSq = 0;
   for (const k of keys) {
-    dot += a[k] * b[k];
-    normA += a[k] * a[k];
-    normB += b[k] * b[k];
+    const diff = a[k] - b[k];
+    sumSq += diff * diff;
   }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  const maxDist = Math.sqrt(keys.length);
+  const dist = Math.sqrt(sumSq);
+  return 1 - dist / maxDist;
 }
 
 type Weights = {
@@ -144,7 +144,7 @@ export const getRecommendations = async (
 
     const candidateFeatures = featuresMap.get(candidateId);
     const audioSimilarity = sourceVector && candidateFeatures
-      ? cosineSimilarity(sourceVector, toVector(candidateFeatures))
+      ? euclideanSimilarity(sourceVector, toVector(candidateFeatures))
       : 0;
 
     const rawCoOcc = sourcePairs.get(candidateId) ?? 0;
@@ -172,7 +172,10 @@ export const getRecommendations = async (
         likedBonus: WEIGHTS.likedBonus + extra,
       };
     }
-
+    console.log("Source vector:", sourceVector);
+    console.log("Sample candidate vector:", featuresMap.values().next().value
+      ? toVector(featuresMap.values().next().value!)
+      : null);
     scored.push({
       trackId: candidateId,
       track,
