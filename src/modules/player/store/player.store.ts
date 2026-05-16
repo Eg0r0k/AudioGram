@@ -285,7 +285,7 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const play = async () => {
-    if (!player.value) {
+    if (!player.value || !player.value.isReady) {
       const track = currentTrack.value;
       if (!track) return;
 
@@ -487,8 +487,9 @@ export const usePlayerStore = defineStore("player", () => {
   const getAudioGraph = () => player.value?.graph ?? null;
 
   const unlockAudio = async () => {
-    const p = player.value ?? await initPlayer();
-    await p.unlockAudio();
+    if (player.value) {
+      await player.value.unlockAudio();
+    }
   };
 
   watch(currentTrack, (track) => {

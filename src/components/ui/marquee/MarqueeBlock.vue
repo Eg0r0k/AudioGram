@@ -7,13 +7,6 @@
     @pointerenter="onPointerEnter"
     @pointerleave="onPointerLeave"
   >
-    <div
-      v-if="gradient && isOverflowing"
-      class="gradient-overlay"
-      :class="{ vertical, horizontal: !vertical }"
-      aria-hidden="true"
-    />
-
     <div class="marquee-content">
       <div
         ref="contentRef"
@@ -110,22 +103,32 @@ const trackStyle = computed(() => {
   return {};
 });
 
-const gradientColorValue = computed(() => {
-  if (typeof props.gradientColor === "string") {
-    return `${props.gradientColor}, transparent`;
-  }
-  const [r, g, b] = props.gradientColor;
-  return `rgba(${r}, ${g}, ${b}, 1), rgba(${r}, ${g}, ${b}, 0)`;
-});
+const cssVariables = computed(() => {
+  const vars: Record<string, string> = {
+    "--marquee-duration": `${props.duration}s`,
+    "--marquee-delay": `${props.delay}s`,
+    "--marquee-direction": props.direction,
+    "--marquee-loops": props.loop === 0 ? "infinite" : String(props.loop),
+    "--marquee-gradient-length": props.gradientLength,
+  };
 
-const cssVariables = computed(() => ({
-  "--marquee-duration": `${props.duration}s`,
-  "--marquee-delay": `${props.delay}s`,
-  "--marquee-direction": props.direction,
-  "--marquee-loops": props.loop === 0 ? "infinite" : String(props.loop),
-  "--marquee-gradient-color": gradientColorValue.value,
-  "--marquee-gradient-length": props.gradientLength,
-}));
+  if (props.gradient && isOverflowing.value) {
+    const len = props.gradientLength;
+    const horizontal = !props.vertical;
+    const mask = horizontal
+      ? `linear-gradient(to right, transparent 0%, black ${len}, black calc(100% - ${len}), transparent 100%)`
+      : `linear-gradient(to bottom, transparent 0%, black ${len}, black calc(100% - ${len}), transparent 100%)`;
+
+    vars["-webkit-mask-image"] = mask;
+    vars["mask-image"] = mask;
+  }
+  else {
+    vars["-webkit-mask-image"] = "none";
+    vars["mask-image"] = "none";
+  }
+
+  return vars;
+});
 
 const getOwnerWindow = (): Window => {
   return containerRef.value?.ownerDocument?.defaultView ?? window;
@@ -399,50 +402,4 @@ defineExpose({
   }
 }
 
-.gradient-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.gradient-overlay::before,
-.gradient-overlay::after {
-  content: "";
-  position: absolute;
-}
-
-.gradient-overlay.horizontal::before,
-.gradient-overlay.horizontal::after {
-  top: 0;
-  bottom: 0;
-  width: var(--marquee-gradient-length);
-  background: linear-gradient(to right, var(--marquee-gradient-color));
-}
-
-.gradient-overlay.horizontal::before {
-  left: 0;
-}
-
-.gradient-overlay.horizontal::after {
-  right: 0;
-  transform: rotate(180deg);
-}
-
-.gradient-overlay.vertical::before,
-.gradient-overlay.vertical::after {
-  left: 0;
-  right: 0;
-  height: var(--marquee-gradient-length);
-  background: linear-gradient(to bottom, var(--marquee-gradient-color));
-}
-
-.gradient-overlay.vertical::before {
-  top: 0;
-}
-
-.gradient-overlay.vertical::after {
-  bottom: 0;
-  transform: rotate(180deg);
-}
 </style>
