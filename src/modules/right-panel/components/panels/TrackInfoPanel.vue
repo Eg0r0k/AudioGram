@@ -293,9 +293,7 @@ const formattedDuration = computed(() => {
 });
 
 function openEdit() {
-  console.log("openEdit", libraryTrack.value);
   if (!libraryTrack.value) return;
-  console.log("Opening edit panel for track", libraryTrack.value);
   rightPanel.openEditTrack({ track: libraryTrack.value });
 }
 

@@ -46,6 +46,7 @@ import CurrentTrackContext from "../contexts/CurrentTrackContext.vue";
 import LikedContext from "../contexts/LikedContext.vue";
 import PlaylistContext from "../contexts/PlaylistContext.vue";
 import QueueContext from "../contexts/QueueContext.vue";
+import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(dropdownMenuTrackComponents);
 
@@ -64,9 +65,13 @@ const props = withDefaults(defineProps<Props>(), {
   isPlaylistOwner: false,
   onNavigate: undefined,
 });
+
+const queueStore = useQueueStore();
+
 const {
   activeTrack,
   activeIndex,
+  activeQueueItemId,
   isDropdownOpen,
   activeDropdownTarget,
   dropdownAnchor,
@@ -108,6 +113,7 @@ const actions = useTrackContextActions(
   {
     playlistId: toRef(props, "playlistId"),
     queueIndex: activeIndex,
+    queueItemId: activeQueueItemId,
     onNavigate: props.onNavigate,
   },
 );
@@ -119,6 +125,10 @@ const contextProps = computed(() => {
 
   if (props.context === "playlist") {
     return { ...base, playlistId: props.playlistId, isOwner: props.isPlaylistOwner };
+  }
+
+  if (props.context === "queue") {
+    return { ...base, queueIndex: activeIndex.value ?? -1, queueLength: queueStore.size };
   }
 
   return base;

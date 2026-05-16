@@ -1,107 +1,127 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col justify-center items-center bg-background">
-    <div class="flex flex-col gap-2 items-center justify-center">
-      <IconLogo class=" text-muted-foreground" />
+  <div class="flex h-full min-h-0 flex-col bg-background">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+      <div class="flex items-center gap-2">
+        <IconSparkles class="size-4 text-primary" />
 
-      <span class=" font-medium text-2xl">
-        {{ $t('common.comingSoon') }}
-      </span>
-    </div>
-    <!-- <div
-      v-if="isLoading"
-      class="flex flex-col gap-2 p-2"
-    >
-      <TrackRowLoading />
-    </div>
+        <span class="text-sm font-semibold">
+          {{ $t("track.similarTracks") }}
+        </span>
+      </div>
 
-    <div
-      v-else-if="historyItems.length === 0"
-      class="flex h-full flex-col bg-card items-center justify-center gap-3 text-center text-muted-foreground"
-    >
-      <IconHistory class="size-20" />
-      <span class="text-sm font-medium">
-        {{ t("queue.historyEmpty") }}
-      </span>
-    </div>
-
-    <TrackContextMenu
-      v-else
-      context="history"
-    >
-      <VirtualScrollable
-        :items="historyItems"
-        :estimate-size="ITEM_HEIGHT"
-        :item-height="ITEM_HEIGHT"
-        :overscan="4"
-        :padding-top="8"
-        :padding-bottom="8"
-        :get-item-key="getItemKey"
-        class="flex-1 mt-2 bg-card"
+      <span
+        v-if="isLoading"
+        class="text-xs text-muted-foreground"
       >
-        <template #default="{ item, index }">
-          <div class="px-2">
-            <TrackRow
-              menu-target="history"
-              :track="item.track"
-              :index="index + 1"
-              :menu-index="index"
-              :highlighted="isCurrentHistoryItem(index)"
-              @play="playFromHistory(index)"
-            />
-          </div>
-        </template>
-      </VirtualScrollable>
-    </TrackContextMenu>
+        Loading...
+      </span>
+    </div>
 
-    <TrackDropdown context="history" /> -->
+    <!-- Empty -->
+    <div
+      v-if="!isLoading && recommendations.length === 0"
+      class="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground"
+    >
+      <IconLogo class="size-12 opacity-50" />
+
+      <span class="text-sm">
+        {{ $t("track.similarTracksEmpty") }}
+      </span>
+    </div>
+
+    <!-- Recommendations -->
+    <div
+      v-else
+      class="flex flex-col gap-1 p-2 overflow-auto"
+    >
+      <button
+        v-for="item in recommendations"
+        :key="item.trackId"
+        class="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-muted/60 text-left group"
+        @click="handleAddToQueue(item.track)"
+      >
+        <div class="text-[9px] text-muted-foreground mt-1 space-x-1">
+          <span>🎵{{ (item.breakdown.audioSimilarity * 100).toFixed(0) }}%</span>
+          <span>🔗{{ (item.breakdown.coOccurrence * 100).toFixed(0) }}%</span>
+          <span>✅{{ (item.breakdown.completionRate * 100).toFixed(0) }}%</span>
+        </div>
+        <!-- Cover -->
+        <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <IconMusic class="size-4 text-muted-foreground" />
+        </div>
+
+        <!-- Meta -->
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-medium">
+            {{ item.track.title }}
+          </div>
+
+          <div class="truncate text-xs text-muted-foreground">
+            {{ item.track.artistName ?? "Unknown Artist" }}
+          </div>
+        </div>
+
+        <!-- Score -->
+        <div class="flex flex-col items-end shrink-0">
+          <span class="text-sm font-semibold">
+            {{ Math.round(item.score * 100) }}%
+          </span>
+
+          <span class="text-[10px] text-muted-foreground">
+            match
+          </span>
+        </div>
+
+        <IconPlaylistAdd
+          class="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+        />
+      </button>
+    </div>
   </div>
 </template>
-<!-- eslint-disable sonarjs/no-commented-code -->
+
 <script setup lang="ts">
+import { computed } from "vue";
+import { toast } from "vue-sonner";
+import { useI18n } from "vue-i18n";
+
+import { usePlayerStore } from "@/modules/player/store/player.store";
+import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
+
+import { useQueueStore } from "@/modules/queue/store/queue.store";
+
+import { useTrackRecommendations } from "@/modules/recommendations/composables/useRecommendations";
+
+import type { TrackEntity } from "@/db/entities";
+
 import IconLogo from "~icons/audiogram/logo";
+import IconMusic from "~icons/tabler/music";
+import IconPlaylistAdd from "~icons/tabler/playlist-add";
+import IconSparkles from "~icons/tabler/sparkles";
 
-// import { computed } from "vue";
-// import { useI18n } from "vue-i18n";
-// import { useQueries, useQuery } from "@tanstack/vue-query";
-// import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
-// import { useQueueStore } from "@/modules/queue/store/queue.store";
-// import TrackRow from "@/modules/tracks/components/TrackRow.vue";
-// import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
-// import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
-// import { coverQueries } from "@/queries/cover.queries";
-// import { statsQueries, type RecentHistoryEntry } from "@/queries/stats.queries";
-// import IconHistory from "~icons/tabler/history";
-// import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
+const { t } = useI18n();
 
-// const HISTORY_LIMIT = 100;
-// const ITEM_HEIGHT = 64;
+const playerStore = usePlayerStore();
+const queueStore = useQueueStore();
 
-// const { t } = useI18n();
-// const queueStore = useQueueStore();
+const currentTrackId = computed(
+  () => playerStore.currentTrack?.id,
+);
 
-// const { data, isLoading } = useQuery(statsQueries.recentHistory(HISTORY_LIMIT));
+const {
+  recommendations,
+  isLoading,
+} = useTrackRecommendations(currentTrackId);
 
-// const historyItems = computed<RecentHistoryEntry[]>(() => data.value ?? []);
-// const historyTracks = computed(() => historyItems.value.map(item => item.track));
-// const historyAlbumIds = computed(() => [
-//   ...new Set(historyItems.value.map(item => item.track.albumId)),
-// ]);
+function handleAddToQueue(track: TrackEntity): void {
+  const playerTrack = mapTrackEntityToPlayerTrack(track);
 
-// useQueries({
-//   queries: computed(() => historyAlbumIds.value.map(albumId => coverQueries.detail("album", albumId))),
-// });
+  queueStore.addToQueue(playerTrack);
 
-// function getItemKey(index: number): string | number {
-//   return historyItems.value[index]?.eventId ?? index;
-// }
-
-// async function playFromHistory(index: number): Promise<void> {
-//   await queueStore.setQueue(historyTracks.value, index, { type: "history" });
-// }
-
-// function isCurrentHistoryItem(index: number): boolean {
-//   return queueStore.currentIndex === index
-//     && queueStore.currentItem?.source.type === "history";
-// }
-
+  toast.success(
+    t("track.addedToQueue", {
+      title: track.title,
+    }),
+  );
+}
 </script>

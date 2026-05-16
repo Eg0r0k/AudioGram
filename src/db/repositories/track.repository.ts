@@ -470,6 +470,16 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return err(error as Error);
     }
   }
+
+  async findAllIds(): Promise<Result<TrackId[], Error>> {
+    try {
+      const ids = await this.table.toCollection().primaryKeys() as TrackId[];
+      return ok(ids);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
 }
 
 export const trackRepository = new TrackRepository();

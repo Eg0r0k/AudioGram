@@ -113,3 +113,23 @@ export interface RadioStationEntity {
   updatedAt: number;
   lastPlayedAt?: number;
 }
+
+export interface AudioFeaturesEntity {
+  trackId: TrackId;
+  bpm: number;
+  // Range 0-1 (Already normalized)
+  energy: number;
+  spectralCentroid: number;
+  // Range 0-1 (Already normalized)
+  danceability: number;
+  // Tonic according to Krumhansl: 0=C, 1=C#, 2=D, ..., 11=B
+  // Normalization: value / 11
+  key: number;
+
+  // Mode: 0 = minor, 1 = major
+  // No normalization needed (already 0 or 1)
+  mode: number;
+
+  analyzedAt: number;
+  algorithmVersion: number;
+}

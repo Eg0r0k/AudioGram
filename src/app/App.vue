@@ -62,6 +62,7 @@ import { useEventListener } from "@vueuse/core";
 import NetworkStatusToast from "@/components/NetworkStatusToast.vue";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
+import { useAnalysisQueue } from "@/modules/recommendations/composables/useAnalysisQueue";
 
 const currentRoute = useRoute();
 const { isMobileLayout } = useDeviceLayout();
@@ -69,6 +70,8 @@ const { init } = useWatchedFolders();
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const rightPanelStore = useRightPanelStore();
+
+const { start: startAnalysis } = useAnalysisQueue();
 
 const layouts: Record<string, VueComponent> = {
   default: DefaultLayout,
@@ -118,6 +121,8 @@ onMounted(async () => {
   });
 
   init();
+
+  setTimeout(startAnalysis, 3000);
 });
 onUnmounted(() => {
   unlisten?.();
@@ -154,6 +159,7 @@ let updateToastId: string | number | undefined;
 
 watch(
   () => updateStore.status,
+
   (status, prevStatus) => {
     if (status === "available" && prevStatus !== "available") {
       const version = updateStore.updateInfo?.version;

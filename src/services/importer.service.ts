@@ -41,8 +41,14 @@ export class MusicLibraryEngine {
   private readonly fpLimit = pLimit(FINGERPRINT_CONCURRENCY);
   private readonly profiler = new TimeProfiler();
 
+  private _onTracksImported?: (ids: TrackId[]) => void;
+
   get isNativeImportAvailable(): boolean {
     return hasNativeSupport(storageService);
+  }
+
+  onTracksImported(cb: (ids: TrackId[]) => void): void {
+    this._onTracksImported = cb;
   }
 
   async pickFiles(): Promise<string[] | null> {
@@ -301,7 +307,12 @@ export class MusicLibraryEngine {
         );
 
         dbResult.match(
-          saved => successful.push(...saved),
+          (saved) => {
+            successful.push(...saved);
+            if (saved.length > 0) {
+              this._onTracksImported?.(saved.map(s => s.trackId));
+            }
+          },
           error => dbBatch.forEach(item => failed.push({ fileName: item.fileName, error })),
         );
 

@@ -1,5 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference types="vitest/config" />
+import wasm from "vite-plugin-wasm";
+import topLevelAwait from "vite-plugin-top-level-await";
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +32,8 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().getFullYear()),
   },
   plugins: [
+    wasm(),
+    topLevelAwait(),
     vue(),
     isDev && VueDevTools(),
     tailwindcss(),
@@ -94,6 +98,7 @@ export default defineConfig({
   ],
   worker: {
     format: "es",
+    plugins: () => [wasm(), topLevelAwait()],
   },
 
   clearScreen: false,

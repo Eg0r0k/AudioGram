@@ -76,6 +76,10 @@ class StatsRepository {
     }
     return map;
   }
+
+  async findAllEvents(): Promise<ListenEventEntity[]> {
+    return db.listenEvents.toArray();
+  }
 }
 
 export const statsRepository = new StatsRepository();

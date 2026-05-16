@@ -2,6 +2,7 @@ import Dexie, { type Table } from "dexie";
 import {
   AlbumEntity,
   ArtistEntity,
+  AudioFeaturesEntity,
   CoverEntity,
   ListenEventEntity,
   PlaylistEntity,
@@ -20,7 +21,7 @@ export class AppDatabase extends Dexie {
   listenEvents!: Table<ListenEventEntity, string>;
   covers!: Table<CoverEntity, string>;
   radioStations!: Table<RadioStationEntity, RadioStationId>;
-
+  audioFeatures!: Table<AudioFeaturesEntity, TrackId>;
   constructor() {
     super("AudiogramDB");
 
@@ -35,6 +36,18 @@ export class AppDatabase extends Dexie {
       radioStations: "&id, name, isFavorite, addedAt, lastPlayedAt",
     });
 
+    this.version(6).stores({
+      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint",
+      artists: "&id, name, updatedAt",
+      albums: "&id, title, artistId, year, updatedAt, [artistId+year], [title+artistId]",
+      tags: "&id, &name",
+      playlists: "&id, name, updatedAt, addedAt",
+      listenEvents: "&id, trackId, artistId, albumId, startedAt",
+      covers: "&id, ownerType, ownerId, [ownerType+ownerId], updatedAt",
+      radioStations: "&id, name, isFavorite, addedAt, lastPlayedAt",
+      audioFeatures: "&trackId, analyzedAt, algorithmVersion",
+    });
+
     this.tracks = this.table("tracks");
     this.artists = this.table("artists");
     this.albums = this.table("albums");
@@ -43,6 +56,7 @@ export class AppDatabase extends Dexie {
     this.listenEvents = this.table("listenEvents");
     this.covers = this.table("covers");
     this.radioStations = this.table("radioStations");
+    this.audioFeatures = this.table("audioFeatures");
   }
 }
 
