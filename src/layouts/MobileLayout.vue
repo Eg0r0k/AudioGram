@@ -93,7 +93,6 @@ watch(() => playerStore.currentTrack, (track) => {
 
 const { isDragging } = useFileDrop({
   acceptedExtensions: [".mp3", ".flac", ".wav", ".ogg"],
-  onDrop: files => console.log("Dropped:", files),
 });
 
 const { top, right, bottom, left } = useScreenSafeArea();
