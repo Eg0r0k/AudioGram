@@ -32,6 +32,7 @@
               variant="ghost"
               size="icon-lg"
               class="rounded-full"
+              :aria-label="$t('nav.menu')"
             >
               <IconMenu2 class="size-6" />
             </Button>

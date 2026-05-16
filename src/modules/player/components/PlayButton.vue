@@ -7,6 +7,7 @@
     <Button
       :class="cn('relative p-0 size-10 min-w-10 rounded-full overflow-hidden', props.class)"
       :disabled="!canInteract"
+      :aria-label="shouldShowPauseIcon ? $t('player.pause') : $t('player.play')"
       @click="toggle"
     >
       <motion.svg

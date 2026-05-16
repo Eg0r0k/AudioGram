@@ -100,5 +100,6 @@
   "tracks": "{count} track | {count} tracks",
 
   "hoursShort": "{count} hr",
-  "minutesShort": "{count} min"
+  "minutesShort": "{count} min",
+  "progress": "Progress"
 }

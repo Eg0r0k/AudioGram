@@ -98,5 +98,6 @@
   "albums": "0 альбомов | {count} альбом | {count} альбома | {count} альбомов",
 
   "hoursShort": "{count} ч",
-  "minutesShort": "{count} мин"
+  "minutesShort": "{count} мин",
+  "progress": "Прогресс"
 }

@@ -22,6 +22,7 @@
       :min="min"
       :max="max"
       :value="internalValue"
+      :aria-label="$t('common.progress')"
       @input="onInput"
       @keydown="onKeyDown"
     >

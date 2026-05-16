@@ -23,6 +23,12 @@
             {{ filterLabel(filter) }}
           </TabsTrigger>
         </TabsList>
+        <TabsContent
+          v-for="filter in availableFilters"
+          :key="`content-${filter}`"
+          :value="filter"
+          class="hidden"
+        />
       </Tabs>
     </Scrollable>
     <LibraryContextMenu @delete="handleDeleteItem">
@@ -78,7 +84,7 @@ import SearchPanel from "@/modules/search/components/SearchPanel.vue";
 import { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import { useI18n } from "vue-i18n";
 import { Scrollable } from "@/components/ui/scrollable";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { computed, useTemplateRef, ref } from "vue";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";

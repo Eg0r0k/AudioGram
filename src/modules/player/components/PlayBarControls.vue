@@ -8,6 +8,7 @@
             size="icon"
             variant="ghost"
             :class="{ 'text-primary': queueStore.isShuffled }"
+            :aria-label="$t('player.shuffle')"
             @click="queueStore.toggleShuffle()"
           >
             <IconShuffle class="size-4.5" />
@@ -17,6 +18,7 @@
             size="icon"
             variant="ghost"
             :disabled="!queueStore.hasPrevious"
+            :aria-label="$t('player.previousTrack')"
             @click="queueStore.previous()"
           >
             <IconPlayerTrackPrevFilled class="size-5" />
@@ -31,6 +33,7 @@
             size="icon"
             variant="ghost"
             :disabled="!queueStore.hasNext"
+            :aria-label="$t('player.nextTrack')"
             @click="queueStore.next()"
           >
             <IconPlayerTrackNextFilled class="size-5" />
@@ -40,6 +43,7 @@
             size="icon"
             variant="ghost"
             :class="repeatModeClass"
+            :aria-label="$t('player.repeat')"
             @click="playerStore.toggleRepeat"
           >
             <IconRepeatOnce

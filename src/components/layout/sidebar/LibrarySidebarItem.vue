@@ -127,7 +127,10 @@ const handleClick = () => {
             :class="isExactActive ? 'text-primary-foreground' : ''"
           >
             <span class="flex items-center min-w-0 gap-1">
-              <span class="truncate">
+              <span
+                class="truncate"
+                :title="item.title"
+              >
                 {{ item.title }}
               </span>
 
@@ -144,7 +147,10 @@ const handleClick = () => {
             :class="isExactActive ? 'text-primary-foreground' : ''"
           >
             <span class="flex items-center min-w-0 gap-1">
-              <span class="min-w-0 flex-1 truncate">
+              <span
+                class="min-w-0 flex-1 truncate"
+                :title="subtitle"
+              >
                 {{ subtitle }}
               </span>
 

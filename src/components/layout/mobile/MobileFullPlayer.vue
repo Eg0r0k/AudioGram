@@ -107,6 +107,7 @@
         variant="ghost"
         class="rounded-full  text-white"
         :disabled="!queueStore.hasPrevious"
+        :aria-label="$t('player.previousTrack')"
         @click.stop="queueStore.previous()"
       >
         <IconBack class="size-7" />
@@ -120,6 +121,7 @@
         variant="ghost"
         class="rounded-full text-white"
         :disabled="!queueStore.hasNext"
+        :aria-label="$t('player.nextTrack')"
         @click.stop="queueStore.next()"
       >
         <IconForvard class="size-7" />
@@ -131,6 +133,7 @@
         size="icon"
         variant="ghost"
         :class="repeatModeClass"
+        :aria-label="$t('player.repeat')"
         @click.stop="playerStore.toggleRepeat"
       >
         <IconRepeatOnce
@@ -146,6 +149,7 @@
         size="icon"
         variant="ghost"
         :class="{ 'text-primary': queueStore.isShuffled }"
+        :aria-label="$t('player.shuffle')"
         @click.stop="queueStore.toggleShuffle()"
       >
         <IconShuffle class="size-6" />
