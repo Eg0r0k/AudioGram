@@ -9,3 +9,21 @@ export function lerp(a: number, b: number, t: number): number {
 export function formatCountWithCap(value: number, cap = 99): string {
   return value > cap ? `${cap}+` : String(value);
 }
+
+export function normalize(value: number, max: number): number {
+  return Math.min(value / max, 1);
+}
+
+export function deduplicate<T>(items: T[]): T[] {
+  const result: T[] = [];
+  let prev: T | undefined;
+
+  for (const item of items) {
+    if (item !== prev) {
+      result.push(item);
+      prev = item;
+    }
+  }
+
+  return result;
+}
