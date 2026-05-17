@@ -401,13 +401,6 @@ export const usePlayerStore = defineStore("player", () => {
       throw new Error(`Track is marked as broken: "${track.title}"`);
     }
 
-    if (isLibraryTrack(currentTrack.value ?? ({} as PlayerTrack))) {
-      stopListeningAndSync();
-    }
-
-    const p = await initPlayer();
-    currentTrack.value = track;
-
     const url = await resolveTrackUrl(track);
     if (!url) {
       status.value = "error";
@@ -415,6 +408,13 @@ export const usePlayerStore = defineStore("player", () => {
       clearCurrentTrack();
       throw new Error(`Cannot resolve audio source for: "${track.title}"`);
     }
+
+    if (isLibraryTrack(currentTrack.value ?? ({} as PlayerTrack))) {
+      stopListeningAndSync();
+    }
+
+    const p = await initPlayer();
+    currentTrack.value = track;
 
     try {
       if (isEphemeralTrack(track) && track.source.type === "file") {
@@ -489,6 +489,10 @@ export const usePlayerStore = defineStore("player", () => {
   const unlockAudio = async () => {
     if (player.value) {
       await player.value.unlockAudio();
+    }
+    else {
+      const p = await initPlayer();
+      await p.unlockAudio();
     }
   };
 
