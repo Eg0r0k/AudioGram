@@ -467,13 +467,6 @@ export function syncTrackLikeCaches(
     },
   );
 
-  patchTracksIndexPages(queryClient, data => ({
-    ...data,
-    tracks: data.tracks.map(track =>
-      track.id === nextTrack.id ? patchTrackLike(track, nextTrack.isLiked) : track,
-    ),
-  }));
-
   setQueriesDataIfPresent<InfiniteData<PaginatedTracksResult>>(
     queryClient,
     {

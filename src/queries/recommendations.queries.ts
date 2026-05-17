@@ -3,11 +3,12 @@ import { audioFeaturesRepository } from "@/db/repositories/audioFeatures.reposit
 import { db } from "@/db";
 import type { TrackId } from "@/types/ids";
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
+import { queryKeys } from "./query-keys";
 
 export const recommendationsQueries = {
   forTrack: (trackId: TrackId, cacheVersion: number, limit = 8) =>
     queryOptions({
-      queryKey: ["recommendations", "forTrack", trackId, cacheVersion] as const,
+      queryKey: queryKeys.recommendations.forTrack(trackId, cacheVersion, limit),
       queryFn: () => getRecommendations(trackId, limit),
       staleTime: 5 * 60 * 1000,
       enabled: Boolean(trackId),
@@ -15,7 +16,7 @@ export const recommendationsQueries = {
 
   analysisProgress: () =>
     queryOptions({
-      queryKey: ["recommendations", "analysisProgress"] as const,
+      queryKey: queryKeys.recommendations.analysisProgress(),
       queryFn: async () => {
         const [analyzedResult, total] = await Promise.all([
           audioFeaturesRepository.countAnalyzed(),

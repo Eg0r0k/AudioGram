@@ -55,8 +55,14 @@ export const queryKeys = {
     byTrack: (trackId: TrackId) => ["tags", "track", trackId] as const,
   },
   covers: {
+    all: () => ["covers"] as const,
     detail: (ownerType: "album" | "playlist" | "artist", ownerId: string) =>
       ["covers", ownerType, ownerId] as const,
+  },
+  recommendations: {
+    forTrack: (trackId: TrackId, cacheVersion: number, limit: number) =>
+      ["recommendations", "forTrack", trackId, cacheVersion, limit] as const,
+    analysisProgress: () => ["recommendations", "analysisProgress"] as const,
   },
   stats: {
     all: () => ["stats"] as const,

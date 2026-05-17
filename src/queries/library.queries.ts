@@ -64,23 +64,23 @@ export async function invalidateLibrarySummary(queryClient: QueryClient) {
 
 export async function invalidateLibraryData(queryClient: QueryClient) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["library"] }),
-    queryClient.invalidateQueries({ queryKey: ["artists"] }),
-    queryClient.invalidateQueries({ queryKey: ["albums"] }),
-    queryClient.invalidateQueries({ queryKey: ["playlists"] }),
-    queryClient.invalidateQueries({ queryKey: ["tracks"] }),
-    queryClient.invalidateQueries({ queryKey: ["covers"] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.artists.all() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.albums.all() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.all() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.all() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.covers.all() }),
   ]);
 }
 
 export async function clearLibraryData(queryClient: QueryClient) {
   await Promise.all([
-    queryClient.removeQueries({ queryKey: ["library"] }),
-    queryClient.removeQueries({ queryKey: ["artists"] }),
-    queryClient.removeQueries({ queryKey: ["albums"] }),
-    queryClient.removeQueries({ queryKey: ["playlists"] }),
-    queryClient.removeQueries({ queryKey: ["tracks"] }),
-    queryClient.removeQueries({ queryKey: ["covers"] }),
+    queryClient.removeQueries({ queryKey: queryKeys.library.summary() }),
+    queryClient.removeQueries({ queryKey: queryKeys.artists.all() }),
+    queryClient.removeQueries({ queryKey: queryKeys.albums.all() }),
+    queryClient.removeQueries({ queryKey: queryKeys.playlists.all() }),
+    queryClient.removeQueries({ queryKey: queryKeys.tracks.all() }),
+    queryClient.removeQueries({ queryKey: queryKeys.covers.all() }),
   ]);
 
   await invalidateLibraryData(queryClient);

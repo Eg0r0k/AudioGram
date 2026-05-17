@@ -214,10 +214,10 @@ export async function updateAlbumAndSync(
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
       queryClient.invalidateQueries({
-        predicate: q => q.queryKey[0] === "tracks" && q.queryKey[1] === "index",
+        predicate: query => query.queryKey[0] === "tracks" && query.queryKey[1] === "index",
       }),
       queryClient.invalidateQueries({
-        predicate: q => q.queryKey[0] === "playlists" && q.queryKey[2] === "page",
+        predicate: query => query.queryKey[0] === "playlists" && query.queryKey[2] === "page",
       }),
     ]);
   }
