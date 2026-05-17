@@ -18,7 +18,6 @@ const pending = new Map<string, PendingRequest>();
 
 function handleWorkerMessage(e: MessageEvent<AnalysisResponse>): void {
   const { requestId, trackId } = e.data;
-  console.log("RESPONCE FROM WORKER", e);
   const p = pending.get(requestId);
   if (!p) return;
   pending.delete(requestId);
@@ -62,7 +61,7 @@ async function analyzeTrack(trackId: TrackId): Promise<void> {
 
   const buffer = await fileResult.value.arrayBuffer();
   const fileData = new Uint8Array(buffer);
-  console.log("SENT TO WORKER", trackId);
+
   return new Promise<void>((resolve, reject) => {
     const requestId = crypto.randomUUID();
     pending.set(requestId, { resolve, reject });
@@ -72,35 +71,49 @@ async function analyzeTrack(trackId: TrackId): Promise<void> {
   });
 }
 
-const processedCount = ref(0);
-const currentTrackId = ref<TrackId | null>(null);
+export function useAnalysisQueue() {
+  const processedCount = ref(0);
+  const currentTrackId = ref<TrackId | null>(null);
+  let isRunning = false;
 
-const queue = new AsyncQueue<TrackId>(
-  async (trackId) => {
-    currentTrackId.value = trackId;
+  const queue = new AsyncQueue<TrackId>(
+    async (trackId) => {
+      currentTrackId.value = trackId;
+      try {
+        await analyzeTrack(trackId);
+      }
+      finally {
+        processedCount.value++;
+        currentTrackId.value = null;
+      }
+    },
+    { useIdleCallback: true, idleTimeout: 5000 },
+  );
+
+  async function start(): Promise<void> {
+    if (isRunning) return;
+    isRunning = true;
     try {
-      await analyzeTrack(trackId);
+      const unanalyzedResult = await audioFeaturesRepository.findUnanalyzedIds();
+      if (unanalyzedResult.isErr()) return;
+      if (!isRunning) return;
+      queue.append(unanalyzedResult.value);
     }
     finally {
-      processedCount.value++;
-      currentTrackId.value = null;
+      isRunning = false;
     }
-  },
-  { useIdleCallback: true, idleTimeout: 5000 },
-);
+  }
 
-export function useAnalysisQueue() {
-  async function start(): Promise<void> {
-    const unanalyzedResult = await audioFeaturesRepository.findUnanalyzedIds();
-    if (unanalyzedResult.isErr()) return;
-    queue.append(unanalyzedResult.value);
+  function stop() {
+    isRunning = false;
+    queue.stop();
   }
 
   return {
     start,
-    stop: () => queue.stop(),
+    stop,
     enqueue: (ids: TrackId[]) => queue.prepend(ids),
-    isRunning: computed (() => queue.isRunning),
+    isRunning: computed(() => isRunning || queue.isRunning),
     processedCount: readonly(processedCount),
     currentTrackId: readonly(currentTrackId),
   };

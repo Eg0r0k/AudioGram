@@ -172,10 +172,6 @@ export const getRecommendations = async (
         likedBonus: WEIGHTS.likedBonus + extra,
       };
     }
-    console.log("Source vector:", sourceVector);
-    console.log("Sample candidate vector:", featuresMap.values().next().value
-      ? toVector(featuresMap.values().next().value!)
-      : null);
     scored.push({
       trackId: candidateId,
       track,
