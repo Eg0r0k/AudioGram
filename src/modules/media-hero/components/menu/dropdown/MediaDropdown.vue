@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Button from "@/components/ui/button/Button.vue";
 import { computed, type Component } from "vue";
-import { useMediaContext } from "@/composables/useMediaContext";
+import { useMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import { MediaContext } from "../types";
 import AlbumContext from "../contexts/AlbumContext.vue";
 import ArtistContext from "../contexts/ArtistContext.vue";

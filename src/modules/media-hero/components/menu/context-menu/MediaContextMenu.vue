@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
 import { computed, type Component } from "vue";
-import { useMediaContext } from "@/composables/useMediaContext";
+import { useMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import AlbumContext from "../contexts/AlbumContext.vue";
 import ArtistContext from "../contexts/ArtistContext.vue";
 import PlaylistContext from "../contexts/PlaylistContext.vue";

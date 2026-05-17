@@ -77,7 +77,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useImageColor } from "@/composables/useImageColor";
-import { provideMediaContext } from "@/composables/useMediaContext";
+import { provideMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import MediaHeader from "./MediaHeader.vue";
 import MediaHeroImage from "./MediaHeroImage.vue";
 import MediaContextMenu from "./menu/context-menu/MediaContextMenu.vue";
