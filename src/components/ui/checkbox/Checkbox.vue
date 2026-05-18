@@ -94,6 +94,19 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .checkbox-bg,
+  .checkbox-icon,
+  .checkbox-animated[data-state="checked"] .checkbox-bg,
+  .checkbox-animated[data-state="indeterminate"] .checkbox-bg,
+  .checkbox-animated[data-state="checked"] .checkbox-icon,
+  .checkbox-animated[data-state="indeterminate"] .checkbox-icon,
+  .checkbox-animated[data-state="unchecked"] .checkbox-bg,
+  .checkbox-animated[data-state="unchecked"] .checkbox-icon {
+    transition: none;
+  }
+}
+
 .checkbox-animated[data-state="checked"] .checkbox-bg,
 .checkbox-animated[data-state="indeterminate"] .checkbox-bg {
   transform: scale(1);

@@ -1,24 +1,22 @@
 <template>
-  <div
-    role="button"
-    tabindex="0"
-    class="group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-accent/50"
+  <button
+    type="button"
+    class="group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-accent/50 w-full text-left"
     :class="{
       'bg-primary/10 hover:bg-primary/15': isCurrent,
       'opacity-50': isPrevious,
       'opacity-30': isBeingDragged,
     }"
     @click="$emit('play')"
-    @keypress.enter="$emit('play')"
   >
-    <button
+    <span
       class="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
       :aria-label="$t('queue.drag')"
       @pointerdown="$emit('dragStart', $event)"
       @click.stop
     >
       <IconGripVertical class="size-4" />
-    </button>
+    </span>
 
     <div class="size-10 shrink-0 rounded-md overflow-hidden bg-muted flex items-center justify-center">
       <NuxtImage
@@ -54,7 +52,7 @@
     >
       <IconX class="size-4" />
     </Button>
-  </div>
+  </button>
 </template>
 
 <script setup lang="ts">

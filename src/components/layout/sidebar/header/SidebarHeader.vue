@@ -4,9 +4,9 @@
     class="flex items-center gap-3 shrink-0 px-4 pb-4 "
   >
     <Transition
-      enter-active-class="transition-all duration-200 ease-standard"
+      enter-active-class="transition-[opacity,transform] duration-200 ease-standard"
       enter-from-class="opacity-0 scale-75 rotate-[-90deg]"
-      leave-active-class="transition-all duration-150 ease-standard"
+      leave-active-class="transition-[opacity,transform] duration-150 ease-standard"
       leave-to-class="opacity-0 scale-75 rotate-[90deg]"
       mode="out-in"
     >

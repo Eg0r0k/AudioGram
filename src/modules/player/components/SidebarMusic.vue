@@ -74,6 +74,7 @@
         size="icon-sm"
         class="rounded-full mr-1"
         variant="ghost"
+        :aria-label="$t('player.moreOptions')"
         @click.stop="onDotsClick"
       >
         <IconDots class="size-5" />
@@ -82,6 +83,7 @@
         variant="ghost"
         size="icon-sm"
         class="rounded-full"
+        :aria-label="currentTrack.isLiked ? $t('player.unlike') : $t('player.like')"
         @click.stop="toggleLike"
       >
         <IconLikedFilled

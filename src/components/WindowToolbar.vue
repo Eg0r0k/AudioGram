@@ -25,6 +25,7 @@
     <div class="titlebar-controls">
       <button
         class="titlebar-button"
+        :aria-label="$t('common.window.minimize')"
         :title="$t('common.window.minimize')"
         @click="minimize"
       >
@@ -32,6 +33,11 @@
       </button>
       <button
         class="titlebar-button"
+        :aria-label="
+          isMaximized
+            ? $t('common.window.restore')
+            : $t('common.window.maximize')
+        "
         :title="
           isMaximized
             ? $t('common.window.restore')
@@ -43,6 +49,7 @@
       </button>
       <button
         class="titlebar-button titlebar-close"
+        :aria-label="$t('common.window.close')"
         :title="$t('common.window.close')"
         @click="close"
       >

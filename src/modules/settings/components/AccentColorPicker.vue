@@ -6,17 +6,17 @@
       type="button"
       :aria-label="`Select ${color.label} accent color`"
       class="relative flex size-8 cursor-pointer items-center justify-center
-             rounded-full transition-all duration-200 hover:scale-110
+             rounded-full transition-[transform,box-shadow] duration-200 hover:scale-110
              focus-visible:outline-2 focus-visible:outline-offset-2
              focus-visible:outline-primary"
       :style="{ backgroundColor: color.preview }"
       @click="$emit('select', color.value)"
     >
       <Transition
-        enter-active-class="transition-all duration-200"
+        enter-active-class="transition-[opacity,transform] duration-200"
         enter-from-class="scale-0 opacity-0"
         enter-to-class="scale-100 opacity-100"
-        leave-active-class="transition-all duration-150"
+        leave-active-class="transition-[opacity,transform] duration-150"
         leave-from-class="scale-100 opacity-100"
         leave-to-class="scale-0 opacity-0"
       >

@@ -31,7 +31,7 @@
                   stroke="currentColor"
                   stroke-width="2.5"
                   stroke-linecap="round"
-                  class="text-primary transition-all duration-300"
+                  class="text-primary transition-[stroke-dashoffset] duration-300"
                   :stroke-dasharray="`${2 * Math.PI * 15}`"
                   :stroke-dashoffset="`${2 * Math.PI * 15 * (1 - (formatted.usagePercent || 0) / 100)}`"
                 />

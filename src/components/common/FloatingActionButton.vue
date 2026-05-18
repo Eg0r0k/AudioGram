@@ -7,7 +7,7 @@
       y: show ? 0 : 80,
       pointerEvents: show ? 'auto' : 'none'
     }"
-    :transition="{
+    :transition="prefersReduced ? { duration: 0.1 } : {
       type: 'spring',
       stiffness: 300,
       damping: 25
@@ -19,9 +19,11 @@
 </template>
 
 <script setup lang="ts">
-import { Motion } from "motion-v";
+import { Motion, useReducedMotion } from "motion-v";
 
 defineProps<{
   show: boolean;
 }>();
+
+const prefersReduced = useReducedMotion();
 </script>

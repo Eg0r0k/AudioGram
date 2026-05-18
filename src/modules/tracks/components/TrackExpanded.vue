@@ -30,7 +30,6 @@
               :model-value="isSelected"
               size="lg"
               tabindex="-1"
-              aria-hidden="true"
             />
           </button>
           <span
@@ -47,6 +46,8 @@
           <NuxtImage
             :src="coverUrl"
             :alt="track.title"
+            :width="40"
+            :height="40"
             fallback-src="/img/fallback.svg"
             :class="styles.image"
           />
@@ -91,13 +92,13 @@
               v-for="(artist, artistIndex) in artists"
               :key="`${track.id}-${artistIndex}`"
             >
-              <span
-                role="link"
-                tabindex="0"
+              <button
+                type="button"
                 class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
                 @click.stop="handleArtistClick(artistIndex)"
-                @keydown.enter.stop="handleArtistClick(artistIndex)"
-              >{{ artist }}</span>
+              >
+                {{ artist }}
+              </button>
               <span v-if="artistIndex < artists.length - 1">,&nbsp;</span>
             </template>
           </div>
@@ -105,14 +106,14 @@
       </div>
 
       <div :class="styles.albumCol">
-        <span
+        <button
           v-if="track.albumName"
-          role="link"
-          tabindex="0"
+          type="button"
           class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
           @click.stop="handleAlbumClick"
-          @keydown.enter.stop="handleAlbumClick"
-        >{{ track.albumName }}</span>
+        >
+          {{ track.albumName }}
+        </button>
       </div>
 
       <div :class="styles.dateCol">

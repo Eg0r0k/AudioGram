@@ -99,5 +99,9 @@
 
   "hoursShort": "{count} ч",
   "minutesShort": "{count} мин",
-  "progress": "Прогресс"
+  "progress": "Прогресс",
+  "drop": {
+    "here": "Перетащите файлы сюда",
+    "formats": "MP3, FLAC, WAV, OGG"
+  }
 }

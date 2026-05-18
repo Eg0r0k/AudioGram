@@ -101,5 +101,9 @@
 
   "hoursShort": "{count} hr",
   "minutesShort": "{count} min",
-  "progress": "Progress"
+  "progress": "Progress",
+  "drop": {
+    "here": "Drop files here",
+    "formats": "MP3, FLAC, WAV, OGG"
+  }
 }

@@ -20,7 +20,7 @@
 
       <Button
         size="icon-lg"
-        class="absolute bottom-2 right-2 size-11 rounded-full shadow-lg transition-all duration-200"
+        class="absolute bottom-2 right-2 size-11 rounded-full shadow-lg transition-[opacity,transform,box-shadow] duration-200"
         :class="isActiveSource
           ? 'translate-y-0 opacity-100'
           : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'"

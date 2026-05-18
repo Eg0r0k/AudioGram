@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { Motion, motion, motionValue, useTransform, animate } from "motion-v";
+import { Motion, motion, motionValue, useTransform, animate, useReducedMotion } from "motion-v";
 import { interpolate } from "flubber";
 import { Button } from "@/components/ui/button";
 import { computed, watch, type HTMLAttributes } from "vue";
@@ -69,11 +69,13 @@ const isLoading = computed(() => playerStore.isLoading || playerStore.status ===
 const shouldShowPauseIcon = computed(() => playerStore.isPlaying || isLoading.value);
 const canInteract = computed(() => !isLoading.value);
 
+const prefersReduced = useReducedMotion();
+
 watch(
   shouldShowPauseIcon,
   (showPauseIcon) => {
     animate(progress, showPauseIcon ? 1 : 0, {
-      duration: 0.25,
+      duration: prefersReduced.value ? 0 : 0.25,
       ease: "anticipate",
     });
   },
@@ -132,6 +134,12 @@ function toggle() {
   }
   100% {
     transform: scaleY(-1) rotate(-135deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-ring {
+    animation: none;
   }
 }
 </style>

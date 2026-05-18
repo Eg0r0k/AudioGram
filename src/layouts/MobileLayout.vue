@@ -34,6 +34,7 @@
               variant="ghost"
               size="icon-sm"
               class="text-white"
+              :aria-label="$t('common.close')"
               @click="isFullPlayerOpen = false"
             >
               <IconChevronDown class="size-5" />

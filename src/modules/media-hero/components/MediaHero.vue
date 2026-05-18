@@ -37,7 +37,7 @@
           </span>
 
           <h1
-            class="w-full wrap-break-word font-black leading-none tracking-tight text-3xl @sm:text-4xl @md:text-5xl @xl:text-6xl"
+            class="w-full wrap-break-word text-balance font-black leading-none tracking-tight text-3xl @sm:text-4xl @md:text-5xl @xl:text-6xl"
           >
             {{ data.title }}
           </h1>

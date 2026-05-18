@@ -112,7 +112,7 @@ onBeforeUnmount(() => {
     </TabsList>
 
     <span
-      class="absolute bottom-0 h-0.5 bg-primary rounded-full transition-all duration-300 ease-out"
+      class="absolute bottom-0 h-0.5 bg-primary rounded-full transition-[left,width,opacity] duration-300 ease-out"
       :style="{
         width: indicatorStyle.width,
         left: indicatorStyle.left,

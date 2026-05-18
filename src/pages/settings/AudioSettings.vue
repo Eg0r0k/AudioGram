@@ -22,7 +22,7 @@
         </Item>
 
         <div
-          class="px-4 pb-4 pt-2 transition-all duration-300 max-w-3xl mx-auto"
+          class="px-4 pb-4 pt-2 transition-[opacity,filter] duration-300 max-w-3xl mx-auto"
           :class="{ 'opacity-40 pointer-events-none grayscale': !isEqEnabled }"
         >
           <div class="flex items-center justify-between mb-6">

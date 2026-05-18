@@ -3,11 +3,18 @@ import type { HTMLAttributes } from "vue";
 import { useVModel } from "@vueuse/core";
 import { cn } from "@/lib/utils";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   defaultValue?: string | number;
   modelValue?: string | number;
+  type?: "text" | "email" | "tel" | "url" | "number" | "password" | "search" | "date" | "time" | "datetime-local" | "month" | "week" | "color";
+  name?: string;
+  autocomplete?: string;
+  spellcheck?: boolean | "true" | "false";
+  inputmode?: string;
   class?: HTMLAttributes["class"];
-}>();
+}>(), {
+  type: "text",
+});
 
 const emits = defineEmits<{
   (e: "update:modelValue", payload: string | number): void;
@@ -18,10 +25,15 @@ const modelValue = useVModel(props, "modelValue", emits, {
   defaultValue: props.defaultValue,
 });
 </script>
-
+<!-- eslint-disable vuejs-accessibility/form-control-has-label -->
 <template>
   <input
     v-model="modelValue"
+    :type="type"
+    :name="name"
+    :autocomplete="autocomplete"
+    :spellcheck="spellcheck"
+    :inputmode="inputmode"
     data-slot="input"
     :class="
       cn(

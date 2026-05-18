@@ -152,7 +152,7 @@
             >
               <div class="flex items-center justify-between gap-3 px-2">
                 <div>
-                  <p class="text-sm font-medium">
+                  <p class="text-sm font-medium text-white">
                     {{ $t('player.upNextLabel') }}
                   </p>
                 </div>

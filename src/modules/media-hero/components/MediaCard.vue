@@ -28,7 +28,7 @@
         >
           <Button
             size="icon-lg"
-            class="rounded-full size-12 transition-all duration-200 shadow-lg"
+            class="rounded-full size-12 transition-[opacity,transform,box-shadow] duration-200 shadow-lg"
             :class="isActiveSource
               ? 'translate-y-0 opacity-100'
               : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'"

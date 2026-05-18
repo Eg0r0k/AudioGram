@@ -15,6 +15,7 @@ const props = defineProps<ToasterProps>();
 
 <template>
   <Sonner
+    aria-live="polite"
     :class="cn('toaster group', props.class)"
     :style="{ '--normal-bg': 'var(--card)', '--normal-text': 'var(--popover-foreground)', '--normal-border': 'var(--border)', '--border-radius': 'var(--radius)', }"
     v-bind="props"

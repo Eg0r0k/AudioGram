@@ -25,7 +25,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
     v-bind="forwarded"
     :class="cn(
       'switch-root',
-      'peer cursor-pointer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-4 w-8 shrink-0 items-center rounded-full border-none transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+      'peer cursor-pointer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-4 w-8 shrink-0 items-center rounded-full border-none transition-[background-color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
       props.class,
     )"
   >
@@ -53,21 +53,20 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 .switch-thumb {
   position: absolute;
   top: 50%;
+  left: 0;
   box-shadow: 0 0 0 2px var(--input);
   transition:
-    left 0.2s var(--ease-standard),
+    transform 0.2s var(--ease-standard),
     box-shadow 0.2s var(--ease-standard);
 }
 
 .switch-root[data-state="unchecked"] .switch-thumb {
-  left: -2px;
-  transform: translateY(-50%);
+  transform: translateX(-2px) translateY(-50%);
   box-shadow: 0 0 0 2px var(--input);
 }
 
 .switch-root[data-state="checked"] .switch-thumb {
-  left: calc(100% - 14px);
-  transform: translateY(-50%);
+  transform: translateX(18px) translateY(-50%);
   box-shadow: 0 0 0 2px var(--primary);
 }
 </style>
