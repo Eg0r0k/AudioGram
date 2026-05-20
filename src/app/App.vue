@@ -63,6 +63,19 @@ import NetworkStatusToast from "@/components/NetworkStatusToast.vue";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useAnalysisQueue } from "@/modules/recommendations/composables/useAnalysisQueue";
+import { getLogger } from "@/lib/logger";
+
+const log = getLogger();
+log.info(` \n
+8""""8                                                
+8    8 e   e eeeee e  eeeee eeeee eeeee  eeeee eeeeeee
+8eeee8 8   8 8   8 8  8  88 8   8 8   8  8   8 8  8  8
+88   8 8e  8 8e  8 8e 8   8 8e    8eee8e 8eee8 8e 8  8
+88   8 88  8 88  8 88 8   8 88 "8 88   8 88  8 88 8  8
+88   8 88ee8 88ee8 88 8eee8 88ee8 88   8 88  8 88 8  8
+\n
+Curious? Join us at https://github.com/Eg0r0k/Audiogram/issues :D
+`);
 
 const currentRoute = useRoute();
 const { isMobileLayout } = useDeviceLayout();
@@ -153,7 +166,6 @@ else {
 
 useChangelogOnStartup();
 
-// Update toasts
 const { t } = useI18n();
 let updateToastId: string | number | undefined;
 

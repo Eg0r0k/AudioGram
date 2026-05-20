@@ -49,7 +49,6 @@
           </div>
         </div>
       </SettingsGroup>
-
       <SettingsGroup class="mt-3">
         <SettingsItem
           :title="$t('settings.about.whatsNew')"
@@ -72,6 +71,22 @@
                 class="size-5 text-muted-foreground"
               />
             </div>
+          </template>
+        </SettingsItem>
+        <SettingsItem
+          :title="$t('settings.about.exportLogs')"
+          @click="handleExportLogs"
+        >
+          <template #action>
+            <IconLoader2
+              v-if="isExporting"
+              class="size-4 animate-spin text-muted-foreground"
+            />
+
+            <IconDownload
+              v-else
+              class="size-5 text-muted-foreground"
+            />
           </template>
         </SettingsItem>
       </SettingsGroup>
@@ -137,6 +152,8 @@ import IconChevronRight from "~icons/tabler/chevron-right";
 import IconExternalLink from "~icons/tabler/external-link";
 import IconBarBell from "~icons/tabler/brand-among-us";
 import IconLoader2 from "~icons/tabler/loader-2";
+import IconDownload from "~icons/tabler/download";
+
 import IconLogo from "~icons/audiogram/logo";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
@@ -151,6 +168,10 @@ import { useReleaseNotesDialog } from "@/modules/update/composables/useReleaseNo
 import { useChangelogStore } from "@/modules/update/store/changelog.store";
 import { routeLocation } from "@/app/router/route-locations";
 import { useRouter } from "vue-router";
+import { exportLogs } from "@/lib/logger";
+import { ref } from "vue";
+
+const isExporting = ref(false);
 
 const router = useRouter();
 
@@ -165,6 +186,26 @@ const {
   clearError,
   openCurrent,
 } = useReleaseNotesDialog();
+
+const handleExportLogs = async () => {
+  isExporting.value = true;
+  await exportLogs().match(
+    (success) => {
+      if (success.kind === "saved")
+        toast.success(t("settings.about.logsExportedTo", { path: success.path }));
+      if (success.kind === "downloaded")
+        toast.success(t("settings.about.logsDownloaded", { filename: success.filename }));
+    },
+    (err) => {
+      if (err.type === "NO_DATA")
+        toast.warning(t("settings.about.logsEmpty"));
+      else
+        toast.error(t("settings.about.logsExportFailed", { reason: err.reason }));
+    },
+  );
+
+  isExporting.value = false;
+};
 
 const handleOpenWhatsNew = async () => {
   const isOpened = await openCurrent();

@@ -1,4 +1,5 @@
 import type { TrackEntity } from "@/db/entities";
+import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
 import type { Result } from "neverthrow";
 
@@ -8,12 +9,12 @@ export async function unwrapResult<T>(
   const result = await promise;
 
   if (result.isErr()) {
+    getLogger().error(`[DB] ${result.error.message}`);
     throw result.error;
   }
 
   return result.value;
 }
-
 export function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }

@@ -35,6 +35,10 @@ export const formatTotalDuration = (
   return `${t("common.hoursShort", { count: hours })} ${t("common.minutesShort", { count: minutes })}`;
 };
 
+export const formatISODate = (date: Date): string => date.toISOString().slice(0, 10);
+
+export const formatISOTimestamp = (): string => new Date().toISOString();
+
 export const formatRelativeTime = (value?: number, locale?: string): string => {
   if (!value) return "-";
   const diffSeconds = Math.round((value - Date.now()) / 1000);

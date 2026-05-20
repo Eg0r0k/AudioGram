@@ -28,7 +28,8 @@
         "termsOfService": "Terms of Service",
         "privacyPolicy": "Privacy Policy",
         "licenses": "Licenses",
-        "releaseNotesLoadFailed": "Failed to load release notes"
+        "releaseNotesLoadFailed": "Failed to load release notes",
+        "exportLogs": "Export logs"
     },
     "appearance": {
         "colorTheme": "Color theme",

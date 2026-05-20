@@ -28,7 +28,8 @@
         "termsOfService": "Условия использования",
         "privacyPolicy": "Политика конфиденциальности",
         "licenses": "Лицензии",
-        "releaseNotesLoadFailed": "Не удалось загрузить заметки о релизе"
+        "releaseNotesLoadFailed": "Не удалось загрузить заметки о релизе",
+        "exportLogs": "Экспорт логов"
     },
     "appearance": {
         "colorTheme": "Тема оформления",

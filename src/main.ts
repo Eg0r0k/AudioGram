@@ -10,6 +10,9 @@ import App from "@/app/App.vue";
 import { IS_TAURI } from "./lib/environment/userAgent";
 import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
+import { initLogging } from "./lib/logger";
+
+await initLogging();
 
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
