@@ -8,6 +8,7 @@ export type QueueSource
     | { type: "search" }
     | { type: "history" }
     | { type: "manual" }
+    | { type: "recommendation" }
     | { type: "liked" }
     | { type: "allMedia" }
     | { type: "external" }
@@ -36,6 +37,7 @@ export function isSameQueueSource(left: QueueSource, right: QueueSource): boolea
     case "history":
     case "search":
     case "manual":
+    case "recommendation":
     case "external":
     case "unknown":
       return true;

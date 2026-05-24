@@ -10,10 +10,12 @@ import { type Track, isEphemeralTrack, type PlayerTrack } from "@/modules/player
 import { isSameQueueSource, type QueueItem, type QueueSource } from "../types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
+import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { fisherYatesShuffle } from "@/lib/shuffle";
 import { unique, unwrapResult } from "@/queries/shared";
 
 const RESTART_THRESHOLD = 3;
+const AUTOPLAY_RECOMMENDATION_LIMIT = 5;
 const QUEUE_STORAGE_KEY = "audiogram-queue-v1";
 
 interface PersistedLibraryTrack {
@@ -58,6 +60,8 @@ export const useQueueStore = defineStore("queue", () => {
   const currentIndex = ref(-1);
   const isShuffled = ref(false);
   const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
+
+  let autoplayRecommendationsPromise: Promise<boolean> | null = null;
 
   const originalQueue = computed<QueueItem[]>(() => {
     if (originalQueueOrder.value.length === 0) return [];
@@ -501,6 +505,55 @@ export const useQueueStore = defineStore("queue", () => {
     originalQueueOrder.value.push(...items.map(item => item.id));
   }
 
+  async function appendAutoplayRecommendations(): Promise<boolean> {
+    if (playerStore.repeatMode !== "off") return false;
+    if (currentIndex.value !== queue.value.length - 1) return false;
+
+    const sourceItem = currentItem.value;
+    if (!sourceItem || sourceItem.track.kind !== "library") return false;
+
+    const sourceItemId = sourceItem.id;
+
+    const queueLibraryIds = queue.value
+      .flatMap(item => item.track.kind === "library" ? [item.track.id] : []);
+    const additionalExcludeIds = [...new Set(queueLibraryIds)];
+
+    let recommendations: Awaited<ReturnType<typeof getRecommendations>>;
+
+    try {
+      recommendations = await getRecommendations(
+        sourceItem.track.id,
+        AUTOPLAY_RECOMMENDATION_LIMIT,
+        additionalExcludeIds,
+      );
+    }
+    catch (error) {
+      console.error("[Queue] Failed to load autoplay recommendations:", error);
+      return false;
+    }
+
+    if (currentItem.value?.id !== sourceItemId) return false;
+    if (playerStore.repeatMode !== "off") return false;
+    if (currentIndex.value !== queue.value.length - 1) return false;
+
+    const tracks = recommendations.map(({ track }) => mapTrackEntityToPlayerTrack(track));
+    if (tracks.length === 0) return false;
+
+    addMultipleToQueue(tracks, { type: "recommendation" });
+    return true;
+  }
+
+  async function ensureAutoplayRecommendations(): Promise<boolean> {
+    if (!autoplayRecommendationsPromise) {
+      autoplayRecommendationsPromise = appendAutoplayRecommendations()
+        .finally(() => {
+          autoplayRecommendationsPromise = null;
+        });
+    }
+
+    return autoplayRecommendationsPromise;
+  }
+
   function insertNext(
     track: PlayerTrack,
     source: QueueSource = { type: "manual" },
@@ -532,6 +585,13 @@ export const useQueueStore = defineStore("queue", () => {
       if (!success) await skipToNextPlayable();
     }
     else {
+      const appendedRecommendations = await ensureAutoplayRecommendations();
+      if (appendedRecommendations) {
+        const success = await playAtIndex(currentIndex.value + 1);
+        if (!success) await skipToNextPlayable();
+        return;
+      }
+
       resetPlaybackSelection();
     }
   }

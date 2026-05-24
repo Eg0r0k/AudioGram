@@ -1,10 +1,127 @@
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TrackSource, TrackState } from "@/db/entities";
+import type { Track } from "../types";
+
+let mockPlayer: Record<string, unknown>;
+const mockPlayerMethods = {
+  dispose: vi.fn().mockResolvedValue(undefined),
+  setVolume: vi.fn(),
+  setMuted: vi.fn(),
+  setPlaybackRate: vi.fn(),
+  toggleMute: vi.fn(),
+  play: vi.fn().mockResolvedValue(undefined),
+  pause: vi.fn(),
+  stop: vi.fn(),
+  seek: vi.fn(),
+  seekPercent: vi.fn(),
+  load: vi.fn().mockResolvedValue(undefined),
+  fadeIn: vi.fn().mockResolvedValue(undefined),
+  fadeOut: vi.fn().mockResolvedValue(undefined),
+  cancelFade: vi.fn(),
+  clearLoudnessMetadata: vi.fn(),
+  setLoudnessMetadata: vi.fn(),
+  unlockAudio: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock("lyra-audio", () => {
+  let _on: Record<string, ((...args: unknown[]) => void)[]> = {};
+
+  function MockPlayer() {
+    const instance = {
+      ...mockPlayerMethods,
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        if (!_on[event]) _on[event] = [];
+        _on[event].push(handler);
+      }),
+      trigger: (event: string, ...args: unknown[]) => {
+        (_on[event] ?? []).forEach(h => h(...args));
+      },
+      resetListeners: () => { _on = {}; },
+      get isReady() { return true; },
+      get isPlaying() { return false; },
+      get duration() { return 0; },
+      get graph() { return null; },
+    };
+    mockPlayer = instance;
+    return instance;
+  }
+  MockPlayer.prototype = Object.create(null);
+
+  return { Player: MockPlayer };
+});
+
+vi.mock("hls.js", () => ({ default: class MockHls {} }));
+
+vi.mock("@/modules/settings/store/audio", () => ({
+  useAudioSettingsStore: () => ({
+    isNormalizationEnabled: false,
+    normalizationTargetLufs: -14,
+    normalizationPreventClipping: true,
+    isFadeEnabled: false,
+    fadeInDuration: 0,
+    fadeOutDuration: 0,
+  }),
+}));
+
+vi.mock("@/db/storage", () => ({
+  storageService: {
+    getAudioUrl: () => Promise.resolve({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" }),
+    getFile: () => Promise.resolve({ isErr: () => true }),
+  },
+}));
+
+vi.mock("@/services/stats.service", () => ({
+  statsService: {
+    stopListening: () => Promise.resolve(null),
+    startListening: () => {},
+  },
+}));
+
+vi.mock("@/queries/client", () => ({
+  queryClient: {
+    invalidateQueries: () => {},
+    removeQueries: () => {},
+  },
+}));
+
+vi.mock("@/queries/stats.queries", () => ({
+  invalidateStatsQueries: () => Promise.resolve(),
+}));
+
+vi.mock("../service/lyrics.service", () => ({
+  fetchLrcLibLyrics: () => Promise.resolve({ match: (_ok: unknown, _err: unknown) => {} }),
+}));
+
+vi.mock("@/lib/environment/userAgent", () => ({
+  IS_TAURI: false,
+}));
+
 import { usePlayerStore } from "../store/player.store";
+
+function createLibraryTrack(overrides: Partial<Track> = {}): Track {
+  return {
+    id: "track-1" as never,
+    kind: "library",
+    title: "Test Track",
+    artist: "Test Artist",
+    artistIds: ["artist-1" as never],
+    albumId: "album-1" as never,
+    albumName: "Test Album",
+    storagePath: "/path/to/track.mp3",
+    source: TrackSource.LOCAL_INTERNAL,
+    state: TrackState.READY,
+    duration: 200,
+    isLiked: false,
+    ...overrides,
+  };
+}
 
 describe("player.store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.clearAllMocks();
+    mockPlayer = undefined!;
   });
 
   describe("initial state", () => {
@@ -119,7 +236,10 @@ describe("player.store", () => {
       const store = usePlayerStore();
       store.player = {} as NonNullable<typeof store.player>;
       store.duration = 0;
-      store.currentTrack = { url: "stream.m3u8" } as NonNullable<typeof store.currentTrack>;
+      store.currentTrack = {
+        kind: "ephemeral", id: "stream-1", title: "Live Stream",
+        source: { type: "url", url: "stream.m3u8" },
+      } as NonNullable<typeof store.currentTrack>;
 
       expect(store.isLiveStream).toBe(true);
       expect(store.canSeek).toBe(false);
@@ -138,7 +258,10 @@ describe("player.store", () => {
     it("should be live stream for HLS URL with duration 0", () => {
       const store = usePlayerStore();
       store.duration = 0;
-      store.currentTrack = { url: "https://example.com/stream.m3u8" } as NonNullable<typeof store.currentTrack>;
+      store.currentTrack = {
+        kind: "ephemeral", id: "stream-1", title: "Live Stream",
+        source: { type: "url", url: "https://example.com/stream.m3u8" },
+      } as NonNullable<typeof store.currentTrack>;
 
       expect(store.isLiveStream).toBe(true);
     });
@@ -146,7 +269,10 @@ describe("player.store", () => {
     it("should not be live stream for regular audio", () => {
       const store = usePlayerStore();
       store.duration = 180;
-      store.currentTrack = { url: "https://example.com/song.mp3" } as NonNullable<typeof store.currentTrack>;
+      store.currentTrack = {
+        kind: "ephemeral", id: "track-1", title: "Song",
+        source: { type: "url", url: "https://example.com/song.mp3" },
+      } as NonNullable<typeof store.currentTrack>;
 
       expect(store.isLiveStream).toBe(false);
     });
@@ -154,15 +280,15 @@ describe("player.store", () => {
     it("should not be live stream when duration > 0", () => {
       const store = usePlayerStore();
       store.duration = 180;
-      store.currentTrack = { storagePath: "song.mp3" } as NonNullable<typeof store.currentTrack>;
+      store.currentTrack = createLibraryTrack();
 
       expect(store.isLiveStream).toBe(false);
     });
 
-    it("should be live stream when duration is 0 with track", () => {
+    it("should be live stream for HLS library track with duration 0", () => {
       const store = usePlayerStore();
       store.duration = 0;
-      store.currentTrack = { storagePath: "stream.mp3" } as NonNullable<typeof store.currentTrack>;
+      store.currentTrack = createLibraryTrack({ source: TrackSource.REMOTE_HLS, storagePath: "stream.m3u8" });
 
       expect(store.isLiveStream).toBe(true);
     });
@@ -200,79 +326,79 @@ describe("player.store", () => {
 
     it("should call player method when setVolume", () => {
       const store = usePlayerStore();
-      const mockSetVolume = vi.fn();
-      store.player = { setVolume: mockSetVolume } as unknown as NonNullable<typeof store.player>;
+      const mockSetVolumeFn = vi.fn();
+      store.player = { setVolume: mockSetVolumeFn } as unknown as NonNullable<typeof store.player>;
 
       store.setVolume(0.8);
-      expect(mockSetVolume).toHaveBeenCalledWith(0.8);
+      expect(mockSetVolumeFn).toHaveBeenCalledWith(0.8);
     });
 
     it("should call player method when setMuted", () => {
       const store = usePlayerStore();
-      const mockSetMuted = vi.fn();
-      store.player = { setMuted: mockSetMuted } as unknown as NonNullable<typeof store.player>;
+      const mockSetMutedFn = vi.fn();
+      store.player = { setMuted: mockSetMutedFn } as unknown as NonNullable<typeof store.player>;
 
       store.setMuted(true);
-      expect(mockSetMuted).toHaveBeenCalledWith(true);
+      expect(mockSetMutedFn).toHaveBeenCalledWith(true);
     });
 
     it("should call player toggleMute", () => {
       const store = usePlayerStore();
-      const mockToggleMute = vi.fn();
-      store.player = { toggleMute: mockToggleMute } as unknown as NonNullable<typeof store.player>;
+      const mockToggleMuteFn = vi.fn();
+      store.player = { toggleMute: mockToggleMuteFn } as unknown as NonNullable<typeof store.player>;
 
       store.toggleMute();
-      expect(mockToggleMute).toHaveBeenCalled();
+      expect(mockToggleMuteFn).toHaveBeenCalled();
     });
   });
 
   describe("seek controls", () => {
     it("should seek to specific time when allowed", () => {
       const store = usePlayerStore();
-      const mockSeek = vi.fn();
-      store.player = { seek: mockSeek } as unknown as NonNullable<typeof store.player>;
+      const mockSeekFn = vi.fn();
+      store.player = { seek: mockSeekFn } as unknown as NonNullable<typeof store.player>;
       store.duration = 100;
 
       store.seekTo(50);
-      expect(mockSeek).toHaveBeenCalledWith(50);
+      expect(mockSeekFn).toHaveBeenCalledWith(50);
     });
 
     it("should not seek when canSeek is false", () => {
       const store = usePlayerStore();
-      const mockSeek = vi.fn();
-      store.player = { seek: mockSeek } as unknown as NonNullable<typeof store.player>;
+      const mockSeekFn = vi.fn();
+      store.player = { seek: mockSeekFn } as unknown as NonNullable<typeof store.player>;
       store.duration = 0;
 
       store.seekTo(50);
-      expect(mockSeek).not.toHaveBeenCalled();
+      expect(mockSeekFn).not.toHaveBeenCalled();
     });
 
     it("should not seek when player is null", () => {
       const store = usePlayerStore();
-      const mockSeek = vi.fn();
+      const mockSeekFn = vi.fn();
 
       store.seekTo(50);
-      expect(mockSeek).not.toHaveBeenCalled();
+      expect(mockSeekFn).not.toHaveBeenCalled();
     });
 
     it("should seek by percent", () => {
       const store = usePlayerStore();
-      const mockSeekPercent = vi.fn();
-      store.player = { seekPercent: mockSeekPercent } as unknown as NonNullable<typeof store.player>;
+      const mockSeekPercentFn = vi.fn();
+      store.player = { seekPercent: mockSeekPercentFn } as unknown as NonNullable<typeof store.player>;
       store.duration = 100;
 
       store.seekPercent(50);
-      expect(mockSeekPercent).toHaveBeenCalledWith(0.5);
+      expect(mockSeekPercentFn).toHaveBeenCalledWith(0.5);
     });
 
     it("should not seekPercent when canSeek is false", () => {
       const store = usePlayerStore();
-      const mockSeekPercent = vi.fn();
-      store.player = { seekPercent: mockSeekPercent } as unknown as NonNullable<typeof store.player>;
+      const mockSeekPercentFn = vi.fn();
+      store.player = { seekPercent: mockSeekPercentFn } as unknown as NonNullable<typeof store.player>;
       store.duration = 0;
 
       store.seekPercent(50);
-      expect(mockSeekPercent).not.toHaveBeenCalled();
+      expect(mockSeekPercentFn).not.toHaveBeenCalled();
     });
   });
 
@@ -335,15 +461,15 @@ describe("player.store", () => {
   describe("stop functionality", () => {
     it("should stop player and reset time when player exists", () => {
       const store = usePlayerStore();
-      const mockStop = vi.fn();
+      const mockStopFn = vi.fn();
       store.player = {
-        stop: mockStop,
+        stop: mockStopFn,
         fadeOut: vi.fn().mockResolvedValue(undefined),
       } as unknown as NonNullable<typeof store.player>;
       store.currentTime = 50;
 
       store.stop();
-      expect(mockStop).toHaveBeenCalled();
+      expect(mockStopFn).toHaveBeenCalled();
       expect(store.currentTime).toBe(0);
     });
 
@@ -356,15 +482,68 @@ describe("player.store", () => {
     });
   });
 
+  describe("playPlayerTrack", () => {
+    it("should reset currentTime and duration before playing a new track", async () => {
+      const store = usePlayerStore();
+      store.currentTime = 120;
+      store.duration = 300;
+
+      await store.playPlayerTrack(createLibraryTrack());
+
+      expect(store.currentTime).toBe(0);
+      expect(store.duration).toBe(0);
+    });
+
+    it("should create player and load track URL", async () => {
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack());
+
+      expect(store.player).not.toBeNull();
+      expect(store.currentTrack).not.toBeNull();
+      expect(store.currentTrack!.title).toBe("Test Track");
+    });
+
+    it("should throw on broken library track", async () => {
+      const store = usePlayerStore();
+      const brokenTrack = createLibraryTrack({ state: TrackState.BROKEN });
+
+      await expect(store.playPlayerTrack(brokenTrack)).rejects.toThrow(
+        'Track is marked as broken: "Test Track"',
+      );
+      expect(store.currentTrack).toBeNull();
+      expect(store.status).toBe("idle");
+    });
+
+    it("should reset currentTime and duration when switching tracks", async () => {
+      const store = usePlayerStore();
+      store.currentTime = 120;
+      store.duration = 300;
+
+      const trackA = createLibraryTrack({ id: "track-a" as never, title: "Track A" });
+      await store.playPlayerTrack(trackA);
+
+      store.currentTime = 45;
+      store.duration = 180;
+
+      const trackB = createLibraryTrack({ id: "track-b" as never, title: "Track B" });
+      await store.playPlayerTrack(trackB);
+
+      expect(store.currentTime).toBe(0);
+      expect(store.duration).toBe(0);
+      expect(store.currentTrack!.title).toBe("Track B");
+    });
+  });
+
   describe("dispose functionality", () => {
     it("should dispose player when player exists", async () => {
       const store = usePlayerStore();
-      const mockDispose = vi.fn().mockResolvedValue(undefined);
-      store.player = { dispose: mockDispose } as unknown as NonNullable<typeof store.player>;
+      const mockDisposeFn = vi.fn().mockResolvedValue(undefined);
+      store.player = { dispose: mockDisposeFn } as unknown as NonNullable<typeof store.player>;
 
       await store.dispose();
 
-      expect(mockDispose).toHaveBeenCalled();
+      expect(mockDisposeFn).toHaveBeenCalled();
       expect(store.player).toBe(null);
     });
 
@@ -430,24 +609,24 @@ describe("player.store", () => {
 
     it("should pause playback when sleep timer expires", () => {
       const store = usePlayerStore();
-      const mockPause = vi.fn();
+      const mockPauseFn = vi.fn();
 
-      store.player = { pause: mockPause } as unknown as NonNullable<typeof store.player>;
+      store.player = { pause: mockPauseFn } as unknown as NonNullable<typeof store.player>;
       store.status = "playing";
 
       store.setSleepTimer(5 * 1000);
       vi.advanceTimersByTime(5000);
 
-      expect(mockPause).toHaveBeenCalledTimes(1);
+      expect(mockPauseFn).toHaveBeenCalledTimes(1);
       expect(store.isSleepTimerActive).toBe(false);
       expect(store.sleepTimerRemainingMs).toBe(0);
     });
 
     it("should clear sleep timer on dispose", async () => {
       const store = usePlayerStore();
-      const mockDispose = vi.fn().mockResolvedValue(undefined);
+      const mockDisposeFn = vi.fn().mockResolvedValue(undefined);
 
-      store.player = { dispose: mockDispose } as unknown as NonNullable<typeof store.player>;
+      store.player = { dispose: mockDisposeFn } as unknown as NonNullable<typeof store.player>;
       store.setSleepTimer(5 * 1000);
 
       await store.dispose();

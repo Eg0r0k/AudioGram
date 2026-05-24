@@ -18,7 +18,22 @@
     "album": "Album",
     "playlist": "Playlist",
     "liked": "Liked Songs",
-    "allMedia": "All Music"
+    "allMedia": "All Music",
+    "folder": "Folder"
+  },
+  "folder": {
+    "create": "Create folder",
+    "newFolder": "New folder",
+    "namePlaceholder": "Folder name",
+    "open": "Open folder",
+    "rename": "Rename folder",
+    "delete": "Delete folder",
+    "moveToFolder": "Move to folder",
+    "removeFromFolder": "Remove from folder",
+    "manageItems": "Manage items",
+    "manageDescription": "Choose artists, albums, and playlists to show in this folder.",
+    "itemCount": "{count} items",
+    "noFolders": "Create a folder first"
   },
   "contextMenu": {
     "pinAlbum": "Pin album",

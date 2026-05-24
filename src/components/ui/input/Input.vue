@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
   name?: string;
   autocomplete?: string;
   spellcheck?: boolean | "true" | "false";
-  inputmode?: string;
+  inputmode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
   class?: HTMLAttributes["class"];
 }>(), {
   type: "text",

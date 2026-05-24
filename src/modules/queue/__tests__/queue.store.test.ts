@@ -3,7 +3,8 @@ import { createPinia, setActivePinia } from "pinia";
 import { ok } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { trackRepository } from "@/db/repositories";
-import { TrackSource, TrackState } from "@/db/entities";
+import { TrackSource, TrackState, type TrackEntity } from "@/db/entities";
+import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import type { Track } from "@/modules/player/types";
 import { useQueueStore } from "../store/queue.store";
@@ -12,6 +13,10 @@ vi.mock("@/db/repositories", () => ({
   trackRepository: {
     findByIds: vi.fn(),
   },
+}));
+
+vi.mock("@/modules/recommendations/service/recommender.service", () => ({
+  getRecommendations: vi.fn(),
 }));
 
 function createTrack(id: string, title: string = "Test Track"): Track {
@@ -31,12 +36,47 @@ function createTrack(id: string, title: string = "Test Track"): Track {
   };
 }
 
+function createTrackEntity(id: string, title: string = "Recommended Track"): TrackEntity {
+  return {
+    id: id as TrackEntity["id"],
+    title,
+    artistName: "Artist",
+    albumTitle: "Album",
+    artistIds: ["artist-1" as TrackEntity["artistIds"][number]],
+    albumId: "album-1" as TrackEntity["albumId"],
+    tagIds: [],
+    source: TrackSource.LOCAL_INTERNAL,
+    storagePath: `tracks/${id}.mp3`,
+    state: TrackState.READY,
+    duration: 120,
+    format: {},
+    playCount: 0,
+    addedAt: Date.now(),
+  };
+}
+
+function createRecommendation(track: TrackEntity) {
+  return {
+    trackId: track.id,
+    track,
+    score: 1,
+    breakdown: {
+      audioSimilarity: 1,
+      coOccurrence: 0,
+      completionRate: 1,
+      recencyScore: 0,
+      likedBonus: 0,
+    },
+  };
+}
+
 describe("queue.store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(trackRepository.findByIds).mockResolvedValue(ok([]));
+    vi.mocked(getRecommendations).mockResolvedValue([]);
   });
 
   describe("initial state", () => {
@@ -708,6 +748,33 @@ describe("queue.store", () => {
       expect(stopSpy).toHaveBeenCalled();
     });
 
+    it("should append and play recommendations when queue ends with repeat off", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+      const recommendations = [
+        createTrackEntity("rec-1", "Recommended 1"),
+        createTrackEntity("rec-2", "Recommended 2"),
+        createTrackEntity("rec-3", "Recommended 3"),
+        createTrackEntity("rec-4", "Recommended 4"),
+        createTrackEntity("rec-5", "Recommended 5"),
+      ];
+      vi.mocked(getRecommendations).mockResolvedValue(recommendations.map(createRecommendation));
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      playerStore.repeatMode = "off";
+
+      await store.next();
+
+      expect(getRecommendations).toHaveBeenCalledWith(createTrack("1").id, 5, [createTrack("1").id]);
+      expect(store.queue.map(item => item.track.id)).toEqual(["1", "rec-1", "rec-2", "rec-3", "rec-4", "rec-5"]);
+      expect(store.currentIndex).toBe(1);
+      expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "rec-1", kind: "library" }));
+    });
+
     it("should do nothing when queue is empty", async () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
@@ -1211,6 +1278,275 @@ describe("queue.store", () => {
       playerStore.repeatMode = "all";
 
       expect(store.hasPrevious).toBe(false);
+    });
+  });
+
+  describe("removeMultiple — current not removed", () => {
+    it("should recalculate currentIndex when current item stays", () => {
+      const store = useQueueStore();
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 1;
+
+      store.removeMultiple(["item-3"] as any);
+
+      expect(store.currentIndex).toBe(1);
+      expect(store.queue.map(i => i.track.id)).toEqual(["1", "2"]);
+    });
+
+    it("should fall back to index 0 when current item not found after removal", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      store.queue = [];
+
+      store.removeMultiple(["item-1"] as any);
+
+      expect(store.currentIndex).toBe(-1);
+    });
+  });
+
+  describe("restorePersistedQueue edge cases", () => {
+    it("should do nothing when snapshot is null", async () => {
+      const store = useQueueStore();
+      await store.restorePersistedQueue();
+      expect(store.queue).toEqual([]);
+      expect(store.currentIndex).toBe(-1);
+    });
+
+    it("should clear queue when repository throws", async () => {
+      vi.mocked(trackRepository.findByIds).mockRejectedValue(new Error("DB error"));
+
+      const store = useQueueStore();
+
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [{ id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 }],
+        originalQueueOrder: ["item-1"],
+        currentIndex: 0,
+        isShuffled: false,
+      };
+
+      await store.restorePersistedQueue();
+
+      expect(store.queue).toEqual([]);
+      expect(store.currentIndex).toBe(-1);
+    });
+
+    it("should skip library tracks not found in database", async () => {
+      vi.mocked(trackRepository.findByIds).mockResolvedValue(ok([]));
+
+      const store = useQueueStore();
+
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [{ id: "item-1", track: { kind: "library", trackId: "nonexistent" }, source: { type: "manual" }, addedAt: 100 }],
+        originalQueueOrder: ["item-1"],
+        currentIndex: 0,
+        isShuffled: false,
+      };
+
+      await store.restorePersistedQueue();
+
+      expect(store.queue).toEqual([]);
+      expect(store.currentIndex).toBe(-1);
+    });
+
+    it("should restore file-based ephemeral track from snapshot", async () => {
+      const store = useQueueStore();
+
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [{
+          id: "item-1",
+          track: {
+            kind: "ephemeral",
+            id: "eph-1",
+            title: "Local File",
+            source: { type: "file" },
+          },
+          source: { type: "manual" },
+          addedAt: 100,
+        }],
+        originalQueueOrder: ["item-1"],
+        currentIndex: 0,
+        isShuffled: false,
+      };
+
+      await store.restorePersistedQueue();
+
+      expect(store.queue).toHaveLength(1);
+      expect(store.queue[0].track.id).toBe("eph-1");
+    });
+  });
+
+  describe("syncTrackMetadata with ephemeral track", () => {
+    it("should be a no-op for ephemeral tracks", () => {
+      const store = useQueueStore();
+      const track = { kind: "ephemeral", id: "eph-1", title: "Eph", source: { type: "url", url: "https://example.com/a.mp3" } } as any;
+      store.queue = [
+        { id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() },
+      ];
+
+      store.syncTrackMetadata({ ...track, title: "Updated" });
+
+      expect(store.queue[0].track.title).toBe("Eph");
+    });
+  });
+
+  describe("clear edge cases", () => {
+    it("should call player stop and clearCurrentTrack", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+      const clearCurrentTrackSpy = vi.spyOn(playerStore, "clearCurrentTrack").mockReturnValue(undefined);
+
+      store.clear();
+
+      expect(stopSpy).toHaveBeenCalled();
+      expect(clearCurrentTrackSpy).toHaveBeenCalled();
+      expect(store.currentIndex).toBe(-1);
+      expect(store.isShuffled).toBe(false);
+    });
+  });
+
+  describe("setQueue edge cases", () => {
+    it("should clamp out-of-bounds startIndex", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+      const tracks = [createTrack("1")];
+      await store.setQueue(tracks, -5);
+
+      expect(store.currentIndex).toBe(0);
+      expect(playSpy).toHaveBeenCalledWith(tracks[0]);
+
+      await store.setQueue(tracks, 100);
+
+      expect(store.currentIndex).toBe(0);
+    });
+
+    it("should fall back to clear when all tracks fail to play", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(new Error("fail"));
+      const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+      const clearCurrentTrackSpy = vi.spyOn(playerStore, "clearCurrentTrack").mockReturnValue(undefined);
+
+      await store.setQueue([createTrack("1")], 0);
+
+      expect(store.currentIndex).toBe(-1);
+      expect(stopSpy).toHaveBeenCalled();
+      expect(clearCurrentTrackSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("previous edge cases", () => {
+    it("should go to last track when currentIndex is -1 and repeat-all", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = -1;
+      playerStore.currentTime = 1;
+      playerStore.repeatMode = "all";
+
+      await store.previous();
+
+      expect(store.currentIndex).toBe(1);
+      expect(playSpy).toHaveBeenCalledWith(createTrack("2"));
+    });
+  });
+
+  describe("next with failing tracks", () => {
+    it("should skip failing track and try next", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack")
+        .mockRejectedValueOnce(new Error("fail"))
+        .mockResolvedValueOnce(undefined);
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      playerStore.repeatMode = "off";
+
+      await store.next();
+
+      expect(store.currentIndex).toBe(2);
+      expect(playerStore.playPlayerTrack).toHaveBeenCalledTimes(2);
+      expect(playerStore.playPlayerTrack).toHaveBeenNthCalledWith(1, createTrack("2"));
+      expect(playerStore.playPlayerTrack).toHaveBeenNthCalledWith(2, createTrack("3"));
+    });
+
+    it("should stop when all remaining tracks fail", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(new Error("fail"));
+      const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      playerStore.repeatMode = "off";
+
+      await store.next();
+
+      expect(store.currentIndex).toBe(-1);
+      expect(stopSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("removeFromQueue with failing play", () => {
+    it("should not throw when play fails for removed current", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(new Error("fail"));
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+
+      expect(() => store.removeFromQueue("item-1" as any)).not.toThrow();
+    });
+  });
+
+  describe("jumpTo edge cases", () => {
+    it("should do nothing for out-of-bounds index", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+      store.queue = [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
+      ];
+
+      await store.jumpTo(-1);
+      expect(playSpy).not.toHaveBeenCalled();
+
+      await store.jumpTo(5);
+      expect(playSpy).not.toHaveBeenCalled();
     });
   });
 });

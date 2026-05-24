@@ -86,12 +86,13 @@ export interface ScoredTrack {
 export const getRecommendations = async (
   sourceTrackId: TrackId,
   limit = 8,
+  additionalExcludeIds: TrackId[] = [],
 ): Promise<ScoredTrack[]> => {
   const allIdsResult = await trackRepository.findAllIds();
   if (allIdsResult.isErr()) return [];
 
   const recentlyPlayedIds = await getRecentlyPlayedIds(5);
-  const excludeSet = new Set([sourceTrackId, ...recentlyPlayedIds]);
+  const excludeSet = new Set([sourceTrackId, ...recentlyPlayedIds, ...additionalExcludeIds]);
   const candidateIds = allIdsResult.value.filter(id => !excludeSet.has(id));
   if (candidateIds.length === 0) return [];
 
