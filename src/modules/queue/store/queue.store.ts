@@ -514,9 +514,10 @@ export const useQueueStore = defineStore("queue", () => {
 
     const sourceItemId = sourceItem.id;
 
-    const queueLibraryIds = queue.value
+    const upcomingLibraryIds = queue.value
+      .slice(currentIndex.value + 1)
       .flatMap(item => item.track.kind === "library" ? [item.track.id] : []);
-    const additionalExcludeIds = [...new Set(queueLibraryIds)];
+    const additionalExcludeIds = [...new Set(upcomingLibraryIds)];
 
     let recommendations: Awaited<ReturnType<typeof getRecommendations>>;
 
@@ -526,6 +527,14 @@ export const useQueueStore = defineStore("queue", () => {
         AUTOPLAY_RECOMMENDATION_LIMIT,
         additionalExcludeIds,
       );
+
+      if (recommendations.length < AUTOPLAY_RECOMMENDATION_LIMIT) {
+        const fallback = await getRecommendations(
+          sourceItem.track.id,
+          AUTOPLAY_RECOMMENDATION_LIMIT,
+        );
+        recommendations = fallback;
+      }
     }
     catch (error) {
       console.error("[Queue] Failed to load autoplay recommendations:", error);
