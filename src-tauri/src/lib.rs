@@ -8,6 +8,12 @@ mod updater;
 #[cfg(desktop)]
 mod tray;
 
+#[cfg(desktop)]
+mod discord;
+
+#[cfg(desktop)]
+mod discord_utils;
+
 fn dir_size(path: &Path) -> std::io::Result<u64> {
     let mut total = 0;
 
@@ -57,6 +63,7 @@ pub fn run() {
 
     #[cfg(desktop)]
     let builder = builder
+        .manage(discord::DiscordPresenceState::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
 
@@ -73,6 +80,8 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         app_data_folder_size,
+        discord::discord_set_activity,
+        discord::discord_clear_activity,
         updater::check_update,
         updater::install_update,
     ]);
