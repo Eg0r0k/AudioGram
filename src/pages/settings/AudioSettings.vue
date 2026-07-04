@@ -90,7 +90,7 @@
                   class="absolute -top-6 z-10 [&:focus-within>span]:opacity-100!"
                   display-class="text-[11px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-background/80 px-1 rounded backdrop-blur-sm"
                   input-class="text-[11px] w-[24px] text-center"
-                  @update:model-value="(val: number) => setBandGain(index, val)"
+                  @update:model-value="(val: string | number) => setBandGain(index, val as number)"
                 />
 
                 <VerticalSlider
@@ -99,7 +99,7 @@
                   :max="15"
                   :step="1"
                   class="flex-1"
-                  @update:model-value="(val: number) => setBandGain(index, val)"
+                  @update:model-value="(val: string | number) => setBandGain(index, val as number)"
                 />
 
                 <span class="text-[10px] font-semibold text-muted-foreground mt-3">

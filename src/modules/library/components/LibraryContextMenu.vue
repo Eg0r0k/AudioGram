@@ -36,7 +36,14 @@ import type { LibraryItem } from "@/modules/library/types";
 import ArtistContext from "./contexts/ArtistContext.vue";
 import DefaultContext from "./contexts/DefaultContext.vue";
 import FavoriteContext from "./contexts/FavoriteContext.vue";
+import FolderContext from "./contexts/FolderContext.vue";
 import { useLibraryContextActions } from "../composables/useLibraryContextActions";
+
+const props = withDefaults(defineProps<{
+  insideFolder?: boolean;
+}>(), {
+  insideFolder: false,
+});
 
 const { activeItem, isContextMenuOpen } = useLibraryMenu();
 const { togglePin, createPlaylist } = useLibrary();
@@ -48,6 +55,7 @@ const contexts: Record<LibraryItem["type"], Component> = {
   playlist: DefaultContext,
   liked: FavoriteContext,
   allMedia: FavoriteContext,
+  folder: FolderContext,
 };
 
 const contextComponent = computed(() =>
@@ -64,7 +72,16 @@ const contextProps = computed(() => {
       return {
         item: activeItem.value,
         onTogglePin: handleTogglePin,
+        onMoveToFolder: handleMoveToFolder,
+        onRemoveFromFolder: props.insideFolder ? handleRemoveFromFolder : undefined,
         onDelete: handleDelete,
+      };
+    case "folder":
+      return {
+        openFolder: handleOpenFolder,
+        manageFolder: handleManageFolder,
+        renameFolder: handleRenameFolder,
+        deleteFolder: handleDelete,
       };
     case "liked":
     case "allMedia":
@@ -79,6 +96,8 @@ const contextProps = computed(() => {
         togglePin: handleTogglePin,
         addToQueue: handleAddToQueue,
         createPlaylist: handleCreatePlaylist,
+        moveToFolder: handleMoveToFolder,
+        removeFromFolder: props.insideFolder ? handleRemoveFromFolder : undefined,
         deleteItem: handleDelete,
       };
   }
@@ -95,7 +114,7 @@ useEventListener(guardRef, "contextmenu", (e: MouseEvent) => {
 }, { capture: true });
 
 const handleTogglePin = () => {
-  if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia") return;
+  if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;
   togglePin(activeItem.value.type, activeItem.value.id);
 };
 
@@ -110,10 +129,40 @@ const handleCreatePlaylist = async () => {
 
 const emit = defineEmits<{
   delete: [item: LibraryItem];
+  openFolder: [folderId: string];
+  manageFolder: [folderId: string];
+  renameFolder: [folderId: string];
+  moveToFolder: [item: LibraryItem];
+  removeFromFolder: [item: LibraryItem];
 }>();
 
 const handleDelete = () => {
   if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia") return;
   emit("delete", activeItem.value);
+};
+
+const handleOpenFolder = () => {
+  if (!activeItem.value || activeItem.value.type !== "folder") return;
+  emit("openFolder", activeItem.value.id);
+};
+
+const handleManageFolder = () => {
+  if (!activeItem.value || activeItem.value.type !== "folder") return;
+  emit("manageFolder", activeItem.value.id);
+};
+
+const handleRenameFolder = () => {
+  if (!activeItem.value || activeItem.value.type !== "folder") return;
+  emit("renameFolder", activeItem.value.id);
+};
+
+const handleMoveToFolder = () => {
+  if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;
+  emit("moveToFolder", activeItem.value);
+};
+
+const handleRemoveFromFolder = () => {
+  if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;
+  emit("removeFromFolder", activeItem.value);
 };
 </script>

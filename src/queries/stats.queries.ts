@@ -25,53 +25,57 @@ export const statsQueries = {
   topTracks: (limit: number, since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.topTracks(limit, since),
-      queryFn: () => statsRepository.topTracks(limit, since),
+      queryFn: () => unwrapResult(statsRepository.topTracks(limit, since)),
       staleTime: STATS_STALE_TIME,
     }),
   topTracksMeta: (ids: readonly string[]) =>
     queryOptions({
       queryKey: queryKeys.stats.topTracksMeta(ids),
-      queryFn: async () => {
-        const tracks = await unwrapResult(trackRepository.findByIds(ids as TrackId[]));
-        return tracks;
-      },
+      queryFn: () => unwrapResult(trackRepository.findByIds(ids as TrackId[])),
       staleTime: STATS_STALE_TIME,
     }),
   topArtists: (limit: number, since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.topArtists(limit, since),
-      queryFn: () => statsRepository.topArtists(limit, since),
+      queryFn: () => unwrapResult(statsRepository.topArtists(limit, since)),
       staleTime: STATS_STALE_TIME,
     }),
   topArtistsMeta: (ids: readonly string[]) =>
     queryOptions({
       queryKey: queryKeys.stats.topArtistsMeta(ids),
-      queryFn: async () => {
-        const artists = await unwrapResult(artistRepository.findByIds(ids as ArtistId[]));
-        return artists;
-      },
+      queryFn: () => unwrapResult(artistRepository.findByIds(ids as ArtistId[])),
+      staleTime: STATS_STALE_TIME,
+    }),
+  topGenres: (limit: number, since?: number) =>
+    queryOptions({
+      queryKey: queryKeys.stats.topGenres(limit, since),
+      queryFn: () => unwrapResult(statsRepository.topGenres(limit, since)),
+      staleTime: STATS_STALE_TIME,
+    }),
+  sonicProfile: (since?: number) =>
+    queryOptions({
+      queryKey: queryKeys.stats.sonicProfile(since),
+      queryFn: () => unwrapResult(statsRepository.sonicProfile(since)),
       staleTime: STATS_STALE_TIME,
     }),
   totalTime: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.totalTime(since),
-      queryFn: () => statsRepository.totalListeningSeconds(since),
+      queryFn: () => unwrapResult(statsRepository.totalListeningSeconds(since)),
       staleTime: STATS_STALE_TIME,
     }),
   dailyActivity: (days: number) =>
     queryOptions({
       queryKey: queryKeys.stats.dailyActivity(days),
-      queryFn: async () => {
-        const activity = await statsRepository.dailyActivity(days);
-        return Array.from(activity.entries()).map(([date, seconds]) => ({ date, seconds }));
-      },
+      // dailyActivity уже возвращает непрерывный массив {date, seconds}[] с нулями в пропусках
+      queryFn: () => unwrapResult(statsRepository.dailyActivity(days)),
       staleTime: STATS_STALE_TIME,
     }),
   recentHistory: (limit: number) =>
     queryOptions({
       queryKey: queryKeys.stats.recentHistory(limit),
       queryFn: async (): Promise<RecentHistoryEntry[]> => {
-        const events = await statsRepository.recentHistory(limit);
+        const events = await unwrapResult(statsRepository.recentHistory(limit));
         const trackIds = events.map(event => event.trackId);
         const tracks = await unwrapResult(trackRepository.findByIds(trackIds));
         const tracksById = new Map(tracks.map(track => [track.id, mapTrackEntityToPlayerTrack(track)]));

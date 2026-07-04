@@ -25,6 +25,22 @@
   </ContextMenuItem>
 
   <ContextMenuItem
+    v-if="props.moveToFolder"
+    @select="props.moveToFolder"
+  >
+    <IconFolder class="size-5" />
+    {{ $t("library.folder.moveToFolder") }}
+  </ContextMenuItem>
+
+  <ContextMenuItem
+    v-if="props.removeFromFolder"
+    @select="props.removeFromFolder"
+  >
+    <IconFolderMinus class="size-5" />
+    {{ $t("library.folder.removeFromFolder") }}
+  </ContextMenuItem>
+
+  <ContextMenuItem
     v-if="props.deleteItem"
     class="text-destructive focus:text-destructive"
     @select="props.deleteItem"
@@ -44,12 +60,16 @@ import IconPinFilled from "~icons/tabler/pin-filled";
 import IconPin from "~icons/tabler/pin";
 import IconPlus from "~icons/tabler/plus";
 import IconTrash from "~icons/tabler/trash";
+import IconFolder from "~icons/tabler/folder";
+import IconFolderMinus from "~icons/tabler/folder-minus";
 
 const props = defineProps<{
   item: LibraryItem;
   togglePin?: () => void;
   addToQueue: () => void;
   createPlaylist: () => void;
+  moveToFolder?: () => void;
+  removeFromFolder?: () => void;
   deleteItem?: () => void;
 }>();
 

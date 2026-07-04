@@ -1,6 +1,6 @@
 <template>
   <Item
-    class="px-2"
+    class="px-2 flex-nowrap "
     @click="emit('click')"
   >
     <ItemMedia v-if="$slots.icon">
@@ -13,7 +13,9 @@
     </ItemMedia>
     <ItemContent>
       <ItemTitle>{{ title }}</ItemTitle>
-      <ItemSubtitle v-if="displayValue">
+      <ItemSubtitle
+        v-if="displayValue"
+      >
         {{ displayValue }}
       </ItemSubtitle>
     </ItemContent>

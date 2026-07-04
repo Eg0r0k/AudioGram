@@ -84,3 +84,11 @@ export function useTotalListeningTime(since?: number) {
 export function useDailyActivity(days = 30) {
   return useQuery(computed(() => statsQueries.dailyActivity(days)));
 }
+
+export function useTopGenres(limit = 8, since?: number) {
+  return useQuery(computed(() => statsQueries.topGenres(limit, since)));
+}
+
+export function useSonicProfile(since?: number) {
+  return useQuery(computed(() => statsQueries.sonicProfile(since)));
+}
