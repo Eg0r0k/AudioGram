@@ -4,6 +4,7 @@ import {
   clearLibraryData,
   invalidateLibraryData,
 } from "../library.queries";
+import { queryKeys } from "../query-keys";
 
 const createMockQueryClient = (): QueryClient => {
   const mocks = {
@@ -28,22 +29,22 @@ describe("library.queries", () => {
       await clearLibraryData(queryClient);
 
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["library"],
+        queryKey: queryKeys.library.summary(),
       });
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["artists"],
+        queryKey: queryKeys.artists.all(),
       });
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["albums"],
+        queryKey: queryKeys.albums.all(),
       });
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["playlists"],
+        queryKey: queryKeys.playlists.all(),
       });
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["tracks"],
+        queryKey: queryKeys.tracks.all(),
       });
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: ["covers"],
+        queryKey: queryKeys.covers.all(),
       });
     });
 
@@ -51,10 +52,10 @@ describe("library.queries", () => {
       await clearLibraryData(queryClient);
 
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["library"],
+        queryKey: queryKeys.library.summary(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["artists"],
+        queryKey: queryKeys.artists.all(),
       });
     });
   });
@@ -64,22 +65,22 @@ describe("library.queries", () => {
       await invalidateLibraryData(queryClient);
 
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["library"],
+        queryKey: queryKeys.library.summary(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["artists"],
+        queryKey: queryKeys.artists.all(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["albums"],
+        queryKey: queryKeys.albums.all(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["playlists"],
+        queryKey: queryKeys.playlists.all(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["tracks"],
+        queryKey: queryKeys.tracks.all(),
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["covers"],
+        queryKey: queryKeys.covers.all(),
       });
     });
   });

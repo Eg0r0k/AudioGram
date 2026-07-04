@@ -37,6 +37,9 @@ export const queryKeys = {
       ? ["playlists", id, "tracks", "page", sortKey] as const
       : ["playlists", id, "tracks", "page"] as const,
   },
+  folders: {
+    all: () => ["folders"] as const,
+  },
   tracks: {
     all: () => ["tracks"] as const,
     detail: (id: TrackId) => ["tracks", id] as const,
@@ -74,6 +77,8 @@ export const queryKeys = {
       ["stats", "topArtists", limit, since] as const,
     topArtistsMeta: (ids: readonly string[]) =>
       ["stats", "topArtistsMeta", ...ids] as const,
+    topGenres: (limit: number, since?: number) => ["stats", "topGenres", limit, since] as const,
+    sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     totalTime: (since?: number) => ["stats", "totalTime", since] as const,
     dailyActivity: (days: number) => ["stats", "dailyActivity", days] as const,
     recentHistory: (limit: number) => ["stats", "recentHistory", limit] as const,

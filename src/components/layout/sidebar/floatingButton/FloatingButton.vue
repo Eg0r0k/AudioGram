@@ -33,6 +33,11 @@
             <IconPlaylist class="size-5.5" />
             {{ $t("track.contextMenu.createPlaylist") }}
           </DropdownMenuItem>
+
+          <DropdownMenuItem @click="emit('createFolder')">
+            <IconFolderPlus class="size-5.5" />
+            {{ $t("library.folder.create") }}
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -47,6 +52,7 @@ import IconImport from "~icons/tabler/file-import";
 import IconAlbum from "~icons/tabler/album";
 import IconPlaylist from "~icons/tabler/playlist";
 import IconUserPlus from "~icons/tabler/user-plus";
+import IconFolderPlus from "~icons/tabler/folder-plus";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import { requestFiles } from "@/lib/files/requestFiles";
 import { useImport } from "@/composables/useImport";
@@ -54,6 +60,10 @@ import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 
 defineProps<{
   show: boolean;
+}>();
+
+const emit = defineEmits<{
+  createFolder: [];
 }>();
 
 const { createPlaylist, createArtist, createAlbum } = useLibrary();

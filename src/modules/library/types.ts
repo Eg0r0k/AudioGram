@@ -6,8 +6,22 @@ export type LibraryFilter = (typeof LIBRARY_FILTERS)[number];
 export const SORT_OPTIONS = ["recent", "updated", "alphabetical", "author"] as const;
 export type SortOption = (typeof SORT_OPTIONS)[number];
 
-export type LibraryItemType = "artist" | "album" | "playlist" | "liked" | "allMedia";
+export type LibraryItemType = "artist" | "album" | "playlist" | "liked" | "allMedia" | "folder";
 export type PinnableLibraryItemType = "artist" | "album" | "playlist";
+export type FolderLibraryItemType = "artist" | "album" | "playlist";
+
+export interface LibraryFolderEntry {
+  type: FolderLibraryItemType;
+  id: string;
+}
+
+export interface LibraryFolder {
+  id: string;
+  name: string;
+  items: LibraryFolderEntry[];
+  addedAt: number;
+  updatedAt: number;
+}
 
 export interface LibraryItem {
   id: string;
@@ -23,6 +37,7 @@ export interface LibraryItem {
   to: RouteLocationRaw;
   rounded: boolean;
   trackCount?: number;
+  folderItemCount?: number;
 }
 
 export interface PinnedItem {

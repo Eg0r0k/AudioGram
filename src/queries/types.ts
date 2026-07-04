@@ -2,6 +2,7 @@ import type {
   AlbumEntity,
   ArtistEntity,
   PlaylistEntity,
+  SidebarFolderEntity,
   TrackEntity,
 } from "@/db/entities";
 import type { Track } from "@/modules/player/types";
@@ -18,6 +19,7 @@ export interface LibrarySummaryData {
   artists: ArtistWithTrackCount[];
   albums: AlbumWithTrackCount[];
   playlists: PlaylistEntity[];
+  folders: SidebarFolderEntity[];
   likedTracks: TrackEntity[];
 }
 

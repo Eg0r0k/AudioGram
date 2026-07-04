@@ -80,6 +80,7 @@
   "favorite": "Favorite",
   "addToQueue": "Add to queue",
   "select": "Select",
+  "quickSelect": "Quick select",
 
   "externalLink": {
     "title": "Open external link?",

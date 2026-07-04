@@ -84,6 +84,7 @@
   "favorite": "Избранное",
   "addToQueue": "Добавить в очередь",
   "select": "Выбрать",
+  "quickSelect": "Быстрый выбор",
 
   "externalLink": {
     "title": "Открыть внешнюю ссылку?",

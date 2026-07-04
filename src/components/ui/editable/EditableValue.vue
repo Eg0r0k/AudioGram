@@ -23,22 +23,22 @@
       v-else
       ref="inputRef"
       v-model="inputValue"
-      type="number"
-      :min="min"
-      :max="max"
-      :step="step"
+      :type="inputType"
+      :min="type === 'number' ? min : undefined"
+      :max="type === 'number' ? max : undefined"
+      :step="type === 'number' ? step : undefined"
       :aria-label="computedAriaLabel"
       :class="[
         'bg-background border border-primary rounded px-1 text-center',
         'focus:outline-none focus:ring-1 focus:ring-primary',
-        '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+        type === 'number' && '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
         inputClass
       ]"
       @blur="commitEdit"
       @keydown.enter="commitEdit"
       @keydown.escape="cancelEdit"
-      @keydown.up.prevent="increment"
-      @keydown.down.prevent="decrement"
+      @keydown.up.prevent="type === 'number' && increment"
+      @keydown.down.prevent="type === 'number' && decrement"
     >
   </div>
 </template>
@@ -51,7 +51,8 @@ import { useI18n } from "vue-i18n";
 const { t } = useI18n();
 
 const props = withDefaults(defineProps<{
-  modelValue: number;
+  modelValue: number | string;
+  type?: "number" | "text";
   min?: number;
   max?: number;
   step?: number;
@@ -63,6 +64,7 @@ const props = withDefaults(defineProps<{
   displayClass?: HTMLAttributes["class"];
   inputClass?: HTMLAttributes["class"];
 }>(), {
+  type: "number",
   min: -Infinity,
   max: Infinity,
   step: 1,
@@ -76,8 +78,8 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-  "update:modelValue": [value: number];
-  "change": [value: number];
+  "update:modelValue": [value: number | string];
+  "change": [value: number | string];
 }>();
 
 const computedEditHint = computed(() =>
@@ -92,8 +94,13 @@ const inputRef = useTemplateRef("inputRef");
 const isEditing = ref(false);
 const inputValue = ref("");
 
+const inputType = computed(() => props.type === "number" ? "number" : "text");
+
 const formattedValue = computed(() => {
-  const val = Math.round(props.modelValue);
+  if (props.type === "text") {
+    return String(props.modelValue);
+  }
+  const val = Math.round(props.modelValue as number);
   if (props.showSign && val > 0) {
     return `+${val}`;
   }
@@ -101,7 +108,12 @@ const formattedValue = computed(() => {
 });
 
 const startEdit = () => {
-  inputValue.value = String(Math.round(props.modelValue));
+  if (props.type === "text") {
+    inputValue.value = String(props.modelValue);
+  }
+  else {
+    inputValue.value = String(Math.round(props.modelValue as number));
+  }
   isEditing.value = true;
 
   nextTick(() => {
@@ -111,15 +123,23 @@ const startEdit = () => {
 };
 
 const commitEdit = () => {
-  const parsed = parseFloat(inputValue.value);
+  if (props.type === "text") {
+    if (inputValue.value !== props.modelValue) {
+      emit("update:modelValue", inputValue.value);
+      emit("change", inputValue.value);
+    }
+  }
+  else {
+    const parsed = parseFloat(inputValue.value);
 
-  if (!Number.isNaN(parsed)) {
-    const clamped = Math.max(props.min, Math.min(props.max, parsed));
-    const rounded = Math.round(clamped / props.step) * props.step;
+    if (!Number.isNaN(parsed)) {
+      const clamped = Math.max(props.min, Math.min(props.max, parsed));
+      const rounded = Math.round(clamped / props.step) * props.step;
 
-    if (rounded !== props.modelValue) {
-      emit("update:modelValue", rounded);
-      emit("change", rounded);
+      if (rounded !== props.modelValue) {
+        emit("update:modelValue", rounded);
+        emit("change", rounded);
+      }
     }
   }
 

@@ -33,7 +33,13 @@
     "manageItems": "Управление элементами",
     "manageDescription": "Выберите исполнителей, альбомы и плейлисты, которые будут отображаться в этой папке.",
     "itemCount": "Элементов: {count}",
-    "noFolders": "Сначала создайте папку"
+    "noFolders": "Сначала создайте папку",
+    "selectAllArtists": "Выбрать всех исполнителей",
+    "deselectAllArtists": "Снять выбор с исполнителей",
+    "selectAllAlbums": "Выбрать все альбомы",
+    "deselectAllAlbums": "Снять выбор с альбомов",
+    "selectAllPlaylists": "Выбрать все плейлисты",
+    "deselectAllPlaylists": "Снять выбор с плейлистов"
   },
   "contextMenu": {
     "pinAlbum": "Закрепить альбом",

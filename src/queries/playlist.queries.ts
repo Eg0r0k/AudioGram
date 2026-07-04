@@ -1,4 +1,4 @@
-import type { PlaylistEntity } from "@/db/entities";
+import type { PlaylistEntity, TrackEntity } from "@/db/entities";
 import {
   albumRepository,
   artistRepository,
@@ -34,18 +34,6 @@ export interface PlaylistChanges {
   removeCover?: boolean;
 }
 
-async function getSortedPlaylistTrackIds(
-  trackIds: TrackId[],
-  sortKey: TrackSortKey | null,
-) {
-  if (!sortKey) {
-    return trackIds;
-  }
-
-  const sortedTracks = await unwrapResult(trackRepository.findSortedByIds(trackIds, sortKey));
-  return sortedTracks.map(track => track.id);
-}
-
 export async function getPlaylists() {
   return unwrapResult(playlistRepository.findAll());
 }
@@ -67,14 +55,23 @@ export async function getPlaylistPageData(
   const playlist = await getPlaylistByIdOrThrow(playlistId);
 
   if (playlist.trackIds.length === 0) {
-    return {
-      playlist,
-      tracks: [],
-    };
+    return { playlist, tracks: [] };
   }
 
-  const sortedTrackIds = await getSortedPlaylistTrackIds(playlist.trackIds, sortKey);
-  const rawTracks = await unwrapResult(trackRepository.findByIds(sortedTrackIds));
+  let rawTracks: TrackEntity[];
+  if (sortKey) {
+    rawTracks = await unwrapResult(trackRepository.findSortedByIds(playlist.trackIds, sortKey));
+  }
+  else {
+    // Если без сортировки, то восстанавливаем порядок
+    const unorderedTracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
+    const trackMap = new Map(unorderedTracks.map(track => [track.id, track]));
+    rawTracks = playlist.trackIds.flatMap((id) => {
+      const track = trackMap.get(id);
+      return track ? [track] : [];
+    });
+  }
+
   const artistIds = unique(rawTracks.flatMap(track => track.artistIds));
   const albumIds = unique(rawTracks.map(track => track.albumId));
 
@@ -96,42 +93,54 @@ export async function getPlaylistTracksPaginated(
   sortKey: TrackSortKey | null = null,
 ): Promise<PaginatedPlaylistTracksResult> {
   const playlist = await getPlaylistByIdOrThrow(playlistId);
-  const sortedTrackIds = await getSortedPlaylistTrackIds(playlist.trackIds, sortKey);
-  const trackIds = sortedTrackIds.slice(offset, offset + limit);
-  const total = sortedTrackIds.length;
+  const total = playlist.trackIds.length;
 
-  if (trackIds.length === 0) {
+  if (total === 0) {
     return { tracks: [], nextOffset: null, total, totalDuration: 0 };
   }
 
-  const rawTracks = await unwrapResult(trackRepository.findByIds(trackIds));
-  const [durationResult, artistIds, albumIds] = await Promise.all([
-    unwrapResult(trackRepository.sumDurationByTrackIds(sortedTrackIds)),
-    Promise.resolve(unique(rawTracks.flatMap(track => track.artistIds))),
-    Promise.resolve(unique(rawTracks.map(track => track.albumId))),
-  ]);
+  let currentTracksPage: TrackEntity[] = [];
+  let totalDuration = 0;
+
+  if (sortKey) {
+    const allSortedTracks = await unwrapResult(
+      trackRepository.findSortedByIds(playlist.trackIds, sortKey),
+    );
+
+    totalDuration = allSortedTracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+    currentTracksPage = allSortedTracks.slice(offset, offset + limit);
+  }
+  else {
+    const trackIdsPage = playlist.trackIds.slice(offset, offset + limit);
+    const unorderedTracks = await unwrapResult(trackRepository.findByIds(trackIdsPage));
+
+    totalDuration = await unwrapResult(
+      trackRepository.sumDurationByTrackIds(playlist.trackIds),
+    ) ?? 0;
+
+    const trackMap = new Map(unorderedTracks.map(track => [track.id, track]));
+    currentTracksPage = trackIdsPage.flatMap((id) => {
+      const track = trackMap.get(id);
+      return track ? [track] : [];
+    });
+  }
+  const artistIds = unique(currentTracksPage.flatMap(track => track.artistIds));
+  const albumIds = unique(currentTracksPage.map(track => track.albumId));
 
   const [artists, albums] = await Promise.all([
     unwrapResult(artistRepository.findByIds(artistIds)),
     unwrapResult(albumRepository.findByIds(albumIds)),
   ]);
 
-  const trackMap = new Map(rawTracks.map(track => [track.id, track]));
-  const orderedTracks = trackIds.flatMap((trackId) => {
-    const track = trackMap.get(trackId);
-    return track ? [track] : [];
-  });
-
   const nextOffset = offset + limit < total ? offset + limit : null;
 
   return {
-    tracks: mapTracks(orderedTracks, artists, albums),
+    tracks: mapTracks(currentTracksPage, artists, albums),
     nextOffset,
     total,
-    totalDuration: durationResult ?? 0,
+    totalDuration,
   };
 }
-
 export const playlistQueries = {
   all: () =>
     queryOptions({

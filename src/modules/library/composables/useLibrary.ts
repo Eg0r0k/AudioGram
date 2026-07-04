@@ -4,10 +4,17 @@ import { storeToRefs } from "pinia";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { LIBRARY_FILTERS, type LibraryFilter, type LibraryItem } from "../types";
+import { LIBRARY_FILTERS, type FolderLibraryItemType, type LibraryFilter, type LibraryFolderEntry, type LibraryItem } from "../types";
 import { clearAllData } from "@/services/storage-info.service";
 import { createAlbumAndSync, deleteAlbumAndSync } from "@/queries/album.queries";
 import { createArtistAndSync, deleteArtistAndSync } from "@/queries/artist.queries";
+import {
+  createFolderAndSync,
+  deleteFolderAndSync,
+  removeFolderItemAndSync,
+  renameFolderAndSync,
+  setFolderItemsAndSync,
+} from "@/queries/folder.queries";
 import {
   clearLibraryData,
   invalidateLibraryData,
@@ -18,7 +25,8 @@ import {
   deletePlaylistAndSync,
 } from "@/queries/playlist.queries";
 import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
-import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, SidebarFolderId } from "@/types/ids";
+import { SidebarFolderId as createSidebarFolderId } from "@/types/ids";
 import { routeLocation } from "@/app/router/route-locations";
 import { ROUTE_NAMES } from "@/app/router/route-names";
 
@@ -41,7 +49,7 @@ export const useLibrary = () => {
   const navigateHomeIfViewingItem = (item: LibraryItem) => {
     const currentRoute = router.currentRoute.value;
 
-    if (item.type === "liked" || item.type === "allMedia") return;
+    if (item.type === "liked" || item.type === "allMedia" || item.type === "folder") return;
     if (currentRoute.name !== libraryItemRouteNames[item.type]) return;
     if (currentRoute.params.id !== item.id) return;
 
@@ -52,6 +60,7 @@ export const useLibrary = () => {
   const artists = computed(() => data.value?.artists ?? []);
   const albums = computed(() => data.value?.albums ?? []);
   const playlists = computed(() => data.value?.playlists ?? []);
+  const folders = computed(() => data.value?.folders ?? []);
   const likedTracks = computed(() => data.value?.likedTracks ?? []);
 
   const artistMap = computed(() => {
@@ -144,16 +153,59 @@ export const useLibrary = () => {
     return items;
   });
 
+  const folderItemKey = (item: LibraryFolderEntry) => `${item.type}:${item.id}`;
+
+  const folderItemKeys = computed(() => {
+    const keys = new Set<string>();
+    for (const folder of folders.value) {
+      for (const item of folder.items) {
+        keys.add(folderItemKey(item));
+      }
+    }
+    return keys;
+  });
+
+  const itemByKey = computed(() => {
+    const map = new Map<string, LibraryItem>();
+    for (const item of allItems.value) {
+      if (item.type === "artist" || item.type === "album" || item.type === "playlist") {
+        map.set(`${item.type}:${item.id}`, item);
+      }
+    }
+    return map;
+  });
+
+  const folderItems = computed<LibraryItem[]>(() => folders.value.map(folder => ({
+    id: folder.id,
+    type: "folder",
+    title: folder.name,
+    subtitle: t("library.folder.itemCount", { count: folder.items.length }),
+    isPinned: false,
+    addedAt: folder.addedAt,
+    updatedAt: folder.updatedAt,
+    to: routeLocation.home(),
+    rounded: false,
+    folderItemCount: folder.items.length,
+  })));
+
+  const rootItems = computed<LibraryItem[]>(() => [
+    ...allItems.value.filter((item) => {
+      if (item.type !== "artist" && item.type !== "album" && item.type !== "playlist") return true;
+      return !folderItemKeys.value.has(`${item.type}:${item.id}`);
+    }),
+    ...folderItems.value,
+  ]);
+
   const shouldShowSystemItems = computed(() =>
     activeFilter.value === "all" || activeFilter.value === "album",
   );
 
   const filteredItems = computed(() => {
     const systemItems = shouldShowSystemItems.value
-      ? allItems.value.filter(item => item.isSystem)
+      ? rootItems.value.filter(item => item.isSystem)
       : [];
 
-    let items = allItems.value.filter(item => !item.isSystem);
+    let items = rootItems.value.filter(item => !item.isSystem);
 
     if (activeFilter.value !== "all") {
       items = items.filter(item => item.type === activeFilter.value);
@@ -182,6 +234,8 @@ export const useLibrary = () => {
     items.sort((a, b) => {
       if (a.isSystem && !b.isSystem) return -1;
       if (!a.isSystem && b.isSystem) return 1;
+      if (a.type === "folder" && b.type !== "folder") return -1;
+      if (a.type !== "folder" && b.type === "folder") return 1;
 
       const aPinned = a.isPinned ? 1 : 0;
       const bPinned = b.isPinned ? 1 : 0;
@@ -212,7 +266,7 @@ export const useLibrary = () => {
 
   const pinnedItems = computed(() => sortedItems.value.filter(item => item.isPinned));
   const unpinnedItems = computed(() => sortedItems.value.filter(item => !item.isPinned));
-  const isEmpty = computed(() => allItems.value.length === 0 && !isLoading.value);
+  const isEmpty = computed(() => rootItems.value.length === 0 && !isLoading.value);
   const hasResults = computed(() => sortedItems.value.length > 0);
 
   const availableFilters = computed<LibraryFilter[]>(() => {
@@ -252,6 +306,36 @@ export const useLibrary = () => {
     router.push(routeLocation.album(album.id));
   };
 
+  const createFolder = async (name = t("library.folder.newFolder")) => {
+    return createFolderAndSync(queryClient, name);
+  };
+
+  const renameFolder = async (folderId: string, name: string) => {
+    await renameFolderAndSync(queryClient, createSidebarFolderId(folderId), name);
+  };
+
+  const deleteFolder = async (folderId: string) => {
+    await deleteFolderAndSync(queryClient, createSidebarFolderId(folderId));
+  };
+
+  const setFolderItems = async (folderId: string, items: LibraryFolderEntry[]) => {
+    await setFolderItemsAndSync(queryClient, createSidebarFolderId(folderId), items);
+  };
+
+  const getFolderItems = (folderId: string) => {
+    const folder = folders.value.find(folder => folder.id === folderId as SidebarFolderId);
+    if (!folder) return [];
+
+    return folder.items.flatMap((entry) => {
+      const item = itemByKey.value.get(folderItemKey(entry));
+      return item ? [item] : [];
+    });
+  };
+
+  const movableItems = computed(() => allItems.value.filter((item): item is LibraryItem & { type: FolderLibraryItemType } => {
+    return item.type === "artist" || item.type === "album" || item.type === "playlist";
+  }));
+
   const invalidateLibrary = async () => {
     await invalidateLibraryData(queryClient);
   };
@@ -264,16 +348,19 @@ export const useLibrary = () => {
         case "artist":
           await deleteArtistAndSync(queryClient, artists.value.find(artist => artist.id === item.id) ?? null);
           store.unpin("artist", item.id);
+          await removeFolderItemAndSync(queryClient, "artist", item.id);
           await navigateHomeIfViewingItem(item);
           break;
         case "album":
           await deleteAlbumAndSync(queryClient, albums.value.find(album => album.id === item.id) ?? null);
           store.unpin("album", item.id);
+          await removeFolderItemAndSync(queryClient, "album", item.id);
           await navigateHomeIfViewingItem(item);
           break;
         case "playlist":
           await deletePlaylistAndSync(queryClient, playlists.value.find(playlist => playlist.id === item.id) ?? null);
           store.unpin("playlist", item.id);
+          await removeFolderItemAndSync(queryClient, "playlist", item.id);
           await navigateHomeIfViewingItem(item);
           break;
       }
@@ -298,6 +385,9 @@ export const useLibrary = () => {
     activeFilter,
     searchQuery,
     allItems,
+    rootItems,
+    folders,
+    movableItems,
     pinnedItems,
     unpinnedItems,
     availableFilters,
@@ -313,6 +403,11 @@ export const useLibrary = () => {
     createPlaylist,
     createArtist,
     createAlbum,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    setFolderItems,
+    getFolderItems,
     invalidateLibrary,
     deleteItem,
     clearLibrary,

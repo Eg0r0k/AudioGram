@@ -6,6 +6,7 @@ import type { LibraryItem } from "@/modules/library/types";
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import IconPinFilled from "~icons/tabler/pin-filled";
 import IconVolume from "~icons/tabler/volume";
+import IconFolder from "~icons/tabler/folder";
 import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import type { CoverOwnerType } from "@/db/entities";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
@@ -15,6 +16,10 @@ import Link from "@/components/ui/link/Link.vue";
 
 const props = defineProps<{
   item: LibraryItem;
+}>();
+
+const emit = defineEmits<{
+  openFolder: [folderId: string];
 }>();
 
 const { t } = useI18n();
@@ -33,6 +38,7 @@ const subtitle = computed(() => {
 });
 
 const coverOwnerType = computed<CoverOwnerType | null>(() => {
+  if (props.item.type === "folder") return null;
   if (props.item.type === "album") return "album";
   if (props.item.type === "playlist") return "playlist";
   if (props.item.type === "artist") return "artist";
@@ -52,6 +58,8 @@ const coverOwnerId = computed(() => {
 const hasStaticImage = computed(() => !!props.item.image);
 
 const isCurrentPlaybackSource = computed(() => {
+  if (props.item.type === "folder") return false;
+
   const source = queueStore.currentItem?.source;
   if (!source) return false;
 
@@ -72,6 +80,11 @@ const isCurrentPlaybackSource = computed(() => {
 });
 
 const handleClick = () => {
+  if (props.item.type === "folder") {
+    emit("openFolder", props.item.id);
+    return;
+  }
+
   router.push(props.item.to);
 };
 </script>
@@ -94,7 +107,7 @@ const handleClick = () => {
     >
       <Item
         class="gap-3 px-3 py-2 min-w-0 transition-colors pointer-events-none"
-        :class="isExactActive
+        :class="isExactActive && item.type !== 'folder'
           ? 'bg-primary text-primary-foreground hover:bg-primary/95'
           : 'hover:bg-accent/60'"
       >
@@ -108,6 +121,13 @@ const handleClick = () => {
             :alt="item.title"
             class="size-full object-cover mb-1"
           />
+
+          <div
+            v-else-if="item.type === 'folder'"
+            class="size-full rounded-md bg-[#3d3d3d] text-primary flex items-center justify-center"
+          >
+            <IconFolder class="size-8" />
+          </div>
 
           <EntityCoverImage
             v-else

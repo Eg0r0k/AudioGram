@@ -57,6 +57,9 @@ export function useLibraryContextActions() {
         });
         break;
       }
+
+      case "folder":
+        return;
     }
 
     toast.success(t("queue.added"));

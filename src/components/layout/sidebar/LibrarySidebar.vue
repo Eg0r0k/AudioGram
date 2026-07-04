@@ -4,91 +4,166 @@
     class="relative flex-1 pt-4 h-full flex flex-col min-h-0 overflow-hidden"
   >
     <SidebarHeader />
-    <Scrollable
-      direction="horizontal"
-      hide-thumb
-      class="shrink-0 border-b dark:border-background border-border"
-    >
-      <Tabs
-        :model-value="activeFilter"
-        @update:model-value="setFilter($event as LibraryFilter)"
-      >
-        <TabsList class="inline-flex items-center gap-0 px-4">
-          <TabsTrigger
-            v-for="filter in availableFilters"
-            :key="filter"
-            :value="filter"
-            class="text-base font-medium mb-0.5"
-          >
-            {{ filterLabel(filter) }}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent
-          v-for="filter in availableFilters"
-          :key="`content-${filter}`"
-          :value="filter"
-          class="hidden"
-        />
-      </Tabs>
-    </Scrollable>
-    <LibraryContextMenu @delete="handleDeleteItem">
-      <div
-        v-if="isLoading"
-        class="flex-1 gap-2 flex flex-col p-2"
-      >
-        <div
-          v-for="i in 20"
-          :key="i"
-          class="flex items-center gap-3 px-2"
-        >
-          <Skeleton class="size-[54px] rounded-full shrink-0" />
-          <div class="flex flex-col gap-2 w-full">
-            <Skeleton class="h-3 w-[40%]" />
-            <Skeleton class="h-3 w-[65%]" />
-          </div>
-        </div>
-      </div>
 
-      <VirtualScrollable
-        v-else
-        ref="scrollableRef"
-        :padding-top="8"
-        :padding-bottom="8"
-        :items="libraryItems"
-        :item-height="72"
-        :get-item-key="getLibraryItemKey"
-        class="flex-1"
-        @scroll="handleScroll"
+    <SlideTransition :depth="folderDepth">
+      <div
+        :key="transitionKey"
+        class="flex-1 flex flex-col min-h-0 bg-card"
       >
-        <template #default="{ item }">
-          <LibrarySidebarItem
-            class="mx-2"
-            :item="item"
-          />
-        </template>
-      </VirtualScrollable>
-    </LibraryContextMenu>
-    <FloatingButton :show="isButtonVisible" />
+        <LibrarySidebarFolderHeader
+          v-if="activeFolder"
+          :folder="activeFolder"
+          @close="closeFolder"
+          @manage="openManageFolderDialog"
+          @rename="(name) => renameFolder(activeFolder!.id, name)"
+        />
+
+        <Scrollable
+          v-else
+          direction="horizontal"
+          hide-thumb
+          class="shrink-0 border-b dark:border-background border-border"
+        >
+          <Tabs
+            :model-value="activeFilter"
+            @update:model-value="setFilter($event as LibraryFilter)"
+          >
+            <TabsList class="inline-flex items-center gap-0 px-4">
+              <TabsTrigger
+                v-for="filter in availableFilters"
+                :key="filter"
+                :value="filter"
+                class="text-base font-medium mb-0.5"
+              >
+                {{ filterLabel(filter) }}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent
+              v-for="filter in availableFilters"
+              :key="filterContentKey(filter)"
+              :value="filter"
+              class="hidden"
+            />
+          </Tabs>
+        </Scrollable>
+
+        <LibraryContextMenu
+          :inside-folder="!!activeFolder"
+          @delete="handleDeleteItem"
+          @open-folder="openFolder"
+          @manage-folder="openManageFolderDialog"
+          @rename-folder="openRenameFolderDialog"
+          @move-to-folder="openMoveToFolderDialog"
+          @remove-from-folder="removeItemFromActiveFolder"
+        >
+          <div
+            v-if="isLoading"
+            class="flex-1 gap-2 flex flex-col p-2"
+          >
+            <div
+              v-for="i in 20"
+              :key="i"
+              class="flex items-center gap-3 px-2"
+            >
+              <Skeleton class="size-[54px] rounded-full shrink-0" />
+              <div class="flex flex-col gap-2 w-full">
+                <Skeleton class="h-3 w-[40%]" />
+                <Skeleton class="h-3 w-[65%]" />
+              </div>
+            </div>
+          </div>
+
+          <VirtualScrollable
+            v-else
+            ref="scrollableRef"
+            :padding-top="8"
+            :padding-bottom="8"
+            :items="libraryItems"
+            :item-height="72"
+            :get-item-key="getLibraryItemKey"
+            class="flex-1"
+            @scroll="handleScroll"
+          >
+            <template #default="{ item }">
+              <LibrarySidebarItem
+                class="mx-2"
+                :item="item"
+                @open-folder="openFolder"
+              />
+            </template>
+          </VirtualScrollable>
+        </LibraryContextMenu>
+      </div>
+    </SlideTransition>
+
+    <FloatingButton
+      v-if="!activeFolder"
+      :show="isButtonVisible"
+      @create-folder="openCreateFolderDialog"
+    />
+
+    <FloatingActionButton
+      v-else
+      :show="isButtonVisible"
+    >
+      <Button
+        class="size-12 rounded-full shadow-lg"
+        @click="openManageFolderDialog(activeFolder.id)"
+      >
+        <IconPlus class="size-6" />
+      </Button>
+    </FloatingActionButton>
+
     <SearchPanel />
+
+    <LibraryFolderNameDialog
+      v-model:open="isFolderNameDialogOpen"
+      v-model:name="folderName"
+      :title="folderNameDialogTitle"
+      @submit="submitFolderName"
+    />
+
+    <LibraryFolderItemsDialog
+      v-model:open="isManageFolderDialogOpen"
+      v-model:selected-keys="selectedFolderItemKeys"
+      :items="movableItems"
+      @save="submitManageFolder"
+    />
+
+    <LibraryMoveToFolderDialog
+      v-model:open="isMoveToFolderDialogOpen"
+      :folders="folders"
+      :item="itemToMove"
+      @move="moveItemToFolder"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import SidebarHeader from "@/components/layout/sidebar/header/SidebarHeader.vue";
-import FloatingButton from "@/components/layout/sidebar/floatingButton/FloatingButton.vue";
-import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
-import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
-import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
-import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
-import SearchPanel from "@/modules/search/components/SearchPanel.vue";
-import { LibraryFilter, LibraryItem } from "@/modules/library/types";
+import { computed, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
+import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
+import SlideTransition from "@/components/transitions/SlideTransition.vue";
+import { Button } from "@/components/ui/button";
+import FloatingButton from "@/components/layout/sidebar/floatingButton/FloatingButton.vue";
+import LibraryFolderItemsDialog from "@/components/layout/sidebar/LibraryFolderItemsDialog.vue";
+import LibraryFolderNameDialog from "@/components/layout/sidebar/LibraryFolderNameDialog.vue";
+import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveToFolderDialog.vue";
+import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
+import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
+import SidebarHeader from "@/components/layout/sidebar/header/SidebarHeader.vue";
+import { useLibrarySidebarFolders } from "@/components/layout/sidebar/useLibrarySidebarFolders";
 import { Scrollable } from "@/components/ui/scrollable";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { computed, useTemplateRef, ref } from "vue";
-import { useLibrary } from "@/modules/library/composables/useLibrary";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
+import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
+import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSwipeControl } from "@/composables/useSwipeControl";
+import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
+import { useLibrary } from "@/modules/library/composables/useLibrary";
+import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
+import SearchPanel from "@/modules/search/components/SearchPanel.vue";
+import IconPlus from "~icons/tabler/plus";
 
 const {
   pinnedItems,
@@ -96,23 +171,53 @@ const {
   availableFilters,
   isLoading,
   activeFilter,
+  folders,
+  movableItems,
   setFilter,
   deleteItem,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  setFolderItems,
+  getFolderItems,
 } = useLibrary();
 
-const handleDeleteItem = async (item: LibraryItem) => {
-  await deleteItem(item);
-};
+const {
+  activeFolder,
+  closeFolder,
+  deleteSidebarFolder,
+  folderName,
+  folderNameDialogTitle,
+  isFolderNameDialogOpen,
+  isManageFolderDialogOpen,
+  isMoveToFolderDialogOpen,
+  itemToMove,
+  moveItemToFolder,
+  openCreateFolderDialog,
+  openFolder,
+  openManageFolderDialog,
+  openMoveToFolderDialog,
+  openRenameFolderDialog,
+  removeItemFromActiveFolder,
+  selectedFolderItemKeys,
+  submitFolderName,
+  submitManageFolder,
+} = useLibrarySidebarFolders({
+  folders,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  setFolderItems,
+});
 
 const { t } = useI18n();
-
 const scrollableRef = useTemplateRef("scrollableRef");
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 
-const libraryItems = computed(() => [
-  ...pinnedItems.value,
-  ...unpinnedItems.value,
-]);
+const libraryItems = computed(() => activeFolder.value
+  ? getFolderItems(activeFolder.value.id)
+  : [...pinnedItems.value, ...unpinnedItems.value],
+);
 
 useScrollRestoration(scrollableRef, {
   key: "library-sidebar",
@@ -140,14 +245,30 @@ const filterLabels = computed<Record<LibraryFilter, string>>(() => ({
   album: t("library.filterAlbums"),
 }));
 
+async function handleDeleteItem(item: LibraryItem) {
+  if (item.type === "folder") {
+    await deleteSidebarFolder(item.id);
+    return;
+  }
+
+  await deleteItem(item);
+}
+
 function filterLabel(value: LibraryFilter) {
   return filterLabels.value[value] ?? value;
+}
+
+function filterContentKey(filter: LibraryFilter) {
+  return `content-${filter}`;
 }
 
 function getLibraryItemKey(index: number) {
   const item = libraryItems.value[index];
   return item ? `${item.type}:${item.id}` : index;
 }
+
+const folderDepth = computed(() => activeFolder.value ? 1 : 0);
+const transitionKey = computed(() => activeFolder.value ? `folder-${activeFolder.value.id}` : "main");
 
 const isButtonVisible = ref(true);
 let lastScrollTop = 0;
@@ -177,5 +298,4 @@ function handleScroll(event: Event) {
 
   lastScrollTop = scrollTop;
 }
-
 </script>

@@ -1,4 +1,4 @@
-import { AlbumId, ArtistId, PlaylistId, RadioStationId, TagId, TrackId } from "@/types/ids";
+import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
 
 export enum TrackSource {
   LOCAL_INTERNAL = "local_internal",
@@ -46,6 +46,21 @@ export interface PlaylistEntity {
   name: string;
   description?: string;
   trackIds: TrackId[];
+  addedAt: number;
+  updatedAt: number;
+}
+
+export type SidebarFolderItemType = "artist" | "album" | "playlist";
+
+export interface SidebarFolderEntryEntity {
+  type: SidebarFolderItemType;
+  id: string;
+}
+
+export interface SidebarFolderEntity {
+  id: SidebarFolderId;
+  name: string;
+  items: SidebarFolderEntryEntity[];
   addedAt: number;
   updatedAt: number;
 }
