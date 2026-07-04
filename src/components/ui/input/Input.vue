@@ -1,70 +1,123 @@
 <script setup lang="ts">
+import { computed, ref, useId } from "vue";
 import type { HTMLAttributes } from "vue";
 import { useVModel } from "@vueuse/core";
 import { cn } from "@/lib/utils";
+import { inputVariants } from "./index";
+
+type Surface = "background" | "card" | "popover" | "muted";
 
 const props = withDefaults(defineProps<{
+  label?: string;
+  surface?: Surface;
+  placeholder?: string;
+  ariaLabel?: string;
+  id?: string;
   defaultValue?: string | number;
   modelValue?: string | number;
-  type?: "text" | "email" | "tel" | "url" | "number" | "password" | "search" | "date" | "time" | "datetime-local" | "month" | "week" | "color";
+
+  type?:
+    | "text"
+    | "email"
+    | "tel"
+    | "url"
+    | "number"
+    | "password"
+    | "search"
+    | "date"
+    | "time"
+    | "datetime-local"
+    | "month"
+    | "week"
+    | "color";
+
   name?: string;
   autocomplete?: string;
   spellcheck?: boolean | "true" | "false";
-  inputmode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+
+  inputmode?:
+    | "none"
+    | "text"
+    | "tel"
+    | "url"
+    | "email"
+    | "numeric"
+    | "decimal"
+    | "search";
+
   class?: HTMLAttributes["class"];
 }>(), {
   type: "text",
+  surface: "background",
 });
-
 const emits = defineEmits<{
   (e: "update:modelValue", payload: string | number): void;
 }>();
+
+const generatedId = useId();
+const inputId = computed(() => props.id ?? generatedId);
 
 const modelValue = useVModel(props, "modelValue", emits, {
   passive: true,
   defaultValue: props.defaultValue,
 });
+
+const isFocused = ref(false);
+
+const isActive = computed(() => {
+  if (!props.label) return false;
+  return isFocused.value || !!modelValue.value;
+});
 </script>
-<!-- eslint-disable vuejs-accessibility/form-control-has-label -->
+
 <template>
-  <input
-    v-model="modelValue"
-    :type="type"
-    :name="name"
-    :autocomplete="autocomplete"
-    :spellcheck="spellcheck"
-    :inputmode="inputmode"
-    data-slot="input"
-    :class="
-      cn(
-        'audiogram-input',
-        'file:text-foreground placeholder:font-medium placeholder:text-muted-foreground selection:bg-primary caret-primary selection:text-primary-foreground dark:bg-background h-9 w-full min-w-0 rounded-md bg-transparent px-3 py-1 text-base  outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium  disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-        props.class
-      )
-    "
-  >
+  <div class="relative w-full">
+    <input
+      :id="inputId"
+      v-model="modelValue"
+      :type="type"
+      :name="name"
+      :autocomplete="autocomplete"
+      :spellcheck="spellcheck"
+      :inputmode="inputmode"
+      :placeholder="placeholder"
+      :aria-label="!label ? ariaLabel : undefined"
+      :class="
+        cn(
+          inputVariants({
+            surface,
+            hasLabel: !!label,
+          }),
+          props.class
+        )
+      "
+      @focus="isFocused = true"
+      @blur="isFocused = false"
+    >
+    <!-- eslint-disable vuejs-accessibility/label-has-for -->
+    <label
+      v-if="label"
+      :for="inputId"
+      :class="
+        cn(
+          'absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm font-medium pointer-events-none transition-all duration-200',
+          {
+            'bg-background': surface === 'background',
+            'bg-card': surface === 'card',
+            'bg-popover': surface === 'popover',
+            'bg-muted': surface === 'muted',
+          },
+          'text-muted-foreground',
+
+          'peer-hover:text-primary',
+          'peer-focus:text-primary',
+          'peer-aria-invalid:text-destructive',
+
+          isActive && 'top-0 -translate-y-1/2 text-xs'
+        )
+      "
+    >
+      {{ label }}
+    </label>
+  </div>
 </template>
-
-<style scoped>
-.audiogram-input {
-  border: 1px solid var(--border);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.audiogram-input:hover:not(:focus):not(:disabled):not([aria-invalid="true"]) {
-  border-color: var(--primary);
-}
-
-.audiogram-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
-}
-
-.audiogram-input[aria-invalid="true"] {
-  border-color: var(--destructive);
-}
-
-.audiogram-input[aria-invalid="true"]:focus {
-  box-shadow: 0 0 0 1px var(--destructive);
-}
-</style>
