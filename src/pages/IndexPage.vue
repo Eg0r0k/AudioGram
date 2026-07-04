@@ -20,6 +20,15 @@
               <Kbd>Ctrl + F</Kbd>
             </KbdGroup>
           </div>
+          <div class="flex w-full justify-between ">
+            <span class=" text-sm text-muted-foreground font-medium">
+              {{ $t('nav.queue') }}
+            </span>
+
+            <KbdGroup>
+              <Kbd>Q</Kbd>
+            </KbdGroup>
+          </div>
         </div>
       </div>
     </div>

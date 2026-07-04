@@ -113,8 +113,7 @@ const artistName = computed(() => currentTrack.value?.artist);
 const { color: playerColor, coverUrl } = useMobilePlayerColor();
 
 const containerStyle = computed(() => ({
-  background: `linear-gradient(color-mix(in srgb, ${playerColor.value.hsl} 25%, black))`,
-
+  background: `color-mix(in oklch, ${playerColor.value.hsl} 25%, black)`,
 }));
 
 const gradientColor = computed(() => playerColor.value.hsl);

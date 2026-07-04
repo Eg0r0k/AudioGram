@@ -1,8 +1,8 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col bg-background">
-    <div class=" px-4 pb-3">
+    <div class=" px-4 pb-2">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div class="flex flex-col pt-4 gap-3 sm:flex-row sm:items-center">
+        <div class="flex  w-full flex-col pt-4 gap-3 sm:flex-row sm:items-center">
           <Button
             variant="ghost"
             size="icon-lg"
@@ -12,7 +12,7 @@
             <IconArrowLeft class="size-5" />
           </Button>
 
-          <InputGroup class="bg-muted!  min-w-0 flex-1 rounded-full">
+          <InputGroup class="bg-muted! min-w-0 flex-1 rounded-full">
             <InputGroupAddon tabindex="-1">
               <IconSearch class="ml-1 size-4.5 text-muted-foreground" />
             </InputGroupAddon>

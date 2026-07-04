@@ -1,5 +1,6 @@
 import { usePlayerStore } from "@/modules/player";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { computed, ref } from "vue";
 import { useActiveElement, useMagicKeys, whenever } from "@vueuse/core";
 import { SEEK_STEP, VOLUME_STEP } from "../constants";
@@ -12,6 +13,7 @@ const PREVENT_DEFAULT_KEYS = new Set([" ", "ArrowDown", "ArrowLeft", "ArrowRight
 export const useGlobalHotKeys = () => {
   const player = usePlayerStore();
   const queue = useQueueStore();
+  const rightPanel = useRightPanelStore();
   const isEnabled = ref(true);
   const { openSearch } = useSearch();
 
@@ -87,6 +89,16 @@ export const useGlobalHotKeys = () => {
   whenever(() => keys.m.value && canFire.value, () => player.toggleMute());
   whenever(() => keys.s.value && canFire.value, () => queue.toggleShuffle());
   whenever(() => keys.r.value && canFire.value, () => player.toggleRepeat());
+
+  // Queue panel
+  whenever(() => keys.q.value && canFire.value, () => {
+    if (rightPanel.isOpen && rightPanel.view === "queue") {
+      rightPanel.close();
+    }
+    else {
+      rightPanel.openQueue();
+    }
+  });
 
   // Search
   whenever(

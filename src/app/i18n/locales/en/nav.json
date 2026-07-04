@@ -5,5 +5,6 @@
     "library":"Library",
     "settings": "Settings",
     "changeTheme": "Change Theme",
-    "menu": "Menu"
+    "menu": "Menu",
+    "queue": "Queue"
 }

@@ -80,7 +80,7 @@
       "album": "Album"
     },
     "placeholders": {
-      "title": "Enter track title",
+      "title": "Title",
       "artists": "Find or add an artist",
       "addArtist": "Add artist",
       "album": "Find album"
