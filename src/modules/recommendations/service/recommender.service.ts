@@ -27,7 +27,10 @@ export function toVector(f: AudioFeaturesEntity) {
 }
 
 async function getRecentlyPlayedIds(count: number): Promise<TrackId[]> {
-  const events = await statsRepository.findAllEvents();
+  const eventsResult = await statsRepository.findAllEvents();
+  if (eventsResult.isErr()) return [];
+
+  const events = eventsResult.value;
   const seen = new Set<TrackId>();
   const result: TrackId[] = [];
 
@@ -101,7 +104,7 @@ export const getRecommendations = async (
     candidateFeaturesResult,
     candidateTracksResult,
     sessions,
-    allEvents,
+    allEventsResult,
   ] = await Promise.all([
     audioFeaturesRepository.findById(sourceTrackId),
     audioFeaturesRepository.findManyByIds(candidateIds),
@@ -111,6 +114,8 @@ export const getRecommendations = async (
   ]);
 
   if (candidateTracksResult.isErr()) return [];
+
+  const allEvents = allEventsResult.isOk() ? allEventsResult.value : [];
 
   const coMatrix = buildCoOccurrenceMatrix(sessions);
   const sourcePairs = coMatrix.get(sourceTrackId) ?? new Map<TrackId, number>();
