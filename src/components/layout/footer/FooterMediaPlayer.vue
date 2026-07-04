@@ -25,6 +25,7 @@ const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd 
             :keyboard-step="5"
             :min="0"
             :max="100"
+            :duration="playerStore.duration"
             :use-transform="true"
             :with-transition="false"
             :disable-transition="!isTransitionEnabled"
