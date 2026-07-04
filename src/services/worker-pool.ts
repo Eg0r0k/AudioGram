@@ -25,7 +25,7 @@ export class WorkerPool {
     }
   }
 
-  parse(fileName: string, data: Uint8Array): Promise<BaseMetadata> {
+  parse(fileName: string, data: Uint8Array, options?: { extractCover?: boolean }): Promise<BaseMetadata> {
     if (this.disposed) {
       return Promise.reject(new Error("WorkerPool is disposed"));
     }
@@ -43,7 +43,7 @@ export class WorkerPool {
       const worker = this.workers[this.roundRobinIdx];
       this.roundRobinIdx = (this.roundRobinIdx + 1) % this.workers.length;
 
-      const request: ParseRequest = { fileId: id, fileData: data, fileName };
+      const request: ParseRequest = { fileId: id, fileData: data, fileName, extractCover: options?.extractCover ?? true };
       worker.postMessage(request, [data.buffer]);
     });
   }

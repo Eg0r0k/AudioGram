@@ -10,7 +10,7 @@ import { TimeProfiler } from "@/lib/profiler";
 import { WorkerPool } from "./worker-pool";
 import { ImportBatchResult, ImportControl, ImportError, ImportErrorCode, ImportItem, ImportSuccess, TrackToSave } from "./types";
 import { EntityResolver } from "./entity-resolver";
-import { ResultAsync } from "neverthrow";
+import { ok, err, Result, ResultAsync } from "neverthrow";
 import { isValidImportItem } from "@/lib/environment/mimeSupport";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { normalizeMetadata } from "@/lib/metadata";
@@ -27,13 +27,19 @@ import { unwrapResult } from "@/queries/shared";
 // CONSTANTS
 // ═══════════════════════════════════════════════════════
 
-const HEAD_READ_SIZE = 512 * 1024;
-const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024;
-const MAX_METADATA_READ = 2 * 1024 * 1024;
+const HEAD_READ_SIZE = 10 * 1024 * 1024;
+const MAX_METADATA_READ = 12 * 1024 * 1024;
 const PROCESS_CONCURRENCY = 16;
 const DB_BATCH_SIZE = 50;
-const PIPELINE_BATCH_SIZE = 60;
+const PIPELINE_BATCH_SIZE = 100;
 const FINGERPRINT_CONCURRENCY = 16;
+const AUDIO_FILE_EXTENSIONS = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "wma", "alac"];
+
+export interface ImportFilePickerOptions {
+  title: string;
+  filterName?: string;
+  extensions?: string[];
+}
 
 export class MusicLibraryEngine {
   private readonly workerPool = new WorkerPool();
@@ -51,11 +57,11 @@ export class MusicLibraryEngine {
     this._onTracksImported = cb;
   }
 
-  async pickFiles(): Promise<string[] | null> {
+  async pickFiles(options: ImportFilePickerOptions): Promise<string[] | null> {
     const result = await open({
       multiple: true,
-      title: "Выберите аудио файлы",
-      filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "wma", "alac"] }],
+      title: options.title,
+      filters: [{ name: options.filterName ?? "Audio", extensions: options.extensions ?? AUDIO_FILE_EXTENSIONS }],
     });
     if (!result) return null;
     return Array.isArray(result) ? result : [result];
@@ -154,8 +160,8 @@ export class MusicLibraryEngine {
       ),
     );
     for (const r of parseResults) {
-      if (r !== null) {
-        allParsed.push(r);
+      if (r.isOk()) {
+        allParsed.push(r.value);
       }
       else {
         result.failed++;
@@ -203,8 +209,9 @@ export class MusicLibraryEngine {
     ]);
     if (existsByPath || existsByFp) return false;
 
-    const trackToSave = await this.parseExternalFile(file, fp, nativeStorage);
-    if (!trackToSave) return false;
+    const trackToSaveResult = await this.parseExternalFile(file, fp, nativeStorage);
+    if (trackToSaveResult.isErr()) return false;
+    const trackToSave = trackToSaveResult.value;
 
     try {
       const resolver = new EntityResolver();
@@ -263,13 +270,14 @@ export class MusicLibraryEngine {
     const total = items.length;
     let processed = 0;
     let skipped = 0;
+    let cancelled = false;
     const successful: ImportSuccess[] = [];
     const failed: Array<{ fileName: string; error: ImportError }> = [];
 
     onProgress?.(0, total);
 
     if (await this.isCancelled(control)) {
-      return { successful, failed, skipped, total };
+      return { successful, failed, skipped, total, cancelled: true };
     }
 
     const knownFingerprints = await this.loadKnownFingerprints();
@@ -280,25 +288,36 @@ export class MusicLibraryEngine {
     }
 
     for (const batch of batches) {
-      if (await this.isCancelled(control)) break;
+      if (await this.isCancelled(control)) {
+        cancelled = true;
+        break;
+      }
 
       const batchResult = await this.processBatch(batch, knownFingerprints, control);
 
       skipped += batchResult.skipped;
       failed.push(...batchResult.failed);
       processed += batchResult.processed;
+      cancelled ||= batchResult.cancelled;
       onProgress?.(processed, total);
 
+      if (cancelled) break;
       if (batchResult.tracksToSave.length === 0) continue;
 
-      if (await this.isCancelled(control)) break;
+      if (await this.isCancelled(control)) {
+        cancelled = true;
+        break;
+      }
 
       // Own resolver per batch — safe from concurrent runs
       const resolver = new EntityResolver();
       await resolver.resolve(batchResult.tracksToSave.map(t => t.meta));
 
       for (let i = 0; i < batchResult.tracksToSave.length; i += DB_BATCH_SIZE) {
-        if (await this.isCancelled(control)) break;
+        if (await this.isCancelled(control)) {
+          cancelled = true;
+          break;
+        }
 
         const dbBatch = batchResult.tracksToSave.slice(i, i + DB_BATCH_SIZE);
         const dbResult = await ResultAsync.fromPromise(
@@ -322,7 +341,14 @@ export class MusicLibraryEngine {
 
     this.profiler.printReport("Import");
 
-    return { successful, failed, skipped, total, timings: this.profiler.getTimings() };
+    return {
+      successful,
+      failed,
+      skipped,
+      total,
+      ...(cancelled ? { cancelled: true } : {}),
+      timings: this.profiler.getTimings(),
+    };
   }
 
   private async processBatch(
@@ -334,13 +360,14 @@ export class MusicLibraryEngine {
     failed: Array<{ fileName: string; error: ImportError }>;
     skipped: number;
     processed: number;
+    cancelled: boolean;
   }> {
     const tracksToSave: TrackToSave[] = [];
     const failed: Array<{ fileName: string; error: ImportError }> = [];
     let skipped = 0;
     let processed = 0;
+    let cancelled = false;
 
-    // 1. Validate formats
     const validated: ImportItem[] = [];
     for (const item of items) {
       if (!isValidImportItem(item.name, item.file?.type)) {
@@ -352,9 +379,8 @@ export class MusicLibraryEngine {
       }
     }
 
-    if (validated.length === 0) return { tracksToSave, failed, skipped, processed };
+    if (validated.length === 0) return { tracksToSave, failed, skipped, processed, cancelled };
 
-    // 2. Fingerprint in parallel
     const fpResults = await Promise.all(
       validated.map(item =>
         this.fpLimit(() => this.computeFingerprint(item).then(fp => ({ item, fp }))),
@@ -366,13 +392,11 @@ export class MusicLibraryEngine {
 
     for (const { item, fp } of fpResults) {
       if (fp !== null) {
-        // Skip globally known
         if (knownFingerprints.has(fp)) {
           skipped++;
           processed++;
           continue;
         }
-        // Dedupe within batch
         if (seenInBatch.has(fp)) {
           skipped++;
           processed++;
@@ -383,32 +407,41 @@ export class MusicLibraryEngine {
         seenInBatch.set(fp, item);
         item.fingerprint = fp;
       }
-      // Files with no fingerprint (fp === null): process without dedup guarantee
       toProcess.push(item);
     }
 
-    if (toProcess.length === 0) return { tracksToSave, failed, skipped, processed };
+    if (toProcess.length === 0) return { tracksToSave, failed, skipped, processed, cancelled };
 
-    // 3. Parse + copy in parallel
     const processResults = await Promise.all(
       toProcess.map(item =>
         this.processLimit(async () => {
-          if (await this.isCancelled(control)) return null;
-          return this.processItem(item, control);
+          if (await this.isCancelled(control)) return { type: "cancelled" as const };
+          return { type: "result" as const, result: await this.processItem(item, control) };
         }),
       ),
     );
 
     for (const r of processResults) {
-      if (r === null) continue;
-      r.match(
+      if (r.type === "cancelled") {
+        cancelled = true;
+        continue;
+      }
+
+      r.result.match(
         data => tracksToSave.push(data),
-        error => failed.push({ fileName: error.fileName ?? "unknown", error }),
+        (error) => {
+          if (error.code === ImportErrorCode.CANCELLED) {
+            cancelled = true;
+            return;
+          }
+
+          failed.push({ fileName: error.fileName ?? "unknown", error });
+        },
       );
       processed++;
     }
 
-    return { tracksToSave, failed, skipped, processed };
+    return { tracksToSave, failed, skipped, processed, cancelled };
   }
 
   private processItem(
@@ -424,7 +457,7 @@ export class MusicLibraryEngine {
     )
       .andThen(data =>
         ResultAsync.fromPromise(
-          this.workerPool.parse(item.name, data),
+          this.workerPool.parse(item.name, data, { extractCover: true }),
           (e): ImportError => e instanceof ImportError ? e : ImportError.parseFailed(item.name, e),
         ),
       )
@@ -435,7 +468,7 @@ export class MusicLibraryEngine {
         return ResultAsync.fromPromise(
           (async () => {
             if (await this.isCancelled(control)) {
-              throw ImportError.readFailed(item.name, "Import cancelled");
+              throw ImportError.cancelled(item.name);
             }
             await this.copyItem(item, storagePath);
             return { trackId, fileName: item.name, storagePath, fingerprint: item.fingerprint ?? "", source: TrackSource.LOCAL_INTERNAL, meta };
@@ -449,23 +482,30 @@ export class MusicLibraryEngine {
     file: ScannedFile,
     fingerprint: string,
     nativeStorage: IFileStorageWithNativeSupport,
-  ): Promise<TrackToSave | null> {
+  ): Promise<Result<TrackToSave, ImportError>> {
+    const readSize = Math.min(file.size, MAX_METADATA_READ);
+
+    const readResult = await nativeStorage.readBytes(file.absolutePath, readSize);
+    if (readResult.isErr()) {
+      return err(ImportError.readFailed(file.name, readResult.error));
+    }
+
     try {
-      const readSize = file.size < LARGE_FILE_THRESHOLD
-        ? Math.min(file.size, MAX_METADATA_READ)
-        : HEAD_READ_SIZE;
-
-      const readResult = await nativeStorage.readBytes(file.absolutePath, readSize);
-      if (readResult.isErr()) return null;
-
-      const rawMeta = await this.workerPool.parse(file.name, readResult.value);
+      const rawMeta = await this.workerPool.parse(file.name, readResult.value, { extractCover: true });
       const fileMock = { name: file.name, webkitRelativePath: "" } as File;
       const meta = normalizeMetadata(fileMock, rawMeta);
 
-      return { trackId: TrackId(crypto.randomUUID()), fileName: file.name, storagePath: file.absolutePath, fingerprint, source: TrackSource.LOCAL_EXTERNAL, meta };
+      return ok({
+        trackId: TrackId(crypto.randomUUID()),
+        fileName: file.name,
+        storagePath: file.absolutePath,
+        fingerprint,
+        source: TrackSource.LOCAL_EXTERNAL,
+        meta,
+      });
     }
-    catch {
-      return null;
+    catch (e) {
+      return err(ImportError.parseFailed(file.name, e));
     }
   }
 
@@ -475,16 +515,12 @@ export class MusicLibraryEngine {
   ): Promise<ImportSuccess[]> {
     const now = Date.now();
 
-    // ── Prepare all data BEFORE the transaction ────────────────────
-    // This keeps the transaction short and prevents long locks on IndexedDB
-
     const artistsToCreate = new Map<ArtistId, ArtistEntity>();
     const albumsToCreate = new Map<AlbumId, AlbumEntity>();
     const coversToCreate: Array<{ ownerId: AlbumId; blob: Blob; mimeType: string }> = [];
     const tracksToCreate: TrackEntity[] = [];
     const results: ImportSuccess[] = [];
 
-    // Check which artists/albums already exist
     const allArtistIds = [...new Set(items.flatMap(item => resolver.getArtistIds(item.meta)))];
     const allAlbumIds = [...new Set(
       items.map((item) => {
@@ -494,7 +530,6 @@ export class MusicLibraryEngine {
       }).filter((id): id is AlbumId => id !== null),
     )];
 
-    // Single batch read each — outside transaction
     const [artistResults, albumResults] = await Promise.all([
       allArtistIds.length > 0
         ? unwrapResult(artistRepository.findByIds(allArtistIds))
@@ -507,7 +542,6 @@ export class MusicLibraryEngine {
     const existingArtistIdSet = new Set(artistResults.map(a => a.id));
     const existingAlbumIdSet = new Set(albumResults.map(a => a.id));
 
-    // Build entities to insert
     for (const item of items) {
       const artistIds = resolver.getArtistIds(item.meta);
       const firstArtistId = artistIds[0] ?? null;
@@ -583,7 +617,6 @@ export class MusicLibraryEngine {
       });
     }
 
-    // ── Transaction: pure writes only, no reads ───────────────────
     const uowResult = await unitOfWork.run(async () => {
       if (artistsToCreate.size > 0) {
         await artistRepository.createMany([...artistsToCreate.values()]);
@@ -614,8 +647,6 @@ export class MusicLibraryEngine {
     return results;
   }
 
-  // FingerPrint
-
   private async loadKnownFingerprints(): Promise<Set<string>> {
     return unwrapResult(trackRepository.getAllFingerprints());
   }
@@ -641,11 +672,13 @@ export class MusicLibraryEngine {
     }
   }
 
-  // Files I/O
-
   private async readItemBytes(item: ImportItem): Promise<Uint8Array> {
     if (item.type === "native" && hasNativeSupport(storageService) && item.path) {
-      const res = await storageService.readBytes(item.path, HEAD_READ_SIZE);
+      const readSize = item.fileSize > 0
+        ? Math.min(item.fileSize, MAX_METADATA_READ)
+        : HEAD_READ_SIZE;
+
+      const res = await storageService.readBytes(item.path, readSize);
       if (res.isErr()) throw ImportError.readFailed(item.name, res.error);
       return res.value;
     }
@@ -677,7 +710,6 @@ export class MusicLibraryEngine {
     if (res.isErr()) throw ImportError.storageFailed(item.name, res.error);
   }
 
-  // Helpers
   private async isCancelled(control?: ImportControl): Promise<boolean> {
     await control?.waitIfPaused?.();
     return control?.isCancelled?.() ?? false;
