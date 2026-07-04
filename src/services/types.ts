@@ -11,6 +11,7 @@ export enum ImportErrorCode {
   UNSUPPORTED_FORMAT = "UNSUPPORTED_FORMAT",
   NATIVE_IMPORT_UNAVAILABLE = "NATIVE_IMPORT_UNAVAILABLE",
   READ_FAILED = "READ_FAILED",
+  CANCELLED = "CANCELLED",
 }
 
 export class ImportError extends Error {
@@ -48,6 +49,10 @@ export class ImportError extends Error {
     return new ImportError(ImportErrorCode.READ_FAILED, `Read failed: ${fileName}`, fileName, cause);
   }
 
+  static cancelled(fileName: string): ImportError {
+    return new ImportError(ImportErrorCode.CANCELLED, `Import cancelled: ${fileName}`, fileName);
+  }
+
   static nativeImportUnavailable(fileName: string): ImportError {
     return new ImportError(ImportErrorCode.NATIVE_IMPORT_UNAVAILABLE, `Native import unavailable: ${fileName}`, fileName);
   }
@@ -70,6 +75,7 @@ export interface ImportBatchResult {
   failed: Array<{ fileName: string; error: ImportError }>;
   skipped: number;
   total: number;
+  cancelled?: boolean;
   timings?: Record<string, number>;
 }
 

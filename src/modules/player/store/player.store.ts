@@ -15,10 +15,10 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { storageService } from "@/db/storage";
 import { statsService } from "@/services/stats.service";
 import { TrackId } from "@/types/ids";
-import { findActiveLyricsIndex, parseLrc, type LyricsLine } from "../lib/lrc";
+import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
 import { queryClient } from "@/queries/client";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
-import { fetchLrcLibLyrics } from "../service/lyrics.service";
+import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
@@ -514,49 +514,15 @@ export const usePlayerStore = defineStore("player", () => {
     lyrics.value = [];
     lyricsStatus.value = "idle";
 
-    if (!track || !isLibraryTrack(track)) return;
-
-    lyricsStatus.value = "loading";
-    if (track.lyricsPath) {
-      const result = await storageService.getFile(track.lyricsPath);
-      if (requestId !== lyricsRequestId) return;
-
-      if (result.isErr()) {
-        lyricsStatus.value = "error";
-        return;
-      }
-
-      try {
-        const text = await result.value.text();
-        if (requestId !== lyricsRequestId) return;
-        lyrics.value = parseLrc(text);
-        lyricsStatus.value = "ready";
-      }
-      catch {
-        if (requestId !== lyricsRequestId) return;
-        lyricsStatus.value = "error";
-      }
-
-      return;
+    if (track && isLibraryTrack(track)) {
+      lyricsStatus.value = "loading";
     }
 
-    if (!track.title || !track.artist) {
-      lyricsStatus.value = "idle";
-      return;
-    }
-
-    const result = await fetchLrcLibLyrics(track.title, track.artist);
+    const result = await loadTrackLyrics(track);
     if (requestId !== lyricsRequestId) return;
 
-    result.match(
-      (lines) => {
-        lyrics.value = lines;
-        lyricsStatus.value = "ready";
-      },
-      (error) => {
-        lyricsStatus.value = error.type === "NETWORK" ? "error" : "idle";
-      },
-    );
+    lyrics.value = result.lines;
+    lyricsStatus.value = result.status;
   }, { immediate: true });
 
   watch(trackEndedSignal, (val) => {

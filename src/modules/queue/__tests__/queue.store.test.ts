@@ -769,7 +769,7 @@ describe("queue.store", () => {
 
       await store.next();
 
-      expect(getRecommendations).toHaveBeenCalledWith(createTrack("1").id, 5, [createTrack("1").id]);
+      expect(getRecommendations).toHaveBeenCalledWith(createTrack("1").id, 5, []);
       expect(store.queue.map(item => item.track.id)).toEqual(["1", "rec-1", "rec-2", "rec-3", "rec-4", "rec-5"]);
       expect(store.currentIndex).toBe(1);
       expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "rec-1", kind: "library" }));

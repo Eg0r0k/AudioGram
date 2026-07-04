@@ -28,12 +28,31 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       case "plays_desc":
         return this.table.orderBy("playCount").reverse();
       case "artist_asc":
-        return this.table.orderBy("artistName").reverse();
+        return this.table.orderBy("artistName");
       case "album_asc":
-      case "album_desc":
         return this.table.orderBy("albumTitle");
+      case "album_desc":
+        return this.table.orderBy("albumTitle").reverse();
       default:
         return this.table.orderBy("addedAt").reverse();
+    }
+  }
+
+  async findAllSortedPaginated(
+    sortKey: TrackSortKey,
+    offset: number,
+    limit: number,
+  ): Promise<Result<TrackEntity[], Error>> {
+    try {
+      const tracks = await this.getSortedCollection(sortKey)
+        .offset(offset)
+        .limit(limit)
+        .toArray();
+
+      return ok(tracks);
+    }
+    catch (error) {
+      return err(error as Error);
     }
   }
 
@@ -194,11 +213,6 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
   async findAllSorted(sortKey: TrackSortKey): Promise<Result<TrackEntity[], Error>> {
     try {
       const tracks = await this.getSortedCollection(sortKey).toArray();
-
-      if (sortKey === "album_desc") {
-        return ok(tracks.reverse());
-      }
-
       return ok(tracks);
     }
     catch (error) {
@@ -212,16 +226,32 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         return ok([]);
       }
 
-      const idSet = new Set(ids);
-      const sorted = await this.getSortedCollection(sortKey)
-        .filter(track => idSet.has(track.id))
-        .toArray();
+      const tracks = await this.table.where("id").anyOf(ids).toArray();
 
-      if (sortKey === "album_desc") {
-        return ok(sorted.reverse());
-      }
+      const getSortValue = (t: TrackEntity) => {
+        switch (sortKey) {
+          case "title_asc": case "title_desc": return t.title || "";
+          case "duration_asc": case "duration_desc": return t.duration || 0;
+          case "plays_desc": return t.playCount || 0;
+          case "artist_asc": return t.artistName || "";
+          case "album_asc": case "album_desc": return t.albumTitle || "";
+          case "date_added_asc": case "date_added_desc": return t.addedAt || 0;
+          default: return t.addedAt || 0;
+        }
+      };
 
-      return ok(sorted);
+      const isDesc = sortKey.endsWith("_desc");
+
+      tracks.sort((a, b) => {
+        const valA = getSortValue(a);
+        const valB = getSortValue(b);
+
+        if (valA < valB) return isDesc ? 1 : -1;
+        if (valA > valB) return isDesc ? -1 : 1;
+        return 0;
+      });
+
+      return ok(tracks);
     }
     catch (error) {
       return err(error as Error);

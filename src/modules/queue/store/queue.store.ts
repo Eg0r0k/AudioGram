@@ -11,8 +11,8 @@ import { isSameQueueSource, type QueueItem, type QueueSource } from "../types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
-import { fisherYatesShuffle } from "@/lib/shuffle";
 import { unique, unwrapResult } from "@/queries/shared";
+import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
 
 const RESTART_THRESHOLD = 3;
 const AUTOPLAY_RECOMMENDATION_LIMIT = 5;
@@ -64,14 +64,7 @@ export const useQueueStore = defineStore("queue", () => {
   let autoplayRecommendationsPromise: Promise<boolean> | null = null;
 
   const originalQueue = computed<QueueItem[]>(() => {
-    if (originalQueueOrder.value.length === 0) return [];
-
-    const itemsById = new Map(queue.value.map(item => [item.id, item]));
-
-    return originalQueueOrder.value.flatMap((id) => {
-      const item = itemsById.get(id);
-      return item ? [item] : [];
-    });
+    return getItemsByOrder(queue.value, originalQueueOrder.value);
   });
 
   const currentItem = computed<QueueItem | null>(() => {
@@ -146,16 +139,6 @@ export const useQueueStore = defineStore("queue", () => {
     queue.value = patchQueueItem(queue.value, nextTrack);
   }
 
-  function moveItem<T>(list: T[], fromIndex: number, toIndex: number): T[] {
-    const nextList = list.slice();
-    const [item] = nextList.splice(fromIndex, 1);
-
-    if (!item) return list;
-
-    nextList.splice(toIndex, 0, item);
-    return nextList;
-  }
-
   function removeOriginalQueueItems(ids: QueueItemId[]): void {
     const idSet = new Set(ids);
     originalQueueOrder.value = originalQueueOrder.value.filter(id => !idSet.has(id));
@@ -184,46 +167,6 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     originalQueueOrder.value.splice(currentOriginalIndex + 1, 0, item.id);
-  }
-
-  function getItemsByOrder(ids: QueueItemId[]): QueueItem[] {
-    if (ids.length === 0) return [];
-
-    const itemsById = new Map(queue.value.map(item => [item.id, item]));
-
-    return ids.flatMap((id) => {
-      const item = itemsById.get(id);
-      return item ? [item] : [];
-    });
-  }
-
-  function buildPlaybackQueue(
-    items: QueueItem[],
-    startIndex: number,
-    shuffled: boolean,
-  ): { items: QueueItem[]; playbackIndex: number } {
-    if (!shuffled) {
-      return {
-        items: [...items],
-        playbackIndex: startIndex,
-      };
-    }
-
-    const current = items[startIndex];
-
-    if (!current) {
-      return {
-        items: fisherYatesShuffle(items),
-        playbackIndex: items.length > 0 ? 0 : -1,
-      };
-    }
-
-    const rest = items.filter((_, index) => index !== startIndex);
-
-    return {
-      items: [current, ...fisherYatesShuffle(rest)],
-      playbackIndex: 0,
-    };
   }
 
   function getTrackQueueKey(track: PlayerTrack): string {
@@ -397,9 +340,8 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     const items = createQueueItems(tracks, source);
-    const safeIndex = Math.max(0, Math.min(startIndex, items.length - 1));
     const shouldShuffle = options?.shuffled ?? isShuffled.value;
-    const playbackQueue = buildPlaybackQueue(items, safeIndex, shouldShuffle);
+    const playbackQueue = buildPlaybackQueue(items, startIndex, shouldShuffle);
 
     originalQueueOrder.value = items.map(item => item.id);
     queue.value = playbackQueue.items;
@@ -695,22 +637,14 @@ export const useQueueStore = defineStore("queue", () => {
       originalQueueOrder.value = moveItem(originalQueueOrder.value, fromIndex, toIndex);
     }
 
-    if (fromIndex === currentIndex.value) {
-      currentIndex.value = toIndex;
-    }
-    else if (fromIndex < currentIndex.value && toIndex >= currentIndex.value) {
-      currentIndex.value--;
-    }
-    else if (fromIndex > currentIndex.value && toIndex <= currentIndex.value) {
-      currentIndex.value++;
-    }
+    currentIndex.value = getCurrentIndexAfterMove(currentIndex.value, fromIndex, toIndex);
   }
 
   function shuffle(): void {
     isShuffled.value = true;
 
     const baseQueue = originalQueueOrder.value.length > 0
-      ? getItemsByOrder(originalQueueOrder.value)
+      ? getItemsByOrder(queue.value, originalQueueOrder.value)
       : [...queue.value];
 
     if (baseQueue.length === 0) return;
@@ -718,7 +652,7 @@ export const useQueueStore = defineStore("queue", () => {
     originalQueueOrder.value = baseQueue.map(item => item.id);
 
     if (currentIndex.value < 0 || !currentItem.value) {
-      queue.value = fisherYatesShuffle(baseQueue);
+      queue.value = buildPlaybackQueue(baseQueue, null, true).items;
       return;
     }
 
@@ -742,7 +676,7 @@ export const useQueueStore = defineStore("queue", () => {
     if (originalQueueOrder.value.length === 0) return;
 
     const currentId = currentItem.value?.id;
-    queue.value = getItemsByOrder(originalQueueOrder.value);
+    queue.value = getItemsByOrder(queue.value, originalQueueOrder.value);
 
     if (!currentId) {
       currentIndex.value = -1;

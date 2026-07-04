@@ -1,12 +1,5 @@
-import { IAudioMetadata, parseBuffer, type IOptions } from "music-metadata";
+import { parseBuffer, type IAudioMetadata, type IOptions } from "music-metadata";
 import type { BaseMetadata, ParseRequest, ParseResponse } from "./types";
-
-const OPTIONS: IOptions = {
-  duration: true,
-  skipCovers: false,
-  includeChapters: false,
-  mkvUseIndex: true,
-};
 
 function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
@@ -46,21 +39,30 @@ function extractLoudness(metadata: IAudioMetadata): Pick<
   };
 }
 
-self.onmessage = async (e: MessageEvent<ParseRequest>) => {
-  const { fileId, fileData, fileName } = e.data;
+function buildOptions(extractCover: boolean): IOptions {
+  return {
+    duration: true,
+    skipCovers: !extractCover,
+    includeChapters: false,
+    mkvUseIndex: true,
+  };
+}
+
+export async function parseMetadata(request: ParseRequest): Promise<ParseResponse> {
+  const { fileId, fileData, fileName, extractCover = true } = request;
 
   try {
-    const metadata = await parseBuffer(fileData, undefined, OPTIONS);
+    const options = buildOptions(extractCover);
+    const metadata = await parseBuffer(fileData, undefined, options);
 
     let pictureBlob: Blob | undefined;
     if (metadata.common.picture?.[0]) {
       const pic = metadata.common.picture[0];
-      pictureBlob = new Blob([pic.data], { type: pic.format });
+      pictureBlob = new Blob([pic.data as BlobPart], { type: pic.format });
     }
 
     const titleFromFile = fileName.replace(/\.[^/.]+$/, "");
     const loudness = extractLoudness(metadata);
-
     const artists = parseArtists(metadata.common.artist);
 
     const meta: BaseMetadata = {
@@ -79,24 +81,21 @@ self.onmessage = async (e: MessageEvent<ParseRequest>) => {
         channels: metadata.format.numberOfChannels,
       },
       pictureBlob,
-
       integratedLufs: loudness.integratedLufs,
       truePeakDbtp: loudness.truePeakDbtp,
       replayGainDb: loudness.replayGainDb,
       replayPeak: loudness.replayPeak,
     };
 
-    const response: ParseResponse = { success: true, fileId, meta };
-    self.postMessage(response);
+    return { success: true, fileId, meta };
   }
   catch (error: unknown) {
-    if (error instanceof Error) {
-      const response: ParseResponse = {
-        success: false,
-        fileId,
-        error: error.message || "Parsing failed",
-      };
-      self.postMessage(response);
-    }
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, fileId, error: message };
   }
+}
+
+self.onmessage = async (e: MessageEvent<ParseRequest>) => {
+  const response = await parseMetadata(e.data);
+  self.postMessage(response);
 };
