@@ -19,9 +19,9 @@
       >
         <MorphingDialog
           :transition="{
-            duration: 0.2,
-            ease: 'easeInOut',
-
+            type: 'spring',
+            bounce: 0.3,
+            duration: 0.4,
           }"
         >
           <MorphingDialogTrigger class="block w-full select-none  rounded-lg overflow-hidden ">

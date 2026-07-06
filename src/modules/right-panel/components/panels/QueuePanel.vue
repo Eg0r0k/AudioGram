@@ -1,7 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col bg-card">
     <RightPanelHeader
-      class="bg-card"
       :show-close="true"
       :title="t('queue.title')"
       @close="rightPanel.close()"

@@ -259,8 +259,8 @@ function formatLevel(level: string): string {
 
 function bufferWebLine(line: string): void {
   _webBuffer.push(line);
-  if (_webBuffer.length > WEB_BUFFER_MAX_LINES) {
-    _webBuffer.splice(0, _webBuffer.length - WEB_BUFFER_MAX_LINES);
+  while (_webBuffer.length > WEB_BUFFER_MAX_LINES) {
+    _webBuffer.shift();
   }
 }
 

@@ -19,6 +19,7 @@ import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
 import { queryClient } from "@/queries/client";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
 import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
+import { getLogger } from "@/lib/logger";
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
@@ -44,6 +45,7 @@ export const usePlayerStore = defineStore("player", () => {
   let _activeFadeAbort: AbortController | null = null;
   let _sleepTimerTimeout: ReturnType<typeof setTimeout> | null = null;
   let _sleepTimerInterval: ReturnType<typeof setInterval> | null = null;
+  let _activeBlobUrl: string | null = null;
 
   // ── Computed ────────────────────────────────────────────────────────────────
 
@@ -115,6 +117,10 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const clearCurrentTrack = () => {
+    if (_activeBlobUrl) {
+      URL.revokeObjectURL(_activeBlobUrl);
+      _activeBlobUrl = null;
+    }
     currentTrack.value = null;
     currentTime.value = 0;
     duration.value = 0;
@@ -128,7 +134,7 @@ export const usePlayerStore = defineStore("player", () => {
         if (!event) return;
         return invalidateStatsQueries(queryClient);
       })
-      .catch(console.error);
+      .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
 
   const handleSleepTimerExpired = () => {
@@ -204,7 +210,7 @@ export const usePlayerStore = defineStore("player", () => {
         if (player.value === newPlayer) playbackRate.value = rate;
       });
       newPlayer.on("error", (err) => {
-        if (player.value === newPlayer) console.error("[Player] error:", err);
+        if (player.value === newPlayer) getLogger().error(`[Player] error: ${String(err)}`);
       });
 
       return newPlayer;
@@ -228,8 +234,13 @@ export const usePlayerStore = defineStore("player", () => {
   const resolveTrackUrl = async (track: PlayerTrack): Promise<string | null> => {
     if (isEphemeralTrack(track)) {
       switch (track.source.type) {
-        case "file":
-          return URL.createObjectURL(track.source.file);
+        case "file": {
+          if (_activeBlobUrl) {
+            URL.revokeObjectURL(_activeBlobUrl);
+          }
+          _activeBlobUrl = URL.createObjectURL(track.source.file);
+          return _activeBlobUrl;
+        }
 
         case "path": {
           if (!IS_TAURI) {
@@ -401,7 +412,7 @@ export const usePlayerStore = defineStore("player", () => {
       throw new Error(`Track is marked as broken: "${track.title}"`);
     }
 
-    if (isLibraryTrack(currentTrack.value ?? ({} as PlayerTrack))) {
+    if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync();
     }
 
@@ -481,6 +492,7 @@ export const usePlayerStore = defineStore("player", () => {
   const dispose = async () => {
     cancelActiveFade();
     cancelSleepTimer();
+    clearCurrentTrack();
     if (player.value) {
       await player.value.dispose();
       player.value = null;
@@ -527,7 +539,7 @@ export const usePlayerStore = defineStore("player", () => {
 
   watch(trackEndedSignal, (val) => {
     if (val === 0) return;
-    if (isLibraryTrack(currentTrack.value ?? ({} as PlayerTrack))) {
+    if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync(true);
     }
     if (!sleepAfterCurrentTrack.value) return;

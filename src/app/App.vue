@@ -136,7 +136,10 @@ onMounted(async () => {
 
   init();
 
-  setTimeout(startAnalysis, 3000);
+  const analysisTimeout = setTimeout(startAnalysis, 3000);
+  onUnmounted(() => {
+    clearTimeout(analysisTimeout);
+  });
 });
 onUnmounted(() => {
   unlisten?.();
@@ -163,7 +166,7 @@ if (IS_TAURI) {
 }
 else {
   usePwaUpdate(updateStore.channel, checkUpdatesOnLaunch.value);
-  console.log("Running in PWA mode, using PWA update mechanism");
+  log.info("Running in PWA mode, using PWA update mechanism");
 }
 
 useChangelogOnStartup();

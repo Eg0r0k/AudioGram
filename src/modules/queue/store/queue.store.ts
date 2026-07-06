@@ -6,7 +6,7 @@ import { TrackSource } from "@/db/entities";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 import { trackRepository } from "@/db/repositories";
 import { QueueItemId } from "@/types/ids";
-import { type Track, isEphemeralTrack, type PlayerTrack } from "@/modules/player/types";
+import { type Track, type EphemeralTrack, isEphemeralTrack, type PlayerTrack } from "@/modules/player/types";
 import { isSameQueueSource, type QueueItem, type QueueSource } from "../types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
@@ -23,14 +23,8 @@ interface PersistedLibraryTrack {
   trackId: Track["id"];
 }
 
-interface PersistedEphemeralTrack {
+type PersistedEphemeralTrack = Pick<EphemeralTrack, 'id' | 'title' | 'artist' | 'albumName' | 'duration' | 'cover'> & {
   kind: "ephemeral";
-  id: string;
-  title: string;
-  artist?: string;
-  albumName?: string;
-  duration?: number;
-  cover?: string;
   source: { type: "path"; path: string } | { type: "url"; url: string };
 }
 

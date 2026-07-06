@@ -69,12 +69,12 @@ export interface EphemeralTrack {
 
 export type PlayerTrack = Track | EphemeralTrack;
 
-export function isLibraryTrack(track: PlayerTrack): track is Track {
-  return track.kind === "library";
+export function isLibraryTrack(track: PlayerTrack | null): track is Track {
+  return track !== null && track.kind === "library";
 }
 
-export function isEphemeralTrack(track: PlayerTrack): track is EphemeralTrack {
-  return track.kind === "ephemeral";
+export function isEphemeralTrack(track: PlayerTrack | null): track is EphemeralTrack {
+  return track !== null && track.kind === "ephemeral";
 }
 
 // ── Ephemeral track factories ─────────────────────────────────────────────────

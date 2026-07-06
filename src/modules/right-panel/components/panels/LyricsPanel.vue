@@ -21,7 +21,7 @@ import { Scrollable } from "@/components/ui/scrollable";
 import CurrentTrackLyrics from "@/modules/player/components/CurrentTrackLyrics.vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
-import RightPanelHeader from "../RightPanelHeader.vue";
+import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
 
 const playerStore = usePlayerStore();
 const rightPanel = useRightPanelStore();
