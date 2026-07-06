@@ -15,18 +15,12 @@
         class="grid gap-5 px-5 pb-8 pt-2"
         @submit.prevent="onSubmit"
       >
-        <div class="space-y-2">
-          <Label
-            for="track-title"
-            :class="{ 'text-destructive': errors.title }"
-          >
-            {{ $t('track.edit.fields.title') }}
-          </Label>
-
+        <div class="space-y-2 bg-card">
           <Input
             id="track-title"
             v-model="title"
-            :placeholder="$t('track.edit.placeholders.title')"
+            surface="card"
+            :label="$t('track.edit.placeholders.title')"
             :disabled="isPending"
             :class="{ 'border-destructive focus-visible:ring-destructive': errors.title }"
             @keydown.enter.prevent="onSubmit"
@@ -39,8 +33,24 @@
             {{ errors.title }}
           </p>
         </div>
-
-        <div class="space-y-2">
+        <TagsInput
+          v-model="modelValue"
+          surface="card"
+          label="Теги"
+        >
+          <TagsInputItem
+            v-for="item in modelValue"
+            :key="item"
+            :value="item"
+          >
+            <TagsInputItemText />
+            <TagsInputItemDelete>
+              +
+            </TagsInputItemDelete>
+          </TagsInputItem>
+          <TagsInputInput />
+        </TagsInput>
+        <!-- <div class="space-y-2">
           <Label
             for="track-artists"
             :class="{ 'text-destructive': errors.artists }"
@@ -123,21 +133,15 @@
           >
             {{ errors.artists }}
           </p>
-        </div>
+        </div> -->
 
         <div class="space-y-2">
-          <Label
-            for="track-album"
-            :class="{ 'text-destructive': errors.albumId }"
-          >
-            {{ $t('track.edit.fields.album') }}
-          </Label>
-
           <div class="relative">
             <Input
               id="track-album"
               v-model="albumSearch"
-              :placeholder="$t('track.edit.placeholders.album')"
+              surface="card"
+              :label="$t('track.edit.fields.album')"
               :disabled="isPending"
               :class="{ 'border-destructive focus-visible:ring-destructive': errors.albumId }"
               @focus="isAlbumSearchOpen = true"
@@ -208,10 +212,8 @@ import { array, maxLength, minLength, object, pipe, string } from "valibot";
 import type { InferOutput } from "valibot";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Scrollable } from "@/components/ui/scrollable";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -224,10 +226,9 @@ import { updateTrackMetadataAndSync } from "@/queries/track.queries";
 import type { AlbumId } from "@/types/ids";
 import RightPanelHeader from "../RightPanelHeader.vue";
 import IconDisc from "~icons/tabler/disc";
-import IconPlus from "~icons/tabler/plus";
-import IconX from "~icons/tabler/x";
 import IconSave from "~icons/tabler/device-floppy";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
+import { TagsInput, TagsInputInput, TagsInputItem, TagsInputItemDelete, TagsInputItemText } from "@/components/ui/tags-input";
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_ARTISTS_LENGTH = 240;
@@ -273,7 +274,7 @@ const { errors, meta, defineField, handleSubmit, resetForm, setValues } = useFor
 const [title] = defineField("title");
 const [artists] = defineField("artists");
 const [albumId] = defineField("albumId");
-
+const modelValue = ref(["Apple", "Banana"]);
 const track = computed<Track | null>(() => {
   return isLibraryTrack(props.payload.track) ? props.payload.track : null;
 });
