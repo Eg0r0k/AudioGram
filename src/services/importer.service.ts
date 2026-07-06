@@ -389,8 +389,18 @@ export class MusicLibraryEngine {
 
     const toProcess: ImportItem[] = [];
     const seenInBatch = new Map<string, ImportItem>();
+    const seenPaths = new Set<string>();
 
     for (const { item, fp } of fpResults) {
+      if (item.path) {
+        if (seenPaths.has(item.path)) {
+          skipped++;
+          processed++;
+          continue;
+        }
+        seenPaths.add(item.path);
+      }
+
       if (fp !== null) {
         if (knownFingerprints.has(fp)) {
           skipped++;

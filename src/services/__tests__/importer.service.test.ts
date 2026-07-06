@@ -319,13 +319,13 @@ describe("MusicLibraryEngine", () => {
       expect(mockReadBytes).toHaveBeenCalledWith(expect.any(String), 1_000_000);
     });
 
-    it("reads HEAD_READ_SIZE for files over LARGE_FILE_THRESHOLD", async () => {
+    it("reads up to MAX_METADATA_READ for large files", async () => {
       const scanner = await import("@/modules/watched-folders/services/folder-scanner");
       vi.mocked(scanner.scanFolder).mockResolvedValue([makeScannedFile({ size: 100_000_000 })]);
 
       await engine.syncFolder({ id: "f1", path: "/music", name: "Music", status: "idle" });
 
-      expect(mockReadBytes).toHaveBeenCalledWith(expect.any(String), 512 * 1024);
+      expect(mockReadBytes).toHaveBeenCalledWith(expect.any(String), 12 * 1024 * 1024);
     });
 
     it("returns empty SyncResult when native support is missing", async () => {
@@ -364,6 +364,12 @@ describe("MusicLibraryEngine", () => {
       Object.defineProperty(file2, "size", { value: 1000 });
 
       await engine.importFiles([file1, file2]);
+
+      expect(mockWorkerPoolParse).toHaveBeenCalledTimes(1);
+    });
+
+    it("deduplicates by path when same native file appears twice in one batch", async () => {
+      await engine.importFromPaths(["/music/same.mp3", "/music/same.mp3"]);
 
       expect(mockWorkerPoolParse).toHaveBeenCalledTimes(1);
     });
