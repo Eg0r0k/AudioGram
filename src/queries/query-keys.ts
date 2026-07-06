@@ -52,6 +52,9 @@ export const queryKeys = {
     allPaginated: (search = "") => ["tracks", "all", "paginated", search] as const,
     index: (sortKey: TrackSortKey, search = "") => ["tracks", "index", sortKey, search] as const,
   },
+  trackChapters: {
+    detail: (trackId: TrackId) => ["trackChapters", trackId] as const,
+  },
   tags: {
     all: () => ["tags"] as const,
     detail: (id: TagId) => ["tags", id] as const,

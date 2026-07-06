@@ -148,3 +148,14 @@ export interface AudioFeaturesEntity {
   analyzedAt: number;
   algorithmVersion: number;
 }
+
+export interface TrackChapterMark {
+  time: number;
+  title?: string;
+}
+
+export interface TrackChapterEntity {
+  trackId: TrackId;
+  chapters: TrackChapterMark[];
+  updatedAt: number;
+}
