@@ -24,3 +24,14 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Project config
+opencode.jsonc
+.opencode/
+AGENTS.md
+
+# CodeGraph index
+.codegraph/
+
+# Heap snapshots
+*.heapsnapshot
