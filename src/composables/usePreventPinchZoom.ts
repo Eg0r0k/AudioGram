@@ -22,7 +22,7 @@ export const usePreventPinchZoom = (isDisabled: boolean = false) => {
       document.addEventListener("gesturestart", preventGesture);
     }
     onCleanup(() => {
-      if (!IS_APP) {
+      if (IS_APP) {
         document.removeEventListener("gesturestart", preventGesture);
       }
     });

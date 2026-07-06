@@ -45,17 +45,22 @@ export async function analyzeWithCanvas(imageUrl: string): Promise<HSL | null> {
       resolve(null);
     }, ANALYSIS_TIMEOUT);
 
-    img.onload = () => {
+    const cleanup = () => {
       clearTimeout(timeout);
+      img.src = "";
+      img.remove();
+    };
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
 
       try {
-        const canvas = document.createElement("canvas");
-        canvas.width = CANVAS_SIZE;
-        canvas.height = CANVAS_SIZE;
-
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (!ctx) {
           console.warn("[ColorExtraction] No canvas context");
+          cleanup();
           resolve(null);
           return;
         }
@@ -64,16 +69,18 @@ export async function analyzeWithCanvas(imageUrl: string): Promise<HSL | null> {
         const { data } = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
         const result = analyzeImageData(data, CANVAS_SIZE);
+        cleanup();
         resolve(result);
       }
       catch (error) {
         console.error("[ColorExtraction] Canvas error:", error);
+        cleanup();
         resolve(null);
       }
     };
 
     img.onerror = (error) => {
-      clearTimeout(timeout);
+      cleanup();
       console.error("[ColorExtraction] Image load error:", error);
       resolve(null);
     };

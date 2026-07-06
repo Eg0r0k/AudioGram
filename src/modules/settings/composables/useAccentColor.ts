@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import { getAccentColorOption } from "../accent-colors";
 import { AccentColor } from "../schema/appearance";
 
@@ -36,6 +36,8 @@ export function useAccentColor() {
       attributes: true,
       attributeFilter: ["class"],
     });
+
+    onUnmounted(() => observer.disconnect());
   }
 
   watch(accentColor, (newColor) => {

@@ -56,6 +56,7 @@ const mockWorkerInstance: {
   postMessage: (...args: unknown[]) => void;
   onmessage: ((e: MessageEvent) => void) | null;
   onerror: ((e: ErrorEvent) => void) | null;
+  terminate: ReturnType<typeof vi.fn>;
 } = {
   postMessage(...args: unknown[]) {
     mockPostMessageCalls.push(args);
@@ -63,6 +64,7 @@ const mockWorkerInstance: {
   },
   onmessage: null,
   onerror: null,
+  terminate: vi.fn(),
 };
 
 function resetMockWorker() {

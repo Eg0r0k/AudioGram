@@ -10,7 +10,7 @@
 //   4. On reload, useChangelogOnStartup() promotes the staged changelog
 //      → WhatsNewModal opens
 
-import { watch } from "vue";
+import { watch, onUnmounted } from "vue";
 import { useRegisterSW } from "virtual:pwa-register/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useUpdateStore } from "../store/update.store";
@@ -24,13 +24,22 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", notifyOnUpdate: 
   const changelogStore = useChangelogStore();
   const queryClient = useQueryClient();
 
+  let updateInterval: ReturnType<typeof setInterval> | null = null;
+
   const { needRefresh, updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
 
       registration.update();
-      setInterval(() => registration.update(), 60 * 60 * 1000);
+      updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
     },
+  });
+
+  onUnmounted(() => {
+    if (updateInterval !== null) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+    }
   });
 
   watch(needRefresh, async (isReady) => {

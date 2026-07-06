@@ -1,4 +1,5 @@
 import { computed, readonly, ref } from "vue";
+import { tryOnScopeDispose } from "@vueuse/core";
 import { audioFeaturesRepository, CURRENT_ALGORITHM_VERSION } from "@/db/repositories/audioFeatures.repository";
 import { trackRepository } from "@/db/repositories";
 import { storageService } from "@/db/storage";
@@ -42,12 +43,11 @@ function getWorker(): Worker {
   worker = new EssentiaWorker();
   worker.onmessage = handleWorkerMessage;
   worker.onerror = (err) => {
-    console.error("WORKER ERROR");
-    console.error("message:", err.message);
-    console.error("filename:", err.filename);
-    console.error("lineno:", err.lineno);
-    console.error("colno:", err.colno);
-    console.error(err);
+    console.error("[EssentiaWorker] Error:", err.message);
+    for (const [id, p] of pending) {
+      p.reject(new Error(`Worker error: ${err.message}`));
+      pending.delete(id);
+    }
   };
   return worker;
 }
@@ -107,7 +107,17 @@ export function useAnalysisQueue() {
   function stop() {
     isRunning = false;
     queue.stop();
+    worker?.terminate();
+    worker = null;
+    for (const [id, p] of pending) {
+      p.reject(new Error("Analysis stopped"));
+      pending.delete(id);
+    }
   }
+
+  tryOnScopeDispose(() => {
+    stop();
+  });
 
   return {
     start,
