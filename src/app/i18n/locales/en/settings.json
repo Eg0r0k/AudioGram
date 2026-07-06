@@ -98,6 +98,10 @@
         "clearAllDialogTitle": "Delete all data?",
         "clearAllDialogDesc": "This will permanently delete all your tracks, album covers, and library data. This action cannot be undone.",
         "clearAllConfirm": "Delete everything",
+        "folders": "Sidebar folders",
+        "foldersDesc": "Remove custom folder structure from the sidebar",
+        "timings": "Play history & analysis",
+        "timingsDesc": "Clear listen history, audio features, and chapter data",
         "coversCleared": "Cover art cleared",
         "allDataCleared": "All data has been deleted"
     },

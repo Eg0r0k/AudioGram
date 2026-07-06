@@ -119,6 +119,50 @@
             </Button>
           </ItemActions>
         </Item>
+        <Item>
+          <ItemMedia>
+            <FolderIcon class="size-6 mr-3" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{{ $t('settings.storage.folders') }}</ItemTitle>
+            <ItemSubtitle>
+              <span class="text-sm text-muted-foreground">{{ $t('settings.storage.foldersDesc') }}</span>
+            </ItemSubtitle>
+          </ItemContent>
+          <ItemActions class="pointer-events-auto">
+            <Button
+              variant="ghost-primary"
+              size="sm"
+              :disabled="isLoading || isClearing"
+              @click="clearFoldersData"
+            >
+              {{ $t("common.delete") }}
+              <TrashIcon class="size-4" />
+            </Button>
+          </ItemActions>
+        </Item>
+        <Item>
+          <ItemMedia>
+            <ClockIcon class="size-6 mr-3" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{{ $t('settings.storage.timings') }}</ItemTitle>
+            <ItemSubtitle>
+              <span class="text-sm text-muted-foreground">{{ $t('settings.storage.timingsDesc') }}</span>
+            </ItemSubtitle>
+          </ItemContent>
+          <ItemActions class="pointer-events-auto">
+            <Button
+              variant="ghost-primary"
+              size="sm"
+              :disabled="isLoading || isClearing"
+              @click="clearTimingsData"
+            >
+              {{ $t("common.delete") }}
+              <TrashIcon class="size-4" />
+            </Button>
+          </ItemActions>
+        </Item>
         <Item v-copy="{ text: formatted.storagePath, onCopy: handleStoragePathCopied }">
           <ItemContent>
             <ItemTitle>{{ $t('settings.storage.location') }}</ItemTitle>
@@ -174,6 +218,8 @@ import { useStorageSettings } from "@/modules/settings/store/storage";
 import TrashIcon from "~icons/tabler/trash";
 import FileTextIcon from "~icons/tabler/file-text";
 import MusicIcon from "~icons/tabler/music";
+import FolderIcon from "~icons/tabler/folder";
+import ClockIcon from "~icons/tabler/clock";
 
 import { Button } from "@/components/ui/button";
 import { IS_TAURI } from "@/lib/environment/userAgent";
@@ -186,6 +232,8 @@ const {
   refresh,
   clearAllData,
   clearLyricsData,
+  clearFoldersData,
+  clearTimingsData,
 } = useStorageSettings();
 
 const { t } = useI18n();

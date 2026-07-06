@@ -1,7 +1,7 @@
 import { ref, computed } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { StorageInfo } from "../schema/storage";
-import { collectStorageInfo, clearAllData, clearLyricsData } from "@/services/storage-info.service";
+import { collectStorageInfo, clearAllData, clearFoldersData, clearLyricsData, clearTimingsData } from "@/services/storage-info.service";
 import { formatBytes } from "@/lib/format/memory";
 import { useLibraryStore } from "@/modules/library/store/library.store";
 
@@ -105,6 +105,32 @@ export function useStorageSettings() {
     }
   }
 
+  async function clearFoldersDataHandler() {
+    isClearing.value = true;
+    try {
+      await clearFoldersData();
+      await queryClient.invalidateQueries({ queryKey: ["folders"] });
+      await queryClient.invalidateQueries({ queryKey: ["library", "summary"] });
+      await refresh();
+    }
+    finally {
+      isClearing.value = false;
+    }
+  }
+
+  async function clearTimingsDataHandler() {
+    isClearing.value = true;
+    try {
+      await clearTimingsData();
+      await queryClient.invalidateQueries({ queryKey: ["stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+      await refresh();
+    }
+    finally {
+      isClearing.value = false;
+    }
+  }
+
   return {
     info,
     isLoading,
@@ -113,5 +139,7 @@ export function useStorageSettings() {
     refresh,
     clearAllData: clearAllDataHandler,
     clearLyricsData: clearLyricsDataHandler,
+    clearFoldersData: clearFoldersDataHandler,
+    clearTimingsData: clearTimingsDataHandler,
   };
 }

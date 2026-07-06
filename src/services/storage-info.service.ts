@@ -141,5 +141,21 @@ export async function clearAllData(): Promise<void> {
     db.artists.clear(),
     db.tags.clear(),
     db.playlists.clear(),
+    db.folders.clear(),
+    db.listenEvents.clear(),
+    db.audioFeatures.clear(),
+    db.trackChapters.clear(),
+  ]);
+}
+
+export async function clearFoldersData(): Promise<void> {
+  await db.folders.clear();
+}
+
+export async function clearTimingsData(): Promise<void> {
+  await Promise.all([
+    db.listenEvents.clear(),
+    db.audioFeatures.clear(),
+    db.trackChapters.clear(),
   ]);
 }
