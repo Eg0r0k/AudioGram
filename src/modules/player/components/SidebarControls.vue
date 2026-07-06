@@ -2,6 +2,29 @@
   <div class="flex min-w-[180px] w-[30%] justify-end pr-1">
     <div class="flex w-full gap-0.5 justify-end items-center grow">
       <Button
+        v-if="playerStore.currentTrack?.kind === 'library'"
+        variant="ghost"
+        class="mr-1 h-auto w-auto min-w-0 rounded-full py-1 pr-1.5! gap-0.5 text-sm font-medium text-muted-foreground select-none overflow-hidden"
+        :aria-label="$t('player.chapters')"
+        :title="$t('player.chapters')"
+        @click="toggleChaptersPanel"
+      >
+        <AnimatePresence mode="wait">
+          <motion.span
+            :key="activeChapterSegment?.title ?? 'empty'"
+            :initial="{ opacity: 0, y: -10, filter: 'blur(4px)' }"
+            :animate="{ opacity: 1, y: 0, filter: 'blur(0px)' }"
+            :exit="{ opacity: 0, y: 10, filter: 'blur(4px)' }"
+            :transition="{ duration: 0.15, ease: 'easeInOut' }"
+            class="block truncate"
+          >
+            {{ activeChapterSegment?.title ?? $t("player.chapters") }}
+          </motion.span>
+        </AnimatePresence>
+        <IconChevronRight class="size-5 shrink-0" />
+      </Button>
+
+      <Button
         variant="ghost"
         class="mr-2 h-auto rounded-full px-2 gap-0.5 py-1 text-sm font-medium text-muted-foreground select-none whitespace-nowrap"
         @click="toggleTimeDisplayMode"
@@ -172,6 +195,7 @@ import IconPlayerStop from "~icons/tabler/circle-minus";
 import IconEqualizer from "~icons/tabler/adjustments-horizontal";
 import IconPIP from "~icons/tabler/picture-in-picture";
 import IconGauge from "~icons/tabler/gauge";
+import IconChevronRight from "~icons/tabler/chevron-right";
 
 import VolumeButton from "./actions/VolumeButton.vue";
 import { useRouter } from "vue-router";
@@ -185,6 +209,9 @@ import IconPlaylist from "~icons/tabler/playlist";
 import PIPContent from "./pip/PIPContent.vue";
 import { useQueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { useSleepTimer } from "../composables/useSleepTimer";
+import { useTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
+import { isLibraryTrack } from "@/modules/player/types";
+import type { TrackId } from "@/types/ids";
 const router = useRouter();
 
 const playbackRatePresets = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
@@ -252,4 +279,54 @@ const timeDisplay = computed(() => {
     duration: formatDuration(playerStore.duration),
   };
 });
+
+const trackChaptersId = computed<TrackId>(() => {
+  const track = playerStore.currentTrack;
+  if (!track || !isLibraryTrack(track)) return "" as TrackId;
+  return track.id;
+});
+
+const { data: chaptersData } = useTrackChapters(trackChaptersId);
+
+const sortedChapters = computed(() => {
+  const list = chaptersData.value ?? [];
+  return [...list].sort((a, b) => a.time - b.time);
+});
+
+const activeChapterSegment = computed<{ title: string; time: string } | null>(() => {
+  const chapters = sortedChapters.value;
+  const currentTime = playerStore.currentTime;
+  if (chapters.length === 0) return null;
+
+  if (currentTime < chapters[0].time) {
+    return { title: "Вступление", time: formatDuration(chapters[0].time) };
+  }
+
+  for (let i = chapters.length - 1; i >= 0; i--) {
+    if (currentTime >= chapters[i].time) {
+      return {
+        title: chapters[i].title || t("chapters.untitled"),
+        time: formatDuration(chapters[i].time),
+      };
+    }
+  }
+
+  return null;
+});
+
+const isChaptersOpen = computed(() =>
+  rightPanelStore.isOpen && rightPanelStore.view === "chapters",
+);
+
+const toggleChaptersPanel = () => {
+  const track = playerStore.currentTrack;
+  if (!track || track.kind !== "library") return;
+
+  if (isChaptersOpen.value) {
+    rightPanelStore.close();
+    return;
+  }
+  rightPanelStore.openChapters({ track });
+};
+
 </script>

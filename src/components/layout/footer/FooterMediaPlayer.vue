@@ -1,14 +1,29 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import RangeSelector from "@/modules/player/components/RangeSelector.vue";
 import SidebarMusic from "@/modules/player/components/SidebarMusic.vue";
 import PlayBarControls from "@/modules/player/components/PlayBarControls.vue";
 import SidebarControls from "@/modules/player/components/SidebarControls.vue";
 import { usePlayerProgress } from "@/modules/tracks/composables/usePlayerProgress";
+import { useTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
+import { isLibraryTrack } from "@/modules/player/types";
+import type { TrackId } from "@/types/ids";
 
 const playerStore = usePlayerStore();
 const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
 
+const trackId = computed<TrackId>(() => {
+  const track = playerStore.currentTrack;
+  if (!track || !isLibraryTrack(track)) return "" as TrackId;
+  return track.id;
+});
+
+const { data: chapters } = useTrackChapters(trackId);
+
+function handleAddMark(time: number) {
+  console.log(time);
+}
 </script>
 
 <template>
@@ -26,10 +41,13 @@ const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd 
             :min="0"
             :max="100"
             :duration="playerStore.duration"
+            :chapters="chapters"
             :use-transform="true"
             :with-transition="false"
+            allow-marking
             :disable-transition="!isTransitionEnabled"
             :disabled="!playerStore.canSeek"
+            @add-mark="handleAddMark"
             @mousedown="onScrubStart"
             @scrub="onScrub"
             @mouseup="onScrubEnd"

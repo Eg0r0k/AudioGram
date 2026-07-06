@@ -1,60 +1,74 @@
 <!-- eslint-disable vuejs-accessibility/form-control-has-label -->
 <template>
-  <div
-    ref="containerRef"
-    :class="containerClasses"
-  >
-    <div class="range-selector__track">
+  <ContextMenu>
+    <ContextMenuTrigger
+      as-child
+      :disabled="!allowMarking || disabled"
+    >
       <div
-        v-for="(segment, i) in segments"
-        :key="i"
-        class="range-selector__segment"
-        :class="{ 'range-selector__segment--hover': hoverSegmentIndex === i }"
-        :style="segmentStyle(segment)"
-      />
-    </div>
+        ref="containerRef"
+        :class="containerClasses"
+      >
+        <div class="range-selector__track">
+          <div
+            v-for="(segment, i) in segments"
+            :key="i"
+            class="range-selector__segment"
+            :class="{ 'range-selector__segment--hover': hoverSegmentIndex === i }"
+            :style="segmentStyle(segment)"
+          />
+        </div>
 
-    <div
-      ref="filledRef"
-      class="range-selector__filled"
-    />
-    <div
-      v-if="showThumb"
-      ref="thumbRef"
-      class="range-selector__thumb"
-    />
+        <div
+          ref="filledRef"
+          class="range-selector__filled"
+        />
+        <div
+          v-if="showThumb"
+          ref="thumbRef"
+          class="range-selector__thumb"
+        />
 
-    <div
-      v-if="showTooltip && (isHovering || mousedown) && hoverTimeLabel"
-      class="range-selector__tooltip"
-      :style="tooltipStyle"
-    >
-      <span
-        v-if="hoverChapterTitle"
-        class="range-selector__tooltip-title"
-      >{{ hoverChapterTitle }}</span>
-      <span class="range-selector__tooltip-time">{{ hoverTimeLabel }}</span>
-    </div>
+        <div
+          v-if="showTooltip && (isHovering || mousedown) && hoverTimeLabel"
+          class="range-selector__tooltip"
+          :style="tooltipStyle"
+        >
+          <span
+            v-if="hoverChapterTitle"
+            class="range-selector__tooltip-title"
+          >{{ hoverChapterTitle }}</span>
+          <span class="range-selector__tooltip-time">{{ hoverTimeLabel }}</span>
+        </div>
 
-    <input
-      ref="seekRef"
-      class="range-selector__input"
-      type="range"
-      :disabled="disabled"
-      :step="step"
-      :min="min"
-      :max="max"
-      :value="internalValue"
-      :aria-label="$t('common.progress')"
-      @input="onInput"
-      @keydown="onKeyDown"
-    >
-  </div>
+        <input
+          ref="seekRef"
+          class="range-selector__input"
+          type="range"
+          :disabled="disabled"
+          :step="step"
+          :min="min"
+          :max="max"
+          :value="internalValue"
+          :aria-label="$t('common.progress')"
+          @input="onInput"
+          @keydown="onKeyDown"
+        >
+      </div>
+    </ContextMenuTrigger>
+
+    <ContextMenuContent v-if="allowMarking">
+      <ContextMenuItem @select="handleAddMark">
+        {{ $t("player.addMarkAt", { time: formatTime(pendingMarkTime) }) }}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  </ContextMenu>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useElementBounding, useEventListener } from "@vueuse/core";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { clamp } from "@/lib/math";
 import { isRTL } from "@/lib/environment/lang";
 
@@ -91,6 +105,7 @@ export interface RangeSelectorProps {
   chapters?: RangeSelectorChapter[];
   duration?: number;
   showTooltip?: boolean;
+  allowMarking?: boolean;
 }
 const props = withDefaults(defineProps<RangeSelectorProps>(), {
   min: 0,
@@ -106,6 +121,7 @@ const props = withDefaults(defineProps<RangeSelectorProps>(), {
   chapters: () => [],
   duration: undefined,
   showTooltip: true,
+  allowMarking: false,
 });
 
 const emit = defineEmits<{
@@ -113,6 +129,7 @@ const emit = defineEmits<{
   "mousedown": [event: GrabEvent];
   "mouseup": [event: GrabEvent];
   "scrub": [value: number];
+  "addMark": [value: number];
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -125,6 +142,7 @@ const internalValue = ref(props.modelValue);
 
 const isHovering = ref(false);
 const hoverPercent = ref(0);
+const pendingMarkTime = ref(0);
 
 const { width, height, left, bottom } = useElementBounding(containerRef);
 
@@ -154,15 +172,23 @@ const segments = computed<Segment[]>(() => {
   }
 
   const sorted = [...props.chapters].sort((a, b) => a.time - b.time);
+  const dur = props.duration;
+  const result: Segment[] = [];
 
-  return sorted.map((chapter, i) => {
-    const nextTime = sorted[i + 1]?.time ?? props.duration!;
-    return {
-      start: clamp((chapter.time / props.duration!) * 100, 0, 100),
-      end: clamp((nextTime / props.duration!) * 100, 0, 100),
-      title: chapter.title,
-    };
-  });
+  if (sorted[0].time > 0) {
+    result.push({ start: 0, end: clamp((sorted[0].time / dur) * 100, 0, 100) });
+  }
+
+  for (let i = 0; i < sorted.length; i++) {
+    const nextTime = sorted[i + 1]?.time ?? dur;
+    result.push({
+      start: clamp((sorted[i].time / dur) * 100, 0, 100),
+      end: clamp((nextTime / dur) * 100, 0, 100),
+      title: sorted[i].title,
+    });
+  }
+
+  return result;
 });
 
 const hasChapters = computed(() => segments.value.length > 1);
@@ -172,8 +198,8 @@ function segmentStyle(segment: Segment): Record<string, string> {
     return { left: "0%", width: "100%" };
   }
   return {
-    left: `calc(${segment.start}% + 1px)`,
-    width: `calc(${Math.max(segment.end - segment.start, 0)}% - 2px)`,
+    left: `calc(${segment.start}% + 2px)`,
+    width: `calc(${Math.max(segment.end - segment.start, 0)}% - 4px)`,
   };
 }
 
@@ -368,10 +394,21 @@ function onKeyDown(e: KeyboardEvent): void {
   addProgress(step);
 }
 
+function onContextMenuCapture(e: MouseEvent): void {
+  if (!props.allowMarking || props.disabled) return;
+  const percent = calcPercentFromPosition(e.clientX, e.clientY);
+  pendingMarkTime.value = props.min + (percent / 100) * (props.max - props.min);
+}
+
+function handleAddMark(): void {
+  emit("addMark", pendingMarkTime.value);
+}
+
 useEventListener(containerRef, "mousedown", onPointerDown);
 useEventListener(containerRef, "touchstart", onPointerDown, { passive: true });
 useEventListener(containerRef, "mousemove", onContainerHover);
 useEventListener(containerRef, "mouseleave", onContainerLeave);
+useEventListener(containerRef, "contextmenu", onContextMenuCapture);
 
 useEventListener(document, "mousemove", onPointerMove);
 useEventListener(document, "mouseup", onPointerUp);
@@ -520,8 +557,8 @@ defineExpose({
   font-weight: 500;
   padding: 3px 7px;
   border-radius: 4px;
-  background-color: var(--popover, #111);
-  color: var(--popover-foreground, #fff);
+  background-color: var(--card, #111);
+  color: var(--foreground, #fff);
   font-size: 11px;
   line-height: 1.4;
   white-space: nowrap;

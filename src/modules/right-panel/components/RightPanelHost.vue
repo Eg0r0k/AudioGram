@@ -18,8 +18,11 @@ import { computed } from "vue";
 import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import SlideTransition from "@/components/transitions/SlideTransition.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { usePlayerStore } from "@/modules/player";
+import { isLibraryTrack } from "@/modules/player/types";
 import type {
   RightPanelAddTracksPayload,
+  RightPanelChaptersPayload,
   RightPanelEditTrackPayload,
   RightPanelTrackInfoPayload,
   RightPanelView,
@@ -30,9 +33,10 @@ import LyricsPanel from "./panels/LyricsPanel.vue";
 import TrackInfoPanel from "./panels/TrackInfoPanel.vue";
 import EditTrackPanel from "./panels/EditTrackPanel.vue";
 import AddTracksPanel from "@/modules/tracks/components/tracks-sheet/AddTracksPanel.vue";
-
+import ChaptersPanel from "./panels/ChaptersPanel.vue";
 const { isMobileLayout } = useDeviceLayout();
 const rightPanel = useRightPanelStore();
+const player = usePlayerStore();
 
 const effectiveView = computed<Exclude<RightPanelView, "none">>(() => {
   if (!rightPanel.isOpen || rightPanel.view === "none") {
@@ -63,6 +67,9 @@ const activeComponent = computed(() => {
     case "add-tracks":
       return AddTracksPanel;
     case "queue":
+      return QueuePanel;
+    case "chapters":
+      return ChaptersPanel;
     default:
       return QueuePanel;
   }
@@ -80,6 +87,14 @@ const activeProps = computed(() => {
     case "add-tracks":
       return { payload: rightPanel.payload as RightPanelAddTracksPayload };
     case "queue":
+      return {};
+    case "chapters": {
+      const ct = player.currentTrack;
+      if (ct && isLibraryTrack(ct)) {
+        return { track: ct };
+      }
+      return { track: (rightPanel.payload as RightPanelChaptersPayload).track };
+    }
     default:
       return {};
   }

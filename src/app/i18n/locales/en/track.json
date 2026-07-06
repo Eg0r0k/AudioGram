@@ -25,7 +25,8 @@
     "moveDown": "Move down",
     "details": "Details",
     "removeFromQueue": "Remove from queue",
-    "removeFromPlaylist": "Remove from playlist"
+    "removeFromPlaylist": "Remove from playlist",
+    "chapters": "Manage chapters"
   },
   "details": {
     "title": "Track details",

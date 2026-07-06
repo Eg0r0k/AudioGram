@@ -37,6 +37,8 @@
   "pip": "Picture in picture",
   "cover": "Cover",
   "equalizer": "Equalizer",
+  "chapters": "Chapters",
+  "chapterIntro": "Intro",
   "emptyDescription": "For now...",
 "sleepTimer": "Sleep timer",
   "cancelSleepTimer": "Turn off timer",

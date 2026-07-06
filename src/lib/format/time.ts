@@ -51,3 +51,28 @@ export const formatRelativeTime = (value?: number, locale?: string): string => {
   if (absSeconds < 86_400) return formatter.format(diffHours, "hour");
   return formatter.format(Math.round(diffHours / 24), "day");
 };
+
+export function parseTimeToSeconds(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split(":").map(p => p.trim());
+  if (parts.some(p => p === "" || Number.isNaN(Number(p)))) return null;
+
+  const numbers = parts.map(Number);
+  if (numbers.length === 1) return numbers[0];
+  if (numbers.length === 2) return numbers[0] * 60 + numbers[1];
+  if (numbers.length === 3) return numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
+  return null;
+}
+
+export const formatCalendarTooltip = (
+  isoDate: string,
+  seconds: number,
+  locale: string,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string => {
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(isoDate));
+  const minutes = Math.round(seconds / 60);
+  return `${date}: ${t("common.minutesShort", { count: minutes })}`;
+};

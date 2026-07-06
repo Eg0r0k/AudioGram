@@ -28,7 +28,8 @@
     "moveDown": "Переместить ниже",
     "details": "Подробнее",
     "removeFromQueue": "Удалить из очереди",
-    "removeFromPlaylist": "Удалить из плейлиста"
+    "removeFromPlaylist": "Удалить из плейлиста",
+    "chapters": "Таймкоды"
   },
   "details": {
     "title": "Информация о треке",
