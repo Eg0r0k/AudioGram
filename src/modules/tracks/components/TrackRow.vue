@@ -215,7 +215,8 @@ const isPlaying = computed(() => playerStore.isPlaying);
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);
 
-const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
+// ⚡ Bolt: Skip fetching album cover from IndexedDB if `coverUrl` is already provided via props.
+const { url: coverBlobUrl } = useEntityCover("album", () => props.coverUrl ? null : props.track.albumId);
 const computedCoverUrl = computed(() => coverBlobUrl.value ?? "/img/fallback.svg");
 const coverUrl = computed(() => props.coverUrl ?? computedCoverUrl.value);
 

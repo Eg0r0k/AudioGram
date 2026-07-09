@@ -92,7 +92,7 @@ export function useSelection<T extends Selectable>(
     _lastToggledId.value = null;
   }
 
-function handleSelect(item: T, event: MouseEvent | KeyboardEvent): void {
+  function handleSelect(item: T, event: MouseEvent | KeyboardEvent): void {
     if (event.shiftKey && _lastToggledId.value) {
       selectRange(_lastToggledId.value, item.id);
       return;

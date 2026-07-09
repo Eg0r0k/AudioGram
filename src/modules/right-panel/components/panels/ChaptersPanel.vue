@@ -195,7 +195,7 @@ const chapterSchema = object({
 
 const isFormValid = computed(() => {
   if (draft.value.length === 0) return false;
-  return draft.value.every((ch) => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success);
+  return draft.value.every(ch => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success);
 });
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
