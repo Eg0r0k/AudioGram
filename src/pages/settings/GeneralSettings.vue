@@ -19,6 +19,19 @@
             />
           </ItemActions>
         </Item>
+
+        <Item @click="setAnalyzeTracks(!analyzeTracks)">
+          <ItemContent>
+            <ItemTitle>{{ $t('settings.general.analyzeTracks') }}</ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              :model-value="analyzeTracks"
+              @click.stop
+              @update:model-value="setAnalyzeTracks"
+            />
+          </ItemActions>
+        </Item>
       </SettingsGroup>
 
       <template v-if="isTauri">
@@ -87,11 +100,13 @@ import { useGeneralSettings } from "@/modules/settings/store/general";
 
 const {
   checkUpdatesOnLaunch,
+  analyzeTracks,
   closeToTray,
   launchAtStartup,
   launchMinimized,
   isTauri,
   setCheckUpdatesOnLaunch,
+  setAnalyzeTracks,
   setCloseToTray,
   setLaunchAtStartup,
   setLaunchMinimized,

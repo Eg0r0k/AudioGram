@@ -85,7 +85,7 @@ const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const rightPanelStore = useRightPanelStore();
 
-const { start: startAnalysis } = useAnalysisQueue();
+const { start: startAnalysis, stop: stopAnalysis } = useAnalysisQueue();
 
 const layouts: Record<string, VueComponent> = {
   default: DefaultLayout,
@@ -136,9 +136,17 @@ onMounted(async () => {
 
   init();
 
-  const analysisTimeout = setTimeout(startAnalysis, 3000);
+  let analysisTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  if (analyzeTracks.value) {
+    analysisTimeout = setTimeout(startAnalysis, 3000);
+  }
+
   onUnmounted(() => {
-    clearTimeout(analysisTimeout);
+    if (analysisTimeout) {
+      clearTimeout(analysisTimeout);
+    }
+    stopAnalysis();
   });
 });
 onUnmounted(() => {
@@ -159,7 +167,16 @@ useExternalLinkInterceptor();
 // UPDATE
 
 const updateStore = useUpdateStore();
-const { checkUpdatesOnLaunch } = useGeneralSettings();
+const { checkUpdatesOnLaunch, analyzeTracks } = useGeneralSettings();
+
+watch(analyzeTracks, (enable) => {
+  if (enable) {
+    startAnalysis();
+  }
+  else {
+    stopAnalysis();
+  }
+});
 
 if (IS_TAURI) {
   useUpdateScheduler({ checkOnStartup: checkUpdatesOnLaunch.value });

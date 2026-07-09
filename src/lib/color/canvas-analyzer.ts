@@ -45,9 +45,13 @@ export async function analyzeWithCanvas(imageUrl: string): Promise<HSL | null> {
       resolve(null);
     }, ANALYSIS_TIMEOUT);
 
+    let done = false;
     const cleanup = () => {
+      if (done) return;
+      done = true;
       clearTimeout(timeout);
-      img.src = "";
+      img.onload = null;
+      img.onerror = null;
       img.remove();
     };
 

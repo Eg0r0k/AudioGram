@@ -33,6 +33,7 @@ export const useGeneralSettings = () => {
   const settings = computed(() => store.general);
   const language = computed(() => store.general.language);
   const checkUpdatesOnLaunch = computed(() => store.general.checkUpdatesOnLaunch);
+  const analyzeTracks = computed(() => store.general.analyzeTracks);
   const closeToTray = computed(() => store.general.closeToTray);
   const launchAtStartup = computed(() => store.general.launchAtStartup);
   const launchMinimized = computed(() => store.general.launchMinimized);
@@ -69,6 +70,10 @@ export const useGeneralSettings = () => {
 
   const setCheckUpdatesOnLaunch = (value: boolean) => {
     store.updateGeneral({ checkUpdatesOnLaunch: value });
+  };
+
+  const setAnalyzeTracks = (value: boolean) => {
+    store.updateGeneral({ analyzeTracks: value });
   };
 
   const setCloseToTray = (value: boolean) => {
@@ -134,6 +139,7 @@ export const useGeneralSettings = () => {
     activeLanguageNative,
     systemLanguage,
     checkUpdatesOnLaunch,
+    analyzeTracks,
     closeToTray,
     launchAtStartup,
     launchMinimized,
@@ -146,6 +152,7 @@ export const useGeneralSettings = () => {
     // Actions
     setLanguage,
     setCheckUpdatesOnLaunch,
+    setAnalyzeTracks,
     setCloseToTray,
     setLaunchAtStartup,
     setLaunchMinimized,
