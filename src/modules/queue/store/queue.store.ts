@@ -23,10 +23,10 @@ interface PersistedLibraryTrack {
   trackId: Track["id"];
 }
 
-type PersistedEphemeralTrack = Pick<EphemeralTrack, "id" | "title" | "artist" | "albumName" | "duration" | "cover"> & {
+type PersistedEphemeralTrack = Pick<EphemeralTrack, 'id' | 'title' | 'artist' | 'albumName' | 'duration' | 'cover'> & {
   kind: "ephemeral";
   source: { type: "path"; path: string } | { type: "url"; url: string };
-};
+}
 
 type PersistedQueueTrack = PersistedLibraryTrack | PersistedEphemeralTrack;
 

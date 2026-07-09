@@ -66,6 +66,7 @@ export default defineConfig({
 
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 5000000,
           globIgnores: ["**/*.{mp3,flac,ogg,wav,m4a,aac}"],
           navigateFallback: "/index.html",
           cleanupOutdatedCaches: true,
