@@ -1,3 +1,4 @@
+import { db } from "@/db";
 import { AlbumEntity, ArtistEntity, TrackEntity, TrackState } from "@/db/entities";
 import { albumRepository, artistRepository, coverRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
@@ -5,6 +6,43 @@ import { AlbumId, ArtistId } from "@/types/ids";
 import { unwrapResult } from "@/queries/shared";
 import { EntityResolver } from "../entity-resolver";
 import { ImportSuccess, TrackToSave } from "../types";
+
+const COVER_MAX_DIMENSION = 500;
+const COVER_QUALITY = 0.8;
+
+// Compressing large covers to optimize memory in the local databaseы
+const resizeCoverBlob = async (blob: Blob): Promise<Blob> => {
+  if (blob.size < 50_000) return blob;
+
+  const img = await createImageBitmap(blob);
+
+  if (img.width <= COVER_MAX_DIMENSION && img.height <= COVER_MAX_DIMENSION) {
+    img.close();
+    return blob;
+  }
+
+  const ratio = Math.min(COVER_MAX_DIMENSION / img.width, COVER_MAX_DIMENSION / img.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * ratio);
+  canvas.height = Math.round(img.height * ratio);
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    img.close();
+    return blob;
+  }
+
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  img.close();
+
+  return new Promise<Blob>((resolve) => {
+    canvas.toBlob(
+      resized => resolve(resized ?? blob),
+      "image/webp",
+      COVER_QUALITY,
+    );
+  });
+};
 
 interface CoverToCreate {
   ownerId: AlbumId;
@@ -36,7 +74,7 @@ export async function persistTracks(
   for (const item of items) {
     const artistIds = resolver.getArtistIds(item.meta);
 
-    const albumId = collectAlbum(
+    const albumId = await collectAlbum(
       item, resolver, existingAlbumIds, albumsToCreate, coversToCreate, now,
     );
     collectArtists(item, resolver, existingArtistIds, artistsToCreate, now);
@@ -74,30 +112,32 @@ export async function persistTracks(
     });
   }
 
-  const uowResult = await unitOfWork.run(async () => {
-    if (artistsToCreate.size > 0) {
-      await artistRepository.createMany([...artistsToCreate.values()]);
-    }
-    if (albumsToCreate.size > 0) {
-      await albumRepository.createMany([...albumsToCreate.values()]);
-    }
-    if (coversToCreate.length > 0) {
-      await coverRepository.createMany(
-        coversToCreate.map(c => ({
-          id: crypto.randomUUID(),
-          ownerType: "album" as const,
-          ownerId: c.ownerId,
-          blob: c.blob,
-          mimeType: c.mimeType,
-          addedAt: now,
-          updatedAt: now,
-        })),
-      );
-    }
-    if (tracksToCreate.length > 0) {
-      await trackRepository.createMany(tracksToCreate);
-    }
-  });
+  const uowResult = await unitOfWork.runScoped(
+    [db.tracks, db.artists, db.albums, db.covers],
+    async () => {
+      if (artistsToCreate.size > 0) {
+        await artistRepository.createMany([...artistsToCreate.values()]);
+      }
+      if (albumsToCreate.size > 0) {
+        await albumRepository.createMany([...albumsToCreate.values()]);
+      }
+      if (coversToCreate.length > 0) {
+        await coverRepository.createMany(
+          coversToCreate.map(c => ({
+            id: crypto.randomUUID(),
+            ownerType: "album" as const,
+            ownerId: c.ownerId,
+            blob: c.blob,
+            mimeType: c.mimeType,
+            addedAt: now,
+            updatedAt: now,
+          })),
+        );
+      }
+      if (tracksToCreate.length > 0) {
+        await trackRepository.createMany(tracksToCreate);
+      }
+    });
 
   if (uowResult.isErr()) throw uowResult.error;
 
@@ -134,14 +174,14 @@ async function loadExistingIds(items: TrackToSave[], resolver: EntityResolver) {
  * Resolves the track's album id and, when the album is new to both the DB and
  * this batch, queues the album (and its cover, if any) for creation.
  */
-function collectAlbum(
+async function collectAlbum(
   item: TrackToSave,
   resolver: EntityResolver,
   existingAlbumIds: Set<AlbumId>,
   albumsToCreate: Map<AlbumId, AlbumEntity>,
   coversToCreate: CoverToCreate[],
   now: number,
-): AlbumId {
+): Promise<AlbumId> {
   const firstArtistId = resolver.getArtistIds(item.meta)[0] ?? null;
   const hasAlbum = !!item.meta.album?.trim() && item.meta.album !== "Unknown Album";
   if (!hasAlbum || !firstArtistId) return AlbumId("");
@@ -160,10 +200,11 @@ function collectAlbum(
     });
 
     if (item.meta.pictureBlob) {
+      const blob = await resizeCoverBlob(item.meta.pictureBlob);
       coversToCreate.push({
         ownerId: entry.id,
-        blob: item.meta.pictureBlob,
-        mimeType: item.meta.pictureBlob.type || "image/jpeg",
+        blob,
+        mimeType: "image/webp",
       });
     }
   }

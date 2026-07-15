@@ -2,8 +2,8 @@ import MetaWorker from "@/workers/meta.worker?worker";
 import type { BaseMetadata, ParseRequest, ParseResponse } from "@/workers/types";
 import { ImportError } from "./types";
 
-const WORKER_TIMEOUT = 10_000; // 10 sec
-const WORKER_POOL_SIZE = 2;
+const WORKER_TIMEOUT = 30_000; // 30 sec
+const WORKER_POOL_SIZE = 8;
 
 interface PendingRequest {
   resolve: (meta: BaseMetadata) => void;
@@ -11,18 +11,29 @@ interface PendingRequest {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+interface WorkerEntry {
+  worker: Worker;
+  busy: boolean;
+}
+
 export class WorkerPool {
-  private readonly workers: Worker[] = [];
+  private readonly entries: WorkerEntry[] = [];
   private readonly pending = new Map<string, PendingRequest>();
-  private roundRobinIdx = 0;
   private disposed = false;
 
   constructor(size = WORKER_POOL_SIZE) {
     for (let i = 0; i < size; i++) {
       const worker = new MetaWorker();
       worker.addEventListener("message", this.onMessage);
-      this.workers.push(worker);
+      this.entries.push({ worker, busy: false });
     }
+  }
+
+  private getIdleWorker(): WorkerEntry | null {
+    for (const entry of this.entries) {
+      if (!entry.busy) return entry;
+    }
+    return null;
   }
 
   parse(fileName: string, data: Uint8Array, options?: { extractCover?: boolean }): Promise<BaseMetadata> {
@@ -40,11 +51,11 @@ export class WorkerPool {
 
       this.pending.set(id, { resolve, reject, timeoutId });
 
-      const worker = this.workers[this.roundRobinIdx];
-      this.roundRobinIdx = (this.roundRobinIdx + 1) % this.workers.length;
+      const entry = this.getIdleWorker() ?? this.entries[0];
+      entry.busy = true;
 
       const request: ParseRequest = { fileId: id, fileData: data, fileName, extractCover: options?.extractCover ?? true };
-      worker.postMessage(request, [data.buffer]);
+      entry.worker.postMessage(request, [data.buffer]);
     });
   }
 
@@ -57,10 +68,10 @@ export class WorkerPool {
       this.pending.delete(id);
     }
 
-    for (const worker of this.workers) {
-      worker.terminate();
+    for (const entry of this.entries) {
+      entry.worker.terminate();
     }
-    this.workers.length = 0;
+    this.entries.length = 0;
   }
 
   private onMessage = (e: MessageEvent<ParseResponse>): void => {
@@ -70,6 +81,14 @@ export class WorkerPool {
 
     clearTimeout(pending.timeoutId);
     this.pending.delete(e.data.fileId);
+
+    // Mark the source worker as idle
+    for (const entry of this.entries) {
+      if (entry.worker === e.target) {
+        entry.busy = false;
+        break;
+      }
+    }
 
     if (e.data.success) {
       pending.resolve(e.data.meta);
