@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useResizeObserver, useDebounceFn } from "@vueuse/core";
 
 type Direction = "normal" | "reverse";
@@ -224,10 +224,6 @@ const stopIntervalCheck = () => {
   }
 };
 
-const handleWindowResize = () => {
-  calculateOverflow();
-};
-
 const handleVisibilityChange = () => {
   const doc = getOwnerDocument();
   if (doc.visibilityState === "visible") {
@@ -278,10 +274,19 @@ useResizeObserver(contentRef, (entries) => {
   }
 });
 
+watch(isOverflowing, (overflowing) => {
+  if (overflowing) {
+    startIntervalCheck();
+  }
+  else {
+    stopIntervalCheck();
+  }
+});
+
 onMounted(() => {
   nextTick(() => {
-    const win = getOwnerWindow();
     const doc = getOwnerDocument();
+    const win = getOwnerWindow();
 
     if (contentRef.value) {
       lastContentSize.value = props.vertical
@@ -291,17 +296,13 @@ onMounted(() => {
 
     calculateOverflow();
 
-    win.addEventListener("resize", handleWindowResize);
     doc.addEventListener("visibilitychange", handleVisibilityChange);
     win.addEventListener("focus", handleWindowFocus);
 
     cleanupFns.push(
-      () => win.removeEventListener("resize", handleWindowResize),
       () => doc.removeEventListener("visibilitychange", handleVisibilityChange),
       () => win.removeEventListener("focus", handleWindowFocus),
     );
-
-    startIntervalCheck();
   });
 });
 
