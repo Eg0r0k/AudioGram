@@ -3,7 +3,7 @@ import type { BaseMetadata, ParseRequest, ParseResponse } from "@/workers/types"
 import { ImportError } from "./types";
 
 const WORKER_TIMEOUT = 30_000; // 30 sec
-const WORKER_POOL_SIZE = 8;
+const WORKER_POOL_SIZE = 4;
 
 interface PendingRequest {
   resolve: (meta: BaseMetadata) => void;
