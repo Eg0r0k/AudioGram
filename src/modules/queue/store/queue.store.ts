@@ -131,6 +131,7 @@ export const useQueueStore = defineStore("queue", () => {
     if (isEphemeralTrack(nextTrack)) return;
 
     queue.value = patchQueueItem(queue.value, nextTrack);
+    syncPersistedSnapshot();
   }
 
   function removeOriginalQueueItems(ids: QueueItemId[]): void {
@@ -346,6 +347,7 @@ export const useQueueStore = defineStore("queue", () => {
     if (!success) {
       await skipToNextPlayable(Math.max(playbackQueue.items.length - playbackQueue.playbackIndex, 1));
     }
+    syncPersistedSnapshot();
   }
 
   async function restorePersistedQueue(): Promise<void> {
@@ -430,6 +432,7 @@ export const useQueueStore = defineStore("queue", () => {
     const item = createItem(track, source);
     queue.value.push(item);
     originalQueueOrder.value.push(item.id);
+    syncPersistedSnapshot();
   }
 
   function addMultipleToQueue(
@@ -439,6 +442,7 @@ export const useQueueStore = defineStore("queue", () => {
     const items = tracks.map(t => createItem(t, source));
     queue.value.push(...items);
     originalQueueOrder.value.push(...items.map(item => item.id));
+    syncPersistedSnapshot();
   }
 
   async function appendAutoplayRecommendations(): Promise<boolean> {
@@ -511,6 +515,7 @@ export const useQueueStore = defineStore("queue", () => {
 
     queue.value.splice(insertAt, 0, item);
     insertOriginalQueueNext(item);
+    syncPersistedSnapshot();
   }
 
   async function next(): Promise<void> {
@@ -583,6 +588,7 @@ export const useQueueStore = defineStore("queue", () => {
 
     if (queue.value.length === 0) {
       resetPlaybackSelection();
+      syncPersistedSnapshot();
       return;
     }
 
@@ -595,6 +601,7 @@ export const useQueueStore = defineStore("queue", () => {
       }
       playAtIndex(currentIndex.value);
     }
+    syncPersistedSnapshot();
   }
 
   function removeMultiple(ids: QueueItemId[]): void {
@@ -607,6 +614,7 @@ export const useQueueStore = defineStore("queue", () => {
 
     if (queue.value.length === 0) {
       resetPlaybackSelection();
+      syncPersistedSnapshot();
       return;
     }
 
@@ -618,6 +626,7 @@ export const useQueueStore = defineStore("queue", () => {
       const newIndex = queue.value.findIndex(item => item.id === currentItemId);
       currentIndex.value = newIndex >= 0 ? newIndex : 0;
     }
+    syncPersistedSnapshot();
   }
 
   function moveTrack(fromIndex: number, toIndex: number): void {
@@ -632,6 +641,7 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     currentIndex.value = getCurrentIndexAfterMove(currentIndex.value, fromIndex, toIndex);
+    syncPersistedSnapshot();
   }
 
   function shuffle(): void {
@@ -660,6 +670,7 @@ export const useQueueStore = defineStore("queue", () => {
 
     queue.value = playbackQueue.items;
     currentIndex.value = playbackQueue.playbackIndex;
+    syncPersistedSnapshot();
   }
 
   function unshuffle(): void {
@@ -667,18 +678,23 @@ export const useQueueStore = defineStore("queue", () => {
 
     isShuffled.value = false;
 
-    if (originalQueueOrder.value.length === 0) return;
+    if (originalQueueOrder.value.length === 0) {
+      syncPersistedSnapshot();
+      return;
+    }
 
     const currentId = currentItem.value?.id;
     queue.value = getItemsByOrder(queue.value, originalQueueOrder.value);
 
     if (!currentId) {
       currentIndex.value = -1;
+      syncPersistedSnapshot();
       return;
     }
 
     const newIndex = queue.value.findIndex(item => item.id === currentId);
     currentIndex.value = newIndex >= 0 ? newIndex : 0;
+    syncPersistedSnapshot();
   }
 
   function toggleShuffle(): void {
@@ -695,6 +711,7 @@ export const useQueueStore = defineStore("queue", () => {
     originalQueueOrder.value = [];
     resetPlaybackSelection();
     isShuffled.value = false;
+    syncPersistedSnapshot();
   }
 
   watch(
@@ -704,10 +721,6 @@ export const useQueueStore = defineStore("queue", () => {
       next();
     },
   );
-
-  watch([queue, originalQueueOrder, currentIndex, isShuffled], () => {
-    syncPersistedSnapshot();
-  }, { deep: true });
 
   return {
     queue,
