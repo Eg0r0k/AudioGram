@@ -61,9 +61,11 @@ export const usePlayerStore = defineStore("player", () => {
 
   const canPlay = computed(() => player.value?.isReady ?? false);
 
-  const activeLyricsIndex = computed(() =>
-    findActiveLyricsIndex(lyrics.value, currentTime.value),
-  );
+  const activeLyricsIndex = computed(() => {
+    const lines = lyrics.value;
+    if (lines.length === 0) return -1;
+    return findActiveLyricsIndex(lines, currentTime.value);
+  });
 
   const isSleepTimerActive = computed(() => sleepTimerEndsAt.value !== null);
 
@@ -545,7 +547,7 @@ export const usePlayerStore = defineStore("player", () => {
     if (!sleepAfterCurrentTrack.value) return;
     sleepAfterCurrentTrack.value = false;
     sleepAfterCurrentTrackTriggeredOnEndSignal.value = val;
-  }, { flush: "sync" });
+  });
 
   watch(sleepTimerEndsAt, (endsAt) => {
     clearSleepTimerHandles();
@@ -562,7 +564,7 @@ export const usePlayerStore = defineStore("player", () => {
 
     _sleepTimerInterval = setInterval(updateSleepTimerRemaining, 1000);
     _sleepTimerTimeout = setTimeout(handleSleepTimerExpired, sleepTimerRemainingMs.value);
-  }, { immediate: true, flush: "sync" });
+  }, { immediate: true });
 
   return {
     player,

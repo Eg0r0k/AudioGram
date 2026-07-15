@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { type ComponentPublicInstance, computed, nextTick, watch } from "vue";
+import { type ComponentPublicInstance, computed, nextTick, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -58,6 +58,7 @@ const props = withDefaults(defineProps<{
 const playerStore = usePlayerStore();
 const { t } = useI18n();
 const lineRefs: Array<HTMLElement | null> = [];
+let lastActiveIndex = -1;
 
 const track = computed<Track | null>(() => {
   const currentTrack = playerStore.currentTrack;
@@ -83,14 +84,20 @@ const linesClass = computed(() => {
   return props.variant === "panel" ? "space-y-4 text-center" : "space-y-5 text-center";
 });
 
-watch(
+const stopWatch = watch(
   () => playerStore.activeLyricsIndex,
   async (index) => {
-    if (index < 0) return;
+    if (index < 0 || index === lastActiveIndex) return;
+    lastActiveIndex = index;
     await nextTick();
     lineRefs[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
   },
 );
+
+onUnmounted(() => {
+  stopWatch();
+  lineRefs.length = 0;
+});
 
 function setLineRef(element: Element | ComponentPublicInstance | null, index: number) {
   lineRefs[index] = element instanceof HTMLElement ? element : null;

@@ -171,6 +171,7 @@
                 <TrackRow
                   v-if="nextQueueItem"
                   hide-index
+                  class="text-white! hover:bg-muted/80!"
                   menu-target="queue"
                   :track="nextQueueItem.track as Track"
                   :menu-index="nextQueueIndex"

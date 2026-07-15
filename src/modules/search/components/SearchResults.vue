@@ -4,6 +4,7 @@ import type { SearchResultItem, SearchFilter } from "@/modules/search/types";
 import type { Track } from "@/modules/player/types";
 import SearchDropdownRow from "@/modules/search/components/SearchDropdownRow.vue";
 import TrackRowsList from "@/modules/tracks/components/TrackRowsList.vue";
+import { computed } from "vue";
 
 const props = defineProps<{
   activeFilter: SearchFilter;
@@ -23,10 +24,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const slicedTrackResults = props.trackResults.slice(0, 4).flatMap(item => item.track ? [item.track] : []);
-const slicedArtistResults = props.artistResults.slice(0, 4);
-const slicedAlbumResults = props.albumResults.slice(0, 4);
-const slicedPlaylistResults = props.playlistResults.slice(0, 4);
+const slicedTrackResults = computed(() => props.trackResults.slice(0, 4).flatMap(item => item.track ? [item.track] : []));
+const slicedArtistResults = computed(() => props.artistResults.slice(0, 4));
+const slicedAlbumResults = computed(() => props.albumResults.slice(0, 4));
+const slicedPlaylistResults = computed(() => props.playlistResults.slice(0, 4));
 </script>
 
 <template>
