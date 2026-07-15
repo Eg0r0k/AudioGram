@@ -30,44 +30,8 @@ export class AppDatabase extends Dexie {
   constructor() {
     super("AudiogramDB");
 
-    this.version(5).stores({
-      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint",
-      artists: "&id, name, updatedAt",
-      albums: "&id, title, artistId, year, updatedAt, [artistId+year], [title+artistId]",
-      tags: "&id, &name",
-      playlists: "&id, name, updatedAt, addedAt",
-      listenEvents: "&id, trackId, artistId, albumId, startedAt",
-      covers: "&id, ownerType, ownerId, [ownerType+ownerId], updatedAt",
-      radioStations: "&id, name, isFavorite, addedAt, lastPlayedAt",
-    });
-
-    this.version(6).stores({
-      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint",
-      artists: "&id, name, updatedAt",
-      albums: "&id, title, artistId, year, updatedAt, [artistId+year], [title+artistId]",
-      tags: "&id, &name",
-      playlists: "&id, name, updatedAt, addedAt",
-      listenEvents: "&id, trackId, artistId, albumId, startedAt",
-      covers: "&id, ownerType, ownerId, [ownerType+ownerId], updatedAt",
-      radioStations: "&id, name, isFavorite, addedAt, lastPlayedAt",
-      audioFeatures: "&trackId, analyzedAt, algorithmVersion",
-    });
-
-    this.version(7).stores({
-      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint",
-      artists: "&id, name, updatedAt",
-      albums: "&id, title, artistId, year, updatedAt, [artistId+year], [title+artistId]",
-      tags: "&id, &name",
-      playlists: "&id, name, updatedAt, addedAt",
-      folders: "&id, name, updatedAt, addedAt",
-      listenEvents: "&id, trackId, artistId, albumId, startedAt",
-      covers: "&id, ownerType, ownerId, [ownerType+ownerId], updatedAt",
-      radioStations: "&id, name, isFavorite, addedAt, lastPlayedAt",
-      audioFeatures: "&trackId, analyzedAt, algorithmVersion",
-    });
-
-    this.version(8).stores({
-      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint",
+    this.version(9).stores({
+      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint, [title+likedAt], [addedAt+likedAt], [duration+likedAt], [artistName+likedAt], [albumTitle+likedAt], [playCount+likedAt]",
       artists: "&id, name, updatedAt",
       albums: "&id, title, artistId, year, updatedAt, [artistId+year], [title+artistId]",
       tags: "&id, &name",
