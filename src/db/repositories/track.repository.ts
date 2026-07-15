@@ -38,6 +38,57 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     }
   }
 
+  private getSortField(sortKey: TrackSortKey): string {
+    switch (sortKey) {
+      case "title_asc": case "title_desc": return "title";
+      case "duration_asc": case "duration_desc": return "duration";
+      case "plays_desc": return "playCount";
+      case "artist_asc": return "artistName";
+      case "album_asc": case "album_desc": return "albumTitle";
+      case "date_added_asc": case "date_added_desc": return "addedAt";
+      default: return "addedAt";
+    }
+  }
+
+  private getSortedLikedCollection(sortKey: TrackSortKey): Collection<TrackEntity, TrackId> {
+    const field = this.getSortField(sortKey);
+    const compoundKey = `[${field}+likedAt]`;
+    const isNumeric = ["addedAt", "duration", "playCount"].includes(field);
+    const isDesc = sortKey.endsWith("_desc");
+    const collection = this.table.where(compoundKey).between(
+      isNumeric ? [0, 1] : ["", 1],
+      isNumeric ? [Infinity, Infinity] : ["\uffff", Infinity],
+    );
+    return isDesc ? collection.reverse() : collection;
+  }
+
+  async findLikedSorted(sortKey: TrackSortKey): Promise<Result<TrackEntity[], Error>> {
+    try {
+      const tracks = await this.getSortedLikedCollection(sortKey).toArray();
+      return ok(tracks);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
+
+  async findLikedSortedPaginated(
+    sortKey: TrackSortKey,
+    offset: number,
+    limit: number,
+  ): Promise<Result<TrackEntity[], Error>> {
+    try {
+      const tracks = await this.getSortedLikedCollection(sortKey)
+        .offset(offset)
+        .limit(limit)
+        .toArray();
+      return ok(tracks);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
+
   async findAllSortedPaginated(
     sortKey: TrackSortKey,
     offset: number,
@@ -121,6 +172,26 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     }
   }
 
+  async countByAlbumIds(albumIds: AlbumId[]): Promise<Result<Map<AlbumId, number>, Error>> {
+    try {
+      const albums = albumIds.length === 0
+        ? []
+        : await this.table
+            .where("albumId")
+            .anyOf(albumIds)
+            .toArray();
+      const counts = new Map<AlbumId, number>();
+      for (const albumId of albumIds) counts.set(albumId, 0);
+      for (const track of albums) {
+        counts.set(track.albumId, (counts.get(track.albumId) ?? 0) + 1);
+      }
+      return ok(counts);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
+
   async countByArtistId(artistId: ArtistId): Promise<Result<number, Error>> {
     try {
       const count = await this.table
@@ -135,13 +206,35 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     }
   }
 
+  async countByArtistIds(artistIds: ArtistId[]): Promise<Result<Map<ArtistId, number>, Error>> {
+    try {
+      const artists = artistIds.length === 0
+        ? []
+        : await this.table
+            .where("artistIds")
+            .anyOf(artistIds)
+            .toArray();
+      const counts = new Map<ArtistId, number>();
+      for (const id of artistIds) counts.set(id, 0);
+      for (const track of artists) {
+        for (const id of track.artistIds) {
+          counts.set(id, (counts.get(id) ?? 0) + 1);
+        }
+      }
+      return ok(counts);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
+
   async sumDurationByAlbumId(albumId: AlbumId): Promise<Result<number, Error>> {
     try {
-      const tracks = await this.table
+      let total = 0;
+      await this.table
         .where("albumId")
         .equals(albumId)
-        .toArray();
-      const total = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+        .each((track) => { total += track.duration ?? 0; });
       return ok(total);
     }
     catch (error) {
@@ -151,11 +244,11 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async sumDurationByArtistId(artistId: ArtistId): Promise<Result<number, Error>> {
     try {
-      const tracks = await this.table
+      let total = 0;
+      await this.table
         .where("artistIds")
         .equals(artistId)
-        .toArray();
-      const total = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+        .each((track) => { total += track.duration ?? 0; });
       return ok(total);
     }
     catch (error) {
@@ -168,11 +261,11 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       if (trackIds.length === 0) {
         return ok(0);
       }
-      const tracks = await this.table
+      let total = 0;
+      await this.table
         .where("id")
         .anyOf(trackIds)
-        .toArray();
-      const total = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+        .each((track) => { total += track.duration ?? 0; });
       return ok(total);
     }
     catch (error) {
@@ -226,30 +319,17 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         return ok([]);
       }
 
-      const tracks = await this.table.where("id").anyOf(ids).toArray();
-
-      const getSortValue = (t: TrackEntity) => {
-        switch (sortKey) {
-          case "title_asc": case "title_desc": return t.title || "";
-          case "duration_asc": case "duration_desc": return t.duration || 0;
-          case "plays_desc": return t.playCount || 0;
-          case "artist_asc": return t.artistName || "";
-          case "album_asc": case "album_desc": return t.albumTitle || "";
-          case "date_added_asc": case "date_added_desc": return t.addedAt || 0;
-          default: return t.addedAt || 0;
-        }
-      };
-
+      const field = this.getSortField(sortKey);
       const isDesc = sortKey.endsWith("_desc");
 
-      tracks.sort((a, b) => {
-        const valA = getSortValue(a);
-        const valB = getSortValue(b);
+      const tracks = await this.table
+        .where("id")
+        .anyOf(ids)
+        .sortBy(field);
 
-        if (valA < valB) return isDesc ? 1 : -1;
-        if (valA > valB) return isDesc ? -1 : 1;
-        return 0;
-      });
+      if (isDesc) {
+        tracks.reverse();
+      }
 
       return ok(tracks);
     }
@@ -270,8 +350,10 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async sumDurationAll(): Promise<Result<number, Error>> {
     try {
-      const tracks = await this.table.toArray();
-      const total = tracks.reduce((sum, track) => sum + (track.duration ?? 0), 0);
+      let total = 0;
+      await this.table.each((track) => {
+        total += track.duration ?? 0;
+      });
       return ok(total);
     }
     catch (error) {
@@ -335,8 +417,12 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async sumDurationByLiked(): Promise<Result<number, Error>> {
     try {
-      const tracks = await this.table.where("likedAt").above(0).toArray();
-      return ok(tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0));
+      const tracks = await this.table
+        .where("likedAt")
+        .above(0)
+        .toArray();
+      const total = tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+      return ok(total);
     }
     catch (error) {
       return err(error as Error);

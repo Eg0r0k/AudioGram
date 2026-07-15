@@ -1,6 +1,7 @@
 import type { TrackEntity } from "@/db/entities";
 import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
+import type { TrackSortKey } from "@/modules/tracks/types";
 import type { Result } from "neverthrow";
 
 export async function unwrapResult<T>(
@@ -56,4 +57,26 @@ export function patchTrackLike(track: Track, isLiked: boolean): Track {
     ...track,
     isLiked,
   };
+}
+
+export function sortTracks(tracks: TrackEntity[], sortKey: TrackSortKey): TrackEntity[] {
+  const isDesc = sortKey.endsWith("_desc");
+  const getSortValue = (t: TrackEntity) => {
+    switch (sortKey) {
+      case "title_asc": case "title_desc": return t.title || "";
+      case "duration_asc": case "duration_desc": return t.duration || 0;
+      case "plays_desc": return t.playCount || 0;
+      case "artist_asc": return t.artistName || "";
+      case "album_asc": case "album_desc": return t.albumTitle || "";
+      default: return t.addedAt || 0;
+    }
+  };
+
+  return [...tracks].sort((a, b) => {
+    const valA = getSortValue(a);
+    const valB = getSortValue(b);
+    if (valA < valB) return isDesc ? 1 : -1;
+    if (valA > valB) return isDesc ? -1 : 1;
+    return 0;
+  });
 }

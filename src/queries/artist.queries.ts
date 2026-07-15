@@ -1,4 +1,4 @@
-import type { ArtistEntity } from "@/db/entities";
+import type { ArtistEntity, TrackEntity } from "@/db/entities";
 import {
   albumRepository,
   artistRepository,
@@ -23,7 +23,7 @@ import {
   syncArtistCaches,
   updateCoverCache,
 } from "./cache";
-import { unwrapResult, unique } from "./shared";
+import { sortTracks, unwrapResult, unique } from "./shared";
 import type { ArtistPageData, PaginatedTracksResult, PaginatedAlbumsResult } from "./types";
 
 export interface ArtistChanges {
@@ -42,7 +42,7 @@ async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey 
     return artistTracks;
   }
 
-  return unwrapResult(trackRepository.findSortedByIds(artistTracks.map(track => track.id), sortKey));
+  return sortTracks(artistTracks, sortKey);
 }
 
 export async function getArtists() {
@@ -93,12 +93,28 @@ export async function getArtistTracksPaginated(
   limit = PAGE_SIZE,
   sortKey: TrackSortKey | null = null,
 ): Promise<PaginatedTracksResult> {
-  const [sortedTracks, countResult, durationResult] = await Promise.all([
-    getArtistTrackEntities(artistId, sortKey),
+  const [countResult] = await Promise.all([
     unwrapResult(trackRepository.countByArtistId(artistId)),
-    unwrapResult(trackRepository.sumDurationByArtistId(artistId)),
   ]);
-  const rawTracks = sortedTracks.slice(offset, offset + limit);
+
+  const total = countResult ?? 0;
+  const totalDuration = await unwrapResult(trackRepository.sumDurationByArtistId(artistId)) ?? 0;
+
+  if (total === 0) {
+    return { tracks: [], nextOffset: null, total, totalDuration };
+  }
+
+  let rawTracks: TrackEntity[];
+
+  if (sortKey) {
+    const sorted = await getArtistTrackEntities(artistId, sortKey);
+    rawTracks = sorted.slice(offset, offset + limit);
+  }
+  else {
+    rawTracks = await unwrapResult(
+      trackRepository.findByArtistIdPaginated(artistId, offset, limit),
+    );
+  }
 
   await getArtistByIdOrThrow(artistId);
   const albumIds = unique(rawTracks.map(track => track.albumId));
@@ -109,14 +125,13 @@ export async function getArtistTracksPaginated(
 
   const mappedTracks = mapTracks(rawTracks, allArtists, albums);
 
-  const total = countResult ?? 0;
   const nextOffset = offset + limit < total ? offset + limit : null;
 
   return {
     tracks: mappedTracks,
     nextOffset,
     total,
-    totalDuration: durationResult ?? 0,
+    totalDuration,
   };
 }
 

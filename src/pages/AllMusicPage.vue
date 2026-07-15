@@ -131,9 +131,12 @@
           :items="tracks"
           :get-item-key="getTrackKey"
           :item-height="56"
+          :load-more-offset="120"
           :padding-top="8"
           :padding-bottom="8"
+          :loading="isFetchingNextPage"
           class="flex-1"
+          @load-more="handleLoadMore"
         >
           <template #default="{ item, index }">
             <div class="px-4">
@@ -144,6 +147,12 @@
                 @play="handlePlayTrack(index)"
                 @contextmenu="handleContextMenu(item, index)"
               />
+            </div>
+          </template>
+
+          <template #loader>
+            <div class="flex items-center px-4 flex-col w-full">
+              <TrackRowLoading />
             </div>
           </template>
 
@@ -199,6 +208,9 @@ const {
   isError,
   error,
   refetch,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
 } = useIndexTracksPage(sortKey, searchQuery);
 
 const queueStore = useQueueStore();
@@ -216,6 +228,11 @@ const emptyLabel = computed(() =>
 const errorMessage = computed(() =>
   error.value instanceof Error ? error.value.message : "Unknown error",
 );
+
+function handleLoadMore() {
+  if (!hasNextPage.value || isFetchingNextPage.value) return;
+  fetchNextPage();
+}
 
 function getTrackKey(index: number) {
   return tracks.value[index]?.id ?? index;

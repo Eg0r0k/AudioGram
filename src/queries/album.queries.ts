@@ -18,7 +18,7 @@ import {
   syncAlbumCaches,
   updateCoverCache,
 } from "./cache";
-import { unwrapResult, unique } from "./shared";
+import { sortTracks, unwrapResult, unique } from "./shared";
 import type { AlbumPageData, PaginatedTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
@@ -80,14 +80,29 @@ export async function getAlbumTracksPaginated(
   limit = PAGE_SIZE,
   sortKey: TrackSortKey | null = null,
 ): Promise<PaginatedTracksResult> {
-  const [sortedTracks, countResult, durationResult] = await Promise.all([
-    getAlbumTrackEntities(albumId, sortKey),
+  const [countResult, album] = await Promise.all([
     unwrapResult(trackRepository.countByAlbumId(albumId)),
-    unwrapResult(trackRepository.sumDurationByAlbumId(albumId)),
+    getAlbumByIdOrThrow(albumId),
   ]);
-  const rawTracks = sortedTracks.slice(offset, offset + limit);
 
-  const album = await getAlbumByIdOrThrow(albumId);
+  const total = countResult ?? 0;
+  const totalDuration = await unwrapResult(trackRepository.sumDurationByAlbumId(albumId)) ?? 0;
+
+  if (total === 0) {
+    return { tracks: [], nextOffset: null, total, totalDuration };
+  }
+
+  let rawTracks: TrackEntity[];
+
+  if (sortKey) {
+    const sorted = await getAlbumTrackEntities(albumId, sortKey);
+    rawTracks = sorted.slice(offset, offset + limit);
+  }
+  else {
+    rawTracks = await unwrapResult(
+      trackRepository.findByAlbumIdPaginated(albumId, offset, limit),
+    );
+  }
 
   const allArtistIds = unique(rawTracks.flatMap(t => t.artistIds));
   const allArtists = allArtistIds.length > 0
@@ -96,14 +111,13 @@ export async function getAlbumTracksPaginated(
 
   const mappedTracks = mapTracks(rawTracks, allArtists, [album]);
 
-  const total = countResult ?? 0;
   const nextOffset = offset + limit < total ? offset + limit : null;
 
   return {
     tracks: mappedTracks,
     nextOffset,
     total,
-    totalDuration: durationResult ?? 0,
+    totalDuration,
   };
 }
 
@@ -114,7 +128,7 @@ async function getAlbumTrackEntities(albumId: AlbumId, sortKey: TrackSortKey | n
     return albumTracks;
   }
 
-  return unwrapResult(trackRepository.findSortedByIds(albumTracks.map(track => track.id), sortKey));
+  return sortTracks(albumTracks, sortKey);
 }
 
 export const albumQueries = {

@@ -12,7 +12,7 @@ import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/s
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import type { Track } from "@/modules/player/types";
-import type { PlaylistId, TrackId } from "@/types/ids";
+import type { PlaylistId } from "@/types/ids";
 import { PlaylistId as createPlaylistId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
@@ -22,7 +22,7 @@ import {
   syncPlaylistTrackRemoval,
   updateCoverCache,
 } from "./cache";
-import { unique, unwrapResult } from "./shared";
+import { sortTracks, unique, unwrapResult } from "./shared";
 import type { PlaylistPageData, PaginatedPlaylistTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
@@ -63,7 +63,6 @@ export async function getPlaylistPageData(
     rawTracks = await unwrapResult(trackRepository.findSortedByIds(playlist.trackIds, sortKey));
   }
   else {
-    // Если без сортировки, то восстанавливаем порядок
     const unorderedTracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
     const trackMap = new Map(unorderedTracks.map(track => [track.id, track]));
     rawTracks = playlist.trackIds.flatMap((id) => {
@@ -99,31 +98,24 @@ export async function getPlaylistTracksPaginated(
     return { tracks: [], nextOffset: null, total, totalDuration: 0 };
   }
 
-  let currentTracksPage: TrackEntity[] = [];
-  let totalDuration = 0;
+  const allTracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
+  const totalDuration = allTracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+
+  let currentTracksPage: TrackEntity[];
 
   if (sortKey) {
-    const allSortedTracks = await unwrapResult(
-      trackRepository.findSortedByIds(playlist.trackIds, sortKey),
-    );
-
-    totalDuration = allSortedTracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
-    currentTracksPage = allSortedTracks.slice(offset, offset + limit);
+    const sorted = sortTracks(allTracks, sortKey);
+    currentTracksPage = sorted.slice(offset, offset + limit);
   }
   else {
+    const trackMap = new Map(allTracks.map(track => [track.id, track]));
     const trackIdsPage = playlist.trackIds.slice(offset, offset + limit);
-    const unorderedTracks = await unwrapResult(trackRepository.findByIds(trackIdsPage));
-
-    totalDuration = await unwrapResult(
-      trackRepository.sumDurationByTrackIds(playlist.trackIds),
-    ) ?? 0;
-
-    const trackMap = new Map(unorderedTracks.map(track => [track.id, track]));
     currentTracksPage = trackIdsPage.flatMap((id) => {
       const track = trackMap.get(id);
       return track ? [track] : [];
     });
   }
+
   const artistIds = unique(currentTracksPage.flatMap(track => track.artistIds));
   const albumIds = unique(currentTracksPage.map(track => track.albumId));
 

@@ -5,6 +5,7 @@ import {
   playlistRepository,
   trackRepository,
 } from "@/db/repositories";
+import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryKeys } from "@/queries/query-keys";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import { unwrapResult } from "./shared";
@@ -19,26 +20,20 @@ export async function getLibrarySummary(): Promise<LibrarySummaryData> {
     unwrapResult(trackRepository.findLiked()),
   ]);
 
-  const [albumsWithCounts, artistsWithCounts] = await Promise.all([
-    Promise.all(
-      albums.map(async (album) => {
-        const trackCountResult = await trackRepository.countByAlbumId(album.id);
-        return {
-          ...album,
-          trackCount: trackCountResult.isOk() ? trackCountResult.value : 0,
-        };
-      }),
-    ),
-    Promise.all(
-      artists.map(async (artist) => {
-        const trackCountResult = await trackRepository.countByArtistId(artist.id);
-        return {
-          ...artist,
-          trackCount: trackCountResult.isOk() ? trackCountResult.value : 0,
-        };
-      }),
-    ),
+  const [albumTrackCounts, artistTrackCounts] = await Promise.all([
+    unwrapResult(trackRepository.countByAlbumIds(albums.map(a => a.id))),
+    unwrapResult(trackRepository.countByArtistIds(artists.map(a => a.id))),
   ]);
+
+  const albumsWithCounts = albums.map(album => ({
+    ...album,
+    trackCount: albumTrackCounts.get(album.id as AlbumId) ?? 0,
+  }));
+
+  const artistsWithCounts = artists.map(artist => ({
+    ...artist,
+    trackCount: artistTrackCounts.get(artist.id as ArtistId) ?? 0,
+  }));
 
   return {
     artists: artistsWithCounts,

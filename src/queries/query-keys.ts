@@ -51,6 +51,7 @@ export const queryKeys = {
     search: (query: string) => ["tracks", "search", query] as const,
     allPaginated: (search = "") => ["tracks", "all", "paginated", search] as const,
     index: (sortKey: TrackSortKey, search = "") => ["tracks", "index", sortKey, search] as const,
+    indexInfinite: (sortKey: TrackSortKey, search = "") => ["tracks", "index", "infinite", sortKey, search] as const,
   },
   trackChapters: {
     detail: (trackId: TrackId) => ["trackChapters", trackId] as const,
