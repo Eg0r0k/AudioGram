@@ -307,6 +307,7 @@ export const usePlayerStore = defineStore("player", () => {
       await loadUrl(p, url);
       if (currentTime.value > 0) p.seek(currentTime.value);
       await p.play();
+      useAudioSettingsStore().pushToGraph();
       return;
     }
 
@@ -436,6 +437,7 @@ export const usePlayerStore = defineStore("player", () => {
 
       applyLoudnessMetadata(p, track);
       await play();
+      useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
       status.value = "error";
