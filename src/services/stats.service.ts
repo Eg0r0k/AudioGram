@@ -1,13 +1,15 @@
 import { db } from "@/db";
-import { ListenEventEntity } from "@/db/entities";
 import { trackRepository } from "@/db/repositories";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import { queryClient } from "@/queries/client";
+import { invalidateStatsQueries } from "@/queries/stats.queries";
 
 const MIN_LISTEN_SECONDS = 10;
-const COMPLETE_THRESHOLD = 0.8; // 80%
+const COMPLETE_THRESHOLD = 0.8;
 
 class StatsService {
   private _pendingEvent: {
+    eventId: string;
     trackId: TrackId;
     artistId: ArtistId;
     albumId: AlbumId;
@@ -15,41 +17,34 @@ class StatsService {
     trackDuration: number;
   } | null = null;
 
-  private async _flush(
+  private async _finalizePending(
     secondsListened: number,
     skipped: boolean,
     completed = false,
-  ): Promise<ListenEventEntity | null> {
+  ): Promise<void> {
     const pending = this._pendingEvent;
     this._pendingEvent = null;
-    if (!pending) return null;
-    if (!skipped && secondsListened < MIN_LISTEN_SECONDS) return null;
+    if (!pending) return;
+
     const isCompleted = completed
       || (pending.trackDuration > 0
         && secondsListened / pending.trackDuration >= COMPLETE_THRESHOLD);
 
-    const event: ListenEventEntity = {
-      id: crypto.randomUUID(),
-      trackId: pending.trackId,
-      artistId: pending.artistId,
-      albumId: pending.albumId,
-      startedAt: pending.startedAt,
+    await db.listenEvents.update(pending.eventId, {
       secondsListened,
-      trackDuration: pending.trackDuration,
       completed: isCompleted,
       skipped,
-    };
+    });
 
-    await db.listenEvents.add(event);
-    if (!skipped) {
+    if (!skipped && secondsListened >= MIN_LISTEN_SECONDS) {
       trackRepository.update(pending.trackId, {
-        playCount: (await db.tracks.get(pending.trackId))?.playCount ?? 0 + 1,
+        playCount: ((await db.tracks.get(pending.trackId))?.playCount ?? 0) + 1,
         lastPlayedAt: pending.startedAt,
       }).catch(console.error);
     }
 
-    return event;
-  };
+    invalidateStatsQueries(queryClient).catch(console.error);
+  }
 
   startListening(
     trackId: TrackId,
@@ -58,21 +53,38 @@ class StatsService {
     trackDuration: number,
   ): void {
     if (this._pendingEvent) {
-      this._flush(0, true).catch(console.error);
+      const elapsed = (Date.now() - this._pendingEvent.startedAt) / 1000;
+      this._finalizePending(elapsed, true).catch(console.error);
     }
 
-    this._pendingEvent = {
+    const eventId = crypto.randomUUID();
+    const now = Date.now();
+
+    db.listenEvents.add({
+      id: eventId,
       trackId,
       artistId,
       albumId,
-      startedAt: Date.now(),
+      startedAt: now,
+      secondsListened: 0,
+      trackDuration,
+      completed: false,
+      skipped: false,
+    }).then(() => invalidateStatsQueries(queryClient)).catch(console.error);
+
+    this._pendingEvent = {
+      eventId,
+      trackId,
+      artistId,
+      albumId,
+      startedAt: now,
       trackDuration,
     };
   }
 
-  stopListening(secondsListened: number, completed = false): Promise<ListenEventEntity | null> {
-    if (!this._pendingEvent) return Promise.resolve(null);
-    return this._flush(secondsListened, false, completed);
+  stopListening(secondsListened: number, completed = false): Promise<void> {
+    if (!this._pendingEvent) return Promise.resolve();
+    return this._finalizePending(secondsListened, false, completed);
   }
 }
 export const statsService = new StatsService();

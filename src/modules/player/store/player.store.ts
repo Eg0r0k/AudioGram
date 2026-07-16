@@ -16,8 +16,6 @@ import { storageService } from "@/db/storage";
 import { statsService } from "@/services/stats.service";
 import { TrackId } from "@/types/ids";
 import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
-import { queryClient } from "@/queries/client";
-import { invalidateStatsQueries } from "@/queries/stats.queries";
 import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
 import { getLogger } from "@/lib/logger";
 
@@ -132,10 +130,6 @@ export const usePlayerStore = defineStore("player", () => {
 
   const stopListeningAndSync = (completed = false) => {
     statsService.stopListening(currentTime.value, completed)
-      .then((event) => {
-        if (!event) return;
-        return invalidateStatsQueries(queryClient);
-      })
       .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
 

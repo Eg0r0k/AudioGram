@@ -41,7 +41,9 @@
       <TabsContent
         value="history"
         class="min-h-0"
-      />
+      >
+        <HistoryList class="h-full" />
+      </TabsContent>
     </Tabs>
   </div>
 </template>
@@ -52,6 +54,7 @@ import { useI18n } from "vue-i18n";
 import { Scrollable } from "@/components/ui/scrollable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QueueList from "@/modules/queue/components/QueueList.vue";
+import HistoryList from "@/modules/queue/components/HistoryList.vue";
 import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 

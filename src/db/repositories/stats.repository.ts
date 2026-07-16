@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import type { ListenEventEntity } from "@/db/entities";
-import type { TagId } from "@/types/ids";
+import type { TagId, TrackId } from "@/types/ids";
 import { err, ok, type Result } from "neverthrow";
 
 export interface TopEntry {
@@ -39,8 +39,43 @@ async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
 }
 
 class StatsRepository {
+  /**
+   * Последние прослушанные треки, без повторов: если трек прослушивался
+   * много раз, в списке остаётся только его самое недавнее прослушивание
+   * (трек просто "поднимается" наверх при повторном воспроизведении —
+   * как это обычно устроено в "Recently played").
+   */
   async recentHistory(limit = 100): Promise<Result<ListenEventEntity[], Error>> {
-    return runSafe(() => db.listenEvents.orderBy("startedAt").reverse().limit(limit).toArray());
+    return runSafe(async () => {
+      const seenTrackIds = new Set<TrackId>();
+      const result: ListenEventEntity[] = [];
+
+      const BATCH_SIZE = Math.max(limit * 5, 200);
+      let offset = 0;
+
+      while (result.length < limit) {
+        const batch = await db.listenEvents
+          .orderBy("startedAt")
+          .reverse()
+          .offset(offset)
+          .limit(BATCH_SIZE)
+          .toArray();
+
+        if (batch.length === 0) break;
+
+        for (const event of batch) {
+          if (seenTrackIds.has(event.trackId)) continue;
+          seenTrackIds.add(event.trackId);
+          result.push(event);
+          if (result.length >= limit) break;
+        }
+
+        offset += batch.length;
+        if (batch.length < BATCH_SIZE) break;
+      }
+
+      return result;
+    });
   }
 
   async topTracks(limit = 10, since?: number): Promise<Result<TopEntry[], Error>> {
@@ -179,6 +214,16 @@ class StatsRepository {
 
   async findAllEvents(): Promise<Result<ListenEventEntity[], Error>> {
     return runSafe(() => db.listenEvents.toArray());
+  }
+
+  async deleteEvent(eventId: string): Promise<Result<void, Error>> {
+    return runSafe(() => db.listenEvents.delete(eventId));
+  }
+
+  async deleteEventsForTrack(trackId: TrackId): Promise<Result<void, Error>> {
+    return runSafe(async () => {
+      await db.listenEvents.where("trackId").equals(trackId).delete();
+    });
   }
 }
 
