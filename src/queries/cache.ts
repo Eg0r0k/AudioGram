@@ -129,7 +129,8 @@ function patchTracksIndexPages(
     {
       predicate: query =>
         query.queryKey[0] === "tracks"
-        && query.queryKey[1] === "index",
+        && query.queryKey[1] === "index"
+        && query.queryKey[2] !== "infinite",
     },
     updater,
   );

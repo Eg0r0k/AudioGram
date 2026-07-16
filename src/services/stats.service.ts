@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { trackRepository } from "@/db/repositories";
+import { statsRepository } from "@/db/repositories/stats.repository";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { queryClient } from "@/queries/client";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
@@ -85,6 +86,12 @@ class StatsService {
   stopListening(secondsListened: number, completed = false): Promise<void> {
     if (!this._pendingEvent) return Promise.resolve();
     return this._finalizePending(secondsListened, false, completed);
+  }
+
+  async removeFromHistory(trackId: TrackId): Promise<void> {
+    const result = await statsRepository.deleteEventsForTrack(trackId);
+    if (result.isErr()) throw result.error;
+    await invalidateStatsQueries(queryClient);
   }
 }
 export const statsService = new StatsService();
