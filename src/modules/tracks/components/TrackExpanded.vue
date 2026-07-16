@@ -65,11 +65,11 @@
             </span>
             <IconPause
               v-else-if="isCurrentTrack && isPlaying && isRowHovered"
-              class="size-4 text-white drop-shadow-md"
+              class="size-4 text-white"
             />
             <IconPlay
               v-else
-              class="size-4 text-white drop-shadow-md"
+              class="size-4 text-white"
             />
           </div>
         </div>
@@ -86,7 +86,7 @@
           <div :class="styles.artist">
             <span
               v-if="isExplicit"
-              class="mr-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-muted font-semibold text-[10px] uppercase text-foreground"
+              class="mr-1 inline-flex size-4 font-bold shrink-0 items-center justify-center rounded-[4px] bg-muted  text-[10px] uppercase text-foreground"
             >E</span>
             <template
               v-for="(artist, artistIndex) in artists"
@@ -105,11 +105,13 @@
         </div>
       </div>
 
-      <div :class="styles.albumCol">
+      <div
+        :class="styles.albumCol"
+      >
         <button
           v-if="track.albumName"
           type="button"
-          class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
+          class="block w-full min-w-0 cursor-pointer truncate text-left underline-offset-2 hover:text-foreground hover:underline"
           @click.stop="handleAlbumClick"
         >
           {{ track.albumName }}

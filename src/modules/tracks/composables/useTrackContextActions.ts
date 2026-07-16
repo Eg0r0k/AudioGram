@@ -21,6 +21,7 @@ import {
   removeTrackFromPlaylistAndSync,
 } from "@/queries/playlist.queries";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { statsService } from "@/services/stats.service";
 
 interface RefLike<T> {
   value: T;
@@ -119,7 +120,13 @@ export const useTrackContextActions = (
   };
 
   const removeFromHistory = async () => {
-    console.log("Remove from history:", track.value?.id);
+    if (!track.value) return;
+    try {
+      await statsService.removeFromHistory(track.value.id);
+    }
+    catch {
+      toast.error(t("track.removeFromHistoryFailed"));
+    }
   };
 
   const goToArtist = (artistId: ArtistId) => {

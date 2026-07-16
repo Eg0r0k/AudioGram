@@ -205,7 +205,7 @@ const isCurrentTrack = computed(() => {
     return queueStore.currentItem?.id === props.queueItemId;
   }
 
-  if (props.menuTarget === "queue" || props.menuTarget === "history") {
+  if (props.menuTarget === "queue") {
     return false;
   }
 

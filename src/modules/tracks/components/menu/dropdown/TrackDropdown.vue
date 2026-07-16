@@ -46,6 +46,7 @@ import CurrentTrackContext from "../contexts/CurrentTrackContext.vue";
 import LikedContext from "../contexts/LikedContext.vue";
 import PlaylistContext from "../contexts/PlaylistContext.vue";
 import QueueContext from "../contexts/QueueContext.vue";
+import HistoryContext from "../contexts/HistoryContext.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(dropdownMenuTrackComponents);
@@ -102,7 +103,7 @@ const contexts: Record<TrackContext, Component> = {
   "queue": QueueContext,
   "playlist": PlaylistContext,
   "album": DefaultContext,
-  "history": DefaultContext,
+  "history": HistoryContext,
 };
 
 const contextComponent = computed(() => contexts[props.context]);
