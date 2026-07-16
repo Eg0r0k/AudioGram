@@ -299,7 +299,7 @@ const activeChapterSegment = computed<{ title: string; time: string } | null>(()
   if (chapters.length === 0) return null;
 
   if (currentTime < chapters[0].time) {
-    return { title: "Вступление", time: formatDuration(chapters[0].time) };
+    return { title: t("player.chapterIntro"), time: formatDuration(chapters[0].time) };
   }
 
   for (let i = chapters.length - 1; i >= 0; i--) {

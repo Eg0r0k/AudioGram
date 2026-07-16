@@ -18,8 +18,8 @@
             :src="src"
             :alt="currentTrack?.title ?? ''"
             draggable="false"
-            class="absolute left-0 top-0 h-full w-full object-cover object-center transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-100"
-            :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.01] opacity-0 motion-reduce:scale-100'"
+            class="absolute left-0 top-0 h-full w-full object-cover object-center transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
+            :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
           >
         </NuxtImage>
 
