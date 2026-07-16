@@ -104,5 +104,10 @@
   "drop": {
     "here": "Перетащите файлы сюда",
     "formats": "MP3, FLAC, WAV, OGG"
-  }
+  },
+    "weekdayShort": {
+      "mon": "Пн",
+      "wed": "Ср",
+      "fri": "Пт"
+    }
 }

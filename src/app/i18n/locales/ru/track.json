@@ -3,6 +3,7 @@
   "removeSelected": "Удалить выбранные",
   "addSelected": "Добавить выбранные",
   "likeToggleFailed": "Не удалось изменить статус избранного",
+  "removeFromHistoryFailed": "Не удалось удалить трек из истории",
   "favorite": {
     "addTracks": "Добавить треки"
   },
@@ -29,6 +30,7 @@
     "details": "Подробнее",
     "removeFromQueue": "Удалить из очереди",
     "removeFromPlaylist": "Удалить из плейлиста",
+    "removeFromHistory": "Удалить из истории",
     "chapters": "Таймкоды"
   },
   "details": {

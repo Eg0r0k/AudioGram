@@ -7,5 +7,6 @@
   "added": "Added to queue",
   "drag": "Drag to reorder",
   "clear": "Clear queue",
-  "showQueue": "Show queue"
+  "showQueue": "Show queue",
+  "historyEmpty": "Your listening history is empty"
 }

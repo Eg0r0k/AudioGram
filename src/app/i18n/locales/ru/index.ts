@@ -15,6 +15,7 @@ import dialogs from "./dialogs";
 import errors from "./errors.json";
 import sheet from "./sheet.json";
 import update from "./update.json";
+import chapters from "./chapters.json";
 
 export default {
   common,
@@ -34,4 +35,5 @@ export default {
   errors,
   sheet,
   update,
+  chapters,
 };

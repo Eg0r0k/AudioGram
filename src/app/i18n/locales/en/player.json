@@ -39,6 +39,7 @@
   "equalizer": "Equalizer",
   "chapters": "Chapters",
   "chapterIntro": "Intro",
+  "addMarkAt": "Add mark at {time}",
   "emptyDescription": "For now...",
 "sleepTimer": "Sleep timer",
   "cancelSleepTimer": "Turn off timer",

@@ -39,6 +39,7 @@
   "equalizer": "Эквалайзер",
   "chapters": "Таймкоды",
   "chapterIntro": "Вступление",
+  "addMarkAt": "Добавить метку в {time}",
   "emptyDescription": "Пока что...",
 "sleepTimer": "Таймер сна",
   "cancelSleepTimer": "Выключить таймер",

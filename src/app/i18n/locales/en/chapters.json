@@ -1,0 +1,10 @@
+{
+  "inThisTrack": "In this track",
+  "editorPlaceholder": "00:00 - Intro\n05:18 - Chapter 1\n10:40 - Chapter 2",
+  "empty": "No chapters yet",
+  "untitled": "Untitled",
+  "count": "{count} chapters",
+  "delete": "Delete chapter",
+  "cueParseEmpty": "CUE file has no entries",
+  "cueParseError": "Failed to parse CUE file"
+}

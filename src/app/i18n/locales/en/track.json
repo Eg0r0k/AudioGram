@@ -3,6 +3,7 @@
   "removeSelected": "Remove selected",
   "addSelected": "Add selected",
   "likeToggleFailed": "Failed to change favorite status",
+  "removeFromHistoryFailed": "Failed to remove track from history",
   "contextMenu": {
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
@@ -26,6 +27,7 @@
     "details": "Details",
     "removeFromQueue": "Remove from queue",
     "removeFromPlaylist": "Remove from playlist",
+    "removeFromHistory": "Remove from history",
     "chapters": "Manage chapters"
   },
   "details": {

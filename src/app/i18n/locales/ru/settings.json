@@ -15,6 +15,7 @@
     },
     "general": {
         "checkUpdates": "Проверять обновления при запуске",
+        "analyzeTracks": "Анализировать треки для рекомендаций",
         "launchAtStartup": "Запускать при старте системы",
         "launchMinimized": "Запускать свернутым",
         "closeToTray": "Сворачивать в трей"
@@ -34,6 +35,7 @@
     "appearance": {
         "colorTheme": "Тема оформления",
         "accentColor": "Акцентный цвет",
+        "zoom": "Масштаб",
         "themes": {
             "system": "Системная",
             "light": "Светлая",
