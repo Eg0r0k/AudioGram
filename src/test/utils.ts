@@ -4,6 +4,8 @@ import { type Component } from "vue";
 import { createI18n } from "vue-i18n";
 import { createRouter, createWebHistory } from "vue-router";
 import { ROUTE_NAMES } from "@/app/router/route-names";
+import enChapters from "@/app/i18n/locales/en/chapters.json";
+import ruChapters from "@/app/i18n/locales/ru/chapters.json";
 
 function createTestRouter() {
   return createRouter({
@@ -20,8 +22,8 @@ function createTestI18n() {
     legacy: false,
     locale: "en",
     messages: {
-      en: {},
-      ru: {},
+      en: { chapters: enChapters },
+      ru: { chapters: ruChapters },
     },
   });
 }

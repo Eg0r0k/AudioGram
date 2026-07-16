@@ -64,9 +64,7 @@
         v-if="isEditing"
         v-model="draft"
         :duration="track.duration"
-        :current-time="player.currentTime"
         class="px-4 py-3"
-        @seek="handleSeek"
       />
 
       <div
@@ -195,7 +193,7 @@ const chapterSchema = object({
 
 const isFormValid = computed(() => {
   if (draft.value.length === 0) return false;
-  return draft.value.every((ch) => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success);
+  return draft.value.every(ch => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success);
 });
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
