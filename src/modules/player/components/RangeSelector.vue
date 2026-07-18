@@ -539,8 +539,7 @@ defineExpose({
   left: 0;
   bottom: 0;
   height: var(--range-height);
-  background-color: var(--foreground);
-  opacity: 0.2;
+  background-color: var(--input);
   pointer-events: none;
 }
 
