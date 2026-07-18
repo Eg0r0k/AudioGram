@@ -95,6 +95,7 @@ import { useSettingsStore } from "@/modules/settings/store";
 import { useAudioSettingsStore } from "@/modules/settings/store/audio";
 import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useAccentColor } from "@/modules/settings/composables/useAccentColor";
+import { useZoom } from "@/modules/settings/composables/useZoom";
 import { routeLocation } from "@/app/router/route-locations";
 
 const { language } = useGeneralSettings();
@@ -103,12 +104,14 @@ const settingsStore = useSettingsStore();
 const audioSettingsStore = useAudioSettingsStore();
 const { changeTheme } = useTheme();
 const { resetAccentColor } = useAccentColor();
+const { resetZoom } = useZoom();
 
 const handleResetAllSettings = () => {
   settingsStore.reset();
   audioSettingsStore.reset();
   changeTheme("system");
   resetAccentColor();
+  resetZoom();
   toast.success(t("settings.index.resetAllDone"));
 };
 

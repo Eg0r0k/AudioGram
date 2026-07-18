@@ -47,21 +47,70 @@
           />
         </div>
       </SettingsGroup>
+
+      <template v-if="isTauri">
+        <SettingsGroup class="mt-2">
+          <Item>
+            <ItemContent>
+              <ItemTitle>{{ $t("settings.appearance.zoom") }}</ItemTitle>
+            </ItemContent>
+            <ItemActions>
+              <Select
+                :model-value="String(zoom)"
+                @update:model-value="(val) => setZoom(Number(val) as any)"
+              >
+                <SelectTrigger class="w-[90px] h-8 font-medium pointer-events-auto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="level in zoomLevels"
+                    :key="level"
+                    :value="String(level)"
+                  >
+                    {{ level }}%
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </ItemActions>
+          </Item>
+        </SettingsGroup>
+      </template>
     </div>
   </Scrollable>
 </template>
 
 <script setup lang="ts">
-import { Item, ItemContent, ItemTitle } from "@/components/ui/item";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemTitle,
+} from "@/components/ui/item";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Scrollable } from "@/components/ui/scrollable";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import AccentColorPicker from "@/modules/settings/components/AccentColorPicker.vue";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useAppearanceSettings } from "@/modules/settings/store/appearance";
+import { useZoom } from "@/modules/settings/composables/useZoom";
+import { IS_TAURI } from "@/lib/environment/userAgent";
 
 const {
   theme, themes, setTheme,
   accentColor, accentColors, setAccentColor,
 } = useAppearanceSettings();
+
+const {
+  zoom, zoomLevels, setZoom,
+} = useZoom();
+
+const isTauri = IS_TAURI;
 </script>
