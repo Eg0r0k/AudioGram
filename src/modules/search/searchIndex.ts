@@ -8,9 +8,12 @@ import type {
   WorkerResponse,
 } from "./types";
 
+const SEARCH_TIMEOUT_MS = 10_000;
+
 type PendingSearch = {
   resolve: (results: SearchResponse) => void;
   reject: (err: Error) => void;
+  timeoutId: number;
 };
 
 export interface SearchResponse {
@@ -29,29 +32,61 @@ class SearchWorkerClient {
   private readonly pending = new Map<number, PendingSearch>();
   private idCounter = 0;
 
-  constructor() {
+  constructor(private readonly onFatal: (failed: SearchWorkerClient, error: Error) => void) {
     this.worker = new SearchWorkerCtor();
     this.worker.addEventListener("message", this.handleMessage);
+    this.worker.addEventListener("error", this.handleWorkerFailure);
+    this.worker.addEventListener("messageerror", this.handleWorkerFailure);
   }
 
   private handleMessage = (e: MessageEvent<WorkerResponse>): void => {
     const msg = e.data;
 
     if (msg.action === "results") {
-      const pendingSearch = this.pending.get(msg.id);
+      const pendingSearch = this.takePending(msg.id);
       pendingSearch?.resolve({
         results: msg.results,
         total: msg.total,
         totalDuration: msg.totalDuration,
       });
-      this.pending.delete(msg.id);
     }
-    else if (msg.action === "error" && msg.id != null) {
-      const pendingSearch = this.pending.get(msg.id);
-      pendingSearch?.reject(new Error(msg.message));
-      this.pending.delete(msg.id);
+    else if (msg.action === "error") {
+      if (msg.id != null) {
+        this.takePending(msg.id)?.reject(new Error(msg.message));
+      }
+      else {
+        // A fire-and-forget add/remove failed inside the worker: the index
+        // has silently diverged from the database. Discard it; the next
+        // search rebuilds from a full scan.
+        this.fail(new Error(msg.message));
+      }
     }
   };
+
+  private handleWorkerFailure = (event: Event): void => {
+    const message = event instanceof ErrorEvent && event.message
+      ? event.message
+      : "Search worker crashed";
+    this.fail(new Error(message));
+  };
+
+  private takePending(id: number): PendingSearch | undefined {
+    const pendingSearch = this.pending.get(id);
+    if (pendingSearch) {
+      clearTimeout(pendingSearch.timeoutId);
+      this.pending.delete(id);
+    }
+    return pendingSearch;
+  }
+
+  private fail(error: Error): void {
+    for (const pendingSearch of this.pending.values()) {
+      clearTimeout(pendingSearch.timeoutId);
+      pendingSearch.reject(error);
+    }
+    this.pending.clear();
+    this.onFatal(this, error);
+  }
 
   build(documents: SearchDocument[]): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -75,8 +110,16 @@ class SearchWorkerClient {
   search(query: string, filter: SearchFilter, options?: SearchOptions): Promise<SearchResponse> {
     const id = ++this.idCounter;
 
+    // Executor form on purpose: tsconfig lib is ES2020, so
+    // Promise.withResolvers is not available to the type checker.
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timeoutId = self.setTimeout(() => {
+        // A worker that stops answering is wedged for every later request
+        // too: discard it so the next search starts on a fresh one.
+        this.fail(new Error(`Search timed out after ${SEARCH_TIMEOUT_MS}ms`));
+      }, SEARCH_TIMEOUT_MS);
+
+      this.pending.set(id, { resolve, reject, timeoutId });
       this.post({
         action: "search",
         query,
@@ -98,6 +141,8 @@ class SearchWorkerClient {
 
   terminate(): void {
     this.worker.removeEventListener("message", this.handleMessage);
+    this.worker.removeEventListener("error", this.handleWorkerFailure);
+    this.worker.removeEventListener("messageerror", this.handleWorkerFailure);
     this.worker.terminate();
   }
 
@@ -111,10 +156,26 @@ let initPromise: Promise<void> | null = null;
 
 function getClient(): SearchWorkerClient {
   if (!client) {
-    client = new SearchWorkerClient();
+    client = new SearchWorkerClient(discardFailedClient);
   }
 
   return client;
+}
+
+function discardFailedClient(failed: SearchWorkerClient, error: Error): void {
+  console.error(`[Search] worker failed, discarding index: ${error.message}`);
+  if (client !== failed) return;
+  resetSearchIndex();
+}
+
+/**
+ * Discards the in-session index without rebuilding. The next search (or
+ * explicit rebuild) starts from a fresh full scan of the database.
+ */
+export function resetSearchIndex(): void {
+  client?.terminate();
+  client = null;
+  initPromise = null;
 }
 
 export function initSearchIndex(): Promise<void> {
@@ -171,8 +232,6 @@ export async function removeSearchDocuments(ids: string[]): Promise<void> {
 }
 
 export async function rebuildSearchIndex() {
-  client?.terminate();
-  client = null;
-  initPromise = null;
+  resetSearchIndex();
   await initSearchIndex();
 }

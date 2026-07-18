@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import { IS_TAURI } from "@/lib/environment/userAgent";
+import { resetSearchIndex } from "@/modules/search/searchIndex";
 import { StorageInfo } from "@/modules/settings/schema/storage";
 
 async function calculateFolderSize(folder: string): Promise<number> {
@@ -146,6 +147,10 @@ export async function clearAllData(): Promise<void> {
     db.audioFeatures.clear(),
     db.trackChapters.clear(),
   ]);
+
+  // The search index is worker-memory, rebuilt lazily from the database.
+  // Without a reset it keeps serving the entities deleted above until reload.
+  resetSearchIndex();
 }
 
 export async function clearFoldersData(): Promise<void> {

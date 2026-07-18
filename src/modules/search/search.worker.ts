@@ -56,6 +56,26 @@ function mapHit(hit: SearchResult): SearchResultItem {
   };
 }
 
+function upsertDocuments(
+  target: MiniSearch<IndexedSearchDocument>,
+  documents: SearchDocument[],
+): void {
+  for (const doc of documents) {
+    if (target.has(doc.id)) {
+      target.discard(doc.id);
+    }
+  }
+  target.addAll(documents.map(createIndexedDocument));
+}
+
+function discardDocuments(target: MiniSearch<IndexedSearchDocument>, ids: string[]): void {
+  for (const id of ids) {
+    if (target.has(id)) {
+      target.discard(id);
+    }
+  }
+}
+
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const msg = e.data;
 
@@ -83,13 +103,15 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
         const raw = index.search(msg.query, options);
         const offset = msg.offset ?? 0;
-        const limit = msg.limit ?? 50;
         const total = raw.length;
         const totalDuration = raw.reduce((sum, hit) => {
           const track = hit.track as SearchResultItem["track"] | undefined;
           return sum + (track?.duration ?? 0);
         }, 0);
-        const results = raw.slice(offset, offset + limit).map(mapHit);
+        const results = (msg.limit == null
+          ? raw.slice(offset)
+          : raw.slice(offset, offset + msg.limit)
+        ).map(mapHit);
 
         post({ action: "results", results, id: msg.id, total, totalDuration });
         break;
@@ -98,19 +120,14 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       case "add": {
         if (!index) return;
 
-        for (const doc of msg.documents) {
-          index.discard(doc.id);
-        }
-        index.addAll(msg.documents.map(createIndexedDocument));
+        upsertDocuments(index, msg.documents);
         break;
       }
 
       case "remove": {
         if (!index) return;
 
-        for (const id of msg.ids) {
-          index.discard(id);
-        }
+        discardDocuments(index, msg.ids);
         break;
       }
     }
