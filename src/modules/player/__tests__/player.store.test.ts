@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TrackSource, TrackState } from "@/db/entities";
 import type { Track } from "../types";
+import { nextTick } from "vue";
 
 let mockPlayer: Record<string, unknown>;
 const mockPlayerMethods = {
@@ -61,6 +62,7 @@ vi.mock("@/modules/settings/store/audio", () => ({
     isFadeEnabled: false,
     fadeInDuration: 0,
     fadeOutDuration: 0,
+    pushToGraph: vi.fn(),
   }),
 }));
 
@@ -90,7 +92,7 @@ vi.mock("@/queries/stats.queries", () => ({
 }));
 
 vi.mock("../service/lyrics.service", () => ({
-  fetchLrcLibLyrics: () => Promise.resolve({ match: (_ok: unknown, _err: unknown) => {} }),
+  fetchLrcLibLyrics: () => Promise.resolve({ match: (okFn: (v: never[]) => unknown) => okFn([]) }),
 }));
 
 vi.mock("@/lib/environment/userAgent", () => ({
@@ -566,20 +568,22 @@ describe("player.store", () => {
       vi.useRealTimers();
     });
 
-    it("should activate sleep timer and expose remaining time", () => {
+    it("should activate sleep timer and expose remaining time", async () => {
       const store = usePlayerStore();
 
       store.setSleepTimer(5 * 60 * 1000);
+      await nextTick();
 
       expect(store.isSleepTimerActive).toBe(true);
       expect(store.sleepTimerEndsAt).toBe(Date.now() + 5 * 60 * 1000);
       expect(store.sleepTimerRemainingMs).toBe(5 * 60 * 1000);
     });
 
-    it("should update remaining time while timer is active", () => {
+    it("should update remaining time while timer is active", async () => {
       const store = usePlayerStore();
 
       store.setSleepTimer(5 * 1000);
+      await nextTick();
       vi.advanceTimersByTime(2000);
 
       expect(store.sleepTimerRemainingMs).toBe(3000);
@@ -607,7 +611,7 @@ describe("player.store", () => {
       expect(store.sleepTimerRemainingMs).toBe(0);
     });
 
-    it("should pause playback when sleep timer expires", () => {
+    it("should pause playback when sleep timer expires", async () => {
       const store = usePlayerStore();
       const mockPauseFn = vi.fn();
 
@@ -615,6 +619,7 @@ describe("player.store", () => {
       store.status = "playing";
 
       store.setSleepTimer(5 * 1000);
+      await nextTick();
       vi.advanceTimersByTime(5000);
 
       expect(mockPauseFn).toHaveBeenCalledTimes(1);

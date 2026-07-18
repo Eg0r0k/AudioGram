@@ -144,7 +144,7 @@ describe("getRecommendations", () => {
     mockFindByIds.mockResolvedValue(ok([]));
     mockFindById.mockResolvedValue(ok(undefined));
     mockFindManyByIds.mockResolvedValue(ok([]));
-    mockFindAllEvents.mockResolvedValue([]);
+    mockFindAllEvents.mockResolvedValue(ok([]));
   });
 
   it("returns empty array when library has no tracks", async () => {
@@ -180,7 +180,7 @@ describe("getRecommendations", () => {
       Promise.resolve(ok(ids.map(id => makeTrack(String(id))))),
     );
     // findAllEvents вызывается ДВАЖДЫ: в getRecentlyPlayedIds и в самом getRecommendations
-    mockFindAllEvents.mockResolvedValue(recentEvents);
+    mockFindAllEvents.mockResolvedValue(ok(recentEvents));
 
     const result = await getRecommendations(tid("source"), 10);
     const resultIds = result.map(r => r.trackId);
@@ -232,11 +232,11 @@ describe("getRecommendations", () => {
       Promise.resolve(ok(ids.map(id => makeTrack(String(id))))),
     );
 
-    mockFindAllEvents.mockResolvedValue([
+    mockFindAllEvents.mockResolvedValue(ok([
       ...fillerEvents,
       makeEvent("A", { completed: true, startedAt: OLD }),
       makeEvent("B", { completed: false, startedAt: OLD - 1000 }),
-    ]);
+    ]));
 
     const result = await getRecommendations(tid("source"));
     const aRes = result.find(r => r.trackId === tid("A"))!;

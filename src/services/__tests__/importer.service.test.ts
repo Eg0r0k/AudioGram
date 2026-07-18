@@ -14,7 +14,7 @@ const {
   mockOpen,
   mockHasNativeSupport,
   mockGetAllFingerprints,
-  mockUnitOfWorkRun,
+  mockUnitOfWorkRunScoped,
   MockWorkerPool,
 } = vi.hoisted(() => ({
   mockWorkerPoolParse: vi.fn(),
@@ -25,7 +25,7 @@ const {
   mockOpen: vi.fn(),
   mockHasNativeSupport: vi.fn(() => true),
   mockGetAllFingerprints: vi.fn(),
-  mockUnitOfWorkRun: vi.fn(),
+  mockUnitOfWorkRunScoped: vi.fn(),
   MockWorkerPool: vi.fn().mockImplementation(function() {
     return { parse: mockWorkerPoolParse, dispose: vi.fn() };
   }),
@@ -91,7 +91,7 @@ vi.mock("@/db/repositories", () => ({
 
 vi.mock("@/db/unit-of-work", () => ({
   unitOfWork: {
-    run: mockUnitOfWorkRun,
+    runScoped: mockUnitOfWorkRunScoped,
   },
 }));
 
@@ -167,7 +167,7 @@ describe("MusicLibraryEngine", () => {
     mockWarmup.mockResolvedValue(undefined);
     mockOpen.mockResolvedValue(null);
     mockGetAllFingerprints.mockResolvedValue(okResult(new Set<string>()));
-    mockUnitOfWorkRun.mockImplementation((cb: () => Promise<void>) => {
+    mockUnitOfWorkRunScoped.mockImplementation((_tables: unknown, cb: () => Promise<void>) => {
       return Promise.resolve({ isOk: () => true, isErr: () => false, value: cb() });
     });
     mockHasNativeSupport.mockReturnValue(true);
@@ -222,7 +222,7 @@ describe("MusicLibraryEngine", () => {
 
       expect(mockWorkerPoolParse).toHaveBeenCalled();
       expect(mockImportFile).toHaveBeenCalled();
-      expect(mockUnitOfWorkRun).toHaveBeenCalled();
+      expect(mockUnitOfWorkRunScoped).toHaveBeenCalled();
       expect(result.failed).toHaveLength(0);
       expect(result.successful).toHaveLength(1);
       expect(result.successful[0].fileName).toBe("song.mp3");
@@ -294,7 +294,7 @@ describe("MusicLibraryEngine", () => {
     });
 
     it("returns true on successful import", async () => {
-      mockUnitOfWorkRun.mockImplementation((cb: () => Promise<void>) => {
+      mockUnitOfWorkRunScoped.mockImplementation((_tables: unknown, cb: () => Promise<void>) => {
         const result = cb();
         return Promise.resolve({ isOk: () => true, isErr: () => false, value: result });
       });
@@ -302,7 +302,7 @@ describe("MusicLibraryEngine", () => {
       const result = await engine.importSingleExternalFile(makeScannedFile());
 
       expect(mockWorkerPoolParse).toHaveBeenCalled();
-      expect(mockUnitOfWorkRun).toHaveBeenCalled();
+      expect(mockUnitOfWorkRunScoped).toHaveBeenCalled();
       expect(result).toBe(true);
     });
   });
