@@ -1,6 +1,6 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col bg-background">
-    <div class=" px-4 pb-2">
+    <div class=" px-6 pb-2">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex  w-full flex-col pt-4 gap-3 sm:flex-row sm:items-center">
           <Button
@@ -9,7 +9,7 @@
             class="rounded-full shrink-0 text-white"
             @click="goBack()"
           >
-            <IconArrowLeft class="size-5" />
+            <IconArrowLeft class="size-6" />
           </Button>
 
           <InputGroup class="bg-muted! min-w-0 flex-1 rounded-full">

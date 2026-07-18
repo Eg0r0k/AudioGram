@@ -20,6 +20,11 @@
         </div>
 
         <div
+          ref="hoverFilledRef"
+          class="range-selector__hover-filled"
+          style="display: none"
+        />
+        <div
           ref="filledRef"
           class="range-selector__filled"
         />
@@ -136,6 +141,7 @@ const containerRef = ref<HTMLDivElement | null>(null);
 const filledRef = ref<HTMLDivElement | null>(null);
 const seekRef = ref<HTMLInputElement | null>(null);
 const thumbRef = ref<HTMLDivElement | null>(null);
+const hoverFilledRef = ref<HTMLDivElement | null>(null);
 
 const mousedown = ref(false);
 const internalValue = ref(props.modelValue);
@@ -244,6 +250,14 @@ const tooltipStyle = computed(() => {
   };
 });
 
+function setHoverFilled(percent: number): void {
+  const el = hoverFilledRef.value;
+  if (!el) return;
+  const show = props.duration && (isHovering.value || mousedown.value);
+  el.style.display = show ? "block" : "none";
+  el.style.width = `${percent}%`;
+}
+
 function calcPercentFromPosition(x: number, y: number): number {
   let rectMax = props.vertical ? height.value : width.value;
 
@@ -344,9 +358,11 @@ function onInput(): void {
 function onPointerDown(e: MouseEvent | TouchEvent): void {
   if (props.disabled) return;
   const grabEvent = createGrabEvent(e);
-  hoverPercent.value = calcPercentFromPosition(grabEvent.x, grabEvent.y);
+  const percent = calcPercentFromPosition(grabEvent.x, grabEvent.y);
+  hoverPercent.value = percent;
   isHovering.value = true;
   mousedown.value = true;
+  setHoverFilled(percent);
   scrub(grabEvent);
   emit("mousedown", grabEvent);
 }
@@ -356,7 +372,9 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
 
   e.preventDefault();
   const grabEvent = createGrabEvent(e);
-  hoverPercent.value = calcPercentFromPosition(grabEvent.x, grabEvent.y);
+  const percent = calcPercentFromPosition(grabEvent.x, grabEvent.y);
+  hoverPercent.value = percent;
+  setHoverFilled(percent);
   scrub(grabEvent);
 }
 
@@ -365,17 +383,21 @@ function onPointerUp(e: MouseEvent | TouchEvent): void {
 
   const grabEvent = createGrabEvent(e);
   mousedown.value = false;
+  setHoverFilled(0);
   emit("mouseup", grabEvent);
 }
 
 function onContainerHover(e: MouseEvent): void {
   if (props.disabled) return;
-  hoverPercent.value = calcPercentFromPosition(e.clientX, e.clientY);
+  const percent = calcPercentFromPosition(e.clientX, e.clientY);
+  hoverPercent.value = percent;
   isHovering.value = true;
+  setHoverFilled(percent);
 }
 
 function onContainerLeave(): void {
   isHovering.value = false;
+  setHoverFilled(0);
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -510,6 +532,21 @@ defineExpose({
 
 .range-selector--no-transition .range-selector__filled {
   transition: none !important;
+}
+
+.range-selector__hover-filled {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: var(--range-height);
+  background-color: var(--foreground);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.range-selector--hovering .range-selector__hover-filled,
+.range-selector--active .range-selector__hover-filled {
+  height: var(--range-height-hover);
 }
 
 .range-selector__input {

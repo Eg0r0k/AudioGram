@@ -85,12 +85,16 @@
         :keyboard-step="5"
         :min="0"
         :max="100"
+        :duration="playerStore.duration"
+        :chapters="mobileChapters"
         :use-transform="true"
         :with-transition="false"
         :disable-transition="!isTransitionEnabled"
         :disabled="!playerStore.canSeek"
         :show-thumb="true"
+        allow-marking
         style="--range-height: 4px; --range-height-hover: 4px; --range-radius: 9999px;"
+        @add-mark="handleAddMark"
         @mousedown="onScrubStart"
         @scrub="onScrub"
         @mouseup="onScrubEnd"
@@ -241,8 +245,12 @@ import PlayButton from "@/modules/player/components/PlayButton.vue";
 import type { Track } from "@/modules/player/types";
 import { RangeSelector } from "@/modules/player";
 import { usePlayerProgress } from "@/modules/tracks/composables/usePlayerProgress";
+import { useTrackChapters, useSaveTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
+import { isLibraryTrack } from "@/modules/player/types";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useSwipeControl } from "@/composables/useSwipeControl";
 import { useSleepTimer } from "@/modules/player/composables/useSleepTimer";
+import type { TrackId } from "@/types/ids";
 
 withDefaults(defineProps<{
   backgroundColor?: string | null;
@@ -257,9 +265,31 @@ const emit = defineEmits<{
 const rootRef = useTemplateRef<HTMLDivElement>("rootRef");
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
+const rightPanelStore = useRightPanelStore();
+const saveChapters = useSaveTrackChapters();
 const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown } = useTrackMenu();
 const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
+
+const mobileTrackId = computed<TrackId>(() => {
+  const track = playerStore.currentTrack;
+  if (!track || !isLibraryTrack(track)) return "" as TrackId;
+  return track.id;
+});
+
+const { data: mobileChapters } = useTrackChapters(mobileTrackId);
+
+async function handleAddMark(percent: number) {
+  const track = playerStore.currentTrack;
+  if (!track || !isLibraryTrack(track)) return;
+
+  const time = (percent / 100) * playerStore.duration;
+  const existing = mobileChapters.value ?? [];
+  const updated = [...existing, { time, title: "" }].sort((a, b) => a.time - b.time);
+  await saveChapters.mutateAsync({ trackId: track.id, chapters: updated });
+
+  rightPanelStore.openChapters({ track });
+}
 
 useSwipeControl(rootRef, {
   threshold: 50,
