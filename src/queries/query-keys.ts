@@ -26,6 +26,7 @@ export const queryKeys = {
     tracksPage: (id: AlbumId, sortKey?: TrackSortKey | null) => sortKey
       ? ["albums", id, "tracks", "page", sortKey] as const
       : ["albums", id, "tracks", "page"] as const,
+    totalDuration: (id: AlbumId) => ["albums", id, "totalDuration"] as const,
   },
   playlists: {
     all: () => ["playlists"] as const,
@@ -36,6 +37,7 @@ export const queryKeys = {
     tracksPage: (id: PlaylistId, sortKey?: TrackSortKey | null) => sortKey
       ? ["playlists", id, "tracks", "page", sortKey] as const
       : ["playlists", id, "tracks", "page"] as const,
+    totalDuration: (id: PlaylistId) => ["playlists", id, "totalDuration"] as const,
   },
   folders: {
     all: () => ["folders"] as const,
@@ -48,10 +50,12 @@ export const queryKeys = {
     likedPageInfinite: (sortKey?: TrackSortKey | null) => sortKey
       ? ["tracks", "liked", "page", "infinite", sortKey] as const
       : ["tracks", "liked", "page", "infinite"] as const,
+    likedTotalDuration: () => ["tracks", "liked", "totalDuration"] as const,
     search: (query: string) => ["tracks", "search", query] as const,
     allPaginated: (search = "") => ["tracks", "all", "paginated", search] as const,
     index: (sortKey: TrackSortKey, search = "") => ["tracks", "index", sortKey, search] as const,
     indexInfinite: (sortKey: TrackSortKey, search = "") => ["tracks", "index", "infinite", sortKey, search] as const,
+    indexTotalDuration: (search = "") => ["tracks", "index", "totalDuration", search] as const,
   },
   trackChapters: {
     detail: (trackId: TrackId) => ["trackChapters", trackId] as const,

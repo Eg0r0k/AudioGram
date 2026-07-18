@@ -98,10 +98,9 @@ export async function getArtistTracksPaginated(
   ]);
 
   const total = countResult ?? 0;
-  const totalDuration = await unwrapResult(trackRepository.sumDurationByArtistId(artistId)) ?? 0;
 
   if (total === 0) {
-    return { tracks: [], nextOffset: null, total, totalDuration };
+    return { tracks: [], nextOffset: null, total };
   }
 
   let rawTracks: TrackEntity[];
@@ -131,7 +130,6 @@ export async function getArtistTracksPaginated(
     tracks: mappedTracks,
     nextOffset,
     total,
-    totalDuration,
   };
 }
 
@@ -282,6 +280,7 @@ export async function updateArtistAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.artists.tracksPage(currentArtist.id) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPageInfinite() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedTotalDuration() }),
     queryClient.invalidateQueries({
       predicate: query =>
         query.queryKey[0] === "tracks" && query.queryKey[1] === "index",
@@ -361,6 +360,7 @@ export async function deleteArtistAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.all() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPageInfinite() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedTotalDuration() }),
     ...albums.flatMap(album => [
       queryClient.invalidateQueries({ queryKey: queryKeys.albums.page(album.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.albums.tracksPage(album.id) }),

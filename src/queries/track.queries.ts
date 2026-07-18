@@ -177,7 +177,7 @@ export async function getTracksIndexPageData(
   const [rawTracks, total, totalDuration] = await Promise.all([
     unwrapResult(trackRepository.findAllSortedPaginated(sortKey, offset, limit)),
     unwrapResult(trackRepository.countAll()),
-    unwrapResult(trackRepository.sumDurationAll()),
+    offset === 0 ? unwrapResult(trackRepository.sumDurationAll()) : Promise.resolve(0),
   ]);
 
   return {
@@ -192,12 +192,11 @@ export async function getLikedTracksPaginated(
   limit = PAGE_SIZE,
   sortKey: TrackSortKey | null = null,
 ): Promise<PaginatedTracksResult> {
-  const [tracks, total, totalDuration] = await Promise.all([
+  const [tracks, total] = await Promise.all([
     sortKey
       ? unwrapResult(trackRepository.findLikedSortedPaginated(sortKey, offset, limit))
       : unwrapResult(trackRepository.findLikedPaginated(offset, limit)),
     unwrapResult(trackRepository.countLiked()),
-    unwrapResult(trackRepository.sumDurationByLiked()),
   ]);
 
   const mappedTracks = await loadTrackRelations(tracks);
@@ -207,7 +206,6 @@ export async function getLikedTracksPaginated(
     tracks: mappedTracks,
     nextOffset,
     total,
-    totalDuration,
   };
 }
 
@@ -230,6 +228,16 @@ export const trackQueries = {
       queryFn: () => getTracksIndexPageData(sortKey, searchQuery),
       staleTime: Infinity,
     }),
+  indexTotalDuration: (searchQuery = "") =>
+    queryOptions({
+      queryKey: queryKeys.tracks.indexTotalDuration(searchQuery),
+      queryFn: () => getIndexTotalDuration(searchQuery),
+    }),
+  likedTotalDuration: () =>
+    queryOptions({
+      queryKey: queryKeys.tracks.likedTotalDuration(),
+      queryFn: getLikedTotalDuration,
+    }),
 } as const;
 
 export async function getAllTracksPaginated(
@@ -237,12 +245,11 @@ export async function getAllTracksPaginated(
   limit = PAGE_SIZE,
   sortKey?: TrackSortKey | null,
 ): Promise<PaginatedTracksResult> {
-  const [rawTracks, total, totalDuration] = await Promise.all([
+  const [rawTracks, total] = await Promise.all([
     sortKey
       ? unwrapResult(trackRepository.findAllSortedPaginated(sortKey, offset, limit))
       : unwrapResult(trackRepository.findPaginated(offset, limit)),
     unwrapResult(trackRepository.countAll()),
-    unwrapResult(trackRepository.sumDurationAll()),
   ]);
 
   const mappedTracks = await loadTrackRelations(rawTracks);
@@ -252,7 +259,6 @@ export async function getAllTracksPaginated(
     tracks: mappedTracks,
     nextOffset,
     total,
-    totalDuration,
   };
 }
 
@@ -261,14 +267,13 @@ export async function searchTracksPaginated(
   offset: number,
   limit = PAGE_SIZE,
 ): Promise<PaginatedTracksResult> {
-  const { tracks, total, totalDuration } = await searchIndexedTracks(query, offset, limit);
+  const { tracks, total } = await searchIndexedTracks(query, offset, limit);
   const nextOffset = offset + limit < total ? offset + limit : null;
 
   return {
     tracks,
     nextOffset,
     total,
-    totalDuration,
   };
 }
 
@@ -285,6 +290,35 @@ export async function getTracksPaginated(
   }
 
   return getAllTracksPaginated(offset, limit, sortKey);
+}
+
+export async function getAllTracksForQueue(sortKey: TrackSortKey, searchQuery = ""): Promise<Track[]> {
+  const q = searchQuery.trim();
+  if (q.length > 0) {
+    const searchResult = await searchIndexedTracks(q, 0, undefined);
+    const rawTracks = await unwrapResult(
+      trackRepository.findSortedByIds(searchResult.tracks.map(t => t.id as TrackId), sortKey),
+    );
+    return loadTrackRelations(rawTracks);
+  }
+  const rawTracks = await unwrapResult(trackRepository.findAllSorted(sortKey));
+  return loadTrackRelations(rawTracks);
+}
+
+// Region-scoped duration aggregate. Lives outside the infinite-query pages so the
+// page lifecycle (refetch/replacement) can't zero it out; keyed by region + search
+// only (never sortKey — the sum is order-independent).
+export async function getIndexTotalDuration(searchQuery = ""): Promise<number> {
+  const q = searchQuery.trim();
+  if (q.length > 0) {
+    const { totalDuration } = await searchIndexedTracks(q, 0, undefined);
+    return totalDuration;
+  }
+  return unwrapResult(trackRepository.sumDurationAll());
+}
+
+export async function getLikedTotalDuration(): Promise<number> {
+  return unwrapResult(trackRepository.sumDurationByLiked());
 }
 
 export async function addTracksToAlbumAndSync(
@@ -506,6 +540,7 @@ export async function updateTrackMetadataAndSync(
     ...affectedAlbumIds.flatMap(albumId => [
       queryClient.invalidateQueries({ queryKey: queryKeys.albums.page(albumId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.albums.tracksPage(albumId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.albums.totalDuration(albumId) }),
     ]),
     queryClient.invalidateQueries({
       predicate: query =>
@@ -556,10 +591,12 @@ export async function deleteTrackAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.page(currentTrack.albumId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.tracksPage(currentTrack.albumId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.albums.totalDuration(currentTrack.albumId) }),
     ...affectedPlaylists.flatMap(playlist => [
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlist.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlist.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlist.id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlist.id) }),
     ]),
     ...currentTrack.artistIds.flatMap(artistId => [
       queryClient.invalidateQueries({ queryKey: queryKeys.artists.page(artistId) }),

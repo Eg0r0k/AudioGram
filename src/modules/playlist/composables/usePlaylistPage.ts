@@ -61,10 +61,13 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     () => infiniteData.value?.pages[0]?.total ?? playlist.value?.trackIds.length ?? 0,
   );
 
-  const totalDuration = computed(() => {
-    const seconds = infiniteData.value?.pages[0]?.totalDuration ?? 0;
-    return formatTotalDuration(seconds, t);
-  });
+  const { data: playlistTotalDurationSeconds } = useQuery(
+    computed(() => playlistQueries.totalDuration(playlistId.value)),
+  );
+
+  const totalDuration = computed(() =>
+    formatTotalDuration(playlistTotalDurationSeconds.value ?? 0, t),
+  );
 
   const {
     url: coverUrl,

@@ -104,7 +104,7 @@ describe("track.queries", () => {
 
     const result = await getTracksIndexPageData("album_asc");
 
-    expect(repositories.trackRepository.findAllSortedPaginated).toHaveBeenCalledWith("album_asc", 0, 2000);
+    expect(repositories.trackRepository.findAllSortedPaginated).toHaveBeenCalledWith("album_asc", 0, 50);
     expect(result.tracks.map(track => track.id)).toEqual([trackA.id, trackB.id]);
     expect(result.total).toBe(2);
   });
@@ -226,7 +226,7 @@ describe("track.queries", () => {
       repositories.albumRepository.findByIds.mockResolvedValue(ok([album]));
     });
 
-    it("without sortKey calls findLikedPaginated + countLiked + sumDurationByLiked", async () => {
+    it("without sortKey calls findLikedPaginated + countLiked, not sumDurationByLiked", async () => {
       repositories.trackRepository.findLikedPaginated.mockResolvedValue(ok([track]));
       repositories.trackRepository.countLiked.mockResolvedValue(ok(1));
       repositories.trackRepository.sumDurationByLiked.mockResolvedValue(ok(100));
@@ -235,9 +235,8 @@ describe("track.queries", () => {
 
       expect(repositories.trackRepository.findLikedPaginated).toHaveBeenCalledWith(0, 50);
       expect(repositories.trackRepository.countLiked).toHaveBeenCalledOnce();
-      expect(repositories.trackRepository.sumDurationByLiked).toHaveBeenCalledOnce();
+      expect(repositories.trackRepository.sumDurationByLiked).not.toHaveBeenCalled();
       expect(result.total).toBe(1);
-      expect(result.totalDuration).toBe(100);
       expect(result.tracks).toHaveLength(1);
     });
 
@@ -273,6 +272,29 @@ describe("track.queries", () => {
       const result = await getLikedTracksPaginated(0, 50);
 
       expect(result.nextOffset).toBe(50);
+    });
+  });
+
+  describe("getTracksIndexPageData aggregate gating", () => {
+    beforeEach(() => {
+      repositories.artistRepository.findByIds.mockResolvedValue(ok([]));
+      repositories.albumRepository.findByIds.mockResolvedValue(ok([]));
+      repositories.trackRepository.findAllSortedPaginated.mockResolvedValue(ok([]));
+      repositories.trackRepository.countAll.mockResolvedValue(ok(0));
+      repositories.trackRepository.sumDurationAll.mockResolvedValue(ok(0));
+    });
+
+    it("computes sumDurationAll on the first page (offset 0)", async () => {
+      await getTracksIndexPageData("date_added_desc", "", 0, 50);
+
+      expect(repositories.trackRepository.sumDurationAll).toHaveBeenCalledOnce();
+    });
+
+    it("does not compute sumDurationAll on later pages (offset 50)", async () => {
+      const result = await getTracksIndexPageData("date_added_desc", "", 50, 50);
+
+      expect(repositories.trackRepository.sumDurationAll).not.toHaveBeenCalled();
+      expect(result.totalDuration).toBe(0);
     });
   });
 });

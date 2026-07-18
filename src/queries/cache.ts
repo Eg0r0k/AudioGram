@@ -45,14 +45,29 @@ function setQueriesDataIfPresent<T>(
   });
 }
 
+function patchLikedTotalDuration(queryClient: QueryClient, delta: number) {
+  if (delta === 0) return;
+  setQueryDataIfPresent<number>(queryClient, queryKeys.tracks.likedTotalDuration(), current =>
+    Math.max(0, current + delta),
+  );
+}
+
 function sortLikedTracksDesc(tracks: readonly TrackEntity[]) {
   return [...tracks].sort((left, right) => (right.likedAt ?? 0) - (left.likedAt ?? 0));
+}
+
+// Cache updaters are dispatched by key predicates; a mis-scoped predicate could
+// hand a page updater the wrong cache shape (e.g. a scalar aggregate). Guard the
+// shape and no-op instead of crashing.
+function isPagedData(data: unknown): boolean {
+  return Array.isArray((data as { pages?: unknown } | null | undefined)?.pages);
 }
 
 function mapInfiniteTrackPages(
   data: InfiniteData<PaginatedTracksResult>,
   mapTracks: (tracks: Track[]) => Track[],
 ): InfiniteData<PaginatedTracksResult> {
+  if (!isPagedData(data)) return data;
   return {
     ...data,
     pages: data.pages.map(page => ({
@@ -66,12 +81,12 @@ function removeTracksFromInfinitePages(
   data: InfiniteData<PaginatedTracksResult>,
   trackIdSet: ReadonlySet<string>,
 ): InfiniteData<PaginatedTracksResult> {
+  if (!isPagedData(data)) return data;
   const removedTracks = data.pages
     .flatMap(page => page.tracks)
     .filter(track => trackIdSet.has(track.id));
 
   const removedCount = removedTracks.length;
-  const removedDuration = removedTracks.reduce((sum, track) => sum + track.duration, 0);
 
   return {
     ...data,
@@ -79,7 +94,6 @@ function removeTracksFromInfinitePages(
       ...page,
       tracks: page.tracks.filter(track => !trackIdSet.has(track.id)),
       total: Math.max(0, page.total - removedCount),
-      totalDuration: Math.max(0, page.totalDuration - removedDuration),
     })),
   };
 }
@@ -88,6 +102,7 @@ function removeAlbumFromInfinitePages(
   data: InfiniteData<PaginatedAlbumsResult>,
   albumId: AlbumId,
 ): InfiniteData<PaginatedAlbumsResult> {
+  if (!isPagedData(data)) return data;
   return {
     ...data,
     pages: data.pages.map(page => ({
@@ -102,8 +117,8 @@ function patchInfiniteLikedPages(
   data: InfiniteData<PaginatedTracksResult>,
   nextTrack: Track,
 ): InfiniteData<PaginatedTracksResult> {
+  if (!isPagedData(data)) return data;
   const totalDelta = nextTrack.isLiked ? 1 : -1;
-  const durationDelta = nextTrack.isLiked ? nextTrack.duration : -nextTrack.duration;
 
   return {
     ...data,
@@ -114,7 +129,6 @@ function patchInfiniteLikedPages(
         ...page,
         tracks: nextTrack.isLiked && index === 0 ? [nextTrack, ...withoutCurrent] : withoutCurrent,
         total: Math.max(0, page.total + totalDelta),
-        totalDuration: Math.max(0, page.totalDuration + durationDelta),
       };
     }),
   };
@@ -130,9 +144,10 @@ function patchTracksIndexPages(
       predicate: query =>
         query.queryKey[0] === "tracks"
         && query.queryKey[1] === "index"
-        && query.queryKey[2] !== "infinite",
+        && query.queryKey[2] !== "infinite"
+        && query.queryKey[2] !== "totalDuration",
     },
-    updater,
+    data => (Array.isArray((data as { tracks?: unknown }).tracks) ? updater(data) : data),
   );
 }
 
@@ -379,11 +394,22 @@ export function removeTracksFromCaches(
       tracks: data.tracks.filter(track => !trackIdSet.has(track.id)),
     }),
   );
-  setQueryDataIfPresent<InfiniteData<PaginatedTracksResult>>(
-    queryClient,
+  const likedInfinite = queryClient.getQueryData<InfiniteData<PaginatedTracksResult>>(
     queryKeys.tracks.likedPageInfinite(),
-    data => removeTracksFromInfinitePages(data, trackIdSet),
   );
+  if (likedInfinite) {
+    // Durations come from the cached liked pages (only pages loaded so far); a liked
+    // track deleted before its page was loaded contributes 0 here — see report.
+    const removedLikedDuration = likedInfinite.pages
+      .flatMap(page => page.tracks)
+      .filter(track => trackIdSet.has(track.id))
+      .reduce((sum, track) => sum + track.duration, 0);
+    queryClient.setQueryData(
+      queryKeys.tracks.likedPageInfinite(),
+      removeTracksFromInfinitePages(likedInfinite, trackIdSet),
+    );
+    patchLikedTotalDuration(queryClient, -removedLikedDuration);
+  }
   setQueriesDataIfPresent<PlaylistPageData>(
     queryClient,
     {
@@ -478,6 +504,11 @@ export function syncTrackLikeCaches(
         && query.queryKey[3] === "infinite",
     },
     data => patchInfiniteLikedPages(data, nextTrack),
+  );
+
+  patchLikedTotalDuration(
+    queryClient,
+    nextTrack.isLiked ? nextTrack.duration : -nextTrack.duration,
   );
 
   setQueryDataIfPresent<LikedTracksPageData>(

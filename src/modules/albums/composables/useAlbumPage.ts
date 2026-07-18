@@ -62,10 +62,13 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     () => infiniteData.value?.pages[0]?.total ?? 0,
   );
 
-  const totalDuration = computed(() => {
-    const seconds = infiniteData.value?.pages[0]?.totalDuration ?? 0;
-    return formatTotalDuration(seconds, t);
-  });
+  const { data: albumTotalDurationSeconds } = useQuery(
+    computed(() => albumQueries.totalDuration(albumId.value)),
+  );
+
+  const totalDuration = computed(() =>
+    formatTotalDuration(albumTotalDurationSeconds.value ?? 0, t),
+  );
 
   const artistId = computed(() => album.value?.artistId);
 

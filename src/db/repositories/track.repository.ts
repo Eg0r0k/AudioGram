@@ -109,11 +109,14 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async findByAlbumId(albumId: AlbumId): Promise<Result<TrackEntity[], Error>> {
     try {
-      const tracks = await this.table
+      const all = await this.table
         .where("albumId")
         .equals(albumId)
-        .sortBy("trackNo");
-      return ok(tracks);
+        .toArray();
+      all.sort((a, b) =>
+        (a.diskNo ?? 1) - (b.diskNo ?? 1) || (a.trackNo ?? 0) - (b.trackNo ?? 0),
+      );
+      return ok(all);
     }
     catch (error) {
       return err(error as Error);
@@ -174,16 +177,17 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async countByAlbumIds(albumIds: AlbumId[]): Promise<Result<Map<AlbumId, number>, Error>> {
     try {
-      const albums = albumIds.length === 0
+      const keys = albumIds.length === 0
         ? []
         : await this.table
             .where("albumId")
             .anyOf(albumIds)
-            .toArray();
+            .keys();
       const counts = new Map<AlbumId, number>();
       for (const albumId of albumIds) counts.set(albumId, 0);
-      for (const track of albums) {
-        counts.set(track.albumId, (counts.get(track.albumId) ?? 0) + 1);
+      for (const key of keys) {
+        const albumId = key as AlbumId;
+        counts.set(albumId, (counts.get(albumId) ?? 0) + 1);
       }
       return ok(counts);
     }
@@ -208,18 +212,17 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async countByArtistIds(artistIds: ArtistId[]): Promise<Result<Map<ArtistId, number>, Error>> {
     try {
-      const artists = artistIds.length === 0
+      const keys = artistIds.length === 0
         ? []
         : await this.table
             .where("artistIds")
             .anyOf(artistIds)
-            .toArray();
+            .keys();
       const counts = new Map<ArtistId, number>();
       for (const id of artistIds) counts.set(id, 0);
-      for (const track of artists) {
-        for (const id of track.artistIds) {
-          counts.set(id, (counts.get(id) ?? 0) + 1);
-        }
+      for (const key of keys) {
+        const id = key as ArtistId;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
       }
       return ok(counts);
     }
@@ -417,11 +420,11 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async sumDurationByLiked(): Promise<Result<number, Error>> {
     try {
-      const tracks = await this.table
+      let total = 0;
+      await this.table
         .where("likedAt")
         .above(0)
-        .toArray();
-      const total = tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+        .each((track) => { total += track.duration ?? 0; });
       return ok(total);
     }
     catch (error) {
@@ -515,13 +518,14 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     limit: number,
   ): Promise<Result<TrackEntity[], Error>> {
     try {
-      const tracks = await this.table
+      const all = await this.table
         .where("albumId")
         .equals(albumId)
-        .offset(offset)
-        .limit(limit)
-        .sortBy("trackNo");
-      return ok(tracks);
+        .toArray();
+      all.sort((a, b) =>
+        (a.diskNo ?? 1) - (b.diskNo ?? 1) || (a.trackNo ?? 0) - (b.trackNo ?? 0),
+      );
+      return ok(all.slice(offset, offset + limit));
     }
     catch (error) {
       return err(error as Error);
@@ -569,8 +573,8 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async getAllFingerprints(): Promise<Result<Set<string>, Error>> {
     try {
-      const tracks = await this.table.where("fingerprint").above("").toArray();
-      return ok(new Set(tracks.map(t => t.fingerprint).filter((fp): fp is string => !!fp)));
+      const keys = await this.table.where("fingerprint").above("").uniqueKeys();
+      return ok(new Set(keys as string[]));
     }
     catch (error) {
       return err(error as Error);

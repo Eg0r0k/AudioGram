@@ -83,14 +83,12 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
     limit: number,
   ): Promise<Result<AlbumEntity[], Error>> {
     try {
-      const albums = await this.table
+      const all = await this.table
         .where("artistId")
         .equals(artistId)
-        .offset(offset)
-        .limit(limit)
         .sortBy("year");
-
-      return ok(albums.reverse());
+      all.reverse();
+      return ok(all.slice(offset, offset + limit));
     }
     catch (error) {
       return err(error as Error);

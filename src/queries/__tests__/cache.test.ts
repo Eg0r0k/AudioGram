@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import type { QueryClient } from "@tanstack/vue-query";
+import { QueryClient } from "@tanstack/vue-query";
 import { queryKeys } from "../query-keys";
 import {
   syncArtistCaches,
@@ -493,7 +493,7 @@ describe("cache utils", () => {
       const trackIds = ["track-1" as TrackId, "track-2" as TrackId];
 
       getQueryDataMock(queryClient).mockImplementation(() => {
-        return [];
+        return { pages: [], pageParams: [] };
       });
       setQueriesDataMock(queryClient).mockReturnValue(undefined);
 
@@ -501,5 +501,51 @@ describe("cache utils", () => {
 
       expect(queryClient.setQueriesData).toHaveBeenCalled();
     });
+  });
+});
+
+describe("cache aggregate-key isolation (regression)", () => {
+  it("unlike does not corrupt the index totalDuration aggregate", () => {
+    const queryClient = new QueryClient();
+
+    // A scalar aggregate that shares the ["tracks","index"] prefix with the pages.
+    queryClient.setQueryData(queryKeys.tracks.indexTotalDuration(""), 12345);
+    queryClient.setQueryData(queryKeys.tracks.likedPageInfinite(), {
+      pages: [{ tracks: [{ id: "track-1", isLiked: true, duration: 180 }], nextOffset: null, total: 1 }],
+      pageParams: [0],
+    });
+
+    const trackEntity: TrackEntity = {
+      id: "track-1" as TrackId,
+      title: "Test Track",
+      artistIds: ["artist-1" as ArtistId],
+      albumId: "album-1" as AlbumId,
+      tagIds: [],
+      duration: 180,
+      source: TrackSource.LOCAL_INTERNAL,
+      storagePath: "path",
+      state: TrackState.READY,
+      format: {},
+      playCount: 0,
+      likedAt: undefined,
+      addedAt: 1,
+    };
+    const track: Track = {
+      id: trackEntity.id,
+      kind: "library",
+      title: trackEntity.title,
+      artist: "Artist",
+      artistIds: trackEntity.artistIds,
+      albumId: trackEntity.albumId,
+      albumName: "Album",
+      storagePath: "path",
+      source: trackEntity.source,
+      state: trackEntity.state,
+      duration: trackEntity.duration,
+      isLiked: false,
+    };
+
+    expect(() => syncTrackLikeCaches(queryClient, trackEntity, track)).not.toThrow();
+    expect(queryClient.getQueryData(queryKeys.tracks.indexTotalDuration(""))).toBe(12345);
   });
 });

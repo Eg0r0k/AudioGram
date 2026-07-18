@@ -5,7 +5,7 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import type { LibraryItem } from "../types";
 import { getAlbumPageData } from "@/queries/album.queries";
 import { getPlaylistPageData } from "@/queries/playlist.queries";
-import { getLikedTracksPageData, getTracksIndexPageData } from "@/queries/track.queries";
+import { getAllTracksForQueue, getLikedTracksPageData } from "@/queries/track.queries";
 
 export function useLibraryContextActions() {
   const queueStore = useQueueStore();
@@ -49,7 +49,7 @@ export function useLibraryContextActions() {
       }
 
       case "allMedia": {
-        const { tracks } = await getTracksIndexPageData("date_added_desc");
+        const tracks = await getAllTracksForQueue("date_added_desc");
         if (tracks.length === 0) return;
 
         queueStore.addMultipleToQueue(tracks, {

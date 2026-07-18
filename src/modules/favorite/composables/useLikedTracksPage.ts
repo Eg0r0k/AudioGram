@@ -1,10 +1,10 @@
 import { computed, type Ref } from "vue";
-import { useInfiniteQuery } from "@tanstack/vue-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import { formatTotalDuration } from "@/lib/format/time";
 import type { LikedData } from "@/modules/media-hero/types";
 import { queryKeys } from "@/queries/query-keys";
-import { getLikedTracksPaginated } from "@/queries/track.queries";
+import { getLikedTracksPaginated, trackQueries } from "@/queries/track.queries";
 import type { TrackSortKey } from "@/modules/tracks/types";
 
 export function useLikedTracksPage(sortKey: Ref<TrackSortKey | null>) {
@@ -27,6 +27,8 @@ export function useLikedTracksPage(sortKey: Ref<TrackSortKey | null>) {
     placeholderData: previousData => previousData,
   });
 
+  const { data: likedTotalDurationSeconds } = useQuery(trackQueries.likedTotalDuration());
+
   const tracks = computed(() =>
     infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
@@ -35,10 +37,9 @@ export function useLikedTracksPage(sortKey: Ref<TrackSortKey | null>) {
     () => infiniteData.value?.pages[0]?.total ?? 0,
   );
 
-  const totalDuration = computed(() => {
-    const seconds = infiniteData.value?.pages[0]?.totalDuration ?? 0;
-    return formatTotalDuration(seconds, t);
-  });
+  const totalDuration = computed(() =>
+    formatTotalDuration(likedTotalDurationSeconds.value ?? 0, t),
+  );
 
   const likedData = computed<LikedData>(() => ({
     type: "liked",

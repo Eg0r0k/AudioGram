@@ -39,54 +39,6 @@
               </Button>
             </InputGroupAddon>
           </InputGroup>
-
-          <!-- <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button
-                  variant="outline"
-                  class="justify-between gap-2 rounded-full"
-                >
-                  <span>{{ currentSortLabel }}</span>
-                  <IconChevronDown class="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent
-                align="end"
-                class="w-56"
-              >
-                <DropdownMenuItem @click="sortKey = 'date_added_desc'">
-                  Date added: new first
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'date_added_asc'">
-                  Date added: old first
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'title_asc'">
-                  Title: A to Z
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'title_desc'">
-                  Title: Z to A
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'artist_asc'">
-                  Artist: A to Z
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'album_asc'">
-                  Album: A to Z
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'album_desc'">
-                  Album: Z to A
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'duration_asc'">
-                  Duration: short first
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'duration_desc'">
-                  Duration: long first
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="sortKey = 'plays_desc'">
-                  Most played
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu> -->
         </div>
       </div>
     </div>
@@ -191,6 +143,7 @@ import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
 import { TrackSortKey } from "@/modules/tracks/types";
 import { useIndexTracksPage } from "@/modules/tracks/composables/useIndexTracksPage";
+import { getAllTracksForQueue } from "@/queries/track.queries";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player";
@@ -203,6 +156,7 @@ const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
 const {
   normalizedSearchQuery,
+  resolvedSortKey,
   tracks,
   isLoading,
   isError,
@@ -253,11 +207,19 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
-  await queueStore.setQueue(
-    tracks.value,
-    index,
-    normalizedSearchQuery.value ? { type: "search" } : { type: "manual" },
-  );
+  const context = normalizedSearchQuery.value ? { type: "search" } as const : { type: "manual" } as const;
+  const all = await getAllTracksForQueue(resolvedSortKey.value, normalizedSearchQuery.value);
+  const fullIndex = all.findIndex(t => t.id === track.id);
+
+  if (fullIndex === -1) {
+    // Full-set fetch didn't contain the clicked track (e.g. a stale/partial search
+    // result). Never waste the click — fall back to the loaded pages.
+    console.warn(`[AllMusicPage] "${track.id}" missing from full queue set; using loaded pages.`);
+    await queueStore.setQueue(tracks.value, index, context);
+    return;
+  }
+
+  await queueStore.setQueue(all, fullIndex, context);
 }
 
 const fallbackRoute = routeLocation.home();

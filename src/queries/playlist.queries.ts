@@ -95,22 +95,22 @@ export async function getPlaylistTracksPaginated(
   const total = playlist.trackIds.length;
 
   if (total === 0) {
-    return { tracks: [], nextOffset: null, total, totalDuration: 0 };
+    return { tracks: [], nextOffset: null, total };
   }
-
-  const allTracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
-  const totalDuration = allTracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
 
   let currentTracksPage: TrackEntity[];
 
   if (sortKey) {
+    // A global sort genuinely needs all rows (playlists are the smallest collection).
+    const allTracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
     const sorted = sortTracks(allTracks, sortKey);
     currentTracksPage = sorted.slice(offset, offset + limit);
   }
   else {
-    const trackMap = new Map(allTracks.map(track => [track.id, track]));
-    const trackIdsPage = playlist.trackIds.slice(offset, offset + limit);
-    currentTracksPage = trackIdsPage.flatMap((id) => {
+    const pageIds = playlist.trackIds.slice(offset, offset + limit);
+    const pageTracks = await unwrapResult(trackRepository.findByIds(pageIds));
+    const trackMap = new Map(pageTracks.map(track => [track.id, track]));
+    currentTracksPage = pageIds.flatMap((id) => {
       const track = trackMap.get(id);
       return track ? [track] : [];
     });
@@ -130,8 +130,13 @@ export async function getPlaylistTracksPaginated(
     tracks: mapTracks(currentTracksPage, artists, albums),
     nextOffset,
     total,
-    totalDuration,
   };
+}
+
+export async function getPlaylistTotalDuration(playlistId: PlaylistId): Promise<number> {
+  const playlist = await getPlaylistByIdOrThrow(playlistId);
+  if (playlist.trackIds.length === 0) return 0;
+  return unwrapResult(trackRepository.sumDurationByTrackIds(playlist.trackIds));
 }
 export const playlistQueries = {
   all: () =>
@@ -153,6 +158,11 @@ export const playlistQueries = {
     queryOptions({
       queryKey: [...queryKeys.playlists.tracksPage(playlistId, sortKey), pageParam],
       queryFn: () => getPlaylistTracksPaginated(playlistId, pageParam, PAGE_SIZE, sortKey),
+    }),
+  totalDuration: (playlistId: PlaylistId) =>
+    queryOptions({
+      queryKey: queryKeys.playlists.totalDuration(playlistId),
+      queryFn: () => getPlaylistTotalDuration(playlistId),
     }),
 } as const;
 
@@ -268,6 +278,7 @@ export async function removeTrackFromPlaylistAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlistId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
   ]);
 
   return nextPlaylist;
@@ -295,6 +306,7 @@ export async function addTrackToPlaylistAndSync(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
   ]);
 
   return nextPlaylist;
@@ -332,6 +344,7 @@ export async function addTracksToPlaylistAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlistId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
   ]);
 
   return nextPlaylist;

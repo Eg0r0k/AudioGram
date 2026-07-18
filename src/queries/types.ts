@@ -54,7 +54,6 @@ export interface PaginatedTracksResult {
   tracks: Track[];
   nextOffset: number | null;
   total: number;
-  totalDuration: number;
 }
 
 export interface PaginatedAlbumsResult {
@@ -67,5 +66,4 @@ export interface PaginatedPlaylistTracksResult {
   tracks: Track[];
   nextOffset: number | null;
   total: number;
-  totalDuration: number;
 }

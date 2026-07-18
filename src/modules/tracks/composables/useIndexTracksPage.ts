@@ -1,7 +1,7 @@
-import { useInfiniteQuery } from "@tanstack/vue-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import { queryKeys } from "@/queries/query-keys";
-import { getTracksPaginated } from "@/queries/track.queries";
+import { getTracksPaginated, trackQueries } from "@/queries/track.queries";
 import type { TrackSortKey } from "@/modules/tracks/types";
 
 export function useIndexTracksPage(sortKey: Ref<TrackSortKey | null>, searchQuery: Ref<string>) {
@@ -17,9 +17,13 @@ export function useIndexTracksPage(sortKey: Ref<TrackSortKey | null>, searchQuer
     placeholderData: previousData => previousData,
   });
 
+  const { data: indexTotalDurationSeconds } = useQuery(
+    computed(() => trackQueries.indexTotalDuration(normalizedSearchQuery.value)),
+  );
+
   const tracks = computed(() => queryState.data.value?.pages.flatMap(page => page.tracks) ?? []);
   const total = computed(() => queryState.data.value?.pages[0]?.total ?? 0);
-  const totalDuration = computed(() => queryState.data.value?.pages[0]?.totalDuration ?? 0);
+  const totalDuration = computed(() => indexTotalDurationSeconds.value ?? 0);
 
   return {
     ...queryState,
