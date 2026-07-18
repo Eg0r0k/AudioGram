@@ -1,7 +1,7 @@
 <template>
   <div
     v-ripple
-    class="group w-40 shrink-0 cursor-pointer rounded-lg p-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-44"
+    class="group w-40 shrink-0 select-none cursor-pointer rounded-lg p-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-44"
     data-library-item
     data-media-context
     role="button"

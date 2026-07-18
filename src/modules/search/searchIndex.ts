@@ -7,6 +7,10 @@ import type {
   WorkerRequest,
   WorkerResponse,
 } from "./types";
+import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
+import { mapTracks } from "@/modules/tracks/lib/mappers";
+import type { Track } from "@/modules/player/types";
+import type { TrackId } from "@/types/ids";
 
 const SEARCH_TIMEOUT_MS = 10_000;
 
@@ -200,18 +204,41 @@ export async function searchDocuments(
   return getClient().search(query, filter, options);
 }
 
+async function hydrateTracksByIds(ids: TrackId[]): Promise<Track[]> {
+  if (ids.length === 0) return [];
+
+  const entitiesResult = await trackRepository.findByIds(ids);
+  if (entitiesResult.isErr()) throw entitiesResult.error;
+  const entities = entitiesResult.value;
+
+  const artistIds = [...new Set(entities.flatMap(entity => entity.artistIds))];
+  const albumIds = [...new Set(entities.map(entity => entity.albumId))];
+
+  const [artistsResult, albumsResult] = await Promise.all([
+    artistRepository.findByIds(artistIds),
+    albumRepository.findByIds(albumIds),
+  ]);
+  if (artistsResult.isErr()) throw artistsResult.error;
+  if (albumsResult.isErr()) throw albumsResult.error;
+
+  return mapTracks(entities, artistsResult.value, albumsResult.value);
+}
+
 export async function searchTracks(
   query: string,
   offset = 0,
   limit?: number,
 ) {
-  const response = await searchDocuments(query, "track", {
-    offset,
-    limit,
-  });
+  const response = await searchDocuments(query, "track", { offset, limit });
+
+  // Invariant: the search document is only a matching/rendering source. Playable
+  // tracks are hydrated from the DB by entityId, so paths stay current after a
+  // folder relink or REMOTE_HLS TTL expiry. Order follows the search score.
+  const ids = response.results.map(item => item.entityId as TrackId);
+  const tracks = await hydrateTracksByIds(ids);
 
   return {
-    tracks: response.results.flatMap(item => (item.track ? [item.track] : [])),
+    tracks,
     total: response.total,
     totalDuration: response.totalDuration,
   };

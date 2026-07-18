@@ -1,6 +1,5 @@
 import { db } from "@/db";
 import type { AlbumEntity, ArtistEntity, PlaylistEntity, TrackEntity } from "@/db/entities";
-import { mapTrack } from "@/modules/tracks/lib/mappers";
 import type { SearchDocument } from "./types";
 
 export function buildArtistDoc(artist: ArtistEntity): SearchDocument {
@@ -34,16 +33,15 @@ export function buildTrackDoc(
     .map(artistId => artistMap.get(artistId))
     .filter((artist): artist is ArtistEntity => !!artist);
   const album = albumMap.get(track.albumId);
-  const mappedTrack = mapTrack(track, artists, album);
 
   return {
     id: `track:${track.id}`,
     type: "track",
     title: track.title,
-    artist: mappedTrack.artist,
-    album: mappedTrack.albumName,
+    artist: artists.length > 0 ? artists.map(a => a.name).join(", ") : track.artistName ?? "",
+    album: album?.title ?? track.albumTitle ?? "",
     entityId: track.id,
-    track: mappedTrack,
+    duration: track.duration,
   };
 }
 
@@ -62,16 +60,15 @@ export async function buildTrackDocFromDb(track: TrackEntity): Promise<SearchDoc
     db.albums.get(track.albumId),
   ]);
   const artistEntities = artists.filter((artist): artist is ArtistEntity => !!artist);
-  const mappedTrack = mapTrack(track, artistEntities, album);
 
   return {
     id: `track:${track.id}`,
     type: "track",
     title: track.title,
-    artist: mappedTrack.artist,
-    album: mappedTrack.albumName,
+    artist: artistEntities.length > 0 ? artistEntities.map(a => a.name).join(", ") : track.artistName ?? "",
+    album: album?.title ?? track.albumTitle ?? "",
     entityId: track.id,
-    track: mappedTrack,
+    duration: track.duration,
   };
 }
 

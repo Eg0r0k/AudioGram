@@ -305,6 +305,12 @@ export async function getAllTracksForQueue(sortKey: TrackSortKey, searchQuery = 
   return loadTrackRelations(rawTracks);
 }
 
+export async function getTracksByIds(ids: TrackId[]): Promise<Track[]> {
+  if (ids.length === 0) return [];
+  const entities = await unwrapResult(trackRepository.findByIds(ids));
+  return loadTrackRelations(entities);
+}
+
 // Region-scoped duration aggregate. Lives outside the infinite-query pages so the
 // page lifecycle (refetch/replacement) can't zero it out; keyed by region + search
 // only (never sortKey — the sum is order-independent).

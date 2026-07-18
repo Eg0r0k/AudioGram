@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { SearchResultItem } from "@/modules/search/types";
+import type { Track } from "@/modules/player/types";
 import type { LibraryItem } from "@/modules/library/types";
 import LibrarySidebarItem from "@/modules/library/components/LibrarySidebarItem.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import { routeLocation } from "@/app/router/route-locations";
 
-const props = defineProps<{ item: SearchResultItem }>();
+const props = defineProps<{ item: SearchResultItem; track?: Track }>();
 const emit = defineEmits<{ click: [] }>();
 
 const libraryItem = computed<LibraryItem>(() => ({
@@ -33,8 +34,8 @@ function routeForItem(item: SearchResultItem) {
 
 <template>
   <TrackRow
-    v-if="item.type === 'track' && item.track"
-    :track="item.track"
+    v-if="item.type === 'track' && track"
+    :track="track"
     :cover-url="item.coverPath"
     hide-index
     menu-target="search"

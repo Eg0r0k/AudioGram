@@ -28,7 +28,7 @@ const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
 function createIndex(): MiniSearch<IndexedSearchDocument> {
   return new MiniSearch<IndexedSearchDocument>({
     fields: ["title", "artist", "album", "searchAliases"],
-    storeFields: ["type", "title", "artist", "album", "entityId", "coverPath", "track"],
+    storeFields: ["type", "title", "artist", "album", "entityId", "coverPath", "duration"],
     tokenize: unicodeTokenizer,
     processTerm: termProcessor,
     searchOptions: DEFAULT_SEARCH_OPTIONS,
@@ -52,7 +52,7 @@ function mapHit(hit: SearchResult): SearchResultItem {
     entityId: hit.entityId as string,
     coverPath: hit.coverPath as string | undefined,
     score: hit.score,
-    track: hit.track as SearchResultItem["track"],
+    duration: hit.duration as number | undefined,
   };
 }
 
@@ -104,10 +104,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const raw = index.search(msg.query, options);
         const offset = msg.offset ?? 0;
         const total = raw.length;
-        const totalDuration = raw.reduce((sum, hit) => {
-          const track = hit.track as SearchResultItem["track"] | undefined;
-          return sum + (track?.duration ?? 0);
-        }, 0);
+        const totalDuration = raw.reduce((sum, hit) => sum + ((hit.duration as number | undefined) ?? 0), 0);
         const results = (msg.limit == null
           ? raw.slice(offset)
           : raw.slice(offset, offset + msg.limit)

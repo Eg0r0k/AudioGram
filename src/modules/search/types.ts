@@ -1,5 +1,3 @@
-import type { Track } from "@/modules/player/types";
-
 export const SEARCH_ENTITY_TYPES = ["track", "artist", "album", "playlist"] as const;
 export type SearchEntityType = (typeof SEARCH_ENTITY_TYPES)[number];
 export type SearchFilter = "all" | SearchEntityType;
@@ -12,7 +10,7 @@ export interface SearchDocument {
   album?: string;
   entityId: string;
   coverPath?: string;
-  track?: Track;
+  duration?: number;
 }
 
 export interface SearchResultItem {
@@ -24,7 +22,7 @@ export interface SearchResultItem {
   entityId: string;
   score: number;
   coverPath?: string;
-  track?: Track;
+  duration?: number;
 }
 
 export interface GroupedResults {

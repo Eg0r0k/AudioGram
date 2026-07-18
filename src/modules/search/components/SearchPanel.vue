@@ -46,7 +46,8 @@
           :album-results="albumResults"
           :playlist-results="playlistResults"
           :filtered-results="filteredResults"
-          :filtered-track-rows="filteredTrackRows"
+          :track-rows="trackRows"
+          :top-track="topTrack"
           @navigate="navigate"
           @play-tracks="playTracks"
         />
@@ -57,11 +58,15 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useQuery } from "@tanstack/vue-query";
 import { useRouter } from "vue-router";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useSearch } from "@/modules/search/composables/useSearch";
 import type { SearchResultItem } from "@/modules/search/types";
 import type { Track } from "@/modules/player/types";
+import type { TrackId } from "@/types/ids";
+import { getTracksByIds } from "@/queries/track.queries";
+import { queryKeys } from "@/queries/query-keys";
 import { Scrollable } from "@/components/ui/scrollable";
 import SearchFilters from "@/modules/search/components/SearchFilters.vue";
 import SearchLoading from "@/modules/search/components/SearchLoading.vue";
@@ -96,6 +101,19 @@ const artistResults = computed(() => results.value.groups.artist);
 const albumResults = computed(() => results.value.groups.album);
 const playlistResults = computed(() => results.value.groups.playlist);
 
+const trackEntityIds = computed(() => trackResults.value.map(item => item.entityId as TrackId));
+const { data: hydratedTracks } = useQuery({
+  queryKey: computed(() => queryKeys.tracks.byIds(trackEntityIds.value)),
+  queryFn: () => getTracksByIds(trackEntityIds.value),
+  enabled: computed(() => trackEntityIds.value.length > 0),
+});
+const trackRows = computed<Track[]>(() => hydratedTracks.value ?? []);
+const trackById = computed(() => new Map(trackRows.value.map(track => [track.id, track])));
+const topTrack = computed(() => {
+  const top = topResults.value[0];
+  return top?.type === "track" ? trackById.value.get(top.entityId as TrackId) : undefined;
+});
+
 const hasResults = computed(() => {
   if (results.value.topResults.length > 0) return true;
   const groups = results.value.groups;
@@ -106,10 +124,6 @@ const filteredResults = computed(() => {
   if (activeFilter.value === "all") return results.value.topResults;
   return results.value.groups[activeFilter.value] ?? [];
 });
-
-const filteredTrackRows = computed(() =>
-  filteredResults.value.flatMap(item => item.track ? [item.track] : []),
-);
 
 function navigate(item: SearchResultItem) {
   saveQueryToHistory();
@@ -124,9 +138,7 @@ function navigate(item: SearchResultItem) {
       router.push(routeLocation.playlist(item.entityId));
       break;
     case "track":
-      if (item.track) {
-        void playTracks([item.track], 0);
-      }
+      void playTracksByIds([item.entityId as TrackId], 0);
       break;
   }
 }
@@ -134,6 +146,14 @@ function navigate(item: SearchResultItem) {
 async function playTracks(tracks: Track[], index: number) {
   if (tracks.length === 0) return;
   saveQueryToHistory();
+  await queueStore.setQueue(tracks, index, { type: "search" });
+}
+
+async function playTracksByIds(ids: TrackId[], index: number) {
+  if (ids.length === 0) return;
+  saveQueryToHistory();
+  const tracks = await getTracksByIds(ids);
+  if (tracks.length === 0) return;
   await queueStore.setQueue(tracks, index, { type: "search" });
 }
 </script>

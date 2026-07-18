@@ -14,7 +14,8 @@ const props = defineProps<{
   albumResults: SearchResultItem[];
   playlistResults: SearchResultItem[];
   filteredResults: SearchResultItem[];
-  filteredTrackRows: Track[];
+  trackRows: Track[];
+  topTrack?: Track;
 }>();
 
 const emit = defineEmits<{
@@ -24,7 +25,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const slicedTrackResults = computed(() => props.trackResults.slice(0, 4).flatMap(item => item.track ? [item.track] : []));
+const slicedTrackResults = computed(() => props.trackRows.slice(0, 4));
 const slicedArtistResults = computed(() => props.artistResults.slice(0, 4));
 const slicedAlbumResults = computed(() => props.albumResults.slice(0, 4));
 const slicedPlaylistResults = computed(() => props.playlistResults.slice(0, 4));
@@ -41,6 +42,7 @@ const slicedPlaylistResults = computed(() => props.playlistResults.slice(0, 4));
       </p>
       <SearchDropdownRow
         :item="topResults[0]"
+        :track="topTrack"
         @click="emit('navigate', topResults[0])"
       />
     </div>
@@ -112,11 +114,11 @@ const slicedPlaylistResults = computed(() => props.playlistResults.slice(0, 4));
   >
     <TrackRowsList
       v-if="activeFilter === 'track'"
-      :tracks="filteredTrackRows"
+      :tracks="trackRows"
       menu-target="search"
       compact
       hide-cover
-      @play="(_track, index) => emit('playTracks', filteredTrackRows, index)"
+      @play="(_track, index) => emit('playTracks', trackRows, index)"
     />
     <template v-else>
       <SearchDropdownRow

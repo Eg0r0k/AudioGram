@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as SearchIndexModule from "../searchIndex";
-import type { SearchDocument, WorkerRequest, WorkerResponse } from "../types";
+import type { SearchDocument, SearchResultItem, WorkerRequest, WorkerResponse } from "../types";
+import { ok } from "neverthrow";
+import { TrackSource, TrackState } from "@/db/entities";
 
 type WorkerListener = (event: unknown) => void;
 
-const { FakeWorker, buildAllSearchDocuments } = vi.hoisted(() => {
+const { FakeWorker, buildAllSearchDocuments, repositories } = vi.hoisted(() => {
   class FakeWorker {
     static instances: FakeWorker[] = [];
     posted: unknown[] = [];
@@ -43,11 +45,18 @@ const { FakeWorker, buildAllSearchDocuments } = vi.hoisted(() => {
     }
   }
 
-  return { FakeWorker, buildAllSearchDocuments: vi.fn() };
+  const repositories = {
+    trackRepository: { findByIds: vi.fn() },
+    artistRepository: { findByIds: vi.fn() },
+    albumRepository: { findByIds: vi.fn() },
+  };
+
+  return { FakeWorker, buildAllSearchDocuments: vi.fn(), repositories };
 });
 
 vi.mock("../search.worker?worker", () => ({ default: FakeWorker }));
 vi.mock("../buildDocuments", () => ({ buildAllSearchDocuments }));
+vi.mock("@/db/repositories", () => repositories);
 
 let searchIndex: typeof SearchIndexModule;
 
@@ -233,5 +242,84 @@ describe("resetSearchIndex", () => {
 
     await expect(search).resolves.toEqual({ results: [], total: 0, totalDuration: 0 });
     expect(buildAllSearchDocuments).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("searchTracks hydration by id", () => {
+  it("plays the DB storagePath, not the frozen storagePath embedded in the index", async () => {
+    // The indexed document is stale: its embedded payload points at an old path
+    // (e.g. after a folder relink, or a REMOTE_HLS URL whose TTL expired).
+    const staleResults = [{
+      id: "track:t1",
+      type: "track",
+      title: "Alpha Song",
+      artist: "Old Artist",
+      album: "Old Album",
+      entityId: "t1",
+      score: 1,
+      duration: 100,
+      // Legacy frozen payload that MUST NOT be used for playback:
+      track: {
+        kind: "library",
+        id: "t1",
+        title: "Alpha Song",
+        artist: "Old Artist",
+        artistIds: [],
+        albumId: "al1",
+        albumName: "Old Album",
+        storagePath: "STALE/old.mp3",
+        source: TrackSource.LOCAL_INTERNAL,
+        state: TrackState.READY,
+        duration: 100,
+        isLiked: false,
+        playCount: 0,
+        addedAt: 1,
+      },
+    }] as unknown as SearchResultItem[];
+
+    repositories.trackRepository.findByIds.mockResolvedValue(ok([{
+      id: "t1",
+      title: "Alpha Song",
+      artistIds: [],
+      artistName: "Real Artist",
+      albumId: "al1",
+      albumTitle: "Real Album",
+      tagIds: [],
+      source: TrackSource.LOCAL_INTERNAL,
+      state: TrackState.READY,
+      storagePath: "CURRENT/real.mp3",
+      duration: 100,
+      format: {},
+      playCount: 0,
+      addedAt: 1,
+    }]));
+    repositories.artistRepository.findByIds.mockResolvedValue(ok([]));
+    repositories.albumRepository.findByIds.mockResolvedValue(ok([
+      { id: "al1", title: "Real Album", artistId: "a0", addedAt: 1, updatedAt: 1 },
+    ]));
+
+    const worker = await initIndex();
+    const search = searchIndex.searchTracks("alpha", 0, undefined);
+
+    await vi.waitFor(() => {
+      expect(worker.posted.some(isSearchRequest)).toBe(true);
+    });
+    const request = worker.posted.find(isSearchRequest);
+    if (!request) throw new Error("no search request posted");
+    emitToWorker(worker, {
+      action: "results",
+      results: staleResults,
+      id: request.id,
+      total: 1,
+      totalDuration: 100,
+    });
+
+    const { tracks } = await search;
+
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].id).toBe("t1");
+    // The invariant: entity hydrated by id, so the path is current, not the frozen one.
+    expect(tracks[0].storagePath).toBe("CURRENT/real.mp3");
+    expect(repositories.trackRepository.findByIds).toHaveBeenCalledWith(["t1"]);
   });
 });
