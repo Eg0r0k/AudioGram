@@ -294,6 +294,7 @@ export const useQueueStore = defineStore("queue", () => {
 
     try {
       await playerStore.playPlayerTrack(item.track);
+      syncPersistedSnapshot();
       return true;
     }
     catch (err) {
