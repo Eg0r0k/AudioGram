@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.vitest-report.json
 
 node_modules
 coverage
@@ -29,6 +30,8 @@ dist-ssr
 opencode.jsonc
 .opencode/
 AGENTS.md
+DESIGN.md
+mcp.json
 
 # CodeGraph index
 .codegraph/
