@@ -19,6 +19,7 @@ const mockPlayerMethods = {
   load: vi.fn().mockResolvedValue(undefined),
   fadeIn: vi.fn().mockResolvedValue(undefined),
   fadeOut: vi.fn().mockResolvedValue(undefined),
+  fadeTo: vi.fn().mockResolvedValue(undefined),
   cancelFade: vi.fn(),
   clearLoudnessMetadata: vi.fn(),
   setLoudnessMetadata: vi.fn(),

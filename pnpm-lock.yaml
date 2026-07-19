@@ -99,8 +99,8 @@ importers:
         specifier: ^0.555.0
         version: 0.555.0(vue@3.5.25(typescript@5.6.3))
       lyra-audio:
-        specifier: ^0.1.27
-        version: 0.1.27(hls.js@1.6.15)
+        specifier: ^1.0.0
+        version: 1.0.0(hls.js@1.6.15)
       marked:
         specifier: ^17.0.5
         version: 17.0.5
@@ -4315,8 +4315,8 @@ packages:
     peerDependencies:
       vue: '>=3.0.1'
 
-  lyra-audio@0.1.27:
-    resolution: {integrity: sha512-uqBqTdgkSTlj7ZVUJ4ye6rjGhMBAV21od84lwhcELcTo1bCcUKePKXk47zZ65apoj1Y2nwloStWs145SEgfEIw==}
+  lyra-audio@1.0.0:
+    resolution: {integrity: sha512-BT27cUZ0VAyejv79g13glOXRzl7g0S5NeLoqRPCaYAxIpu/qo9YeXSR242q0bS4FsAbVfnv3DhDeE96cL/06zg==}
     peerDependencies:
       hls.js: ^1.4.0
     peerDependenciesMeta:
@@ -10360,7 +10360,7 @@ snapshots:
     dependencies:
       vue: 3.5.25(typescript@5.6.3)
 
-  lyra-audio@0.1.27(hls.js@1.6.15):
+  lyra-audio@1.0.0(hls.js@1.6.15):
     optionalDependencies:
       hls.js: 1.6.15
 

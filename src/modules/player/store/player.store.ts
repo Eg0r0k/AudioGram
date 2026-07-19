@@ -70,11 +70,16 @@ export const usePlayerStore = defineStore("player", () => {
   const isLiveStream = computed(() => {
     const track = currentTrack.value;
     if (!track) return false;
+    // Read duration first so this recomputes as the stream loads. Engine truth
+    // wins: hls.js reports a finite sliding-window duration for live, so the
+    // duration<=0 heuristic alone would misread live as VOD.
+    const dur = duration.value;
+    if (player.value?.isLive) return true;
     if (isEphemeralTrack(track) && track.source.type === "url") {
-      return duration.value <= 0;
+      return dur <= 0;
     }
     if (isLibraryTrack(track) && track.source === TrackSource.REMOTE_HLS) {
-      return duration.value <= 0;
+      return dur <= 0;
     }
     return false;
   });
@@ -279,12 +284,18 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
-  const loadUrl = async (p: Player, url: string) => {
+  const loadUrl = async (p: Player, url: string, allowCorsFallback = false) => {
     const isHls = url.includes(".m3u8")
       || url.includes("application/vnd.apple.mpegurl");
 
     if (isHls) {
       await p.load({ url, type: "hls" });
+    }
+    else if (allowCorsFallback) {
+      // Ephemeral direct URLs (radio) may lack ACAO headers; a routed load
+      // (crossOrigin=anonymous) would fail outright. Retry un-routed on a media
+      // error — EQ/fades/normalization drop for the track, but it plays.
+      await p.load(url, { corsFallback: true });
     }
     else {
       await p.load(url);
@@ -304,7 +315,7 @@ export const usePlayerStore = defineStore("player", () => {
       }
 
       const p = await initPlayer();
-      await loadUrl(p, url);
+      await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       if (currentTime.value > 0) p.seek(currentTime.value);
       await p.play();
       useAudioSettingsStore().pushToGraph();
@@ -313,16 +324,26 @@ export const usePlayerStore = defineStore("player", () => {
 
     const wasCancellingFade = _activeFadeAbort !== null;
     cancelActiveFade();
-    if (wasCancellingFade) player.value.cancelFade();
 
     const audioSettings = useAudioSettingsStore();
     const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeInDuration > 0;
 
     if (wasCancellingFade && player.value.isPlaying) {
+      // A fade-out-to-pause was interrupted; playback never actually stopped.
+      // pause() optimistically set status to "paused"; the deferred pause was
+      // aborted, so the player is still playing — restore the store status
+      // (direct play(), e.g. MediaSession, bypasses togglePlay's own restore).
+      status.value = "playing";
       if (shouldFade) {
-        await player.value.fadeTo(isMuted.value ? 0 : volume.value, audioSettings.fadeInDuration);
+        // Ramp the fade multiplier from its mid-fade value back to full.
+        // fadeTo() cancels the in-flight fade-out internally — an explicit
+        // cancelFade() first would snap to full and kill the ramp.
+        await player.value.fadeTo(1, audioSettings.fadeInDuration);
       }
       else {
+        // No fade-in: stop the in-flight fade-out, restore the multiplier to
+        // full, keep the user's volume (volume no longer touches the fade).
+        player.value.cancelFade();
         player.value.setVolume(volume.value);
       }
       return;
@@ -332,6 +353,10 @@ export const usePlayerStore = defineStore("player", () => {
       await player.value.fadeIn(audioSettings.fadeInDuration);
     }
     else {
+      // A prior fade-out-to-pause may have left the fade multiplier at 0.
+      // Restore it now, while still paused (no signal), so playback is audible
+      // without a click from ramping gain up over still-flushing audio.
+      await player.value.fadeTo(1, 0);
       player.value.setVolume(volume.value);
       await player.value.play();
     }
@@ -353,6 +378,8 @@ export const usePlayerStore = defineStore("player", () => {
       player.value.fadeOut(audioSettings.fadeOutDuration).then(() => {
         if (ac.signal.aborted) return;
         player.value?.pause();
+        // Leave the multiplier at 0 here; play() restores it while paused, so
+        // the gain never jumps up over samples the element is still flushing.
         _activeFadeAbort = null;
       });
     }
@@ -432,7 +459,7 @@ export const usePlayerStore = defineStore("player", () => {
         await p.load(track.source.file);
       }
       else {
-        await loadUrl(p, url);
+        await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       }
 
       applyLoudnessMetadata(p, track);
