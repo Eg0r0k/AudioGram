@@ -536,6 +536,28 @@ describe("player.store", () => {
       expect(store.duration).toBe(0);
       expect(store.currentTrack!.title).toBe("Track B");
     });
+
+    it("re-applies the persisted playbackRate after load (survives reload)", async () => {
+      const store = usePlayerStore();
+      // A non-default rate persisted across a reload: player is null until play.
+      store.setPlaybackRate(1.5);
+
+      const setRate = mockPlayerMethods.setPlaybackRate;
+      const load = mockPlayerMethods.load;
+      setRate.mockClear();
+      load.mockClear();
+
+      await store.playPlayerTrack(createLibraryTrack());
+
+      // load() resets the media element's rate to 1; the store must re-apply the
+      // persisted rate afterwards, otherwise the track plays at 1x after reload.
+      const reapplied = setRate.mock.calls.some((call, i) => {
+        const order = setRate.mock.invocationCallOrder[i];
+        const afterLoad = load.mock.invocationCallOrder.some(l => order > l);
+        return call[0] === 1.5 && afterLoad;
+      });
+      expect(reapplied).toBe(true);
+    });
   });
 
   describe("dispose functionality", () => {

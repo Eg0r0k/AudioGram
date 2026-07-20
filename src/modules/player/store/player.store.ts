@@ -300,6 +300,12 @@ export const usePlayerStore = defineStore("player", () => {
     else {
       await p.load(url);
     }
+
+    // The HTML media load algorithm resets the element's playbackRate to
+    // defaultPlaybackRate (1) on every load(), clobbering the rate lyra-audio
+    // applies before assigning src. Re-apply it now that media is loaded so a
+    // persisted/non-default rate survives fresh loads (e.g. after a reload).
+    p.setPlaybackRate(playbackRate.value);
   };
 
   const play = async () => {
@@ -457,6 +463,8 @@ export const usePlayerStore = defineStore("player", () => {
     try {
       if (isEphemeralTrack(track) && track.source.type === "file") {
         await p.load(track.source.file);
+        // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
+        p.setPlaybackRate(playbackRate.value);
       }
       else {
         await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");

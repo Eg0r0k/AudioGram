@@ -1,7 +1,7 @@
 <template>
   <div class="min-w-[180px] w-[30%] h-14 pl-1">
     <div
-      v-if="currentTrack"
+      v-if="track"
       class="flex justify-start items-center relative select-none"
     >
       <div class="relative shrink-0 group size-14 rounded overflow-hidden">
@@ -9,14 +9,14 @@
           v-slot="{ imgAttrs, isLoaded, src }"
           :src="coverUrl"
           fallback-src="/img/fallback.svg"
-          :alt="currentTrack?.title ?? ''"
+          :alt="track.title ?? ''"
           custom
         >
           <img
             :key="src"
             v-bind="imgAttrs"
             :src="src"
-            :alt="currentTrack?.title ?? ''"
+            :alt="track.title ?? ''"
             draggable="false"
             class="absolute left-0 top-0 h-full w-full object-cover object-center transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
             :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
@@ -37,11 +37,12 @@
           gradient-length="20px"
         >
           <span
-            v-copy="currentTrack?.title"
+            v-copy="track.title"
             class="text-sm group-hover:underline font-medium cursor-pointer"
-          >{{ currentTrack?.title }}</span>
+          >{{ track.title }}</span>
         </MarqueeBlock>
         <MarqueeBlock
+          v-if="artistsList.length"
           class="group"
           :duration="6"
           animate-on-overflow-only
@@ -53,9 +54,10 @@
           <span class="text-muted-foreground group-hover:text-foreground text-xs transition-colors duration-200">
             <template
               v-for="(artist, i) in artistsList"
-              :key="i"
+              :key="artist"
             >
               <span
+                v-if="canNavigateArtists"
                 role="link"
                 tabindex="0"
                 class="cursor-pointer hover:underline"
@@ -64,37 +66,40 @@
               >
                 {{ artist }}
               </span>
+              <span v-else>{{ artist }}</span>
               <span v-if="i < artistsList.length - 1">, </span>
             </template>
           </span>
         </MarqueeBlock>
       </div>
 
-      <Button
-        size="icon-sm"
-        class="rounded-full mr-1"
-        variant="ghost"
-        :aria-label="$t('player.moreOptions')"
-        @click.stop="onDotsClick"
-      >
-        <IconDots class="size-5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="rounded-full"
-        :aria-label="currentTrack.isLiked ? $t('player.unlike') : $t('player.like')"
-        @click.stop="toggleLike"
-      >
-        <IconLikedFilled
-          v-if="currentTrack.isLiked"
-          class="size-5 text-primary"
-        />
-        <IconLike
-          v-else
-          class="size-5"
-        />
-      </Button>
+      <template v-if="libraryTrack">
+        <Button
+          size="icon-sm"
+          class="rounded-full mr-1"
+          variant="ghost"
+          :aria-label="$t('player.moreOptions')"
+          @click.stop="onDotsClick"
+        >
+          <IconDots class="size-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="rounded-full"
+          :aria-label="libraryTrack.isLiked ? $t('player.unlike') : $t('player.like')"
+          @click.stop="toggleLike"
+        >
+          <IconLikedFilled
+            v-if="libraryTrack.isLiked"
+            class="size-5 text-primary"
+          />
+          <IconLike
+            v-else
+            class="size-5"
+          />
+        </Button>
+      </template>
     </div>
 
     <TrackDropdown context="current-track" />
@@ -117,41 +122,51 @@ import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackL
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { routeLocation } from "@/app/router/route-locations";
-import type { Track } from "../types";
+import { isEphemeralTrack, isLibraryTrack, type PlayerTrack, type Track } from "../types";
 
 const playerStore = usePlayerStore();
 const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown } = useTrackMenu();
 const route = useRouter();
 
-const currentTrack = computed<Track | null>(() => {
-  const track = playerStore.currentTrack;
-  return track && "artistIds" in track ? track : null;
+// Show any playing track — library or ephemeral (e.g. a YouTube stream).
+const track = computed<PlayerTrack | null>(() => playerStore.currentTrack);
+const libraryTrack = computed<Track | null>(() =>
+  isLibraryTrack(track.value) ? track.value : null,
+);
+
+const { url: coverBlobUrl } = useEntityCover("album", () => libraryTrack.value?.albumId ?? null);
+const coverUrl = computed(() => {
+  if (libraryTrack.value) return coverBlobUrl.value ?? "/img/fallback.svg";
+  // Ephemeral tracks carry a direct cover URL (YouTube thumbnail, radio art).
+  const cover = isEphemeralTrack(track.value) ? track.value.cover : null;
+  return cover ?? "/img/fallback.svg";
 });
 
-const { url: coverBlobUrl } = useEntityCover("album", () => currentTrack.value?.albumId ?? null);
-const coverUrl = computed(() => coverBlobUrl.value ?? "/img/fallback.svg");
-
 const artistsList = computed(() => {
-  const artistStr = currentTrack.value?.artist;
+  const artistStr = libraryTrack.value?.artist
+    ?? (isEphemeralTrack(track.value) ? track.value.artist : undefined);
   if (!artistStr) return [];
   return artistStr.split(/,\s*/).map(a => a.trim()).filter(Boolean);
 });
 
+// Only library tracks have artist entities to navigate to.
+const canNavigateArtists = computed(() => libraryTrack.value !== null);
+
 const goToArtist = (index: number) => {
-  const artistId = currentTrack.value?.artistIds?.[index];
+  const artistId = libraryTrack.value?.artistIds?.[index];
   if (artistId) {
     route.push(routeLocation.artist(artistId));
   }
 };
 
 const toggleLike = async () => {
-  if (!currentTrack.value) return;
-  await toggleTrackLike(currentTrack.value);
+  if (!libraryTrack.value) return;
+  await toggleTrackLike(libraryTrack.value);
 };
 
 const onDotsClick = (event: MouseEvent) => {
-  if (!currentTrack.value) return;
-  openDropdown(currentTrack.value, 0, event, { target: "current-track" });
+  if (!libraryTrack.value) return;
+  openDropdown(libraryTrack.value, 0, event, { target: "current-track" });
 };
 </script>
