@@ -2,6 +2,7 @@ import { ok, err, ResultAsync, fromPromise, errAsync, okAsync } from "neverthrow
 import { IFileStorage } from "./IFileStorage";
 import { StorageError, StorageErrorCode } from "../errors/storage.errors";
 import { getMimeType } from "@/lib/environment/mimeSupport";
+import { normalizePath } from "./pathUtils";
 
 export class WebOpfsStorage implements IFileStorage {
   private rootPromise: Promise<FileSystemDirectoryHandle> | null = null;
@@ -21,12 +22,9 @@ export class WebOpfsStorage implements IFileStorage {
   }
 
   saveFile(path: string, data: Blob | File): ResultAsync<string, StorageError> {
-    if (typeof data === "string") {
-      return errAsync(StorageError.writeFailed(path, "File paths are not supported in Web Storage"));
-    }
-
+    const normalized = normalizePath(path);
     return this.getRoot()
-      .andThen(root => this.resolvePath(root, path, true))
+      .andThen(root => this.resolvePath(root, normalized, true))
       .andThen(({ dirHandle, filename }) =>
         fromPromise(
           (async () => {
@@ -42,7 +40,7 @@ export class WebOpfsStorage implements IFileStorage {
               throw e;
             }
 
-            return path;
+            return normalized;
           })(),
           error => StorageError.writeFailed(path, error),
         ),
@@ -71,7 +69,7 @@ export class WebOpfsStorage implements IFileStorage {
   }
 
   getAudioUrl(path: string): ResultAsync<string, StorageError> {
-    return okAsync(`/opfs/${encodeURIComponent(path)}`);
+    return okAsync(`/opfs/${encodeURIComponent(normalizePath(path))}`);
   }
 
   deleteFile(path: string): ResultAsync<void, StorageError> {
@@ -99,23 +97,25 @@ export class WebOpfsStorage implements IFileStorage {
   }
 
   listFiles(folder: string): ResultAsync<string[], StorageError> {
+    const normalized = normalizePath(folder);
     return this.getRoot().andThen(root =>
       fromPromise(
         (async () => {
-          const dirHandle = await root.getDirectoryHandle(folder);
+          const dirHandle = await root.getDirectoryHandle(normalized);
           const files: string[] = [];
 
           // @ts-expect-error - values() exists in browser
           for await (const handle of dirHandle.values()) {
             if (handle.kind === "file") {
-              files.push(`${folder}/${handle.name}`);
+              files.push(`${normalized}/${handle.name}`);
             }
           }
 
           return files;
         })(),
-        () => null,
-      ).orElse(() => ok([])),
+        error =>
+          this.isNotFoundError(error) ? null : StorageError.readFailed(normalized, error),
+      ).orElse(error => (error === null ? ok([]) : err(error))),
     );
   }
 
@@ -124,7 +124,7 @@ export class WebOpfsStorage implements IFileStorage {
     path: string,
     create: boolean,
   ): ResultAsync<{ dirHandle: FileSystemDirectoryHandle; filename: string }, StorageError> {
-    const parts = path.split("/").filter(Boolean);
+    const parts = normalizePath(path).split("/").filter(Boolean);
     const filename = parts.pop();
 
     if (!filename) {
@@ -156,6 +156,16 @@ export class WebOpfsStorage implements IFileStorage {
   }
 
   getFileSize(path: string): ResultAsync<number, StorageError> {
-    return this.getFile(path).map(file => file.size);
+    return this.getRoot()
+      .andThen(root => this.resolvePath(root, path, false))
+      .andThen(({ dirHandle, filename }) =>
+        fromPromise(
+          dirHandle.getFileHandle(filename).then(h => h.getFile()).then(f => f.size),
+          error =>
+            this.isNotFoundError(error)
+              ? StorageError.fileNotFound(path, error)
+              : StorageError.readFailed(path, error),
+        ),
+      );
   }
 }

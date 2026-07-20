@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TauriStorage } from "../tauri.storage";
-import { StorageError } from "@/db/errors/storage.errors";
+import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
 const mocks = vi.hoisted(() => ({
   writeFile: vi.fn(),
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   readDir: vi.fn(),
   remove: vi.fn(),
   open: vi.fn(),
+  stat: vi.fn(),
   appDataDir: vi.fn(),
   convertFileSrc: vi.fn(),
   fileHandle: {
@@ -28,6 +29,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   readDir: mocks.readDir,
   remove: mocks.remove,
   open: mocks.open,
+  stat: mocks.stat,
   BaseDirectory: { AppData: 1 },
 }));
 
@@ -50,6 +52,10 @@ describe("TauriStorage", () => {
     mocks.appDataDir.mockResolvedValue(APP_DATA_PATH);
     mocks.exists.mockResolvedValue(true);
     mocks.open.mockResolvedValue(mocks.fileHandle);
+    mocks.writeFile.mockResolvedValue(undefined);
+    mocks.remove.mockResolvedValue(undefined);
+    mocks.copyFile.mockResolvedValue(undefined);
+    mocks.mkdir.mockResolvedValue(undefined);
   });
 
   describe("warmup", () => {
@@ -169,6 +175,247 @@ describe("TauriStorage", () => {
       expect(result.isOk()).toBe(true);
       expect(mocks.convertFileSrc).toHaveBeenCalledWith(`${APP_DATA_PATH}/tracks/1.mp3`);
       expect(result._unsafeUnwrap()).toBe("asset://localhost/usr/appdata/tracks/1.mp3");
+    });
+
+    it("should use absolute source path directly without joining appData", async () => {
+      mocks.convertFileSrc.mockReturnValue("asset://localhost/abs/x.mp3");
+
+      const result = await storage.getAudioUrl("/abs/path/x.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.convertFileSrc).toHaveBeenCalledWith("/abs/path/x.mp3");
+      expect(mocks.appDataDir).not.toHaveBeenCalled();
+    });
+
+    it("should normalize windows backslashes before conversion", async () => {
+      mocks.convertFileSrc.mockReturnValue("asset://localhost/c/x.mp3");
+
+      const result = await storage.getAudioUrl("C:\\music\\x.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.convertFileSrc).toHaveBeenCalledWith("C:/music/x.mp3");
+    });
+  });
+
+  describe("saveFile", () => {
+    it("should convert ArrayBuffer to Uint8Array and write", async () => {
+      const buffer = new ArrayBuffer(4);
+      const result = await storage.saveFile("tracks/ab.bin", buffer);
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.writeFile).toHaveBeenCalledWith(
+        "tracks/ab.bin",
+        expect.any(Uint8Array),
+        expect.objectContaining({ baseDir: 1 }),
+      );
+      const written = mocks.writeFile.mock.calls[0][1] as Uint8Array;
+      expect(written.length).toBe(4);
+    });
+  });
+
+  describe("getFile", () => {
+    it("should read bytes and wrap them in a Blob", async () => {
+      mocks.readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+      const result = await storage.getFile("tracks/1.mp3");
+
+      expect(result.isOk()).toBe(true);
+      const blob = result._unsafeUnwrap();
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.size).toBe(3);
+      expect(mocks.readFile).toHaveBeenCalledWith("tracks/1.mp3", expect.objectContaining({ baseDir: 1 }));
+    });
+
+    it("should map read errors to READ_FAILED", async () => {
+      mocks.readFile.mockRejectedValue(new Error("io"));
+
+      const result = await storage.getFile("tracks/missing.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.READ_FAILED);
+    });
+
+    it("should return FILE_NOT_FOUND when the file is absent", async () => {
+      mocks.exists.mockResolvedValue(false);
+
+      const result = await storage.getFile("tracks/gone.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.FILE_NOT_FOUND);
+      expect(mocks.readFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("readFile", () => {
+    it("should return raw bytes on success", async () => {
+      mocks.readFile.mockResolvedValue(new Uint8Array([9, 8, 7]));
+
+      const result = await storage.readFile("/abs/file.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(Array.from(result._unsafeUnwrap())).toEqual([9, 8, 7]);
+      expect(mocks.readFile).toHaveBeenCalledWith("/abs/file.mp3");
+    });
+
+    it("should map errors to READ_FAILED", async () => {
+      mocks.readFile.mockRejectedValue(new Error("io"));
+
+      const result = await storage.readFile("/abs/file.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.READ_FAILED);
+    });
+  });
+
+  describe("getFileSize", () => {
+    it("should return size from stat metadata", async () => {
+      mocks.stat.mockResolvedValue({ size: 4096 });
+
+      const result = await storage.getFileSize("tracks/1.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe(4096);
+      expect(mocks.stat).toHaveBeenCalledWith("tracks/1.mp3", expect.objectContaining({ baseDir: 1 }));
+    });
+
+    it("should map stat errors to READ_FAILED", async () => {
+      mocks.stat.mockRejectedValue(new Error("no entry"));
+
+      const result = await storage.getFileSize("tracks/missing.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.READ_FAILED);
+    });
+
+    it("should return FILE_NOT_FOUND when the file is absent", async () => {
+      mocks.exists.mockResolvedValue(false);
+
+      const result = await storage.getFileSize("tracks/gone.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.FILE_NOT_FOUND);
+      expect(mocks.stat).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("listFiles", () => {
+    it("should return empty list when folder does not exist", async () => {
+      mocks.exists.mockResolvedValue(false);
+
+      const result = await storage.listFiles("tracks");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toEqual([]);
+      expect(mocks.readDir).not.toHaveBeenCalled();
+    });
+
+    it("should list only files, skipping subdirectories", async () => {
+      mocks.exists.mockResolvedValue(true);
+      mocks.readDir.mockResolvedValue([
+        { name: "a.mp3", isFile: true },
+        { name: "b.mp3", isFile: true },
+        { name: "nested", isFile: false },
+      ]);
+
+      const result = await storage.listFiles("tracks");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toEqual(["tracks/a.mp3", "tracks/b.mp3"]);
+    });
+
+    it("should map readDir errors to READ_FAILED", async () => {
+      mocks.exists.mockResolvedValue(true);
+      mocks.readDir.mockRejectedValue(new Error("io"));
+
+      const result = await storage.listFiles("tracks");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.READ_FAILED);
+    });
+  });
+
+  describe("deleteFile", () => {
+    it("should remove an existing file", async () => {
+      mocks.exists.mockResolvedValue(true);
+
+      const result = await storage.deleteFile("tracks/1.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.remove).toHaveBeenCalledWith("tracks/1.mp3", expect.objectContaining({ baseDir: 1 }));
+    });
+
+    it("should be idempotent when file is absent", async () => {
+      mocks.exists.mockResolvedValue(false);
+
+      const result = await storage.deleteFile("tracks/ghost.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.remove).not.toHaveBeenCalled();
+    });
+
+    it("should map remove errors to DELETE_FAILED", async () => {
+      mocks.exists.mockResolvedValue(true);
+      mocks.remove.mockRejectedValue(new Error("locked"));
+
+      const result = await storage.deleteFile("tracks/1.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.DELETE_FAILED);
+    });
+  });
+
+  describe("directory caching", () => {
+    it("should probe a folder only once across repeated writes", async () => {
+      mocks.exists.mockResolvedValue(true);
+
+      await storage.saveFile("tracks/1.mp3", new Uint8Array([1]));
+      await storage.saveFile("tracks/2.mp3", new Uint8Array([2]));
+
+      expect(mocks.exists).toHaveBeenCalledTimes(1);
+    });
+
+    it("should re-probe after clearCaches", async () => {
+      mocks.exists.mockResolvedValue(true);
+
+      await storage.saveFile("tracks/1.mp3", new Uint8Array([1]));
+      storage.clearCaches();
+      await storage.saveFile("tracks/2.mp3", new Uint8Array([2]));
+
+      expect(mocks.exists).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("getAppDataDir", () => {
+    it("should resolve the app data dir only once", async () => {
+      const a = await storage.getAppDataDir();
+      const b = await storage.getAppDataDir();
+
+      expect(a).toBe(APP_DATA_PATH);
+      expect(b).toBe(APP_DATA_PATH);
+      expect(mocks.appDataDir).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("path normalization", () => {
+    it("should collapse backslashes and duplicate slashes when writing", async () => {
+      const result = await storage.saveFile("tracks\\\\album//song.mp3", new Uint8Array([1]));
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("tracks/album/song.mp3");
+      expect(mocks.writeFile).toHaveBeenCalledWith(
+        "tracks/album/song.mp3",
+        expect.any(Uint8Array),
+        expect.objectContaining({ baseDir: 1 }),
+      );
+      expect(mocks.mkdir).not.toHaveBeenCalled();
+    });
+
+    it("should normalize the import target path", async () => {
+      const result = await storage.importFile("/downloads/x.mp3", "tracks\\\\x.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("tracks/x.mp3");
+      expect(mocks.copyFile).toHaveBeenCalledWith("/downloads/x.mp3", `${APP_DATA_PATH}/tracks/x.mp3`);
     });
   });
 });
