@@ -45,9 +45,7 @@ import { useGlobalHotKeys } from "@/modules/hotkeys";
 import { useMediaSession } from "@/modules/player/composables/useMediaSession";
 import { useDiscordPresence } from "@/modules/player/composables/useDiscordPresence";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { useUpdateStore } from "@/modules/update/store/update.store";
-import { useUpdateScheduler } from "@/modules/update/composables/useUpdateScheduler";
-import { usePwaUpdate } from "@/modules/update/composables/usePwaUpdate";
+import { useUpdateNotifications } from "@/modules/update/composables/useUpdateNotifications";
 import { useChangelogOnStartup } from "@/modules/update/composables/useChangelogOnStartup";
 import WhatsNewDialog from "@/modules/update/components/WhatsNewDialog.vue";
 import { useTrayBehavior } from "@/modules/settings/composables/useTrayBehavior";
@@ -61,9 +59,7 @@ import ImportProgressDialog from "@/components/ImportProgressDialog.vue";
 import { usePlayerStore } from "@/modules/player";
 import { useEventListener } from "@vueuse/core";
 import NetworkStatusToast from "@/components/NetworkStatusToast.vue";
-import { toast } from "vue-sonner";
-import { useI18n } from "vue-i18n";
-import { useAnalysisQueue } from "@/modules/recommendations/composables/useAnalysisQueue";
+import { useAnalysisQueueLifecycle } from "@/modules/recommendations/composables/useAnalysisQueueLifecycle";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger();
@@ -84,8 +80,6 @@ const { init } = useWatchedFolders();
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const rightPanelStore = useRightPanelStore();
-
-const { start: startAnalysis, stop: stopAnalysis } = useAnalysisQueue();
 
 const layouts: Record<string, VueComponent> = {
   default: DefaultLayout,
@@ -118,36 +112,15 @@ onMounted(async () => {
   unlisten = await listenForOpenedFiles(async (files: OpenedFile[]) => {
     if (files.length === 0) return;
 
-    if (files.length === 1) {
-      const track = ephemeralFromPath(files[0].path, {
-        title: files[0].name.replace(/\.[^.]+$/, ""),
-      });
-      await queueStore.setQueue([track], 0, { type: "external" });
-    }
-    else {
-      const tracks = files.map(f =>
-        ephemeralFromPath(f.path, {
-          title: f.name.replace(/\.[^.]+$/, ""),
-        }),
-      );
-      await queueStore.setQueue(tracks, 0, { type: "external" });
-    }
+    const tracks = files.map(file =>
+      ephemeralFromPath(file.path, {
+        title: file.name.replace(/\.[^.]+$/, ""),
+      }),
+    );
+    await queueStore.setQueue(tracks, 0, { type: "external" });
   });
 
   init();
-
-  let analysisTimeout: ReturnType<typeof setTimeout> | undefined;
-
-  if (analyzeTracks.value) {
-    analysisTimeout = setTimeout(startAnalysis, 3000);
-  }
-
-  onUnmounted(() => {
-    if (analysisTimeout) {
-      clearTimeout(analysisTimeout);
-    }
-    stopAnalysis();
-  });
 });
 onUnmounted(() => {
   unlisten?.();
@@ -164,70 +137,11 @@ useDiscordPresence();
 useNowPlayingTitle();
 
 useExternalLinkInterceptor();
-// UPDATE
 
-const updateStore = useUpdateStore();
-const { checkUpdatesOnLaunch, analyzeTracks } = useGeneralSettings();
-
-watch(analyzeTracks, (enable) => {
-  if (enable) {
-    startAnalysis();
-  }
-  else {
-    stopAnalysis();
-  }
-});
-
-if (IS_TAURI) {
-  useUpdateScheduler({ checkOnStartup: checkUpdatesOnLaunch.value });
-}
-else {
-  usePwaUpdate(updateStore.channel, checkUpdatesOnLaunch.value);
-  log.info("Running in PWA mode, using PWA update mechanism");
-}
-
+useAnalysisQueueLifecycle();
+useUpdateNotifications();
 useChangelogOnStartup();
 
-const { t } = useI18n();
-let updateToastId: string | number | undefined;
-
-watch(
-  () => updateStore.status,
-
-  (status, prevStatus) => {
-    if (status === "available" && prevStatus !== "available") {
-      const version = updateStore.updateInfo?.version;
-      updateToastId = toast(t("update.updateToVersion", { version }), {
-        action: {
-          label: t("update.installUpdate"),
-          onClick: () => updateStore.install(),
-        },
-        cancel: {
-          label: t("update.dismiss"),
-          onClick: () => updateStore.dismiss(),
-        },
-      });
-    }
-    else if (status === "downloading") {
-      if (updateToastId) toast.dismiss(updateToastId);
-      updateToastId = toast(t("update.downloading"), {
-        duration: Infinity,
-      });
-    }
-    else if (status === "installing") {
-      if (updateToastId) toast.dismiss(updateToastId);
-      updateToastId = toast(t("update.installing"), {
-        duration: Infinity,
-      });
-    }
-
-    else if (status === "up-to-date") {
-      if (updateToastId) toast.dismiss(updateToastId);
-    }
-  },
-);
-
-// Tray
 if (IS_TAURI) {
   useTrayBehavior();
 }

@@ -2,16 +2,18 @@ import { ResultAsync } from "neverthrow";
 import type { UpdateError, UpdateErrorKind, UpdateInfo } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
-function getErrorKind(message: string, fallbackKind: UpdateErrorKind): UpdateErrorKind {
-  if (message.includes("network") || message.includes("connect")) return "NETWORK";
-  if (message.includes("invalid channel")) return "INVALID_CHANNEL";
-  if (message.includes("no update available")) return "NO_UPDATE_AVAILABLE";
-  return fallbackKind;
-}
+// The Rust commands return a typed { kind, message } error
+// (see src-tauri/src/updater.rs). Pass it through as-is; the fallback only
+// covers transport-level rejections that never reach that mapping.
+const isUpdateError = (raw: unknown): raw is UpdateError =>
+  typeof raw === "object"
+  && raw !== null
+  && "kind" in raw
+  && "message" in raw;
 
-const toUpdateError = (raw: unknown, fallbackKind: UpdateErrorKind = "UNKNOWN"): UpdateError => {
-  const message = typeof raw === "string" ? raw : String(raw);
-  return { kind: getErrorKind(message, fallbackKind), message };
+const toUpdateError = (raw: unknown, fallbackKind: UpdateErrorKind): UpdateError => {
+  if (isUpdateError(raw)) return raw;
+  return { kind: fallbackKind, message: typeof raw === "string" ? raw : String(raw) };
 };
 
 export const installUpdate = (): ResultAsync<void, UpdateError> =>

@@ -1,27 +1,28 @@
 // PWA update bridge — connects vite-plugin-pwa Service Worker lifecycle
-// to our unified update store + changelog store.
+// to our unified update store.
 //
 // Flow:
 //   1. SW detects new version → needRefresh = true
-//   2. We fetch latest tag from GitHub (via TanStack Query cache)
-//      and push status: 'available' into the update store
-//   3. User clicks "Установить" → applyPwaUpdate()
-//      → stages changelog for the target version → SW skipWaiting → page reloads
-//   4. On reload, useChangelogOnStartup() promotes the staged changelog
-//      → WhatsNewModal opens
+//   2. We fetch the latest tag from GitHub (via TanStack Query cache) purely
+//      to show the version in the update toast, then push status: 'available'
+//   3. User clicks "Установить" → applyPwaUpdate() → SW skipWaiting → reload
+//   4. On reload, useChangelogOnStartup() resolves release notes for the
+//      actual new __APP_VERSION__ → WhatsNewModal opens
+//
+// Changelog is intentionally NOT staged here: the version the SW installs is
+// whatever the host deployed, which need not equal GitHub's latest tag, so
+// staging under a guessed version was silently lossy. Resolving it after
+// reload from __APP_VERSION__ is always correct.
 
 import { watch, onUnmounted } from "vue";
 import { useRegisterSW } from "virtual:pwa-register/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useUpdateStore } from "../store/update.store";
-import { useChangelogStore } from "../store/changelog.store";
 import type { UpdateChannel } from "../types";
-import { fetchReleaseNotes, latestTagQueryOptions } from "../api/changelogApi";
-import { normalizeReleaseNotes } from "../lib/releaseNotes";
+import { latestTagQueryOptions } from "../api/changelogApi";
 
-export const usePwaUpdate = (channel: UpdateChannel = "stable", notifyOnUpdate: boolean = true) => {
+export const usePwaUpdate = (channel: UpdateChannel = "stable", enabled: boolean = true) => {
   const updateStore = useUpdateStore();
-  const changelogStore = useChangelogStore();
   const queryClient = useQueryClient();
 
   let updateInterval: ReturnType<typeof setInterval> | null = null;
@@ -29,6 +30,9 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", notifyOnUpdate: 
   const { needRefresh, updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
+      // Auto-update checks are disabled — register the SW (needed for offline)
+      // but never poll for or surface new versions.
+      if (!enabled) return;
 
       registration.update();
       updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
@@ -44,7 +48,7 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", notifyOnUpdate: 
 
   watch(needRefresh, async (isReady) => {
     if (!isReady) return;
-    if (!notifyOnUpdate) return;
+    if (!enabled) return;
     // fetchQuery respects the cache: if latestTag was already fetched
     // this session it returns instantly without a network call.
     try {
@@ -67,30 +71,24 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", notifyOnUpdate: 
   });
 
   /**
-   * Called when user confirms the update (UpdateToast "Установить" button).
-   * Stages changelog before reloading so WhatsNewModal is ready on next launch.
+   * Called when the user confirms the update (UpdateToast "Установить").
+   * Triggers the waiting SW to skipWaiting; the page reloads on controllerchange.
    */
   async function applyPwaUpdate() {
     updateStore.$patch({ status: "downloading" });
 
-    const version = updateStore.updateInfo?.version;
-    if (version) {
-      const tag = `v${version}`;
-      // fetchReleaseNotes uses ofetch directly (ResultAsync) —
-      // appropriate here since we're in an imperative async function,
-      // not a reactive query context.
-      const result = await fetchReleaseNotes(tag);
-      result.match(
-        (markdown) => {
-          changelogStore.stageChangelog(version, normalizeReleaseNotes(markdown));
-        },
-        () => {
-          // Changelog fetch failed — proceed with update anyway, skip modal
-        },
-      );
+    try {
+      await updateServiceWorker(true);
     }
-
-    await updateServiceWorker(true);
+    catch (e) {
+      updateStore.$patch({
+        status: "error",
+        error: {
+          kind: "INSTALL_FAILED",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      });
+    }
   }
 
   return { needRefresh, applyPwaUpdate };
