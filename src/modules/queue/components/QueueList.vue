@@ -60,15 +60,11 @@
 
               <div
                 v-if="showDropIndicator(index)"
-                class="absolute left-3 right-3 h-0.5 bg-primary rounded-full z-10"
-                :class="dropIndicatorPosition()"
+                class="absolute left-3 right-3 h-0.5 bg-primary rounded-full z-10 bottom-0"
               />
             </div>
           </template>
 
-          <!-- <template #empty>
-            <QueueEmpty />
-          </template> -->
         </VirtualScrollable>
       </TrackContextMenu>
       <TrackDropdown context="queue" />
@@ -87,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, useTemplateRef, watch } from "vue";
+import { computed, reactive, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useElementBounding } from "@vueuse/core";
 import { useQueueStore } from "../store/queue.store";
@@ -104,7 +100,6 @@ import QueueEmpty from "./QueueEmpty.vue";
 const { t } = useI18n();
 
 const ITEM_HEIGHT = 64;
-const DEBUG_QUEUE_DND = true;
 
 const queueStore = useQueueStore();
 const virtualRef = useTemplateRef("virtualRef");
@@ -157,10 +152,6 @@ function showDropIndicator(index: number): boolean {
   return index === target;
 }
 
-function dropIndicatorPosition(): string {
-  return "bottom-0";
-}
-
 function getDropTargetIndex(): number {
   const drop = drag.dropIndex.value;
   const from = drag.dragIndex.value;
@@ -173,29 +164,4 @@ function getDropTargetIndex(): number {
 
   return to;
 }
-
-watch(
-  () => ({
-    isDragging: drag.isDragging.value,
-    dragIndex: drag.dragIndex.value,
-    dropIndex: drag.dropIndex.value,
-    ghostY: drag.ghostY.value,
-    targetIndex: getDropTargetIndex(),
-    upcomingCount: upcomingQueueItems.value.length,
-  }),
-  (state) => {
-    if (!DEBUG_QUEUE_DND || !state.isDragging) return;
-
-    const lineY = state.targetIndex >= 0
-      ? state.targetIndex * ITEM_HEIGHT
-      : -1;
-
-    console.log("[queue-dnd:indicator]", {
-      ...state,
-      itemHeight: ITEM_HEIGHT,
-      lineY,
-    });
-  },
-  { deep: false },
-);
 </script>
