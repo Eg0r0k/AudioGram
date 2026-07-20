@@ -81,6 +81,7 @@
 <script setup lang="ts" generic="T">
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, useTemplateRef, watch } from "vue";
+import { scrollableInjectionKey } from "./injection";
 import useScrollable from "./useScrollable";
 
 interface Props {
@@ -243,7 +244,7 @@ const stickyStyle = computed(() => ({
   top: props.stickyOffset,
 }));
 
-provide("scrollable", scrollable);
+provide(scrollableInjectionKey, scrollable);
 
 interface ScrollToIndexOptions {
   align?: "start" | "center" | "end" | "auto";

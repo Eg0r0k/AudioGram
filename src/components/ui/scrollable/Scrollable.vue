@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { computed, provide, useTemplateRef } from "vue";
+import { scrollableInjectionKey } from "./injection";
 import useScrollable from "./useScrollable";
 
 // TODO: Make overlay state to disable scroll (optional)
@@ -106,7 +107,7 @@ const thumbStyle = computed(() => {
   };
 });
 
-provide("scrollable", scrollable);
+provide(scrollableInjectionKey, scrollable);
 
 defineExpose({
   scrollTo: scrollable.scrollTo,
