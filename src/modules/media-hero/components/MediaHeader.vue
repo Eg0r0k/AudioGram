@@ -57,7 +57,8 @@
 </template>
 
 <script setup lang="ts">
-import { inject, computed, type ComputedRef } from "vue";
+import { inject, computed } from "vue";
+import { scrollableInjectionKey } from "@/components/ui/scrollable/injection";
 import { Button } from "@/components/ui/button";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconPlay from "~icons/audiogram/play-rounded";
@@ -76,11 +77,7 @@ defineEmits<{
   play: [];
 }>();
 
-interface ScrollableContext {
-  scrollPosition: ComputedRef<number> & { value: number };
-}
-
-const scrollable = inject<ScrollableContext | null>("scrollable", null);
+const scrollable = inject(scrollableInjectionKey, null);
 
 const isScrolled = computed(() => {
   if (!scrollable) return false;

@@ -34,12 +34,12 @@
           </p>
         </div>
         <TagsInput
-          v-model="modelValue"
+          v-model="artists"
           surface="card"
-          label="Теги"
+          :label="$t('track.edit.fields.artists')"
         >
           <TagsInputItem
-            v-for="item in modelValue"
+            v-for="item in artists"
             :key="item"
             :value="item"
           >
@@ -274,7 +274,6 @@ const { errors, meta, defineField, handleSubmit, resetForm, setValues } = useFor
 const [title] = defineField("title");
 const [artists] = defineField("artists");
 const [albumId] = defineField("albumId");
-const modelValue = ref(["Apple", "Banana"]);
 const track = computed<Track | null>(() => {
   return isLibraryTrack(props.payload.track) ? props.payload.track : null;
 });

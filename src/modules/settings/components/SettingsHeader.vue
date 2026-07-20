@@ -22,7 +22,8 @@
 </template>
 
 <script setup lang="ts">
-import { inject, computed, type ComputedRef } from "vue";
+import { inject, computed } from "vue";
+import { scrollableInjectionKey } from "@/components/ui/scrollable/injection";
 import Button from "@/components/ui/button/Button.vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import IconArrowLeft from "~icons/tabler/arrow-left";
@@ -31,9 +32,7 @@ defineProps<{
   title: string;
 }>();
 
-const scrollable = inject<{
-  isScrolledToStart: ComputedRef<boolean>;
-}>("scrollable");
+const scrollable = inject(scrollableInjectionKey);
 
 const isScrolled = computed(() => !scrollable?.isScrolledToStart.value);
 </script>

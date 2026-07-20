@@ -90,7 +90,7 @@
             >E</span>
             <template
               v-for="(artist, artistIndex) in artists"
-              :key="`${track.id}-${artistIndex}`"
+              :key="artist"
             >
               <button
                 type="button"

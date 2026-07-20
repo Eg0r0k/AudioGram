@@ -79,7 +79,7 @@
       <div :class="styles.artist">
         <template
           v-for="(artist, i) in artists"
-          :key="i"
+          :key="artist"
         >
           <span
             role="link"
@@ -99,7 +99,7 @@
       variant="ghost"
       size="icon-sm"
       :class="[
-        'rounded-full transition-colors transition-opacity',
+        'rounded-full transition-opacity',
         isLiked
           ? 'opacity-100 text-primary hover:text-primary'
           : 'opacity-0 text-muted-foreground sm:group-hover:opacity-100 [@media(hover:none)]:opacity-100 hover:text-foreground'

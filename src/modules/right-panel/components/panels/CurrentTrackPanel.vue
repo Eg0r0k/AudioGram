@@ -111,7 +111,7 @@
                   <span class="text-muted-foreground group-hover:text-foreground text-xs transition-colors duration-200">
                     <template
                       v-for="(artist, i) in artistsList"
-                      :key="i"
+                      :key="artist"
                     >
                       <span
                         role="link"
