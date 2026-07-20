@@ -13,11 +13,52 @@ pub struct UpdateInfo {
 }
 
 #[derive(Debug, Serialize)]
-pub struct UpdateError(String);
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum UpdateErrorKind {
+    Network,
+    NoUpdateAvailable,
+    InstallFailed,
+    Unknown,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateError {
+    kind: UpdateErrorKind,
+    message: String,
+}
+
+impl UpdateError {
+    fn new(kind: UpdateErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+}
 
 impl From<tauri_plugin_updater::Error> for UpdateError {
     fn from(e: tauri_plugin_updater::Error) -> Self {
-        UpdateError(e.to_string())
+        use tauri_plugin_updater::Error as E;
+
+        let kind = match &e {
+            E::Network(_) | E::Reqwest(_) | E::Http(_) | E::InsecureTransportProtocol => {
+                UpdateErrorKind::Network
+            }
+            E::ReleaseNotFound => UpdateErrorKind::NoUpdateAvailable,
+            E::AuthenticationFailed
+            | E::DebInstallFailed
+            | E::PackageInstallFailed
+            | E::BinaryNotFoundInArchive
+            | E::InvalidUpdaterFormat
+            | E::Minisign(_)
+            | E::FailedToDetermineExtractPath
+            | E::TempDirNotFound
+            | E::TempDirNotOnSameMountPoint => UpdateErrorKind::InstallFailed,
+            _ => UpdateErrorKind::Unknown,
+        };
+
+        UpdateError::new(kind, e.to_string())
     }
 }
 
@@ -53,7 +94,7 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdateE
         .check()
         .await
         .map_err(UpdateError::from)?
-        .ok_or_else(|| UpdateError("no update available".into()))?;
+        .ok_or_else(|| UpdateError::new(UpdateErrorKind::NoUpdateAvailable, "no update available"))?;
 
     let app_handle = app.clone();
 
@@ -75,6 +116,5 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdateE
         .await
         .map_err(UpdateError::from)?;
 
-    let _ = app.emit("update://finished", ());
     app.restart();
 }

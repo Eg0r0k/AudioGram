@@ -14,36 +14,45 @@ mod discord;
 #[cfg(desktop)]
 mod discord_utils;
 
-fn dir_size(path: &Path) -> std::io::Result<u64> {
+
+fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
 
-    if !path.exists() {
-        return Ok(0);
-    }
+    let Ok(entries) = fs::read_dir(path) else {
+        return 0;
+    };
 
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
+    for entry in entries.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
 
         if metadata.is_dir() {
-            total += dir_size(&entry.path())?;
+            total += dir_size(&entry.path());
         } else {
             total += metadata.len();
         }
     }
 
-    Ok(total)
+    total
 }
 
 #[tauri::command]
-fn app_data_folder_size(app: tauri::AppHandle, folder: String) -> Result<u64, String> {
+async fn app_data_folder_size(app: tauri::AppHandle, folder: String) -> Result<u64, String> {
     match folder.as_str() {
         "tracks" | "lyrics" => {}
         _ => return Err("unsupported app data folder".into()),
     }
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    dir_size(&app_data_dir.join(folder)).map_err(|e| e.to_string())
+    let target = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(folder);
+
+    tauri::async_runtime::spawn_blocking(move || dir_size(&target))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -75,7 +84,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build());
 
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![

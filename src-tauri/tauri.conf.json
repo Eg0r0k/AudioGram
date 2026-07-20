@@ -10,11 +10,6 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "trayIcon":{
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false
-    },
     "withGlobalTauri": true,
     "windows": [
       {
@@ -40,6 +35,7 @@
     "updater": {
     "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxNjgwQUI5QjM2MjQ4NDQKUldSRVNHS3p1UXBvc1hCR3E1dys2eHF0dHVtNElVdEZaT2JUWmhVZjg3OE0yVC9tbUZpSXUwaU0K",
     "endpoints": [
+      "https://raw.githubusercontent.com/Eg0r0k/Audiogram/main/docs/manifests/stable/latest.json",
       "https://eg0r0k.github.io/audiogram/manifests/stable/latest.json"
     ],
     "windows": {

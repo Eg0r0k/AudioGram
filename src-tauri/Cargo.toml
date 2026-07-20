@@ -39,4 +39,5 @@ tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2.10.0"
+tauri-plugin-window-state = "2"
 

@@ -1,11 +1,11 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use serde::Deserialize;
 
 use crate::discord_utils::build_activity;
 
-pub type DiscordPresenceState = Mutex<DiscordPresence>;
+pub type DiscordPresenceState = Arc<Mutex<DiscordPresence>>;
 
 #[derive(Default)]
 pub struct DiscordPresence {
@@ -25,18 +25,31 @@ pub struct DiscordActivityPayload {
 }
 
 #[tauri::command]
-pub fn discord_set_activity(
+pub async fn discord_set_activity(
     state: tauri::State<'_, DiscordPresenceState>,
     payload: DiscordActivityPayload,
 ) -> Result<(), String> {
-    let mut presence = state.lock().map_err(|e| e.to_string())?;
-    presence.set_activity(payload)
+    let presence = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        presence
+            .lock()
+            .map_err(|e| e.to_string())?
+            .set_activity(payload)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn discord_clear_activity(state: tauri::State<'_, DiscordPresenceState>) -> Result<(), String> {
-    let mut presence = state.lock().map_err(|e| e.to_string())?;
-    presence.clear_activity()
+pub async fn discord_clear_activity(
+    state: tauri::State<'_, DiscordPresenceState>,
+) -> Result<(), String> {
+    let presence = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        presence.lock().map_err(|e| e.to_string())?.clear_activity()
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 impl DiscordPresence {
