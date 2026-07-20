@@ -1,95 +1,60 @@
+import type { OKLCH } from "./color";
 import { clamp, lerp } from "../math";
-import { hslToHex, type HSL } from "./color";
-import { getTargetLightness } from "./color-scoring";
+import { clampChromaToGamut, oklchToHex } from "./color";
 
-export interface ColorNormalizationOptions {
+// Larger than any achievable sRGB chroma, so clamping it to gamut yields the
+// maximum displayable chroma (the "cusp") for a given lightness and hue.
+const GAMUT_PROBE = 0.4;
+
+export interface AccentAdjustOptions {
+  /** Lowest allowed accent lightness (very dark covers are lifted to here). */
+  minLightness: number;
+  /** Highest allowed accent lightness (very light covers are pulled to here). */
+  maxLightness: number;
+  /** Lightness the accent is nudged toward — near the vivid mid-tone cusp. */
   targetLightness: number;
+  /** How strongly (0-1) lightness is pulled toward {@link targetLightness}. */
+  lightnessPull: number;
+  /** Target chroma as a fraction (0-1) of the maximum displayable chroma. */
+  vividness: number;
+  /** Absolute minimum chroma so even low-gamut hues stay colourful. */
+  chromaFloor: number;
 }
 
-function compensateHueForDarkening(
-  hue: number,
-  _saturation: number,
-  currentL: number,
-  targetL: number,
-): number {
-  if (targetL >= currentL) return hue;
+// Push chroma toward the gamut cusp and lightness toward a vivid mid-tone;
+// saturated accents read as more pleasing than muted ones.
+export const DEFAULT_ACCENT_ADJUST: AccentAdjustOptions = {
+  minLightness: 0.45,
+  maxLightness: 0.7,
+  targetLightness: 0.58,
+  lightnessPull: 0.35,
+  vividness: 0.85,
+  chromaFloor: 0.11,
+};
 
-  const darkening = currentL - targetL;
-  if (darkening < 0.05) return hue;
-
-  // Yellow
-  if (hue >= 35 && hue <= 72) {
-    return hue - darkening * 25;
-  }
-
-  // Green-Yellow
-  if (hue > 72 && hue <= 100) {
-    return hue + darkening * 18;
-  }
-
-  // Cian
-  if (hue >= 170 && hue <= 200) {
-    return hue - darkening * 10;
-  }
-
-  return hue;
-}
-
-function compensateSaturationForDarkening(
-  hue: number,
-  saturation: number,
-  currentL: number,
-  targetL: number,
-): number {
-  if (targetL >= currentL) return saturation;
-
-  const darkening = currentL - targetL;
-  if (darkening < 0.05) return saturation;
-
-  // Fix Yellow
-  if (hue >= 35 && hue <= 72) {
-    return saturation + darkening * 0.30;
-  }
-
-  if (hue > 72 && hue <= 100) {
-    return saturation + darkening * 0.20;
-  }
-
-  // Little compisation
-  return saturation + darkening * 0.10;
-}
-
-export function normalizeColor(
-  hsl: HSL,
-  options: ColorNormalizationOptions,
+/**
+ * Turn a raw extracted OKLCH colour into a vivid, legible accent: hue kept
+ * exactly, lightness clamped into a readable band, chroma pushed toward the
+ * gamut cusp. A neutral (C ~ 0) extraction stays grey.
+ */
+export function adjustAccentColor(
+  { L, C, h }: OKLCH,
+  options: AccentAdjustOptions = DEFAULT_ACCENT_ADJUST,
 ): string {
-  const { h, s, l } = hsl;
-  let hFinal = h;
-  let sFinal = s;
-
-  // Fix dark colors
-  if (h >= 35 && h <= 65 && s < 0.25) {
-    hFinal = 35;
-    sFinal = Math.max(s, 0.50);
-  }
-  else if (h >= 65 && h <= 100 && s < 0.25) {
-    hFinal = 140;
-    sFinal = Math.max(s, 0.48);
+  // Neutral cover: keep it grey at its own brightness, don't invent a hue.
+  if (C < 1e-4) {
+    return oklchToHex(clamp(L, options.minLightness, options.maxLightness), 0, 0);
   }
 
-  const targetL = getTargetLightness(hFinal, options.targetLightness);
+  const lightness = clamp(
+    lerp(L, options.targetLightness, options.lightnessPull),
+    options.minLightness,
+    options.maxLightness,
+  );
 
-  // Make compinsation
-  hFinal = compensateHueForDarkening(hFinal, sFinal, l, targetL);
-  sFinal = compensateSaturationForDarkening(hFinal, sFinal, l, targetL);
+  const maxChroma = clampChromaToGamut(lightness, GAMUT_PROBE, h);
+  const target = Math.max(C, options.chromaFloor, options.vividness * maxChroma);
+  const chroma = Math.min(target, maxChroma);
 
-  const sFloor = 0.45;
-  const sCeil = 0.78;
-  sFinal = clamp(sFinal, sFloor, sCeil);
-
-  // Bright
-  const lMix = clamp(l, 0.25, 0.75);
-  const finalL = lerp(targetL, lMix, 0.15);
-
-  return hslToHex(hFinal, sFinal, finalL);
+  return oklchToHex(lightness, chroma, h);
 }
