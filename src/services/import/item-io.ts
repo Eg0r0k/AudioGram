@@ -6,6 +6,7 @@ import {
   computeFileFingerprintFromBlob,
 } from "@/modules/watched-folders/services/file-fingerprint";
 import { StorageError } from "@/db/errors/storage.errors";
+import { extensionForAudioMimeType } from "@/lib/environment/mimeSupport";
 import { ResultAsync } from "neverthrow";
 import { ImportError, ImportItem } from "../types";
 import { HEAD_READ_SIZE, MAX_METADATA_READ } from "./constants";
@@ -14,8 +15,15 @@ export function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() ?? "unknown";
 }
 
+/**
+ * Extension of a file name or full path, lowercased, without the dot.
+ * Returns `""` when the name carries none — a directory component containing a
+ * dot must not be mistaken for one.
+ */
 export function extensionOf(name: string): string {
-  return name.split(".").pop()?.toLowerCase() ?? "";
+  const base = name.split(/[\\/]/).pop() ?? "";
+  const dot = base.lastIndexOf(".");
+  return dot >= 0 ? base.slice(dot + 1).toLowerCase() : "";
 }
 
 export function itemsFromPaths(paths: string[]): ImportItem[] {
@@ -32,7 +40,9 @@ export function itemsFromFiles(files: File[]): ImportItem[] {
   return files.map(file => ({
     type: "web" as const,
     name: file.name,
-    ext: extensionOf(file.name),
+    // A dropped file may carry no extension while its MIME type is known;
+    // the extension ends up in the managed storage path, so fall back to it.
+    ext: extensionOf(file.name) || extensionForAudioMimeType(file.type),
     file,
     fileSize: file.size,
   }));
@@ -79,7 +89,13 @@ export class ImportItemIO {
     }
     if (item.type === "web" && item.file) {
       try {
-        return new Uint8Array(await item.file.arrayBuffer());
+        // Same cap as the native branch above: tags live in the head, and
+        // reading whole files would put PROCESS_CONCURRENCY of them in memory
+        // at once — hundreds of MB for a folder of lossless albums.
+        const source = item.file.size > MAX_METADATA_READ
+          ? item.file.slice(0, MAX_METADATA_READ)
+          : item.file;
+        return new Uint8Array(await source.arrayBuffer());
       }
       catch (e) {
         throw ImportError.readFailed(item.name, e);

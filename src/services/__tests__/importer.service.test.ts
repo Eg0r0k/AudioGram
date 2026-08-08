@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MusicLibraryEngine } from "../importer.service";
 import type { ScannedFile } from "@/modules/watched-folders/types";
 import { ImportErrorCode } from "../types";
+import { AUDIO_FILE_EXTENSIONS } from "../import/constants";
 
 // ── Hoisted shared mocks + helper (available in vi.mock factories) ──
 
@@ -190,8 +191,11 @@ describe("MusicLibraryEngine", () => {
       expect(mockOpen).toHaveBeenCalledWith({
         multiple: true,
         title: "Choose audio files",
-        filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "wma", "alac"] }],
+        // Asserted against the constant on purpose: the picker must not drift
+        // away from what import validation accepts.
+        filters: [{ name: "Audio", extensions: AUDIO_FILE_EXTENSIONS }],
       });
+      expect(AUDIO_FILE_EXTENSIONS).toContain("mp3");
       expect(result).toEqual(["/music/song.mp3"]);
     });
 
@@ -252,14 +256,42 @@ describe("MusicLibraryEngine", () => {
       );
     });
 
-    it("reads the full file from the File object", async () => {
+    it("reads a small file whole, without slicing", async () => {
+      const file = makeFile("small.mp3");
+      const sliceSpy = vi.spyOn(file, "slice");
+      const arrayBufferSpy = vi.spyOn(file, "arrayBuffer");
+
+      await engine.importFiles([file]);
+
+      expect(arrayBufferSpy).toHaveBeenCalledOnce();
+      expect(sliceSpy).not.toHaveBeenCalled();
+    });
+
+    it("caps the read at MAX_METADATA_READ for a large file", async () => {
+      // Otherwise PROCESS_CONCURRENCY whole files sit in memory at once.
       const largeFile = makeFile("large.flac");
       Object.defineProperty(largeFile, "size", { value: 100_000_000 });
+      const sliceSpy = vi.spyOn(largeFile, "slice");
       const arrayBufferSpy = vi.spyOn(largeFile, "arrayBuffer");
 
       await engine.importFiles([largeFile]);
 
-      expect(arrayBufferSpy).toHaveBeenCalledOnce();
+      expect(sliceSpy).toHaveBeenCalledWith(0, 12 * 1024 * 1024);
+      expect(arrayBufferSpy).not.toHaveBeenCalled();
+    });
+
+    it("still parses the head of a file too large to read whole", async () => {
+      const largeFile = makeFile("large.flac");
+      Object.defineProperty(largeFile, "size", { value: 100_000_000 });
+
+      const result = await engine.importFiles([largeFile]);
+
+      expect(result.failed).toHaveLength(0);
+      expect(mockWorkerPoolParse).toHaveBeenCalledWith(
+        "large.flac",
+        expect.any(Uint8Array),
+        { extractCover: true },
+      );
     });
   });
 
@@ -337,6 +369,23 @@ describe("MusicLibraryEngine", () => {
 
       expect(result.added).toBe(0);
       expect(result.removed).toBe(0);
+    });
+
+    it("normalizes a backslash folder path for scan and diff lookups", async () => {
+      const scanner = await import("@/modules/watched-folders/services/folder-scanner");
+      const { trackRepository } = await import("@/db/repositories");
+      vi.mocked(scanner.scanFolder).mockResolvedValue([]);
+
+      await engine.syncFolder({
+        id: "f1", path: "C:\\Users\\Me\\Music", name: "Music", status: "idle",
+      });
+
+      expect(scanner.scanFolder).toHaveBeenCalledWith(
+        "C:/Users/Me/Music", undefined, expect.any(Set),
+      );
+      expect(trackRepository.findByStoragePathPrefix).toHaveBeenCalledWith(
+        "C:/Users/Me/Music/",
+      );
     });
   });
 

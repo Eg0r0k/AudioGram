@@ -1,3 +1,5 @@
+import { AUDIO_MIME_TYPES } from "@/types/media";
+
 /** How many bytes to read when the file size is unknown. */
 export const HEAD_READ_SIZE = 10 * 1024 * 1024;
 /** Upper bound on bytes read for metadata parsing. */
@@ -11,6 +13,12 @@ export const PIPELINE_BATCH_SIZE = 100;
 /** Concurrent fingerprint computations. */
 export const FINGERPRINT_CONCURRENCY = 16;
 
-export const AUDIO_FILE_EXTENSIONS = [
-  "mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "wma", "alac",
-];
+/**
+ * Extensions offered by the file picker.
+ *
+ * Derived from {@link AUDIO_MIME_TYPES} (skipping the `container-codec` keys)
+ * so the picker can only ever offer what import validation accepts — offering
+ * more just produces "unsupported format" failures on files the user picked.
+ */
+export const AUDIO_FILE_EXTENSIONS = Object.keys(AUDIO_MIME_TYPES)
+  .filter(key => !key.includes("-"));

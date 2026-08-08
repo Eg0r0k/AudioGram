@@ -1,3 +1,4 @@
+import pLimit from "p-limit";
 import { db } from "@/db";
 import { AlbumEntity, ArtistEntity, TrackEntity, TrackState } from "@/db/entities";
 import { albumRepository, artistRepository, coverRepository, trackRepository } from "@/db/repositories";
@@ -9,6 +10,8 @@ import { ImportSuccess, TrackToSave } from "../types";
 
 const COVER_MAX_DIMENSION = 500;
 const COVER_QUALITY = 0.8;
+/** Concurrent cover decodes; each one holds a full-resolution bitmap. */
+const coverLimit = pLimit(4);
 
 // Compressing large covers to optimize memory in the local databaseы
 const resizeCoverBlob = async (blob: Blob): Promise<Blob> => {
@@ -50,6 +53,28 @@ interface CoverToCreate {
   mimeType: string;
 }
 
+/** A cover queued for resizing once the batch has been walked. */
+interface PendingCover {
+  ownerId: AlbumId;
+  source: Blob;
+}
+
+/**
+ * Caches the resolved artist ids per item for the lifetime of one batch.
+ * Keyed by the item so two tracks sharing a metadata object still agree.
+ */
+function memoizeArtistIds(resolver: EntityResolver) {
+  const cache = new Map<TrackToSave, ArtistId[]>();
+  return (item: TrackToSave): ArtistId[] => {
+    let ids = cache.get(item);
+    if (!ids) {
+      ids = resolver.getArtistIds(item.meta);
+      cache.set(item, ids);
+    }
+    return ids;
+  };
+}
+
 /**
  * Persists a batch of parsed tracks together with any artists, albums and
  * covers they introduce, inside a single unit-of-work transaction.
@@ -65,19 +90,23 @@ export async function persistTracks(
 
   const artistsToCreate = new Map<ArtistId, ArtistEntity>();
   const albumsToCreate = new Map<AlbumId, AlbumEntity>();
-  const coversToCreate: CoverToCreate[] = [];
+  const pendingCovers: PendingCover[] = [];
   const tracksToCreate: TrackEntity[] = [];
   const results: ImportSuccess[] = [];
 
-  const { existingArtistIds, existingAlbumIds } = await loadExistingIds(items, resolver);
+  // Resolving artist ids walks and filters the metadata; each item needs them
+  // three times below, so resolve once per batch.
+  const artistIdsOf = memoizeArtistIds(resolver);
+
+  const { existingArtistIds, existingAlbumIds } = await loadExistingIds(items, artistIdsOf, resolver);
 
   for (const item of items) {
-    const artistIds = resolver.getArtistIds(item.meta);
+    const artistIds = artistIdsOf(item);
 
-    const albumId = await collectAlbum(
-      item, resolver, existingAlbumIds, albumsToCreate, coversToCreate, now,
+    const albumId = collectAlbum(
+      item, resolver, artistIds, existingAlbumIds, albumsToCreate, pendingCovers, now,
     );
-    collectArtists(item, resolver, existingArtistIds, artistsToCreate, now);
+    collectArtists(item, resolver, artistIds, existingArtistIds, artistsToCreate, now);
 
     tracksToCreate.push({
       id: item.trackId,
@@ -112,6 +141,19 @@ export async function persistTracks(
     });
   }
 
+  // Decoding and re-encoding covers is the slowest part of a batch, so run
+  // several at once — but capped, since each decode holds a full-size bitmap.
+  const coversToCreate: CoverToCreate[] = await Promise.all(
+    pendingCovers.map(({ ownerId, source }) =>
+      coverLimit(async () => {
+        const blob = await resizeCoverBlob(source);
+        // resizeCoverBlob passes small or already-small images through
+        // untouched, so the stored type must come from the blob we got back.
+        return { ownerId, blob, mimeType: blob.type || source.type };
+      }),
+    ),
+  );
+
   const uowResult = await unitOfWork.runScoped(
     [db.tracks, db.artists, db.albums, db.covers],
     async () => {
@@ -145,11 +187,15 @@ export async function persistTracks(
 }
 
 /** Fetches which of the batch's artist/album ids already exist in the DB. */
-async function loadExistingIds(items: TrackToSave[], resolver: EntityResolver) {
-  const allArtistIds = [...new Set(items.flatMap(item => resolver.getArtistIds(item.meta)))];
+async function loadExistingIds(
+  items: TrackToSave[],
+  artistIdsOf: (item: TrackToSave) => ArtistId[],
+  resolver: EntityResolver,
+) {
+  const allArtistIds = [...new Set(items.flatMap(artistIdsOf))];
   const allAlbumIds = [...new Set(
     items.map((item) => {
-      const firstId = resolver.getArtistIds(item.meta)[0];
+      const firstId = artistIdsOf(item)[0];
       if (!firstId || !item.meta.album) return null;
       return resolver.getAlbumEntry(firstId, item.meta.album)?.id ?? null;
     }).filter((id): id is AlbumId => id !== null),
@@ -174,15 +220,16 @@ async function loadExistingIds(items: TrackToSave[], resolver: EntityResolver) {
  * Resolves the track's album id and, when the album is new to both the DB and
  * this batch, queues the album (and its cover, if any) for creation.
  */
-async function collectAlbum(
+function collectAlbum(
   item: TrackToSave,
   resolver: EntityResolver,
+  artistIds: ArtistId[],
   existingAlbumIds: Set<AlbumId>,
   albumsToCreate: Map<AlbumId, AlbumEntity>,
-  coversToCreate: CoverToCreate[],
+  pendingCovers: PendingCover[],
   now: number,
-): Promise<AlbumId> {
-  const firstArtistId = resolver.getArtistIds(item.meta)[0] ?? null;
+): AlbumId {
+  const firstArtistId = artistIds[0] ?? null;
   const hasAlbum = !!item.meta.album?.trim() && item.meta.album !== "Unknown Album";
   if (!hasAlbum || !firstArtistId) return AlbumId("");
 
@@ -200,12 +247,7 @@ async function collectAlbum(
     });
 
     if (item.meta.pictureBlob) {
-      const blob = await resizeCoverBlob(item.meta.pictureBlob);
-      coversToCreate.push({
-        ownerId: entry.id,
-        blob,
-        mimeType: "image/webp",
-      });
+      pendingCovers.push({ ownerId: entry.id, source: item.meta.pictureBlob });
     }
   }
 
@@ -216,11 +258,12 @@ async function collectAlbum(
 function collectArtists(
   item: TrackToSave,
   resolver: EntityResolver,
+  artistIds: ArtistId[],
   existingArtistIds: Set<ArtistId>,
   artistsToCreate: Map<ArtistId, ArtistEntity>,
   now: number,
 ): void {
-  for (const artistId of resolver.getArtistIds(item.meta)) {
+  for (const artistId of artistIds) {
     if (existingArtistIds.has(artistId) || artistsToCreate.has(artistId)) continue;
 
     const name = item.meta.artists.find(a => resolver.getArtistId(a) === artistId);

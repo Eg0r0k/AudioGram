@@ -25,7 +25,7 @@ import {
 import { ImportItemIO } from "./item-io";
 import { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
-import { isCancelled } from "./shared";
+import { isCancelled, yieldToEventLoop } from "./shared";
 import { chunk } from "@/lib/math";
 
 type FailedImport = { fileName: string; error: ImportError };
@@ -148,7 +148,7 @@ export class ImportPipeline {
       );
 
       // Yield to the event loop so UI progress updates stay responsive.
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await yieldToEventLoop();
     }
 
     return false;

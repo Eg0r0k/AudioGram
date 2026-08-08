@@ -17,8 +17,8 @@ import { ImportError, TrackToSave } from "../types";
 import { DB_BATCH_SIZE, MAX_METADATA_READ, PROCESS_CONCURRENCY } from "./constants";
 import { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
-import { } from "./shared";
 import { chunk } from "@/lib/math";
+import { normalizePath } from "@/lib/files/filterFiles";
 
 export interface FolderSyncDeps {
   metadataParser: MetadataParser;
@@ -127,14 +127,16 @@ export class FolderSyncService {
 
   /** Scans the folder and diffs it against the library. */
   private async diffFolder(folder: WatchedFolder, excludedPaths?: string[]) {
-    const excludeSet = new Set(excludedPaths ?? []);
-    const scanned = await scanFolder(folder.path, undefined, excludeSet);
+    const folderPath = normalizePath(folder.path);
+    const normalizedExcluded = (excludedPaths ?? []).map(normalizePath);
+    const excludeSet = new Set(normalizedExcluded);
+    const scanned = await scanFolder(folderPath, undefined, excludeSet);
     const scannedPaths = new Set(scanned.map(f => f.absolutePath));
 
-    let existingTracks = await unwrapResult(trackRepository.findByStoragePathPrefix(folder.path + "/"));
-    if (excludedPaths?.length) {
+    let existingTracks = await unwrapResult(trackRepository.findByStoragePathPrefix(folderPath + "/"));
+    if (normalizedExcluded.length) {
       existingTracks = existingTracks.filter(
-        t => !excludedPaths.some(ep => t.storagePath.startsWith(ep + "/")),
+        t => !normalizedExcluded.some(ep => t.storagePath.startsWith(ep + "/")),
       );
     }
 

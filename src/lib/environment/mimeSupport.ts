@@ -38,6 +38,18 @@ export const isValidAudioExtension = (ext: string): boolean => {
   return VALID_AUDIO_EXTENSIONS.has(ext.toLowerCase());
 };
 
+const AUDIO_EXTENSION_BY_MIME = new Map<string, string>(
+  Object.entries(AUDIO_MIME_TYPES)
+    .filter(([key]) => !key.includes("-"))
+    .map(([ext, mime]) => [mime.split(";")[0].trim(), ext]),
+);
+
+/** Canonical extension for an audio MIME type, or `""` when it is unknown. */
+export const extensionForAudioMimeType = (mimeType: string | undefined): string => {
+  if (!mimeType) return "";
+  return AUDIO_EXTENSION_BY_MIME.get(mimeType.split(";")[0].trim()) ?? "";
+};
+
 export const isValidAudioMimeType = (mimeType: string): boolean => {
   const baseMime = mimeType.split(";")[0].trim();
   return VALID_AUDIO_MIME_TYPES.has(baseMime);

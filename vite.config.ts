@@ -151,6 +151,10 @@ export default defineConfig({
     environment: "happy-dom",
     include: ["src/**/*.{test,spec}.{js,ts,vue}"],
     exclude: ["node_modules", "dist", "src-tauri"],
+    benchmark: {
+      include: ["src/**/*.bench.{js,ts}"],
+      exclude: ["node_modules", "dist", "src-tauri"],
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
