@@ -26,6 +26,26 @@
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-unregister-all",
     "updater:default",
-    "process:default"
+    "process:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/yt-dlp",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/yt-dlp",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }

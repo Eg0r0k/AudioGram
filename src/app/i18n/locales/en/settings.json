@@ -6,6 +6,7 @@
         "language": "Language",
         "audio": "Audio & Playback",
         "storage": "Store",
+        "proxy": "Proxy",
         "notifications": "Notifications",
         "about": "About",
         "resetAll": "Reset settings",
@@ -19,6 +20,18 @@
         "launchAtStartup": "Launch at system startup",
         "launchMinimized": "Launch minimized",
         "closeToTray": "Close to system tray"
+    },
+    "proxy": {
+        "description": "Route YouTube search, streaming and downloads through your own proxy server.",
+        "enable": "Use proxy",
+        "protocol": "Protocol",
+        "host": "Host",
+        "port": "Port",
+        "username": "Username",
+        "password": "Password",
+        "test": "Test connection",
+        "testOk": "Connected ({ms} ms)",
+        "testFailed": "Connection failed: {error}"
     },
     "about": {
         "madeWith": "Made with",

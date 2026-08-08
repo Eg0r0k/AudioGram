@@ -4,7 +4,8 @@ import { musicLibraryEngine } from "@/services/importer.service";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { filterFilesByExtension } from "@/lib/files/filterFiles";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { ImportBatchResult } from "@/services/types";
+import { requestFiles } from "@/lib/files/requestFiles";
+import { ImportBatchResult, ImportErrorCode } from "@/services/types";
 
 export type ImportFileStatus = "pending" | "ok" | "error" | "skipped";
 
@@ -12,6 +13,9 @@ export interface ImportFileItem {
   name: string;
   status: ImportFileStatus;
   error?: string;
+  errorCode?: ImportErrorCode;
+  title?: string;
+  artist?: string;
 }
 
 export interface ImportState {
@@ -221,12 +225,18 @@ export function useImport() {
   async function _finishImport(importId: number, result: ImportBatchResult) {
     if (importId !== activeImportId || isCancelRequested) return;
 
-    const successSet = new Set(result.successful.map(s => s.fileName));
-    const errorMap = new Map(result.failed.map(f => [f.fileName, f.error.message]));
+    const successMap = new Map(result.successful.map(s => [s.fileName, s]));
+    const errorMap = new Map(result.failed.map(f => [f.fileName, f.error]));
 
     state.value.files = state.value.files.map((f) => {
-      if (successSet.has(f.name)) return { ...f, status: "ok" };
-      if (errorMap.has(f.name)) return { ...f, status: "error", error: errorMap.get(f.name) };
+      const success = successMap.get(f.name);
+      if (success) {
+        return { ...f, status: "ok", title: success.title, artist: success.artist };
+      }
+      const error = errorMap.get(f.name);
+      if (error) {
+        return { ...f, status: "error", error: error.message, errorCode: error.code };
+      }
       return { ...f, status: "skipped" };
     });
 
@@ -240,6 +250,32 @@ export function useImport() {
     }
 
     state.value.isRunning = false;
+  }
+
+  /**
+   * Opens a file picker and imports the selection. In Tauri we MUST use the
+   * native dialog (→ absolute paths → {@link importFromPaths}); the HTML
+   * `<input type=file>` picker misbehaves in WebView2 and forces the slower
+   * web-`File` branch. The web build keeps the HTML input.
+   */
+  async function pickAndImport(options?: { title?: string }) {
+    if (IS_TAURI && musicLibraryEngine.isNativeImportAvailable) {
+      const paths = await musicLibraryEngine.pickFiles({
+        title: options?.title ?? "Import tracks",
+      });
+      if (paths && paths.length > 0) {
+        await importFromPaths(paths);
+      }
+      return;
+    }
+
+    const files = await requestFiles({
+      accept: ACCEPTED_EXTENSIONS.join(","),
+      multiple: true,
+    }).catch(() => [] as File[]);
+    if (files.length > 0) {
+      await importFiles(files);
+    }
   }
 
   return {
@@ -264,5 +300,6 @@ export function useImport() {
     cancelImport,
     importFiles,
     importFromPaths,
+    pickAndImport,
   };
 }

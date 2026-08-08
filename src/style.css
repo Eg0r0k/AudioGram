@@ -354,7 +354,7 @@ video {
 }
 
 .is-tauri:not(.is-mobile) {
-  --toolbar-height: 26px;
+  --toolbar-height: 32px;
 }
 
 /* Cropper style */

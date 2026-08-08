@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   GeneralSettings,
   PlaybackSettings,
+  ProxySettings,
   Settings,
   SettingsSchema,
 } from "../schema";
@@ -26,6 +27,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const general = computed(() => settings.value.general);
   const playback = computed(() => settings.value.playback);
   const audio = computed(() => settings.value.audio);
+  const proxy = computed(() => settings.value.proxy);
 
   const updateGeneral = (partial: Partial<GeneralSettings>) => {
     settings.value.general = { ...settings.value.general, ...partial };
@@ -37,6 +39,10 @@ export const useSettingsStore = defineStore("settings", () => {
 
   const updateAudio = (partial: Partial<AudioSettings>) => {
     settings.value.audio = { ...settings.value.audio, ...partial };
+  };
+
+  const updateProxy = (partial: Partial<ProxySettings>) => {
+    settings.value.proxy = { ...settings.value.proxy, ...partial };
   };
 
   const reset = () => {
@@ -88,10 +94,12 @@ export const useSettingsStore = defineStore("settings", () => {
     general,
     playback,
     audio,
+    proxy,
 
     updateGeneral,
     updatePlayback,
     updateAudio,
+    updateProxy,
     reset,
     resetSection,
     exportToJSON,

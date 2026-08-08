@@ -45,8 +45,9 @@ export const useWatchedFoldersStore = defineStore("watched-folders", () => {
     const folder = folders.value.find(f => f.id === id);
     if (!folder) return;
 
-    folder.path = newPath;
-    folder.name = newPath.split("/").pop() ?? newPath;
+    const normalized = normalizePath(newPath);
+    folder.path = normalized;
+    folder.name = normalized.split("/").pop() ?? normalized;
     folder.status = "idle";
     folder.errorMessage = undefined;
   }

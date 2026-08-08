@@ -125,6 +125,42 @@ export async function clearLyricsData(): Promise<void> {
   });
 }
 
+/**
+ * Every table the storage service consciously accounts for. `clearAllData`
+ * wipes the live schema (`db.tables`) regardless of this set, so a forgotten
+ * table can never survive a full wipe again. The set exists only to drive a
+ * dev-time warning: if the Dexie schema (src/db/index.ts) gains a table that
+ * isn't listed here, you get nudged to also revisit the *partial* clearers
+ * (clearFoldersData / clearLyricsData / clearTimingsData).
+ */
+const ACKNOWLEDGED_TABLES: ReadonlySet<string> = new Set([
+  "tracks",
+  "albums",
+  "artists",
+  "tags",
+  "playlists",
+  "folders",
+  "listenEvents",
+  "covers",
+  "radioStations",
+  "audioFeatures",
+  "trackChapters",
+]);
+
+function warnOnUnacknowledgedTables(): void {
+  const unknown = db.tables
+    .map(table => table.name)
+    .filter(name => !ACKNOWLEDGED_TABLES.has(name));
+  if (unknown.length === 0) return;
+
+  console.warn(
+    `[storage] Dexie schema has table(s) not acknowledged by the storage service: `
+    + `${unknown.join(", ")}. clearAllData already wiped them (it iterates db.tables), `
+    + `but add them to ACKNOWLEDGED_TABLES and check whether clearFoldersData, `
+    + `clearLyricsData or clearTimingsData should include them.`,
+  );
+}
+
 export async function clearAllData(): Promise<void> {
   const folders = ["tracks", "lyrics"];
   await Promise.all(
@@ -136,17 +172,11 @@ export async function clearAllData(): Promise<void> {
     }),
   );
 
-  await Promise.all([
-    db.tracks.clear(),
-    db.albums.clear(),
-    db.artists.clear(),
-    db.tags.clear(),
-    db.playlists.clear(),
-    db.folders.clear(),
-    db.listenEvents.clear(),
-    db.audioFeatures.clear(),
-    db.trackChapters.clear(),
-  ]);
+  // Wipe every table in the live Dexie schema. Deriving the list from
+  // db.tables (instead of hardcoding it) means a newly-added table is cleared
+  // automatically and can never be silently forgotten again.
+  warnOnUnacknowledgedTables();
+  await Promise.all(db.tables.map(table => table.clear()));
 
   // The search index is worker-memory, rebuilt lazily from the database.
   // Without a reset it keeps serving the entities deleted above until reload.

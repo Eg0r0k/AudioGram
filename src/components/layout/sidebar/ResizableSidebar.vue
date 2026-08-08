@@ -24,14 +24,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { computed, provide, ref, onUnmounted } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { useSidebar } from "@/composables/useSidebar";
+import {
+  SIDEBAR_COMPACT_KEY,
+  SIDEBAR_COMPACT_WIDTH,
+  SIDEBAR_EXPANDED_MIN_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_SNAP_THRESHOLD,
+} from "@/components/layout/sidebar/sidebarCompact";
 
 const { leftSidebar: sidebar, setLeftSidebarWidth } = useSidebar();
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH = 400;
+const isCompact = computed(() => sidebar.value.width < SIDEBAR_EXPANDED_MIN_WIDTH);
+provide(SIDEBAR_COMPACT_KEY, isCompact);
 
 const isResizing = ref(false);
 let startX = 0;
@@ -80,8 +87,14 @@ function handleResizeTouch(e: TouchEvent) {
 }
 
 function updateWidth(clientX: number) {
-  const delta = clientX - startX;
-  const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+  const raw = startWidth + (clientX - startX);
+
+  // Drag past the snap threshold collapses to the icon-only compact width;
+  // otherwise clamp into the expanded range.
+  const newWidth = raw < SIDEBAR_SNAP_THRESHOLD
+    ? SIDEBAR_COMPACT_WIDTH
+    : Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_EXPANDED_MIN_WIDTH, raw));
+
   setLeftSidebarWidth(newWidth);
 }
 

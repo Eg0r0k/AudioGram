@@ -1,9 +1,39 @@
 {
   "import": {
     "button": "Import tracks",
-    "title": "Import {count} tracks",
+    "progressLabel": "{current} of {total}",
+    "doneTitle": "Import complete",
+    "summary": "{imported} imported · {failed} failed · {skipped} skipped",
     "visibleFiles": "Showing first {visible} of {total} files",
     "goToLibrary": "Go to library",
+    "empty": "Nothing here",
+    "counts": {
+      "imported": "imported",
+      "failed": "failed",
+      "skipped": "skipped"
+    },
+    "filter": {
+      "all": "All",
+      "errors": "Errors",
+      "skipped": "Skipped"
+    },
+    "a11y": {
+      "region": "Import progress",
+      "pause": "Pause import",
+      "resume": "Resume import"
+    },
+    "errorReason": {
+      "default": "Import failed",
+      "PARSE_FAILED": "Couldn't read track metadata",
+      "STORAGE_FAILED": "Couldn't save the file",
+      "DATABASE_FAILED": "Couldn't add to library",
+      "WORKER_TIMEOUT": "Processing timed out",
+      "FILE_TOO_LARGE": "File is too large",
+      "UNSUPPORTED_FORMAT": "Unsupported format",
+      "NATIVE_IMPORT_UNAVAILABLE": "Import unavailable",
+      "READ_FAILED": "Couldn't read the file",
+      "CANCELLED": "Cancelled"
+    },
     "status": {
       "running": "Importing...",
       "paused": "Import paused",
@@ -92,7 +122,8 @@
     "minimize": "Minimize",
     "restore": "Restore",
     "maximize": "Maximize",
-    "close": "Close"
+    "close": "Close",
+    "titlebar": "Title bar"
   },
   "editHint": "Double-click to edit",
   "editLabel": "Edit value",

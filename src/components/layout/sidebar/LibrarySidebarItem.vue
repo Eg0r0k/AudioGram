@@ -16,6 +16,7 @@ import Link from "@/components/ui/link/Link.vue";
 
 const props = defineProps<{
   item: LibraryItem;
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -96,6 +97,7 @@ const handleClick = () => {
     data-library-item
     role="button"
     tabindex="0"
+    :title="compact ? item.title : undefined"
     @click="handleClick"
     @keydown.enter="handleClick"
     @contextmenu="openMenu(item)"
@@ -106,42 +108,62 @@ const handleClick = () => {
       inactive
     >
       <Item
-        class="gap-3 px-3 py-2 min-w-0 transition-colors pointer-events-none"
-        :class="isExactActive && item.type !== 'folder'
-          ? 'bg-primary text-primary-foreground hover:bg-primary/95'
-          : 'hover:bg-accent/60'"
+        class="min-w-0 py-2 transition-colors pointer-events-none"
+        :class="[
+          isExactActive && item.type !== 'folder'
+            ? 'bg-primary text-primary-foreground hover:bg-primary/95'
+            : 'hover:bg-accent/60',
+          compact ? 'justify-center gap-0 px-2' : 'gap-3 px-3',
+        ]"
       >
-        <ItemMedia
-          class="size-[54px] z-1 overflow-hidden"
-          :class="item.rounded ? 'rounded-full' : 'rounded-md'"
-        >
-          <NuxtImage
-            v-if="hasStaticImage"
-            :src="item.image"
-            :alt="item.title"
-            class="size-full object-cover mb-1"
-          />
-
-          <div
-            v-else-if="item.type === 'folder'"
-            class="size-full rounded-md bg-[#3d3d3d] text-primary flex items-center justify-center"
+        <div class="relative shrink-0">
+          <ItemMedia
+            class="size-[54px] relative z-1 overflow-hidden"
+            :class="[
+              item.rounded ? 'rounded-full' : 'rounded-md',
+              compact && isCurrentPlaybackSource ? 'ring-2 ring-primary' : '',
+            ]"
           >
-            <IconFolder class="size-8" />
-          </div>
+            <NuxtImage
+              v-if="hasStaticImage"
+              :src="item.image"
+              :alt="item.title"
+              class="size-full object-cover mb-1"
+            />
 
-          <EntityCoverImage
-            v-else
-            :owner-type="coverOwnerType"
-            :owner-id="coverOwnerId"
-            :alt="item.title"
-            class="size-full object-cover mb-1"
-            :image-class="item.rounded
-              ? 'size-full object-cover rounded-full'
-              : 'size-full object-cover rounded-md'"
-          />
-        </ItemMedia>
+            <div
+              v-else-if="item.type === 'folder'"
+              class="size-full rounded-md bg-[#3d3d3d] text-primary flex items-center justify-center"
+            >
+              <IconFolder class="size-8" />
+            </div>
 
-        <ItemContent class="min-w-0 overflow-hidden">
+            <EntityCoverImage
+              v-else
+              :owner-type="coverOwnerType"
+              :owner-id="coverOwnerId"
+              :alt="item.title"
+              class="size-full object-cover mb-1"
+              :image-class="item.rounded
+                ? 'size-full object-cover rounded-full'
+                : 'size-full object-cover rounded-md'"
+            />
+          </ItemMedia>
+          <span
+            v-if="compact && item.isPinned"
+            class="absolute -top-1 -right-1 z-10 flex size-5 items-center justify-center"
+          >
+            <IconPinFilled
+              :class="isExactActive ? 'text-white' : 'text-primary'"
+              class="size-5"
+            />
+          </span>
+        </div>
+
+        <ItemContent
+          v-if="!compact"
+          class="min-w-0 overflow-hidden"
+        >
           <ItemTitle
             class="block min-w-0 w-full! overflow-hidden text-ellipsis whitespace-nowrap"
             :class="isExactActive ? 'text-primary-foreground' : ''"

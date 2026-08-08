@@ -12,7 +12,7 @@
   </component>
   <WhatsNewDialog />
   <ExternalLinkDialog />
-  <ImportProgressDialog />
+  <ImportProgressHost />
   <DeleteConfirmDialog />
   <NetworkStatusToast />
   <Toaster
@@ -49,13 +49,14 @@ import { useUpdateNotifications } from "@/modules/update/composables/useUpdateNo
 import { useChangelogOnStartup } from "@/modules/update/composables/useChangelogOnStartup";
 import WhatsNewDialog from "@/modules/update/components/WhatsNewDialog.vue";
 import { useTrayBehavior } from "@/modules/settings/composables/useTrayBehavior";
+import { useProxySync } from "@/modules/settings/composables/useProxySync";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { ephemeralFromPath } from "@/modules/player/types";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useNowPlayingTitle } from "@/modules/player/composables/useNowPlayingTitle";
 import { useExternalLinkInterceptor } from "@/composables/useExternalLinkInterceptor";
-import ImportProgressDialog from "@/components/ImportProgressDialog.vue";
+import ImportProgressHost from "@/components/ImportProgressHost.vue";
 import { usePlayerStore } from "@/modules/player";
 import { useEventListener } from "@vueuse/core";
 import NetworkStatusToast from "@/components/NetworkStatusToast.vue";
@@ -144,6 +145,7 @@ useChangelogOnStartup();
 
 if (IS_TAURI) {
   useTrayBehavior();
+  useProxySync();
 }
 
 watch(() => currentRoute.fullPath, (fullPath) => {

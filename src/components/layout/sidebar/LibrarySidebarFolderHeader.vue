@@ -1,5 +1,8 @@
 <template>
-  <div class="shrink-0 flex items-center gap-2 px-4 pb-3 border-b dark:border-background border-border">
+  <div
+    class="shrink-0 flex items-center pb-3 border-b dark:border-background border-border"
+    :class="compact ? 'justify-center px-2' : 'gap-2 px-4'"
+  >
     <Button
       variant="ghost"
       size="icon-lg"
@@ -10,7 +13,10 @@
       <IconArrowLeft class="size-6" />
     </Button>
 
-    <div class="min-w-0 flex-1">
+    <div
+      v-if="!compact"
+      class="min-w-0 flex-1"
+    >
       <EditableValue
         :model-value="folder.name"
         type="text"
@@ -31,6 +37,7 @@ import IconArrowLeft from "~icons/tabler/arrow-left";
 
 defineProps<{
   folder: SidebarFolderEntity;
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{

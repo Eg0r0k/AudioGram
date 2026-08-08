@@ -14,6 +14,8 @@ mod discord;
 #[cfg(desktop)]
 mod discord_utils;
 
+#[cfg(desktop)]
+mod youtube;
 
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
@@ -73,6 +75,10 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         .manage(discord::DiscordPresenceState::default())
+        .manage(youtube::YtStreamCache::default())
+        .manage(youtube::ProxyState::default())
+        .manage(youtube::YtClient::default())
+        .register_asynchronous_uri_scheme_protocol("ytstream", youtube::serve_stream)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
 
@@ -94,6 +100,11 @@ pub fn run() {
         discord::discord_clear_activity,
         updater::check_update,
         updater::install_update,
+        youtube::yt_search,
+        youtube::yt_resolve,
+        youtube::yt_download,
+        youtube::set_proxy,
+        youtube::proxy_check,
     ]);
 
     #[cfg(mobile)]

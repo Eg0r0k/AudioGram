@@ -3,7 +3,7 @@
     ref="rootRef"
     class="relative flex-1 pt-4 h-full flex flex-col min-h-0 overflow-hidden"
   >
-    <SidebarHeader />
+    <SidebarHeader :compact="isCompact" />
 
     <SlideTransition :depth="folderDepth">
       <div
@@ -13,13 +13,14 @@
         <LibrarySidebarFolderHeader
           v-if="activeFolder"
           :folder="activeFolder"
+          :compact="isCompact"
           @close="closeFolder"
           @manage="openManageFolderDialog"
           @rename="(name) => renameFolder(activeFolder!.id, name)"
         />
 
         <Scrollable
-          v-else
+          v-else-if="!isCompact"
           direction="horizontal"
           hide-thumb
           class="shrink-0 border-b dark:border-background border-border"
@@ -64,9 +65,13 @@
               v-for="i in 20"
               :key="i"
               class="flex items-center gap-3 px-2"
+              :class="isCompact && 'justify-center'"
             >
               <Skeleton class="size-[54px] rounded-full shrink-0" />
-              <div class="flex flex-col gap-2 w-full">
+              <div
+                v-if="!isCompact"
+                class="flex flex-col gap-2 w-full"
+              >
                 <Skeleton class="h-3 w-[40%]" />
                 <Skeleton class="h-3 w-[65%]" />
               </div>
@@ -76,6 +81,7 @@
           <VirtualScrollable
             v-else
             ref="scrollableRef"
+            hide-thumb
             :padding-top="8"
             :padding-bottom="8"
             :items="libraryItems"
@@ -86,8 +92,9 @@
           >
             <template #default="{ item }">
               <LibrarySidebarItem
-                class="mx-2"
+                :class="isCompact ? 'mx-1' : 'mx-2'"
                 :item="item"
+                :compact="isCompact"
                 @open-folder="openFolder"
               />
             </template>
@@ -140,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, inject, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import SlideTransition from "@/components/transitions/SlideTransition.vue";
@@ -152,6 +159,7 @@ import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveTo
 import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
 import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
 import SidebarHeader from "@/components/layout/sidebar/header/SidebarHeader.vue";
+import { SIDEBAR_COMPACT_KEY } from "@/components/layout/sidebar/sidebarCompact";
 import { useLibrarySidebarFolders } from "@/components/layout/sidebar/useLibrarySidebarFolders";
 import { Scrollable } from "@/components/ui/scrollable";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
@@ -211,6 +219,7 @@ const {
 });
 
 const { t } = useI18n();
+const isCompact = inject(SIDEBAR_COMPACT_KEY, computed(() => false));
 const scrollableRef = useTemplateRef("scrollableRef");
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 

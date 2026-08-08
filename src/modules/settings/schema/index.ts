@@ -13,12 +13,21 @@ import {
   type EQPresetKey,
   type EqualizerBands,
 } from "./audio";
+import {
+  DEFAULT_PROXY_SETTINGS,
+  ProxySettingsSchema,
+  PROXY_PROTOCOLS,
+  buildProxyUrl,
+  type ProxySettings,
+  type ProxyProtocol,
+} from "./proxy";
 
 export const SettingsSchema = object({
   version: optional(number(), 1),
   general: optional(GeneralSettingsSchema, DEFAULT_GENERAL_SETTINGS),
   playback: optional(PlaybackSettingsSchema, DEFAULT_PLAYBACK_SETTINGS),
   audio: optional(AudioSettingsSchema, DEFAULT_AUDIO_SETTINGS),
+  proxy: optional(ProxySettingsSchema, DEFAULT_PROXY_SETTINGS),
 });
 
 export type Settings = InferOutput<typeof SettingsSchema>;
@@ -28,6 +37,9 @@ export {
   GeneralSettingsSchema,
   PlaybackSettingsSchema,
   AudioSettingsSchema,
+  ProxySettingsSchema,
+  PROXY_PROTOCOLS,
+  buildProxyUrl,
   EQ_PRESETS,
   EQ_FREQUENCIES,
   SUPPORTED_LANGUAGES,
@@ -38,5 +50,7 @@ export {
   type GeneralSettings,
   type PlaybackSettings,
   type AudioSettings,
+  type ProxySettings,
+  type ProxyProtocol,
   type SupportedLanguage,
 };

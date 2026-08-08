@@ -1,7 +1,8 @@
 <template>
   <div
     data-sidebar-header
-    class="flex items-center gap-3 shrink-0 px-4 pb-4 "
+    class="flex items-center shrink-0 pb-4"
+    :class="compact ? 'justify-center px-2' : 'gap-3 px-4'"
   >
     <Transition
       enter-active-class="transition-[opacity,transform] duration-200 ease-standard"
@@ -47,6 +48,14 @@
                 {{ t("nav.favorite") }}
               </DropdownMenuItem>
 
+              <DropdownMenuItem
+                v-if="isYoutubeAvailable"
+                @click="goYoutube"
+              >
+                <IconBrandYoutube class="size-5.5" />
+                {{ t("nav.youtube") }}
+              </DropdownMenuItem>
+
               <DropdownMenuItem @click="goSettings">
                 <IconSettings class="size-5.5" />
                 {{ t("nav.settings") }}
@@ -67,6 +76,7 @@
       </div>
     </Transition>
     <div
+      v-if="!compact"
       class="flex-1"
       @focusin="openSearch"
     >
@@ -131,6 +141,10 @@ import IconX from "~icons/tabler/x";
 import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
+import { youtubeProvider } from "@/modules/youtube/provider";
+import IconBrandYoutube from "~icons/tabler/brand-youtube";
+
+defineProps<{ compact?: boolean }>();
 
 const { t } = useI18n();
 const router = useRouter();
@@ -150,6 +164,12 @@ function goFavorite() {
 
 function goSettings() {
   router.push(routeLocation.settings());
+}
+
+const isYoutubeAvailable = youtubeProvider.isAvailable;
+
+function goYoutube() {
+  router.push(routeLocation.youtube());
 }
 
 function handleClose() {

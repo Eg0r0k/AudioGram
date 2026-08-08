@@ -36,6 +36,12 @@
           :icon="IconDatabase"
           :title="$t('settings.index.storage')"
         />
+        <SettingsLink
+          v-if="isTauri"
+          :to="routeLocation.settingsProxy()"
+          :icon="IconWorld"
+          :title="$t('settings.index.proxy')"
+        />
         <!-- <SettingsLink
           :to="routeLocation.settingsNotifications()"
           :icon="IconBell"
@@ -86,6 +92,7 @@ import IconLanguage from "~icons/tabler/language";
 import IconHeadphones from "~icons/tabler/headphones";
 import IconDatabase from "~icons/tabler/database";
 import IconInfo from "~icons/tabler/info-circle";
+import IconWorld from "~icons/tabler/world";
 import IconRefresh from "~icons/tabler/refresh";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsLink from "@/modules/settings/components/SettingsLink.vue";
@@ -97,6 +104,7 @@ import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useAccentColor } from "@/modules/settings/composables/useAccentColor";
 import { useZoom } from "@/modules/settings/composables/useZoom";
 import { routeLocation } from "@/app/router/route-locations";
+import { IS_TAURI } from "@/lib/environment/userAgent";
 
 const { language } = useGeneralSettings();
 const { t } = useI18n();
@@ -105,6 +113,7 @@ const audioSettingsStore = useAudioSettingsStore();
 const { changeTheme } = useTheme();
 const { resetAccentColor } = useAccentColor();
 const { resetZoom } = useZoom();
+const isTauri = IS_TAURI;
 
 const handleResetAllSettings = () => {
   settingsStore.reset();

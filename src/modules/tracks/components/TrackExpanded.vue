@@ -33,6 +33,20 @@
             />
           </button>
           <span
+            v-else-if="!showCover && isRowHovered && !isDisabled"
+            key="hover-state"
+            class="flex items-center justify-center"
+          >
+            <IconPause
+              v-if="isCurrentTrack && isPlaying"
+              class="size-4 text-foreground"
+            />
+            <IconPlay
+              v-else
+              class="size-4 text-foreground"
+            />
+          </span>
+          <span
             v-else
             key="index"
             :class="styles.index"
@@ -42,8 +56,12 @@
         </Transition>
       </div>
       <div :class="styles.firstCol">
-        <div class="relative z-10 size-10 shrink-0 overflow-hidden rounded bg-muted">
+        <div
+          v-if="showCover"
+          class="relative z-10 size-10 shrink-0 overflow-hidden rounded bg-muted"
+        >
           <NuxtImage
+
             :src="coverUrl"
             :alt="track.title"
             :width="40"
@@ -226,6 +244,7 @@ const styles = {
 interface Props {
   track: Track;
   index: number;
+  showCover?: boolean;
   isActive?: boolean;
   isSelected?: boolean;
   isSelecting?: boolean;
@@ -235,6 +254,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   isActive: false,
+  showCover: true,
   isSelected: false,
   isSelecting: false,
   isDisabled: false,

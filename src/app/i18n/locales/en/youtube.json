@@ -1,0 +1,17 @@
+{
+  "title": "YouTube",
+  "searchPlaceholder": "Search YouTube for music...",
+  "search": "Search",
+  "unavailable": "YouTube search is only available in the desktop app.",
+  "empty": "Search for a track to get started.",
+  "noResults": "Nothing found for \"{query}\".",
+  "searchFailed": "Search failed: {message}",
+  "errorPrefix": "Error: {message}",
+  "botError": "YouTube is temporarily blocking anonymous requests from your network (bot check). Try again later or enable a proxy in the settings.",
+  "download": "Download",
+  "downloading": "Downloading",
+  "processing": "Converting",
+  "importing": "Adding",
+  "done": "In library",
+  "failed": "Failed"
+}

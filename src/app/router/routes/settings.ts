@@ -39,6 +39,15 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/settings/proxy",
+    name: ROUTE_NAMES.SETTINGS_PROXY,
+    component: () => import("@/pages/settings/ProxySettings.vue"),
+    meta: {
+      titleKey: "settings.proxy",
+      depth: 4,
+    },
+  },
+  {
     path: "/settings/language",
     name: ROUTE_NAMES.SETTINGS_LANGUAGE,
     component: () => import("@/pages/settings/LanguageSettings.vue"),

@@ -1,9 +1,39 @@
 {
   "import": {
     "button": "Импорт треков",
-    "title": "Импорт {count} треков",
+    "progressLabel": "{current} из {total}",
+    "doneTitle": "Импорт завершён",
+    "summary": "{imported} добавлено · {failed} с ошибкой · {skipped} пропущено",
     "visibleFiles": "Показаны только первые {visible} файлов из {total}",
     "goToLibrary": "Перейти в библиотеку",
+    "empty": "Здесь пусто",
+    "counts": {
+      "imported": "добавлено",
+      "failed": "с ошибкой",
+      "skipped": "пропущено"
+    },
+    "filter": {
+      "all": "Все",
+      "errors": "Ошибки",
+      "skipped": "Пропущено"
+    },
+    "a11y": {
+      "region": "Прогресс импорта",
+      "pause": "Приостановить импорт",
+      "resume": "Продолжить импорт"
+    },
+    "errorReason": {
+      "default": "Ошибка импорта",
+      "PARSE_FAILED": "Не удалось прочитать метаданные",
+      "STORAGE_FAILED": "Не удалось сохранить файл",
+      "DATABASE_FAILED": "Не удалось добавить в библиотеку",
+      "WORKER_TIMEOUT": "Превышено время обработки",
+      "FILE_TOO_LARGE": "Файл слишком большой",
+      "UNSUPPORTED_FORMAT": "Формат не поддерживается",
+      "NATIVE_IMPORT_UNAVAILABLE": "Импорт недоступен",
+      "READ_FAILED": "Не удалось прочитать файл",
+      "CANCELLED": "Отменено"
+    },
     "status": {
       "running": "Идёт импорт...",
       "paused": "Импорт приостановлен",
@@ -78,7 +108,8 @@
     "minimize": "Свернуть",
     "restore": "Свернуть в окно",
     "maximize": "Развернуть",
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "titlebar": "Заголовок окна"
   },
 
   "favorite": "Избранное",

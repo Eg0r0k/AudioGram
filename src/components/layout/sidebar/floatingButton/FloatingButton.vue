@@ -54,7 +54,7 @@ import IconPlaylist from "~icons/tabler/playlist";
 import IconUserPlus from "~icons/tabler/user-plus";
 import IconFolderPlus from "~icons/tabler/folder-plus";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
-import { requestFiles } from "@/lib/files/requestFiles";
+import { useI18n } from "vue-i18n";
 import { useImport } from "@/composables/useImport";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 
@@ -66,18 +66,11 @@ const emit = defineEmits<{
   createFolder: [];
 }>();
 
+const { t } = useI18n();
 const { createPlaylist, createArtist, createAlbum } = useLibrary();
-const { importFiles } = useImport();
-
-const ACCEPTED_EXTENSIONS = [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus"];
+const { pickAndImport } = useImport();
 
 async function handleImportTracks() {
-  const files = await requestFiles({
-    accept: ACCEPTED_EXTENSIONS.join(","),
-    multiple: true,
-  });
-  if (files.length > 0) {
-    await importFiles(files);
-  }
+  await pickAndImport({ title: t("common.import.button") });
 }
 </script>

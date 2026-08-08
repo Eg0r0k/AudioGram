@@ -12,6 +12,7 @@ export const routeLocation = {
   settingsGeneral: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_GENERAL }),
   settingsAudio: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_AUDIO }),
   settingsStorage: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_STORAGE }),
+  settingsProxy: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_PROXY }),
   settingsLanguage: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_LANGUAGE }),
   settingsNotifications: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_NOTIFICATIONS }),
   settingsAppearance: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_APPEARANCE }),
@@ -19,4 +20,5 @@ export const routeLocation = {
   settingsTerms: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_TERMS }),
   settingsPrivacy: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_PRIVACY }),
   allMusic: (): RouteLocationRaw => ({ name: ROUTE_NAMES.ALL_MUSIC }),
+  youtube: (): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE }),
 } as const;

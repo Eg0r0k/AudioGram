@@ -101,7 +101,7 @@ export function useWatchedFolders() {
 
       const currentCount = await db.tracks
         .where("storagePath")
-        .startsWith(folder.path + "/")
+        .startsWith(normalizePath(folder.path) + "/")
         .count();
 
       store.updateFolderStatus(folder.id, "idle", {

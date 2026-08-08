@@ -66,6 +66,7 @@ import { ref, watch } from "vue";
 import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
+import { useImport } from "@/composables/useImport";
 import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
 import DropOverlay from "@/components/DropOverlay.vue";
 import MiniPlayer from "@/components/layout/mobile/MiniPlayer.vue";
@@ -92,8 +93,13 @@ watch(() => playerStore.currentTrack, (track) => {
   if (!track && isFullPlayerOpen.value) isFullPlayerOpen.value = false;
 });
 
+const { importFiles } = useImport();
+
 const { isDragging } = useFileDrop({
-  acceptedExtensions: [".mp3", ".flac", ".wav", ".ogg"],
+  acceptedExtensions: [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus"],
+  onDrop: (files) => {
+    importFiles(files);
+  },
 });
 
 const { top, right, bottom, left } = useScreenSafeArea();

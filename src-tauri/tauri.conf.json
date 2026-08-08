@@ -17,7 +17,9 @@
         "title": "Audiogram",
         "decorations": false,
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 320,
+        "minHeight": 620
       }
     ],
     "security": {
@@ -47,6 +49,9 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/yt-dlp"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

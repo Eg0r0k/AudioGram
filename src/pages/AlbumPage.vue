@@ -75,6 +75,7 @@
             <template #default="{ item, index }">
               <div class="px-4">
                 <TrackExpanded
+                  :show-cover="false"
                   :track="item"
                   :index="index + 1"
                   :is-active="currentTrackId === item.id"
