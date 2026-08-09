@@ -609,3 +609,68 @@ fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
         .body(Vec::new())
         .unwrap_or_default()
 }
+
+/// Hosts the `ytimg://` scheme may fetch from (video thumbnails, channel art).
+fn is_allowed_image_host(host: &str) -> bool {
+    host == "ytimg.com" || host.ends_with(".ytimg.com") || host == "yt3.ggpht.com"
+}
+
+/// Serves YouTube cover art over the `ytimg://` scheme. `<img>` loads in the
+/// webview bypass the app proxy (it only covers the Rust-side clients), so on
+/// a network where YouTube is blocked thumbnails never render; this routes
+/// them through the shared proxy state instead. The original https URL arrives
+/// percent-encoded as the request path (built by `proxiedThumbnail` on the
+/// frontend via `convertFileSrc`).
+pub fn serve_image<R: Runtime>(
+    ctx: tauri::UriSchemeContext<'_, R>,
+    request: tauri::http::Request<Vec<u8>>,
+    responder: tauri::UriSchemeResponder,
+) {
+    let encoded = request.uri().path().trim_start_matches('/').to_owned();
+    let app = ctx.app_handle().clone();
+
+    tauri::async_runtime::spawn(async move {
+        let response = fetch_image(&app, &encoded).await.unwrap_or_else(|e| {
+            log::warn!("ytimg: {e}");
+            status_response(502)
+        });
+        responder.respond(response);
+    });
+}
+
+async fn fetch_image<R: Runtime>(
+    app: &AppHandle<R>,
+    encoded: &str,
+) -> Result<tauri::http::Response<Vec<u8>>, String> {
+    let url = percent_encoding::percent_decode_str(encoded)
+        .decode_utf8()
+        .map_err(|e| format!("bad encoding: {e}"))?;
+    let parsed = tauri::Url::parse(&url).map_err(|e| format!("bad url: {e}"))?;
+
+    if parsed.scheme() != "https" || !parsed.host_str().is_some_and(is_allowed_image_host) {
+        return Ok(status_response(403));
+    }
+
+    let resp = http_client(app)?
+        .get(parsed.as_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status().as_u16();
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_owned();
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
+
+    tauri::http::Response::builder()
+        .status(status)
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "public, max-age=86400")
+        .body(bytes)
+        .map_err(|e| e.to_string())
+}

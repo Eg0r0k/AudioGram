@@ -5,6 +5,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { ephemeralFromUrl } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { youtubeProvider } from "../provider";
+import { proxiedThumbnail } from "../lib/thumbnail";
 import type { YtSearchResult } from "../types";
 import { useYoutubeStore } from "../store/youtube.store";
 
@@ -93,7 +94,7 @@ export function useYoutube() {
       title: video.title,
       artist: video.uploader ?? undefined,
       albumName: undefined,
-      cover: video.thumbnail ?? undefined,
+      cover: video.thumbnail ? proxiedThumbnail(video.thumbnail) : undefined,
     });
     await queue.setQueue([track], 0, { type: "manual" });
   };

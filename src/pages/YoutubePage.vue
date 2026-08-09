@@ -85,7 +85,7 @@
             <div class="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-muted">
               <img
                 v-if="video.thumbnail"
-                :src="video.thumbnail"
+                :src="proxiedThumbnail(video.thumbnail)"
                 alt=""
                 loading="lazy"
                 class="h-full w-full object-cover"
@@ -172,6 +172,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { useYoutube } from "@/modules/youtube/composables/useYoutube";
+import { proxiedThumbnail } from "@/modules/youtube/lib/thumbnail";
 import type { YtDownloadStatus } from "@/modules/youtube/store/youtube.store";
 import IconYoutube from "~icons/tabler/brand-youtube";
 import IconSearch from "~icons/tabler/search";

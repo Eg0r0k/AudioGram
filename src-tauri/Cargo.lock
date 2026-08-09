@@ -270,6 +270,7 @@ dependencies = [
  "futures-util",
  "lofty",
  "log",
+ "percent-encoding",
  "reqwest 0.12.28",
  "rustypipe",
  "serde",
