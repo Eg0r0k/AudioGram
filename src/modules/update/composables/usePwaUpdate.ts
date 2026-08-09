@@ -4,8 +4,9 @@
 // Flow:
 //   1. SW detects new version → needRefresh = true
 //   2. We fetch the latest tag from GitHub (via TanStack Query cache) purely
-//      to show the version in the update toast, then push status: 'available'
-//   3. User clicks "Установить" → applyPwaUpdate() → SW skipWaiting → reload
+//      to show the version in the update button, then push status: 'available'
+//   3. User clicks the sidebar update button → applyPwaUpdate() → SW
+//      skipWaiting → reload
 //   4. On reload, useChangelogOnStartup() resolves release notes for the
 //      actual new __APP_VERSION__ → WhatsNewModal opens
 //
@@ -14,45 +15,65 @@
 // staging under a guessed version was silently lossy. Resolving it after
 // reload from __APP_VERSION__ is always correct.
 
-import { watch, onUnmounted } from "vue";
+import { watch, onUnmounted, toValue, type MaybeRefOrGetter } from "vue";
 import { useRegisterSW } from "virtual:pwa-register/vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useUpdateStore } from "../store/update.store";
 import type { UpdateChannel } from "../types";
 import { latestTagQueryOptions } from "../api/changelogApi";
 
-export const usePwaUpdate = (channel: UpdateChannel = "stable", enabled: boolean = true) => {
+const POLL_INTERVAL_MS = 60 * 60 * 1000;
+
+export const usePwaUpdate = (
+  channel: MaybeRefOrGetter<UpdateChannel> = "stable",
+  enabled: MaybeRefOrGetter<boolean> = true,
+) => {
   const updateStore = useUpdateStore();
   const queryClient = useQueryClient();
 
+  const isEnabled = () => toValue(enabled);
+
+  let registration: ServiceWorkerRegistration | undefined;
   let updateInterval: ReturnType<typeof setInterval> | null = null;
 
-  const { needRefresh, updateServiceWorker } = useRegisterSW({
-    onRegisteredSW(_swUrl, registration) {
-      if (!registration) return;
-      // Auto-update checks are disabled — register the SW (needed for offline)
-      // but never poll for or surface new versions.
-      if (!enabled) return;
-
-      registration.update();
-      updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-    },
-  });
-
-  onUnmounted(() => {
+  const stopPolling = () => {
     if (updateInterval !== null) {
       clearInterval(updateInterval);
       updateInterval = null;
     }
+  };
+
+  const startPolling = () => {
+    if (!registration || updateInterval !== null) return;
+    registration.update();
+    updateInterval = setInterval(() => registration?.update(), POLL_INTERVAL_MS);
+  };
+
+  const syncPolling = () => (isEnabled() ? startPolling() : stopPolling());
+
+  const { needRefresh, updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_swUrl, reg) {
+      if (!reg) return;
+      // The SW is always registered — it is what makes the app work offline.
+      // Only the polling for new versions follows the setting.
+      registration = reg;
+      syncPolling();
+    },
   });
 
-  watch(needRefresh, async (isReady) => {
-    if (!isReady) return;
-    if (!enabled) return;
+  // Reacts to the setting being toggled at runtime, in both directions: a
+  // pending update that was suppressed while disabled surfaces as soon as
+  // automatic checks are turned back on.
+  watch(isEnabled, syncPolling);
+
+  onUnmounted(stopPolling);
+
+  watch([needRefresh, isEnabled], async ([isReady, allowed]) => {
+    if (!isReady || !allowed) return;
     // fetchQuery respects the cache: if latestTag was already fetched
     // this session it returns instantly without a network call.
     try {
-      const tag = await queryClient.fetchQuery(latestTagQueryOptions(channel));
+      const tag = await queryClient.fetchQuery(latestTagQueryOptions(toValue(channel)));
       const version = tag.replace(/^v/, "");
 
       updateStore.$patch({
@@ -71,7 +92,38 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", enabled: boolean
   });
 
   /**
-   * Called when the user confirms the update (UpdateToast "Установить").
+   * Asks the Service Worker to look for a new build now.
+   * `needRefresh` flips through the watcher above when one is found.
+   */
+  async function checkPwaUpdate() {
+    if (!registration) {
+      updateStore.$patch({ status: "up-to-date" });
+      return;
+    }
+
+    updateStore.$patch({ status: "checking" });
+
+    try {
+      await registration.update();
+      // The watcher owns the "available" transition; only the negative
+      // outcome has to be reported here.
+      if (!needRefresh.value) {
+        updateStore.$patch({ status: "up-to-date" });
+      }
+    }
+    catch (e) {
+      updateStore.$patch({
+        status: "error",
+        error: {
+          kind: "NETWORK",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      });
+    }
+  }
+
+  /**
+   * Called when the user confirms the update from the sidebar button.
    * Triggers the waiting SW to skipWaiting; the page reloads on controllerchange.
    */
   async function applyPwaUpdate() {
@@ -91,5 +143,5 @@ export const usePwaUpdate = (channel: UpdateChannel = "stable", enabled: boolean
     }
   }
 
-  return { needRefresh, applyPwaUpdate };
+  return { needRefresh, applyPwaUpdate, checkPwaUpdate };
 };

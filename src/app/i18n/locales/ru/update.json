@@ -3,10 +3,16 @@
   "notesPreview": "Предпросмотр изменений",
   "updateAvailable": "Доступно обновление",
   "updateToVersion": "Версия {version} доступна",
+  "updateTo": "Обновить до {version}",
   "installUpdate": "Установить",
   "dismiss": "Закрыть",
   "downloading": "Загрузка обновления...",
+  "downloadingPercent": "Загрузка... {percent}%",
   "installing": "Установка обновления...",
   "updateReady": "Обновление готово к установке",
-  "updateError": "Ошибка обновления: {message}"
+  "updateError": "Ошибка обновления: {message}",
+  "retry": "Повторить обновление",
+  "checkForUpdates": "Проверить обновления",
+  "checking": "Проверка...",
+  "upToDate": "Установлена последняя версия"
 }

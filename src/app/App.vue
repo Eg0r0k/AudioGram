@@ -45,7 +45,7 @@ import { useGlobalHotKeys } from "@/modules/hotkeys";
 import { useMediaSession } from "@/modules/player/composables/useMediaSession";
 import { useDiscordPresence } from "@/modules/player/composables/useDiscordPresence";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { useUpdateNotifications } from "@/modules/update/composables/useUpdateNotifications";
+import { useAppUpdates } from "@/modules/update/composables/useAppUpdates";
 import { useChangelogOnStartup } from "@/modules/update/composables/useChangelogOnStartup";
 import WhatsNewDialog from "@/modules/update/components/WhatsNewDialog.vue";
 import { useTrayBehavior } from "@/modules/settings/composables/useTrayBehavior";
@@ -140,7 +140,7 @@ useNowPlayingTitle();
 useExternalLinkInterceptor();
 
 useAnalysisQueueLifecycle();
-useUpdateNotifications();
+useAppUpdates();
 useChangelogOnStartup();
 
 if (IS_TAURI) {

@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted } from "vue";
+import { onUnmounted, toValue, watch, type MaybeRefOrGetter } from "vue";
 import { useUpdateStore } from "../store/update.store";
 
 const STARTUP_DELAY_MS = 5000;
@@ -9,8 +9,11 @@ export interface UpdateSchedulerOptions {
    * Master switch for automatic update checks. When false, neither the
    * startup check nor the periodic interval is scheduled — the app never
    * checks for updates on its own. `checkNow()` still works for manual checks.
+   *
+   * Reactive: toggling the setting starts or stops the timers immediately,
+   * without waiting for a restart.
    */
-  enabled?: boolean;
+  enabled?: MaybeRefOrGetter<boolean>;
   intervalMs?: number;
 }
 
@@ -25,21 +28,26 @@ export const useUpdateScheduler = (options: UpdateSchedulerOptions = {}) => {
   let startupTimer: ReturnType<typeof setTimeout> | undefined;
   let intervalTimer: ReturnType<typeof setInterval> | undefined;
 
-  const scheduleCheck = () => {
-    store.check();
-  };
-
-  onMounted(() => {
-    if (!enabled) return;
-
-    startupTimer = setTimeout(scheduleCheck, STARTUP_DELAY_MS);
-    intervalTimer = setInterval(scheduleCheck, intervalMs);
-  });
-
-  onUnmounted(() => {
+  const stop = () => {
     clearTimeout(startupTimer);
     clearInterval(intervalTimer);
-  });
+    startupTimer = undefined;
+    intervalTimer = undefined;
+  };
+
+  const start = () => {
+    stop();
+    startupTimer = setTimeout(() => store.check(), STARTUP_DELAY_MS);
+    intervalTimer = setInterval(() => store.check(), intervalMs);
+  };
+
+  watch(
+    () => toValue(enabled),
+    isEnabled => (isEnabled ? start() : stop()),
+    { immediate: true },
+  );
+
+  onUnmounted(stop);
 
   return {
     checkNow: () => store.check(),

@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useChangelogStore } from "./changelog.store";
-import type { DownloadProgress, UpdateChannel, UpdateError, UpdateInfo, UpdateStatus } from "../types";
+import type { DownloadProgress, PwaUpdateHandlers, UpdateChannel, UpdateError, UpdateInfo, UpdateStatus } from "../types";
 import { checkUpdate, installUpdate } from "../api/updateApi";
 import { fetchReleaseNotes } from "../api/changelogApi";
 import { normalizeReleaseNotes } from "../lib/releaseNotes";
@@ -57,8 +57,22 @@ export const useUpdateStore = defineStore("update", () => {
     );
   };
 
+  /**
+   * PWA mode has no Tauri commands to invoke — the Service Worker bridge
+   * registers its own check/apply here so callers can stay mechanism-agnostic.
+   */
+  const pwaHandlers = ref<PwaUpdateHandlers | null>(null);
+  const registerPwaHandlers = (handlers: PwaUpdateHandlers) => {
+    pwaHandlers.value = handlers;
+  };
+
   const check = async (): Promise<void> => {
     if (isBusy.value) return;
+
+    if (!IS_TAURI) {
+      await pwaHandlers.value?.check();
+      return;
+    }
 
     status.value = "checking";
     error.value = null;
@@ -138,6 +152,18 @@ export const useUpdateStore = defineStore("update", () => {
       },
     );
   };
+  /**
+   * Starts the update the user asked for, whichever mechanism is in play.
+   * Prefer this over {@link install} outside of Tauri-only code paths.
+   */
+  const apply = async (): Promise<void> => {
+    if (IS_TAURI) {
+      await install();
+      return;
+    }
+    await pwaHandlers.value?.apply();
+  };
+
   const dismiss = (): void => {
     if (
       status.value === "available"
@@ -163,6 +189,8 @@ export const useUpdateStore = defineStore("update", () => {
     setChannel,
     check,
     install,
+    apply,
     dismiss,
+    registerPwaHandlers,
   };
 });

@@ -12,7 +12,7 @@
       stiffness: 300,
       damping: 25
     }"
-    class="absolute bottom-4 right-4 z-50"
+    :class="inline ? 'relative shrink-0' : 'absolute bottom-4 right-4 z-50'"
   >
     <slot />
   </Motion>
@@ -23,6 +23,11 @@ import { Motion, useReducedMotion } from "motion-v";
 
 defineProps<{
   show: boolean;
+  /**
+   * Renders in the normal flow instead of pinning itself to the bottom-right
+   * corner, so a parent can lay it out alongside other bottom-bar controls.
+   */
+  inline?: boolean;
 }>();
 
 const prefersReduced = useReducedMotion();

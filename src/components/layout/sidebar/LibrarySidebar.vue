@@ -103,23 +103,38 @@
       </div>
     </SlideTransition>
 
-    <FloatingButton
-      v-if="!activeFolder"
-      :show="isButtonVisible"
-      @create-folder="openCreateFolderDialog"
-    />
-
-    <FloatingActionButton
-      v-else
-      :show="isButtonVisible"
+    <div
+      class="pointer-events-none absolute bottom-4 z-50 flex gap-2"
+      :class="isCompact
+        ? 'inset-x-0 flex-col items-center'
+        : 'inset-x-4 flex-row items-center'"
     >
-      <Button
-        class="size-12 rounded-full shadow-lg"
-        @click="openManageFolderDialog(activeFolder.id)"
+      <UpdateButton :compact="isCompact" />
+
+      <FloatingButton
+        v-if="!activeFolder"
+        inline
+        class="pointer-events-auto"
+        :class="!isCompact && 'ml-auto'"
+        :show="isButtonVisible"
+        @create-folder="openCreateFolderDialog"
+      />
+
+      <FloatingActionButton
+        v-else
+        inline
+        class="pointer-events-auto"
+        :class="!isCompact && 'ml-auto'"
+        :show="isButtonVisible"
       >
-        <IconPlus class="size-6" />
-      </Button>
-    </FloatingActionButton>
+        <Button
+          class="size-12 rounded-full shadow-lg"
+          @click="openManageFolderDialog(activeFolder.id)"
+        >
+          <IconPlus class="size-6" />
+        </Button>
+      </FloatingActionButton>
+    </div>
 
     <SearchPanel />
 
@@ -171,6 +186,7 @@ import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import SearchPanel from "@/modules/search/components/SearchPanel.vue";
+import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
 
 const {

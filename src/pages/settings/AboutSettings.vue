@@ -51,6 +51,23 @@
       </SettingsGroup>
       <SettingsGroup class="mt-3">
         <SettingsItem
+          :title="$t('update.checkForUpdates')"
+          :subtitle="checkResultLabel"
+          @click="handleCheckForUpdates"
+        >
+          <template #action>
+            <IconLoader2
+              v-if="updateStore.isBusy"
+              class="size-4 animate-spin text-muted-foreground"
+            />
+            <IconRefresh
+              v-else
+              class="size-5 text-muted-foreground"
+            />
+          </template>
+        </SettingsItem>
+
+        <SettingsItem
           :title="$t('settings.about.whatsNew')"
           @click="handleOpenWhatsNew"
         >
@@ -153,6 +170,7 @@ import IconExternalLink from "~icons/tabler/external-link";
 import IconBarBell from "~icons/tabler/brand-among-us";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconDownload from "~icons/tabler/download";
+import IconRefresh from "~icons/tabler/refresh";
 
 import IconLogo from "~icons/audiogram/logo";
 import { toast } from "vue-sonner";
@@ -166,10 +184,11 @@ import SettingsItem from "@/modules/settings/components/SettingsItem.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useReleaseNotesDialog } from "@/modules/update/composables/useReleaseNotesDialog";
 import { useChangelogStore } from "@/modules/update/store/changelog.store";
+import { useUpdateStore } from "@/modules/update/store/update.store";
 import { routeLocation } from "@/app/router/route-locations";
 import { useRouter } from "vue-router";
 import { exportLogs } from "@/lib/logger";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
 const isExporting = ref(false);
 
@@ -180,6 +199,28 @@ const appVersion = __APP_VERSION__;
 const buildTime = __BUILD_TIME__;
 const { t } = useI18n();
 const changelog = useChangelogStore();
+const updateStore = useUpdateStore();
+
+/**
+ * Outcome of the last check. An available update is not reported here — the
+ * sidebar update button owns that, and it stays until the user acts on it.
+ */
+const checkResultLabel = computed(() => {
+  switch (updateStore.status) {
+    case "checking":
+      return t("update.checking");
+    case "up-to-date":
+      return t("update.upToDate");
+    case "error":
+      return t("update.updateError", { message: updateStore.error?.message ?? "" });
+    default:
+      return undefined;
+  }
+});
+
+const handleCheckForUpdates = () => {
+  updateStore.check();
+};
 const {
   isOpening,
   error,

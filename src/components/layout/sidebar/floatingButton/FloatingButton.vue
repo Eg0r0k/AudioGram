@@ -1,5 +1,8 @@
 <template>
-  <FloatingActionButton :show="show">
+  <FloatingActionButton
+    :show="show"
+    :inline="inline"
+  >
     <DropdownMenu :modal="false">
       <DropdownMenuTrigger as-child>
         <Button class="size-12 rounded-full shadow-lg">
@@ -60,6 +63,7 @@ import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 
 defineProps<{
   show: boolean;
+  inline?: boolean;
 }>();
 
 const emit = defineEmits<{

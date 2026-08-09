@@ -32,3 +32,9 @@ export interface UpdateError {
 }
 
 export type UpdateChannel = "stable";
+
+/** Service Worker equivalents of the Tauri check/install commands. */
+export interface PwaUpdateHandlers {
+  check: () => Promise<void>;
+  apply: () => Promise<void>;
+}
