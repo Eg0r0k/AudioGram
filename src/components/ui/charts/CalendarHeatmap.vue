@@ -137,12 +137,6 @@ const dayLabels = computed(() => [
 const width = computed(() => dayLabelWidth + weeks.value.length * cellPitch);
 const height = monthLabelHeight + 7 * cellPitch - gap;
 
-const totalLabel = computed(() => {
-  const totalMinutes = Math.round(props.data.reduce((sum, d) => sum + d.seconds, 0) / 60);
-  const activeDays = props.data.filter(d => d.seconds > 0).length;
-  return t("stats.calendarTotal", { minutes: t("common.minutesShort", { count: totalMinutes }), days: activeDays });
-});
-
 function formatTooltip(cell: Cell): string {
   return formatCalendarTooltip(cell.date, cell.seconds, locale.value, t);
 }
