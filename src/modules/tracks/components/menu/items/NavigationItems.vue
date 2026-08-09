@@ -69,10 +69,15 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const props = defineProps<{
-  artistIds: ArtistId[];
-  albumName: string;
-}>();
+// Ephemeral tracks (YouTube stream, radio) have no library identifiers —
+// default to "no artists" instead of crashing the menu render.
+const props = withDefaults(defineProps<{
+  artistIds?: ArtistId[];
+  albumName?: string;
+}>(), {
+  artistIds: () => [],
+  albumName: "",
+});
 
 const { Item, Sub, SubTrigger, SubContent } = useTrackMenuComponents();
 

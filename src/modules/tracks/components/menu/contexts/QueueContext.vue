@@ -16,37 +16,42 @@
     {{ $t('track.contextMenu.removeFromQueue') }}
   </component>
 
-  <component :is="Separator" />
+  <!-- Library-only items: an ephemeral track (YouTube stream, radio) has no
+       DB identity, so liking, playlists, download and navigation would all
+       act on undefined ids. -->
+  <template v-if="isLibrary">
+    <component :is="Separator" />
 
-  <LikeItem
-    :is-liked="track.isLiked"
-    @toggle="actions.toggleLike"
-  />
+    <LikeItem
+      :is-liked="track.isLiked"
+      @toggle="actions.toggleLike"
+    />
 
-  <DetailsItem @show="actions.showDetails" />
+    <DetailsItem @show="actions.showDetails" />
 
-  <DownloadItem @download="actions.download" />
+    <DownloadItem @download="actions.download" />
 
-  <LyricsItem
-    :has-lyrics="!!track.lyricsPath"
-    @attach="actions.attachLyrics"
-  />
+    <LyricsItem
+      :has-lyrics="!!track.lyricsPath"
+      @attach="actions.attachLyrics"
+    />
 
-  <AddToPlaylistSub
-    :playlists="playlists"
-    :is-loading="isLoading"
-    @add="actions.addToPlaylist"
-    @create="handleCreatePlaylist"
-  />
+    <AddToPlaylistSub
+      :playlists="playlists"
+      :is-loading="isLoading"
+      @add="actions.addToPlaylist"
+      @create="handleCreatePlaylist"
+    />
 
-  <component :is="Separator" />
+    <component :is="Separator" />
 
-  <NavigationItems
-    :artist-ids="track.artistIds"
-    :album-name="track.albumName"
-    @go-to-artist="actions.goToArtist"
-    @go-to-album="actions.goToAlbum"
-  />
+    <NavigationItems
+      :artist-ids="track.artistIds"
+      :album-name="track.albumName"
+      @go-to-artist="actions.goToArtist"
+      @go-to-album="actions.goToAlbum"
+    />
+  </template>
 </template>
 
 <script setup lang="ts">
@@ -57,18 +62,21 @@ import DetailsItem from "../items/DetailsItem.vue";
 import NavigationItems from "../items/NavigationItems.vue";
 import LyricsItem from "../items/LyricsItem.vue";
 import DownloadItem from "../items/DownloadItem.vue";
+import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { usePlaylistMenu } from "../composables/usePlaylistMenu";
 import type { ContextActions } from "../type";
-import type { Track } from "@/modules/player/types";
+import { isLibraryTrack, type Track } from "@/modules/player/types";
 import IconTrash from "~icons/tabler/trash";
 
-defineProps<{
+const props = defineProps<{
   track: Track;
   actions: ContextActions;
   queueIndex: number;
   queueLength: number;
 }>();
+
+const isLibrary = computed(() => isLibraryTrack(props.track));
 
 const { Separator, Item } = useTrackMenuComponents();
 const { playlists, isLoading, handleCreatePlaylist } = usePlaylistMenu();
