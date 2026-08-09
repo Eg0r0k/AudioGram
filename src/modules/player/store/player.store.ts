@@ -17,6 +17,7 @@ import { statsService } from "@/services/stats.service";
 import { TrackId } from "@/types/ids";
 import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
+import { useCountdown } from "../composables/useCountdown";
 import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
 import { getLogger } from "@/lib/logger";
 
@@ -35,16 +36,20 @@ export const usePlayerStore = defineStore("player", () => {
   const trackEndedSignal = ref(0);
   const lyrics = ref<LyricsLine[]>([]);
   const lyricsStatus = ref<"idle" | "loading" | "ready" | "error">("idle");
-  const sleepTimerEndsAt = ref<number | null>(null);
-  const sleepTimerRemainingMs = ref(0);
   const sleepAfterCurrentTrack = ref(false);
   const sleepAfterCurrentTrackTriggeredOnEndSignal = ref(0);
+
+  const {
+    endsAt: sleepTimerEndsAt,
+    remainingMs: sleepTimerRemainingMs,
+    isActive: isSleepTimerActive,
+    set: setSleepTimer,
+    cancel: cancelSleepTimer,
+  } = useCountdown({ onExpire: () => pause() });
 
   let lyricsRequestId = 0;
   let _playbackEpoch = 0;
   let _activeFadeAbort: AbortController | null = null;
-  let _sleepTimerTimeout: ReturnType<typeof setTimeout> | null = null;
-  let _sleepTimerInterval: ReturnType<typeof setInterval> | null = null;
   let _activeBlobUrl: string | null = null;
 
   const isPlaying = computed(
@@ -70,14 +75,9 @@ export const usePlayerStore = defineStore("player", () => {
     return findActiveLyricsIndex(lines, currentTime.value);
   });
 
-  const isSleepTimerActive = computed(() => sleepTimerEndsAt.value !== null);
-
   const isLiveStream = computed(() => {
     const track = currentTrack.value;
     if (!track) return false;
-    // Read duration first so this recomputes as the stream loads. Engine truth
-    // wins: hls.js reports a finite sliding-window duration for live, so the
-    // duration<=0 heuristic alone would misread live as VOD.
     const dur = duration.value;
     if (player.value?.isLive) return true;
     if (isEphemeralTrack(track) && track.source.type === "url") {
@@ -103,29 +103,6 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
-  const clearSleepTimerHandles = () => {
-    if (_sleepTimerTimeout !== null) {
-      clearTimeout(_sleepTimerTimeout);
-      _sleepTimerTimeout = null;
-    }
-    if (_sleepTimerInterval !== null) {
-      clearInterval(_sleepTimerInterval);
-      _sleepTimerInterval = null;
-    }
-  };
-
-  const updateSleepTimerRemaining = () => {
-    sleepTimerRemainingMs.value = sleepTimerEndsAt.value === null
-      ? 0
-      : Math.max(0, sleepTimerEndsAt.value - Date.now());
-  };
-
-  const cancelSleepTimer = () => {
-    clearSleepTimerHandles();
-    sleepTimerEndsAt.value = null;
-    sleepTimerRemainingMs.value = 0;
-  };
-
   const clearCurrentTrack = () => {
     if (_activeBlobUrl) {
       URL.revokeObjectURL(_activeBlobUrl);
@@ -141,21 +118,6 @@ export const usePlayerStore = defineStore("player", () => {
   const stopListeningAndSync = (completed = false) => {
     statsService.stopListening(currentTime.value, completed)
       .catch(err => getLogger().error(`[Stats] ${String(err)}`));
-  };
-
-  const handleSleepTimerExpired = () => {
-    clearSleepTimerHandles();
-    sleepTimerEndsAt.value = null;
-    sleepTimerRemainingMs.value = 0;
-    pause();
-  };
-
-  const setSleepTimer = (durationMs: number) => {
-    if (!Number.isFinite(durationMs) || durationMs <= 0) {
-      cancelSleepTimer();
-      return;
-    }
-    sleepTimerEndsAt.value = Date.now() + durationMs;
   };
 
   const initPlayer
@@ -226,8 +188,6 @@ export const usePlayerStore = defineStore("player", () => {
 
       return newPlayer;
     };
-
-  // ── URL resolution ──────────────────────────────────────────────────────────
 
   /**
    * Resolves the audio URL/source for any PlayerTrack.
@@ -604,23 +564,6 @@ export const usePlayerStore = defineStore("player", () => {
     sleepAfterCurrentTrack.value = false;
     sleepAfterCurrentTrackTriggeredOnEndSignal.value = val;
   });
-
-  watch(sleepTimerEndsAt, (endsAt) => {
-    clearSleepTimerHandles();
-    if (endsAt === null) {
-      sleepTimerRemainingMs.value = 0;
-      return;
-    }
-
-    updateSleepTimerRemaining();
-    if (sleepTimerRemainingMs.value <= 0) {
-      handleSleepTimerExpired();
-      return;
-    }
-
-    _sleepTimerInterval = setInterval(updateSleepTimerRemaining, 1000);
-    _sleepTimerTimeout = setTimeout(handleSleepTimerExpired, sleepTimerRemainingMs.value);
-  }, { immediate: true });
 
   return {
     player,
