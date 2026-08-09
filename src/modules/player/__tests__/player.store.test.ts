@@ -635,7 +635,7 @@ describe("player.store", () => {
       expect(reapplied).toBe(true);
     });
 
-    it("does not leave an orphaned playing player when a second track starts mid-load", async () => {
+    it("lets the newest play request win when tracks start rapidly", async () => {
       const store = usePlayerStore();
 
       // Track A's load hangs (slow remote stream, e.g. ytstream:// via proxy).
@@ -643,35 +643,40 @@ describe("player.store", () => {
       mockPlayerMethods.load.mockImplementationOnce(
         () => new Promise<void>((resolve) => { resolveLoadA = resolve; }),
       );
-      // Player A's dispose (triggered by track B's init) also hangs, opening
-      // the window where request A resumes while player.value is null.
-      let resolveDisposeA!: () => void;
-      mockPlayerMethods.dispose.mockImplementationOnce(
-        () => new Promise<void>((resolve) => { resolveDisposeA = resolve; }),
-      );
 
       const first = store.playPlayerTrack(
         createLibraryTrack({ id: "track-a" as never, title: "Track A" }),
       );
       await vi.waitFor(() => expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1));
 
+      const engine = mockPlayer;
       const second = store.playPlayerTrack(
         createLibraryTrack({ id: "track-b" as never, title: "Track B" }),
       );
-      await nextTick();
+      await second;
 
-      // Request A's load finishes while player A is still disposing; without
-      // the epoch/ownership guards it re-enters play(), spins up a fresh
-      // player for track A, and request B's player then orphans it — two
-      // players playing, one unreachable from the UI.
+      // The stale request resumes only after the newer one already finished;
+      // its request token is stale, so it must bail before playing.
       resolveLoadA();
-      await nextTick();
-      resolveDisposeA();
-
-      await Promise.all([first, second]);
+      await first;
 
       expect(store.currentTrack?.title).toBe("Track B");
+      // One shared engine for both tracks, and only track B ever plays.
+      expect(mockPlayer).toBe(engine);
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
       expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+    });
+
+    it("reuses the same engine across consecutive tracks", async () => {
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never, title: "Track A" }));
+      const engine = mockPlayer;
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never, title: "Track B" }));
+
+      expect(mockPlayer).toBe(engine);
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(2);
     });
   });
 

@@ -45,7 +45,11 @@ export const usePlayerStore = defineStore("player", () => {
     cancel: cancelSleepTimer,
   } = useCountdown({ onExpire: () => pause() });
 
-  let _playbackEpoch = 0;
+  // Monotonic token claimed by each play request. lyra's load() already
+  // cancels a superseded in-flight load on the shared instance, but a stale
+  // request waking up after an await could still call load() *after* the
+  // newer one and win by "last call" semantics — the token drops it first.
+  let _playRequestId = 0;
   let _activeFadeAbort: AbortController | null = null;
   let _activeBlobUrl: string | null = null;
 
@@ -110,74 +114,79 @@ export const usePlayerStore = defineStore("player", () => {
       .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
 
-  const initPlayer
-    = async (): Promise<Player | null> => {
-      const epoch = ++_playbackEpoch;
-      cancelActiveFade();
+  // Drops a broken instance so the next play starts on a fresh engine.
+  // Fire-and-forget: nothing awaits teardown of an errored player.
+  const discardPlayer = () => {
+    const broken = player.value;
+    player.value = null;
+    broken?.dispose().catch(() => {});
+  };
 
-      if (player.value) {
-        const oldPlayer = player.value;
-        player.value = null;
-        await oldPlayer.dispose();
-      }
+  /**
+   * Returns the app-lifetime Player, creating it on first use. Tracks reuse
+   * the same engine: lyra's load() tears down the previous source itself and
+   * cancels a superseded in-flight load internally, so recreating the
+   * instance per track is unnecessary (and was the root of orphaned-player
+   * races). A new instance appears only after dispose() or a load error.
+   */
+  const ensurePlayer = (): Player => {
+    if (player.value) return player.value;
 
-      // A newer request started while the old player was disposing; creating
-      // and assigning ours now would orphan the newer request's player.
-      if (epoch !== _playbackEpoch) return null;
+    const audioSettings = useAudioSettingsStore();
+    const newPlayer = new Player({
+      mode: "auto",
+      Hls,
+      playbackRate: playbackRate.value,
+      loudnessNormalization: {
+        enabled: audioSettings.isNormalizationEnabled,
+        targetLufs: audioSettings.normalizationTargetLufs,
+        preventClipping: audioSettings.normalizationPreventClipping,
+      },
+    });
 
-      const audioSettings = useAudioSettingsStore();
-      const newPlayer = new Player({
-        mode: "auto",
-        Hls,
-        playbackRate: playbackRate.value,
-        loudnessNormalization: {
-          enabled: audioSettings.isNormalizationEnabled,
-          targetLufs: audioSettings.normalizationTargetLufs,
-          preventClipping: audioSettings.normalizationPreventClipping,
-        },
-      });
+    newPlayer.setVolume(volume.value);
+    newPlayer.setMuted(isMuted.value);
+    newPlayer.setPlaybackRate(playbackRate.value);
+    player.value = markRaw(newPlayer);
 
-      newPlayer.setVolume(volume.value);
-      newPlayer.setMuted(isMuted.value);
-      newPlayer.setPlaybackRate(playbackRate.value);
-      player.value = markRaw(newPlayer);
+    // Guards keep a disposed-then-replaced instance (dispose(), load-error
+    // recovery) from mutating state that now belongs to its successor.
+    newPlayer.on("statechange", ({ to }) => {
+      if (player.value === newPlayer) status.value = to;
+    });
+    newPlayer.on("ended", () => {
+      if (player.value !== newPlayer) return;
+      currentTime.value = 0;
+      trackEndedBus.emit();
+    });
+    newPlayer.on("timeupdate", ({ currentTime: t }) => {
+      if (player.value === newPlayer) currentTime.value = t;
+    });
+    newPlayer.on("durationchange", (dur) => {
+      if (player.value === newPlayer) duration.value = dur;
+    });
+    newPlayer.on("loadedmetadata", ({ duration: dur }) => {
+      if (player.value === newPlayer) duration.value = dur;
+    });
+    newPlayer.on("canplay", () => {
+      if (player.value !== newPlayer) return;
+      duration.value = player.value.duration;
+      graphRevision.value++;
+    });
+    newPlayer.on("volumechange", ({ volume: vol, muted }) => {
+      if (player.value !== newPlayer) return;
+      volume.value = vol;
+      isMuted.value = muted;
+    });
+    newPlayer.on("ratechange", (rate) => {
+      if (player.value === newPlayer) playbackRate.value = rate;
+    });
+    newPlayer.on("error", (err) => {
+      if (player.value === newPlayer) getLogger().error(`[Player] error: ${String(err)}`);
+    });
 
-      newPlayer.on("statechange", ({ to }) => {
-        if (player.value === newPlayer) status.value = to;
-      });
-      newPlayer.on("ended", () => {
-        if (player.value !== newPlayer) return;
-        currentTime.value = 0;
-        trackEndedBus.emit();
-      });
-      newPlayer.on("timeupdate", ({ currentTime: t }) => {
-        if (player.value === newPlayer) currentTime.value = t;
-      });
-      newPlayer.on("durationchange", (dur) => {
-        if (player.value === newPlayer) duration.value = dur;
-      });
-      newPlayer.on("loadedmetadata", ({ duration: dur }) => {
-        if (player.value === newPlayer) duration.value = dur;
-      });
-      newPlayer.on("canplay", () => {
-        if (player.value !== newPlayer) return;
-        duration.value = player.value.duration;
-        graphRevision.value++;
-      });
-      newPlayer.on("volumechange", ({ volume: vol, muted }) => {
-        if (player.value !== newPlayer) return;
-        volume.value = vol;
-        isMuted.value = muted;
-      });
-      newPlayer.on("ratechange", (rate) => {
-        if (player.value === newPlayer) playbackRate.value = rate;
-      });
-      newPlayer.on("error", (err) => {
-        if (player.value === newPlayer) getLogger().error(`[Player] error: ${String(err)}`);
-      });
-
-      return newPlayer;
-    };
+    return newPlayer;
+  };
 
   /**
    * Resolves the audio URL/source for any PlayerTrack.
@@ -273,18 +282,20 @@ export const usePlayerStore = defineStore("player", () => {
       const track = currentTrack.value;
       if (!track) return;
 
+      const requestId = ++_playRequestId;
+
       const url = await resolveTrackUrl(track);
+      if (requestId !== _playRequestId) return;
       if (!url) {
         clearCurrentTrack();
         status.value = "idle";
         return;
       }
 
-      const p = await initPlayer();
-      if (!p) return;
+      const p = ensurePlayer();
       await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      // A newer request took over while we were loading; it already disposed p.
-      if (player.value !== p) return;
+      // A newer play request took over while we were loading.
+      if (requestId !== _playRequestId) return;
       if (currentTime.value > 0) p.seek(currentTime.value);
       await p.play();
       useAudioSettingsStore().pushToGraph();
@@ -405,24 +416,26 @@ export const usePlayerStore = defineStore("player", () => {
       throw new Error(`Track is marked as broken: "${track.title}"`);
     }
 
+    const requestId = ++_playRequestId;
+
     if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync();
     }
 
+    cancelActiveFade();
     currentTime.value = 0;
     duration.value = 0;
 
-    const p = await initPlayer();
-    // Superseded by a newer play request mid-init; let it own playback.
-    if (!p) return;
+    const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
     const url = await resolveTrackUrl(track);
-    if (player.value !== p) return;
+    // A newer play request took over while we resolved the source.
+    if (requestId !== _playRequestId) return;
     if (!url) {
       status.value = "error";
-      player.value = null;
+      discardPlayer();
       clearCurrentTrack();
       throw new Error(`Cannot resolve audio source for: "${track.title}"`);
     }
@@ -437,20 +450,20 @@ export const usePlayerStore = defineStore("player", () => {
         await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       }
 
-      // A newer request took over while we were loading; it already disposed
-      // p, so playing or reporting state for it now would fight that request.
-      if (player.value !== p) return;
+      // A superseded load() resolves silently (lyra cancels it internally);
+      // playing now would fight the newer request.
+      if (requestId !== _playRequestId) return;
 
       applyLoudnessMetadata(p, track);
       await play();
       useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
-      // Loads aborted by a newer request's dispose are not playback errors —
-      // swallowing them keeps queue.store from skipping to the next track.
-      if (player.value !== p) return;
+      // Errors from a superseded request belong to it alone — swallowing
+      // them keeps queue.store from skipping to the next track.
+      if (requestId !== _playRequestId) return;
       status.value = "error";
-      player.value = null;
+      discardPlayer();
       if (err instanceof StorageError) {
         clearCurrentTrack();
       }
@@ -497,9 +510,9 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const dispose = async () => {
-    // Claim the epoch so any in-flight play request aborts instead of
-    // resurrecting a player after teardown.
-    _playbackEpoch++;
+    // Claim the token so any in-flight play request aborts instead of
+    // resurrecting playback after teardown.
+    _playRequestId++;
     cancelActiveFade();
     cancelSleepTimer();
     clearCurrentTrack();
@@ -511,13 +524,7 @@ export const usePlayerStore = defineStore("player", () => {
   const getAudioGraph = () => player.value?.graph ?? null;
 
   const unlockAudio = async () => {
-    if (player.value) {
-      await player.value.unlockAudio();
-    }
-    else {
-      const p = await initPlayer();
-      if (p) await p.unlockAudio();
-    }
+    await ensurePlayer().unlockAudio();
   };
 
   return {
