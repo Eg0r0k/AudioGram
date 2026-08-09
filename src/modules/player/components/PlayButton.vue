@@ -25,7 +25,7 @@
       </motion.svg>
 
       <div
-        v-if="isLoading"
+        v-if="playerStore.showLoadingIndicator"
         class="loader-ring pointer-events-none absolute inset-0 m-auto z-0"
       />
     </Button>
@@ -65,9 +65,11 @@ const morphedPath = useTransform(progress, [0, 1], paths, {
   mixer: centerInterpolate,
 });
 
-const isLoading = computed(() => playerStore.isLoading || playerStore.status === "loading");
+const isLoading = computed(() => playerStore.isLoading);
 const shouldShowPauseIcon = computed(() => playerStore.isPlaying || isLoading.value);
-const canInteract = computed(() => !isLoading.value);
+// Disable only once the delayed indicator is visible — a fast local load would
+// otherwise flash the disabled style; toggle() still guards clicks instantly.
+const canInteract = computed(() => !playerStore.showLoadingIndicator);
 
 const prefersReduced = useReducedMotion();
 

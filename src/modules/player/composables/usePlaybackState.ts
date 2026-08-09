@@ -15,7 +15,7 @@ export function usePlaybackState(source: () => QueueSource) {
   });
 
   const isPlaying = computed(() => isActiveSource.value && playerStore.isPlaying);
-  const isLoading = computed(() => isActiveSource.value && playerStore.isLoading);
+  const isLoading = computed(() => isActiveSource.value && playerStore.showLoadingIndicator);
 
   return { isActiveSource, isPlaying, isLoading };
 }

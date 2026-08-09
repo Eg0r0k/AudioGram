@@ -16,6 +16,7 @@ import { storageService } from "@/db/storage";
 import { statsService } from "@/services/stats.service";
 import { TrackId } from "@/types/ids";
 import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
+import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
 import { getLogger } from "@/lib/logger";
 
@@ -40,17 +41,21 @@ export const usePlayerStore = defineStore("player", () => {
   const sleepAfterCurrentTrackTriggeredOnEndSignal = ref(0);
 
   let lyricsRequestId = 0;
+  let _playbackEpoch = 0;
   let _activeFadeAbort: AbortController | null = null;
   let _sleepTimerTimeout: ReturnType<typeof setTimeout> | null = null;
   let _sleepTimerInterval: ReturnType<typeof setInterval> | null = null;
   let _activeBlobUrl: string | null = null;
 
-  // ── Computed ────────────────────────────────────────────────────────────────
-
   const isPlaying = computed(
     () => status.value === "playing" || status.value === "buffering",
   );
   const isLoading = computed(() => status.value === "loading");
+
+  // Local tracks (OPFS/FS) load in tens of milliseconds, so a spinner bound
+  // directly to `isLoading` would flash on every start; the delayed indicator
+  // only shows up for real waits (slow disk, remote streams, HLS buffering).
+  const showLoadingIndicator = useDelayedIndicator(isLoading);
 
   const progress = computed(() => {
     if (duration.value <= 0) return 0;
@@ -154,7 +159,8 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const initPlayer
-    = async () => {
+    = async (): Promise<Player | null> => {
+      const epoch = ++_playbackEpoch;
       cancelActiveFade();
 
       if (player.value) {
@@ -162,6 +168,10 @@ export const usePlayerStore = defineStore("player", () => {
         player.value = null;
         await oldPlayer.dispose();
       }
+
+      // A newer request started while the old player was disposing; creating
+      // and assigning ours now would orphan the newer request's player.
+      if (epoch !== _playbackEpoch) return null;
 
       const audioSettings = useAudioSettingsStore();
       const newPlayer = new Player({
@@ -321,7 +331,10 @@ export const usePlayerStore = defineStore("player", () => {
       }
 
       const p = await initPlayer();
+      if (!p) return;
       await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
+      // A newer request took over while we were loading; it already disposed p.
+      if (player.value !== p) return;
       if (currentTime.value > 0) p.seek(currentTime.value);
       await p.play();
       useAudioSettingsStore().pushToGraph();
@@ -450,9 +463,12 @@ export const usePlayerStore = defineStore("player", () => {
     duration.value = 0;
 
     const p = await initPlayer();
+    // Superseded by a newer play request mid-init; let it own playback.
+    if (!p) return;
     currentTrack.value = track;
 
     const url = await resolveTrackUrl(track);
+    if (player.value !== p) return;
     if (!url) {
       status.value = "error";
       player.value = null;
@@ -470,11 +486,18 @@ export const usePlayerStore = defineStore("player", () => {
         await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       }
 
+      // A newer request took over while we were loading; it already disposed
+      // p, so playing or reporting state for it now would fight that request.
+      if (player.value !== p) return;
+
       applyLoudnessMetadata(p, track);
       await play();
       useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
+      // Loads aborted by a newer request's dispose are not playback errors —
+      // swallowing them keeps queue.store from skipping to the next track.
+      if (player.value !== p) return;
       status.value = "error";
       player.value = null;
       if (err instanceof StorageError) {
@@ -523,13 +546,15 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const dispose = async () => {
+    // Claim the epoch so any in-flight play request aborts instead of
+    // resurrecting a player after teardown.
+    _playbackEpoch++;
     cancelActiveFade();
     cancelSleepTimer();
     clearCurrentTrack();
-    if (player.value) {
-      await player.value.dispose();
-      player.value = null;
-    }
+    const oldPlayer = player.value;
+    player.value = null;
+    if (oldPlayer) await oldPlayer.dispose();
   };
 
   const getAudioGraph = () => player.value?.graph ?? null;
@@ -540,7 +565,7 @@ export const usePlayerStore = defineStore("player", () => {
     }
     else {
       const p = await initPlayer();
-      await p.unlockAudio();
+      if (p) await p.unlockAudio();
     }
   };
 
@@ -607,6 +632,7 @@ export const usePlayerStore = defineStore("player", () => {
     playbackRate,
     isPlaying,
     isLoading,
+    showLoadingIndicator,
     repeatMode,
     currentTrack,
     lyrics,

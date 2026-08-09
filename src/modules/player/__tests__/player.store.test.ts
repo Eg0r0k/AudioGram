@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TrackSource, TrackState } from "@/db/entities";
 import type { Track } from "../types";
@@ -55,16 +56,20 @@ vi.mock("lyra-audio", () => {
 
 vi.mock("hls.js", () => ({ default: class MockHls {} }));
 
+const audioSettingsDefaults = {
+  isNormalizationEnabled: false,
+  normalizationTargetLufs: -14,
+  normalizationPreventClipping: true,
+  isFadeEnabled: false,
+  fadeInDuration: 0,
+  fadeOutDuration: 0,
+};
+// Shared mutable settings object so individual tests can flip fade options;
+// beforeEach restores the defaults.
+const mockAudioSettings = { ...audioSettingsDefaults, pushToGraph: vi.fn() };
+
 vi.mock("@/modules/settings/store/audio", () => ({
-  useAudioSettingsStore: () => ({
-    isNormalizationEnabled: false,
-    normalizationTargetLufs: -14,
-    normalizationPreventClipping: true,
-    isFadeEnabled: false,
-    fadeInDuration: 0,
-    fadeOutDuration: 0,
-    pushToGraph: vi.fn(),
-  }),
+  useAudioSettingsStore: () => mockAudioSettings,
 }));
 
 vi.mock("@/db/storage", () => ({
@@ -125,6 +130,7 @@ describe("player.store", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     mockPlayer = undefined!;
+    Object.assign(mockAudioSettings, audioSettingsDefaults);
   });
 
   describe("initial state", () => {
@@ -145,6 +151,74 @@ describe("player.store", () => {
       expect(store.sleepTimerEndsAt).toBe(null);
       expect(store.sleepTimerRemainingMs).toBe(0);
       expect(store.isSleepTimerActive).toBe(false);
+    });
+  });
+
+  describe("showLoadingIndicator", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("does not appear when loading finishes before the delay", async () => {
+      const store = usePlayerStore();
+
+      store.status = "loading";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(100);
+
+      store.status = "playing";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(store.showLoadingIndicator).toBe(false);
+    });
+
+    it("appears when loading persists past the delay", async () => {
+      const store = usePlayerStore();
+
+      store.status = "loading";
+      await nextTick();
+      expect(store.showLoadingIndicator).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(300);
+      expect(store.showLoadingIndicator).toBe(true);
+    });
+
+    it("stays visible for the minimum time after loading ends", async () => {
+      const store = usePlayerStore();
+
+      store.status = "loading";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(store.showLoadingIndicator).toBe(true);
+
+      store.status = "playing";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(store.showLoadingIndicator).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(150);
+      expect(store.showLoadingIndicator).toBe(false);
+    });
+
+    it("keeps the indicator up when loading resumes before the hide delay", async () => {
+      const store = usePlayerStore();
+
+      store.status = "loading";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      store.status = "buffering";
+      await nextTick();
+      store.status = "loading";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(store.showLoadingIndicator).toBe(true);
     });
   });
 
@@ -558,6 +632,45 @@ describe("player.store", () => {
       });
       expect(reapplied).toBe(true);
     });
+
+    it("does not leave an orphaned playing player when a second track starts mid-load", async () => {
+      const store = usePlayerStore();
+
+      // Track A's load hangs (slow remote stream, e.g. ytstream:// via proxy).
+      let resolveLoadA!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { resolveLoadA = resolve; }),
+      );
+      // Player A's dispose (triggered by track B's init) also hangs, opening
+      // the window where request A resumes while player.value is null.
+      let resolveDisposeA!: () => void;
+      mockPlayerMethods.dispose.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { resolveDisposeA = resolve; }),
+      );
+
+      const first = store.playPlayerTrack(
+        createLibraryTrack({ id: "track-a" as never, title: "Track A" }),
+      );
+      await vi.waitFor(() => expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1));
+
+      const second = store.playPlayerTrack(
+        createLibraryTrack({ id: "track-b" as never, title: "Track B" }),
+      );
+      await nextTick();
+
+      // Request A's load finishes while player A is still disposing; without
+      // the epoch/ownership guards it re-enters play(), spins up a fresh
+      // player for track A, and request B's player then orphans it — two
+      // players playing, one unreachable from the UI.
+      resolveLoadA();
+      await nextTick();
+      resolveDisposeA();
+
+      await Promise.all([first, second]);
+
+      expect(store.currentTrack?.title).toBe("Track B");
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("dispose functionality", () => {
@@ -735,6 +848,276 @@ describe("player.store", () => {
 
       store.currentTime = 33.33;
       expect(store.progress).toBeCloseTo(33.33, 1);
+    });
+  });
+
+  describe("fade behavior", () => {
+    // Builds a store with a live engine instance and playback in progress —
+    // the precondition for every fade path.
+    async function startedStore() {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      store.status = "playing";
+      return store;
+    }
+
+    it("pause with fade waits for the fade-out before pausing the engine", async () => {
+      const store = await startedStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+
+      store.pause();
+
+      // Status flips optimistically; the engine keeps playing until the fade ends.
+      expect(store.status).toBe("paused");
+      expect(mockPlayerMethods.fadeOut).toHaveBeenCalledWith(300);
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+
+      finishFade();
+      await flushPromises();
+
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+    });
+
+    it("toggling play during a fade-out aborts the deferred pause", async () => {
+      const store = await startedStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+
+      store.pause();
+      await store.togglePlay();
+
+      expect(store.status).toBe("playing");
+      expect(mockPlayerMethods.cancelFade).toHaveBeenCalled();
+
+      finishFade();
+      await flushPromises();
+
+      // The aborted fade must not land its deferred pause after the fact.
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+
+    it("ignores a second pause while a fade-out is already pending", async () => {
+      const store = await startedStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+
+      store.pause();
+      // A buffering blip can flip status back while the fade is in flight.
+      store.status = "playing";
+      store.pause();
+
+      expect(mockPlayerMethods.fadeOut).toHaveBeenCalledTimes(1);
+
+      finishFade();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+    });
+
+    it("play with fade enabled ramps in instead of hard-starting", async () => {
+      const store = await startedStore();
+      store.status = "paused";
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 200;
+      mockPlayerMethods.play.mockClear();
+
+      await store.play();
+
+      expect(mockPlayerMethods.fadeIn).toHaveBeenCalledWith(200);
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+    });
+
+    it("play without fade restores the fade multiplier before starting", async () => {
+      const store = await startedStore();
+      store.status = "paused";
+      mockPlayerMethods.play.mockClear();
+      mockPlayerMethods.fadeTo.mockClear();
+
+      await store.play();
+
+      // A prior fade-out may have left the multiplier at 0; it must be restored
+      // while still paused so playback is audible without a gain jump.
+      expect(mockPlayerMethods.fadeTo).toHaveBeenCalledWith(1, 0);
+      expect(mockPlayerMethods.setVolume).toHaveBeenCalledWith(store.volume);
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+    });
+
+    it("play during an interrupted fade-out restores playing state with a ramp", async () => {
+      const store = await startedStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 200;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+
+      store.pause();
+      // The engine never actually stopped: the fade-out is still in flight.
+      Object.defineProperty(mockPlayer, "isPlaying", { get: () => true });
+
+      await store.play();
+
+      expect(store.status).toBe("playing");
+      expect(mockPlayerMethods.fadeTo).toHaveBeenCalledWith(1, 200);
+
+      finishFade();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+
+    it("stop with fade fades out before stopping the engine", async () => {
+      const store = await startedStore();
+      store.currentTime = 55;
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      store.stop();
+      expect(mockPlayerMethods.stop).not.toHaveBeenCalled();
+
+      await flushPromises();
+
+      expect(mockPlayerMethods.stop).toHaveBeenCalledTimes(1);
+      expect(store.currentTime).toBe(0);
+    });
+  });
+
+  describe("player event wiring", () => {
+    type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
+    const engine = () => mockPlayer as unknown as EngineMock;
+
+    it("mirrors engine events into store state", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+
+      engine().trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("playing");
+
+      engine().trigger("timeupdate", { currentTime: 42 });
+      expect(store.currentTime).toBe(42);
+
+      engine().trigger("durationchange", 200);
+      expect(store.duration).toBe(200);
+
+      engine().trigger("volumechange", { volume: 0.3, muted: true });
+      expect(store.volume).toBe(0.3);
+      expect(store.isMuted).toBe(true);
+
+      engine().trigger("ratechange", 1.25);
+      expect(store.playbackRate).toBe(1.25);
+    });
+
+    it("resets time and raises the ended signal when a track ends", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      store.currentTime = 199;
+
+      engine().trigger("ended");
+
+      expect(store.currentTime).toBe(0);
+      expect(store.trackEndedSignal).toBe(1);
+    });
+
+    it("ignores events from a superseded player", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      const stale = engine();
+
+      // A newer request took over and dropped this engine instance.
+      store.player = null;
+
+      stale.trigger("statechange", { to: "playing" });
+      stale.trigger("timeupdate", { currentTime: 42 });
+
+      expect(store.status).not.toBe("playing");
+      expect(store.currentTime).toBe(0);
+    });
+  });
+
+  describe("play() cold start", () => {
+    it("spins up a player for the current track and restores position", async () => {
+      const store = usePlayerStore();
+      // A persisted session: track + position survive a reload, player is null.
+      store.currentTrack = createLibraryTrack();
+      store.currentTime = 42;
+
+      await store.play();
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("blob:mock-audio-url");
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(42);
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+    });
+
+    it("does nothing when there is no track to play", async () => {
+      const store = usePlayerStore();
+
+      await store.play();
+
+      expect(mockPlayer).toBeUndefined();
+      expect(store.status).toBe("idle");
+    });
+  });
+
+  describe("playPlayerTrack error handling", () => {
+    it("marks error state and rethrows when the engine load fails", async () => {
+      const store = usePlayerStore();
+      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+
+      await expect(store.playPlayerTrack(createLibraryTrack())).rejects.toThrow("decode failed");
+
+      expect(store.status).toBe("error");
+      expect(store.player).toBeNull();
+      // Non-storage errors keep the track so the UI can show what failed.
+      expect(store.currentTrack).not.toBeNull();
+    });
+  });
+
+  describe("load formats", () => {
+    it("loads .m3u8 sources as HLS", async () => {
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack({
+        source: TrackSource.REMOTE_HLS,
+        storagePath: "https://example.com/live.m3u8",
+      }));
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith({
+        url: "https://example.com/live.m3u8",
+        type: "hls",
+      });
+    });
+
+    it("loads ephemeral direct URLs with the CORS fallback", async () => {
+      const store = usePlayerStore();
+      const radio = {
+        kind: "ephemeral",
+        id: "radio-1",
+        title: "Radio",
+        source: { type: "url", url: "https://radio.example/stream.mp3" },
+      } as unknown as Parameters<typeof store.playPlayerTrack>[0];
+
+      await store.playPlayerTrack(radio);
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith(
+        "https://radio.example/stream.mp3",
+        { corsFallback: true },
+      );
     });
   });
 });
