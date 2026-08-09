@@ -14,8 +14,8 @@ import { StorageError } from "@/db/errors/storage.errors";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { storageService } from "@/db/storage";
 import { statsService } from "@/services/stats.service";
-import { TrackId } from "@/types/ids";
 import { findActiveLyricsIndex, type LyricsLine } from "../lib/lrc";
+import { playerEvents } from "../lib/player-events";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { loadTrackLyrics } from "../service/track-lyrics-loader.service";
@@ -33,11 +33,9 @@ export const usePlayerStore = defineStore("player", () => {
   const status = ref<PlayerState>("idle");
   const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
-  const trackEndedSignal = ref(0);
   const lyrics = ref<LyricsLine[]>([]);
   const lyricsStatus = ref<"idle" | "loading" | "ready" | "error">("idle");
   const sleepAfterCurrentTrack = ref(false);
-  const sleepAfterCurrentTrackTriggeredOnEndSignal = ref(0);
 
   const {
     endsAt: sleepTimerEndsAt,
@@ -113,6 +111,7 @@ export const usePlayerStore = defineStore("player", () => {
     duration.value = 0;
     lyrics.value = [];
     lyricsStatus.value = "idle";
+    playerEvents.emit("trackChanged", null);
   };
 
   const stopListeningAndSync = (completed = false) => {
@@ -158,7 +157,7 @@ export const usePlayerStore = defineStore("player", () => {
       newPlayer.on("ended", () => {
         if (player.value !== newPlayer) return;
         currentTime.value = 0;
-        trackEndedSignal.value++;
+        playerEvents.emit("trackEnded");
       });
       newPlayer.on("timeupdate", ({ currentTime: t }) => {
         if (player.value === newPlayer) currentTime.value = t;
@@ -426,6 +425,7 @@ export const usePlayerStore = defineStore("player", () => {
     // Superseded by a newer play request mid-init; let it own playback.
     if (!p) return;
     currentTrack.value = track;
+    playerEvents.emit("trackChanged", track);
 
     const url = await resolveTrackUrl(track);
     if (player.value !== p) return;
@@ -529,16 +529,6 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
-  watch(currentTrack, (track) => {
-    if (!track || !isLibraryTrack(track)) return;
-    statsService.startListening(
-      track.id as TrackId,
-      track.artistIds[0],
-      track.albumId,
-      track.duration,
-    );
-  });
-
   watch(currentTrack, async (track) => {
     const requestId = ++lyricsRequestId;
     lyrics.value = [];
@@ -554,16 +544,6 @@ export const usePlayerStore = defineStore("player", () => {
     lyrics.value = result.lines;
     lyricsStatus.value = result.status;
   }, { immediate: true });
-
-  watch(trackEndedSignal, (val) => {
-    if (val === 0) return;
-    if (isLibraryTrack(currentTrack.value)) {
-      stopListeningAndSync(true);
-    }
-    if (!sleepAfterCurrentTrack.value) return;
-    sleepAfterCurrentTrack.value = false;
-    sleepAfterCurrentTrackTriggeredOnEndSignal.value = val;
-  });
 
   return {
     player,
@@ -582,7 +562,6 @@ export const usePlayerStore = defineStore("player", () => {
     lyricsStatus,
     activeLyricsIndex,
     graphRevision,
-    trackEndedSignal,
     sleepTimerEndsAt,
     sleepTimerRemainingMs,
     isSleepTimerActive,

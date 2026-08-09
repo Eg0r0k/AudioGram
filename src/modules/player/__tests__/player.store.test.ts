@@ -106,6 +106,7 @@ vi.mock("@/lib/environment/userAgent", () => ({
 }));
 
 import { usePlayerStore } from "../store/player.store";
+import { playerEvents } from "../lib/player-events";
 
 function createLibraryTrack(overrides: Partial<Track> = {}): Track {
   return {
@@ -129,6 +130,9 @@ describe("player.store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    // The mock Player shares one listener registry across instances; stale
+    // handlers from a previous test would otherwise also react to triggers.
+    if (mockPlayer) (mockPlayer.resetListeners as () => void)();
     mockPlayer = undefined!;
     Object.assign(mockAudioSettings, audioSettingsDefaults);
   });
@@ -145,7 +149,6 @@ describe("player.store", () => {
       expect(store.currentTime).toBe(0);
       expect(store.duration).toBe(0);
       expect(store.graphRevision).toBe(0);
-      expect(store.trackEndedSignal).toBe(0);
       expect(store.lyrics).toEqual([]);
       expect(store.lyricsStatus).toBe("idle");
       expect(store.sleepTimerEndsAt).toBe(null);
@@ -800,16 +803,6 @@ describe("player.store", () => {
     });
   });
 
-  describe("trackEndedSignal", () => {
-    it("should increment trackEndedSignal", () => {
-      const store = usePlayerStore();
-      expect(store.trackEndedSignal).toBe(0);
-
-      store.trackEndedSignal = 1;
-      expect(store.trackEndedSignal).toBe(1);
-    });
-  });
-
   describe("graphRevision", () => {
     it("should start at 0", () => {
       const store = usePlayerStore();
@@ -1023,15 +1016,18 @@ describe("player.store", () => {
       expect(store.playbackRate).toBe(1.25);
     });
 
-    it("resets time and raises the ended signal when a track ends", async () => {
+    it("resets time and emits trackEnded when a track ends", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack());
       store.currentTime = 199;
 
+      const onEnded = vi.fn();
+      const off = playerEvents.on("trackEnded", onEnded);
       engine().trigger("ended");
+      off();
 
       expect(store.currentTime).toBe(0);
-      expect(store.trackEndedSignal).toBe(1);
+      expect(onEnded).toHaveBeenCalledTimes(1);
     });
 
     it("ignores events from a superseded player", async () => {

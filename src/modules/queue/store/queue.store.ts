@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import { TrackSource } from "@/db/entities";
@@ -714,14 +714,6 @@ export const useQueueStore = defineStore("queue", () => {
     isShuffled.value = false;
     syncPersistedSnapshot();
   }
-
-  watch(
-    () => playerStore.trackEndedSignal,
-    (newVal) => {
-      if (newVal === 0) return;
-      next();
-    },
-  );
 
   return {
     queue,

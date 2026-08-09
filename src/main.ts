@@ -11,6 +11,7 @@ import { IS_TAURI } from "./lib/environment/userAgent";
 import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
 import { initLogging } from "./lib/logger";
+import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
 
 await initLogging();
 
@@ -29,6 +30,10 @@ app.use(router);
 app.use(pinia);
 app.use(i18n);
 app.use(VueQueryPlugin, { queryClient });
+
+// Cross-store reactions to track lifecycle events (stats, queue advance,
+// sleep-after-track) — registered once, ordered explicitly.
+initPlayerLifecycle();
 
 if ("serviceWorker" in navigator && !IS_TAURI) {
   navigator.serviceWorker.register("/opfs-sw.js").catch(console.error);
