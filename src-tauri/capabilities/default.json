@@ -14,6 +14,7 @@
     "core:tray:allow-set-visible",
     "core:window:allow-show",
     "core:window:allow-set-focus",
+    "core:webview:allow-set-webview-zoom",
     "opener:default",
     "process:default",
     "fs:default",

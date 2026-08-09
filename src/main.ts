@@ -12,6 +12,7 @@ import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
 import { initLogging } from "./lib/logger";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
+import { initZoom } from "@/modules/settings/composables/useZoom";
 
 await initLogging();
 
@@ -34,6 +35,10 @@ app.use(VueQueryPlugin, { queryClient });
 // Cross-store reactions to track lifecycle events (stats, queue advance,
 // sleep-after-track) — registered once, ordered explicitly.
 initPlayerLifecycle();
+
+// Re-apply the persisted zoom; previously it only kicked in once the user
+// visited a settings page.
+initZoom();
 
 if ("serviceWorker" in navigator && !IS_TAURI) {
   navigator.serviceWorker.register("/opfs-sw.js").catch(console.error);
