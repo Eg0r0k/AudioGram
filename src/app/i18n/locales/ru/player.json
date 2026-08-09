@@ -26,6 +26,7 @@
   "lyricsLoading": "Загрузка текста...",
   "lyricsLoadFailed": "Не удалось загрузить текст",
   "lyricsEmpty": "Синхронизированный текст пока не добавлен",
+  "lyricsResumeFollow": "К текущей строке",
   "seekForward": "Вперёд",
   "seekBackward": "Назад",
   "playbackSpeed": "Скорость",

@@ -26,6 +26,7 @@
   "lyricsLoading": "Loading lyrics...",
   "lyricsLoadFailed": "Failed to load lyrics",
   "lyricsEmpty": "No synced lyrics yet",
+  "lyricsResumeFollow": "Back to current line",
   "seekForward": "Forward",
   "seekBackward": "Backward",
   "playbackSpeed": "Speed",
