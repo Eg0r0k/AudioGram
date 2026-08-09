@@ -1,8 +1,9 @@
+import { useEventBus } from "@vueuse/core";
 import { usePlayerStore } from "./store/player.store";
 import { useLyricsStore } from "./store/lyrics.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { isLibraryTrack } from "./types";
-import { playerEvents } from "./lib/player-events";
+import { trackChangedEvent, trackEndedEvent } from "./lib/player-events";
 import { statsService } from "@/services/stats.service";
 import { getLogger } from "@/lib/logger";
 import type { TrackId } from "@/types/ids";
@@ -17,7 +18,7 @@ import type { TrackId } from "@/types/ids";
  * lazily inside handlers so registration itself instantiates nothing.
  */
 export function initPlayerLifecycle(): void {
-  playerEvents.on("trackChanged", (track) => {
+  useEventBus(trackChangedEvent).on((track) => {
     useLyricsStore().loadFor(track);
 
     if (!track || !isLibraryTrack(track)) return;
@@ -29,7 +30,7 @@ export function initPlayerLifecycle(): void {
     );
   });
 
-  playerEvents.on("trackEnded", () => {
+  useEventBus(trackEndedEvent).on(() => {
     const player = usePlayerStore();
 
     if (isLibraryTrack(player.currentTrack)) {

@@ -14,13 +14,17 @@ import { StorageError } from "@/db/errors/storage.errors";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { storageService } from "@/db/storage";
 import { statsService } from "@/services/stats.service";
-import { playerEvents } from "../lib/player-events";
+import { useEventBus } from "@vueuse/core";
+import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
+
+  const trackChangedBus = useEventBus(trackChangedEvent);
+  const trackEndedBus = useEventBus(trackEndedEvent);
 
   const currentTime = ref(0);
   const duration = ref(0);
@@ -98,7 +102,7 @@ export const usePlayerStore = defineStore("player", () => {
     currentTrack.value = null;
     currentTime.value = 0;
     duration.value = 0;
-    playerEvents.emit("trackChanged", null);
+    trackChangedBus.emit(null);
   };
 
   const stopListeningAndSync = (completed = false) => {
@@ -144,7 +148,7 @@ export const usePlayerStore = defineStore("player", () => {
       newPlayer.on("ended", () => {
         if (player.value !== newPlayer) return;
         currentTime.value = 0;
-        playerEvents.emit("trackEnded");
+        trackEndedBus.emit();
       });
       newPlayer.on("timeupdate", ({ currentTime: t }) => {
         if (player.value === newPlayer) currentTime.value = t;
@@ -412,7 +416,7 @@ export const usePlayerStore = defineStore("player", () => {
     // Superseded by a newer play request mid-init; let it own playback.
     if (!p) return;
     currentTrack.value = track;
-    playerEvents.emit("trackChanged", track);
+    trackChangedBus.emit(track);
 
     const url = await resolveTrackUrl(track);
     if (player.value !== p) return;

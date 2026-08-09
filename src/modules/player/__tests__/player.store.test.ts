@@ -105,8 +105,9 @@ vi.mock("@/lib/environment/userAgent", () => ({
   IS_TAURI: false,
 }));
 
+import { useEventBus } from "@vueuse/core";
 import { usePlayerStore } from "../store/player.store";
-import { playerEvents } from "../lib/player-events";
+import { trackEndedEvent } from "../lib/player-events";
 
 function createLibraryTrack(overrides: Partial<Track> = {}): Track {
   return {
@@ -1020,7 +1021,7 @@ describe("player.store", () => {
       store.currentTime = 199;
 
       const onEnded = vi.fn();
-      const off = playerEvents.on("trackEnded", onEnded);
+      const off = useEventBus(trackEndedEvent).on(onEnded);
       engine().trigger("ended");
       off();
 

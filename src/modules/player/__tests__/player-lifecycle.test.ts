@@ -19,14 +19,18 @@ vi.mock("@/services/stats.service", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
+import { useEventBus } from "@vueuse/core";
 import { initPlayerLifecycle } from "../player-lifecycle";
-import { playerEvents } from "../lib/player-events";
+import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { statsService } from "@/services/stats.service";
 import type { PlayerTrack } from "../types";
 
-// The emitter is a module-level singleton: register the handlers once, or
-// every test would multiply the reactions.
+// The event bus registry is global: register the handlers once, or every
+// test would multiply the reactions.
 initPlayerLifecycle();
+
+const trackChangedBus = useEventBus(trackChangedEvent);
+const trackEndedBus = useEventBus(trackEndedEvent);
 
 const libraryTrack = {
   kind: "library",
@@ -45,7 +49,7 @@ describe("player lifecycle", () => {
   });
 
   it("starts a stats session when a library track starts", () => {
-    playerEvents.emit("trackChanged", libraryTrack);
+    trackChangedBus.emit(libraryTrack);
 
     expect(statsService.startListening).toHaveBeenCalledWith(
       "track-1",
@@ -56,16 +60,16 @@ describe("player lifecycle", () => {
   });
 
   it("reloads lyrics on every track change, including clears", () => {
-    playerEvents.emit("trackChanged", libraryTrack);
-    playerEvents.emit("trackChanged", null);
+    trackChangedBus.emit(libraryTrack);
+    trackChangedBus.emit(null);
 
     expect(mockLyrics.loadFor).toHaveBeenNthCalledWith(1, libraryTrack);
     expect(mockLyrics.loadFor).toHaveBeenNthCalledWith(2, null);
   });
 
   it("does not track stats for cleared playback or ephemeral tracks", () => {
-    playerEvents.emit("trackChanged", null);
-    playerEvents.emit("trackChanged", { kind: "ephemeral" } as unknown as PlayerTrack);
+    trackChangedBus.emit(null);
+    trackChangedBus.emit({ kind: "ephemeral" } as unknown as PlayerTrack);
 
     expect(statsService.startListening).not.toHaveBeenCalled();
   });
@@ -74,7 +78,7 @@ describe("player lifecycle", () => {
     mockPlayer.currentTrack = libraryTrack;
     mockPlayer.currentTime = 199;
 
-    playerEvents.emit("trackEnded");
+    trackEndedBus.emit();
 
     expect(statsService.stopListening).toHaveBeenCalledWith(199, true);
     expect(mockQueue.next).toHaveBeenCalledTimes(1);
@@ -87,7 +91,7 @@ describe("player lifecycle", () => {
   it("consumes the sleep-after-current-track flag on track end", () => {
     mockPlayer.sleepAfterCurrentTrack = true;
 
-    playerEvents.emit("trackEnded");
+    trackEndedBus.emit();
 
     expect(mockPlayer.sleepAfterCurrentTrack).toBe(false);
   });
@@ -95,7 +99,7 @@ describe("player lifecycle", () => {
   it("still advances the queue for non-library tracks without touching stats", () => {
     mockPlayer.currentTrack = { kind: "ephemeral" } as unknown as PlayerTrack;
 
-    playerEvents.emit("trackEnded");
+    trackEndedBus.emit();
 
     expect(statsService.stopListening).not.toHaveBeenCalled();
     expect(mockQueue.next).toHaveBeenCalledTimes(1);
