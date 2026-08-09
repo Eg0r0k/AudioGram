@@ -32,7 +32,37 @@
             />
           </ItemActions>
         </Item>
+
+        <Button
+          class="w-full h-14 justify-start"
+          size="xl"
+          variant="ghost-primary"
+          :disabled="updateStore.isBusy"
+          @click="updateStore.check()"
+        >
+          <IconLoader2
+            v-if="updateStore.status === 'checking'"
+            class="size-6 animate-spin"
+          />
+          <IconCloudDownload
+            v-else
+            class="size-6"
+          />
+          {{ $t("update.checkForUpdates") }}
+        </Button>
       </SettingsGroup>
+
+      <div
+        v-if="checkResultLabel"
+        class="px-4 mt-2"
+      >
+        <p
+          class="text-sm break-words"
+          :class="updateStore.status === 'error' ? 'text-destructive' : 'text-primary'"
+        >
+          {{ checkResultLabel }}
+        </p>
+      </div>
 
       <template v-if="isTauri">
         <SettingsGroup class="mt-2">
@@ -85,7 +115,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Scrollable } from "@/components/ui/scrollable";
 import {
   Item,
@@ -94,9 +125,13 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import IconLoader2 from "~icons/tabler/loader-2";
+import IconCloudDownload from "~icons/tabler/cloud-download";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useGeneralSettings } from "@/modules/settings/store/general";
+import { useUpdateStore } from "@/modules/update/store/update.store";
 
 const {
   checkUpdatesOnLaunch,
@@ -111,6 +146,26 @@ const {
   setLaunchAtStartup,
   setLaunchMinimized,
 } = useGeneralSettings();
+
+const { t } = useI18n();
+const updateStore = useUpdateStore();
+
+/**
+ * Outcome of the last check. An available update is not reported here — the
+ * sidebar update button owns that, and it stays until the user acts on it.
+ */
+const checkResultLabel = computed(() => {
+  switch (updateStore.status) {
+    case "checking":
+      return t("update.checking");
+    case "up-to-date":
+      return t("update.upToDate");
+    case "error":
+      return t("update.updateError", { message: updateStore.error?.message ?? "" });
+    default:
+      return undefined;
+  }
+});
 
 const isTogglingAutostart = ref(false);
 

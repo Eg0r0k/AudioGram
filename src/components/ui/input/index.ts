@@ -10,6 +10,11 @@ export const inputVariants = cva(
     "placeholder:font-medium placeholder:text-muted-foreground",
     "selection:bg-primary selection:text-primary-foreground",
 
+    // Hide the native number spinners (WebKit pseudo-elements + Firefox).
+    "[&::-webkit-inner-spin-button]:appearance-none",
+    "[&::-webkit-outer-spin-button]:appearance-none",
+    "[&[type=number]]:[-moz-appearance:textfield]",
+
     "border-border bg-transparent",
     "disabled:cursor-not-allowed disabled:opacity-50",
 

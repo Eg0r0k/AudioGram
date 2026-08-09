@@ -100,7 +100,7 @@ const isActive = computed(() => {
       :for="inputId"
       :class="
         cn(
-          'absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm font-medium pointer-events-none transition-all duration-200',
+          'absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm font-medium pointer-events-none transition-[top,translate,font-size,color] duration-200',
           {
             'bg-background': surface === 'background',
             'bg-card': surface === 'card',

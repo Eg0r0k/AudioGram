@@ -33,11 +33,15 @@
             <ItemTitle>{{ $t("settings.proxy.protocol") }}</ItemTitle>
           </ItemContent>
           <ItemActions>
+            <!-- eslint-disable-next-line vuejs-accessibility/form-control-has-label -- renderless reka root, the trigger below carries the label -->
             <Select
               :model-value="protocol"
               @update:model-value="(val) => setProtocol(val as ProxyProtocol)"
             >
-              <SelectTrigger class="w-[120px] h-8 font-medium pointer-events-auto">
+              <SelectTrigger
+                class="w-[120px] h-8 font-medium pointer-events-auto"
+                :aria-label="$t('settings.proxy.protocol')"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -55,23 +59,21 @@
 
         <div class="px-4 py-3 space-y-4">
           <div class="grid grid-cols-[1fr_auto] gap-3">
-            <div class="space-y-1.5">
-              <Label for="proxy-host">{{ $t("settings.proxy.host") }}</Label>
-              <Input
-                id="proxy-host"
-                :model-value="host"
-                surface="card"
-                placeholder="127.0.0.1"
-                autocomplete="off"
-                spellcheck="false"
-                @update:model-value="(val) => setHost(String(val))"
-              />
-            </div>
-            <div class="space-y-1.5 w-28">
-              <Label for="proxy-port">{{ $t("settings.proxy.port") }}</Label>
+            <Input
+              id="proxy-host"
+              :model-value="host"
+              :label="$t('settings.proxy.host')"
+              surface="card"
+              placeholder="127.0.0.1"
+              autocomplete="off"
+              spellcheck="false"
+              @update:model-value="(val) => setHost(String(val))"
+            />
+            <div class="w-28">
               <Input
                 id="proxy-port"
                 :model-value="port"
+                :label="$t('settings.proxy.port')"
                 type="number"
                 surface="card"
                 inputmode="numeric"
@@ -80,46 +82,49 @@
             </div>
           </div>
 
-          <div class="space-y-1.5">
-            <Label for="proxy-username">{{ $t("settings.proxy.username") }}</Label>
-            <Input
-              id="proxy-username"
-              :model-value="username"
-              surface="card"
-              autocomplete="off"
-              spellcheck="false"
-              @update:model-value="(val) => setUsername(String(val))"
-            />
-          </div>
+          <Input
+            id="proxy-username"
+            :model-value="username"
+            :label="$t('settings.proxy.username')"
+            surface="card"
+            autocomplete="off"
+            spellcheck="false"
+            @update:model-value="(val) => setUsername(String(val))"
+          />
 
-          <div class="space-y-1.5">
-            <Label for="proxy-password">{{ $t("settings.proxy.password") }}</Label>
-            <Input
-              id="proxy-password"
-              :model-value="password"
-              type="password"
-              surface="card"
-              autocomplete="off"
-              @update:model-value="(val) => setPassword(String(val))"
-            />
-          </div>
+          <Input
+            id="proxy-password"
+            :model-value="password"
+            :label="$t('settings.proxy.password')"
+            type="password"
+            surface="card"
+            autocomplete="off"
+            @update:model-value="(val) => setPassword(String(val))"
+          />
         </div>
-      </SettingsGroup>
-
-      <div class="px-4 mt-4 space-y-2">
         <Button
-          variant="outline"
-          class="w-full"
+          class="w-full h-14 justify-start"
+          size="xl"
+          variant="ghost-primary"
           :disabled="!canTest || isTesting"
           @click="handleTest"
         >
           <IconLoader2
             v-if="isTesting"
-            class="size-4 animate-spin"
+            class="size-6 animate-spin"
+          />
+          <IconPlugConnected
+            v-else
+            class="size-6"
           />
           {{ $t("settings.proxy.test") }}
         </Button>
+      </SettingsGroup>
 
+      <div
+        v-if="testState !== 'idle'"
+        class="px-4 mt-2"
+      >
         <p
           v-if="testState === 'ok'"
           class="text-sm text-primary"
@@ -127,7 +132,7 @@
           {{ testMessage }}
         </p>
         <p
-          v-else-if="testState === 'error'"
+          v-else
           class="text-sm text-destructive break-words"
         >
           {{ testMessage }}
@@ -149,7 +154,6 @@ import {
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -159,6 +163,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import IconLoader2 from "~icons/tabler/loader-2";
+import IconPlugConnected from "~icons/tabler/plug-connected";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useProxySettings } from "@/modules/settings/store/proxy";
