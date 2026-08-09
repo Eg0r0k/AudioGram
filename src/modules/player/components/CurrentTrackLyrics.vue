@@ -4,7 +4,7 @@
     :class="sectionClass"
   >
     <div
-      v-if="playerStore.lyricsStatus === 'loading'"
+      v-if="lyricsStore.status === 'loading'"
       class="space-y-5 pt-2 text-center"
     >
       <Skeleton
@@ -16,11 +16,11 @@
     </div>
 
     <div
-      v-else-if="playerStore.lyrics.length > 0"
+      v-else-if="lyricsStore.lines.length > 0"
       :class="linesClass"
     >
       <button
-        v-for="(line, index) in playerStore.lyrics"
+        v-for="(line, index) in lyricsStore.lines"
         :ref="element => setLineRef(element, index)"
         :key="`${line.time}-${index}`"
         type="button"
@@ -45,6 +45,7 @@ import { type ComponentPublicInstance, computed, nextTick, onUnmounted, watch } 
 import { useI18n } from "vue-i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePlayerStore } from "@/modules/player/store/player.store";
+import { useLyricsStore } from "@/modules/player/store/lyrics.store";
 import type { Track } from "@/modules/player/types";
 
 const SKELETON_WIDTHS = ["55%", "72%", "48%", "66%", "38%", "60%", "44%"];
@@ -56,6 +57,7 @@ const props = withDefaults(defineProps<{
 });
 
 const playerStore = usePlayerStore();
+const lyricsStore = useLyricsStore();
 const { t } = useI18n();
 const lineRefs: Array<HTMLElement | null> = [];
 let lastActiveIndex = -1;
@@ -66,7 +68,7 @@ const track = computed<Track | null>(() => {
 });
 
 const placeholderText = computed(() => {
-  if (playerStore.lyricsStatus === "error") {
+  if (lyricsStore.status === "error") {
     return t("player.lyricsLoadFailed");
   }
   return t("player.lyricsEmpty");
@@ -85,7 +87,7 @@ const linesClass = computed(() => {
 });
 
 const stopWatch = watch(
-  () => playerStore.activeLyricsIndex,
+  () => lyricsStore.activeLineIndex,
   async (index) => {
     if (index < 0 || index === lastActiveIndex) return;
     lastActiveIndex = index;
@@ -109,7 +111,7 @@ function handleLineClick(time: number) {
 }
 
 function getLineClass(index: number, text: string): string {
-  const isActive = index === playerStore.activeLyricsIndex;
+  const isActive = index === lyricsStore.activeLineIndex;
 
   if (isActive) {
     if (props.variant === "panel") {

@@ -6,8 +6,10 @@ const mockPlayer = {
   sleepAfterCurrentTrack: false,
 };
 const mockQueue = { next: vi.fn() };
+const mockLyrics = { loadFor: vi.fn() };
 
 vi.mock("../store/player.store", () => ({ usePlayerStore: () => mockPlayer }));
+vi.mock("../store/lyrics.store", () => ({ useLyricsStore: () => mockLyrics }));
 vi.mock("@/modules/queue/store/queue.store", () => ({ useQueueStore: () => mockQueue }));
 vi.mock("@/services/stats.service", () => ({
   statsService: {
@@ -51,6 +53,14 @@ describe("player lifecycle", () => {
       "album-1",
       200,
     );
+  });
+
+  it("reloads lyrics on every track change, including clears", () => {
+    playerEvents.emit("trackChanged", libraryTrack);
+    playerEvents.emit("trackChanged", null);
+
+    expect(mockLyrics.loadFor).toHaveBeenNthCalledWith(1, libraryTrack);
+    expect(mockLyrics.loadFor).toHaveBeenNthCalledWith(2, null);
   });
 
   it("does not track stats for cleared playback or ephemeral tracks", () => {

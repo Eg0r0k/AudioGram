@@ -1,4 +1,5 @@
 import { usePlayerStore } from "./store/player.store";
+import { useLyricsStore } from "./store/lyrics.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { isLibraryTrack } from "./types";
 import { playerEvents } from "./lib/player-events";
@@ -17,6 +18,8 @@ import type { TrackId } from "@/types/ids";
  */
 export function initPlayerLifecycle(): void {
   playerEvents.on("trackChanged", (track) => {
+    useLyricsStore().loadFor(track);
+
     if (!track || !isLibraryTrack(track)) return;
     statsService.startListening(
       track.id as TrackId,
@@ -42,4 +45,8 @@ export function initPlayerLifecycle(): void {
 
     useQueueStore().next();
   });
+
+  // The persisted track is rehydrated before any event fires — load its
+  // lyrics eagerly so opening the panel shows them without a spinner.
+  useLyricsStore().loadFor(usePlayerStore().currentTrack);
 }

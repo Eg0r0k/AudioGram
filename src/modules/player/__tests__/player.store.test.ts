@@ -149,8 +149,6 @@ describe("player.store", () => {
       expect(store.currentTime).toBe(0);
       expect(store.duration).toBe(0);
       expect(store.graphRevision).toBe(0);
-      expect(store.lyrics).toEqual([]);
-      expect(store.lyricsStatus).toBe("idle");
       expect(store.sleepTimerEndsAt).toBe(null);
       expect(store.sleepTimerRemainingMs).toBe(0);
       expect(store.isSleepTimerActive).toBe(false);
