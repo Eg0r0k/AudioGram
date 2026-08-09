@@ -20,19 +20,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type Component, toRef, useTemplateRef } from "vue";
+import { computed, toRef, useTemplateRef } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { AlbumId, PlaylistId } from "@/types/ids";
 import { contextMenuTrackComponents, provideTrackMenuComponents } from "../useTrackMenuComponents";
 import { TrackContext } from "../type";
-import DefaultContext from "../contexts/DefaultContext.vue";
-import CurrentTrackContext from "../contexts/CurrentTrackContext.vue";
-import LikedContext from "../contexts/LikedContext.vue";
-import QueueContext from "../contexts/QueueContext.vue";
-import PlaylistContext from "../contexts/PlaylistContext.vue";
-import HistoryContext from "../contexts/HistoryContext.vue";
+import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
@@ -42,7 +37,6 @@ interface Props {
   context?: TrackContext;
   isPlaylistOwner?: boolean;
   playlistId?: PlaylistId;
-  queueIndex?: number;
   albumId?: AlbumId;
 }
 
@@ -50,7 +44,6 @@ const props = withDefaults(defineProps<Props>(), {
   context: "default",
   isPlaylistOwner: false,
   playlistId: undefined,
-  queueIndex: undefined,
   albumId: undefined,
 });
 
@@ -72,19 +65,7 @@ const localOpen = computed({
   },
 });
 
-const contexts: Record<TrackContext, Component> = {
-  "default": DefaultContext,
-  "current-track": CurrentTrackContext,
-  "search": DefaultContext,
-  "liked": LikedContext,
-  "artist": DefaultContext,
-  "queue": QueueContext,
-  "playlist": PlaylistContext,
-  "album": DefaultContext,
-  "history": HistoryContext,
-};
-
-const contextComponent = computed(() => contexts[props.context]);
+const contextComponent = computed(() => trackContextComponents[props.context]);
 
 const actions = useTrackContextActions(activeTrack, {
   playlistId: toRef(props, "playlistId"),

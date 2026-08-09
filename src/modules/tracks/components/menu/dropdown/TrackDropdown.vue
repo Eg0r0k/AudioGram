@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef, type Component } from "vue";
+import { computed, toRef } from "vue";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -41,12 +41,7 @@ import {
 } from "../useTrackMenuComponents";
 import type { TrackContext } from "../type";
 import type { PlaylistId, AlbumId } from "@/types/ids";
-import DefaultContext from "../contexts/DefaultContext.vue";
-import CurrentTrackContext from "../contexts/CurrentTrackContext.vue";
-import LikedContext from "../contexts/LikedContext.vue";
-import PlaylistContext from "../contexts/PlaylistContext.vue";
-import QueueContext from "../contexts/QueueContext.vue";
-import HistoryContext from "../contexts/HistoryContext.vue";
+import { trackContextComponents } from "../contexts";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(dropdownMenuTrackComponents);
@@ -94,19 +89,7 @@ const anchorStyle = computed(() => ({
   height: `${dropdownAnchor.value.height}px`,
 }));
 
-const contexts: Record<TrackContext, Component> = {
-  "default": DefaultContext,
-  "current-track": CurrentTrackContext,
-  "search": DefaultContext,
-  "liked": LikedContext,
-  "artist": DefaultContext,
-  "queue": QueueContext,
-  "playlist": PlaylistContext,
-  "album": DefaultContext,
-  "history": HistoryContext,
-};
-
-const contextComponent = computed(() => contexts[props.context]);
+const contextComponent = computed(() => trackContextComponents[props.context]);
 
 const actions = useTrackContextActions(
   activeTrack,

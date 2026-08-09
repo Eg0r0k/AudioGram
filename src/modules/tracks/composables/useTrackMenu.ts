@@ -16,44 +16,13 @@ const dropdownAnchor = ref({ x: 0, y: 0, width: 0, height: 0 });
 
 let lastCloseTime = 0;
 let lastClosedTrackId: string | null = null;
-let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
-function clearActiveState() {
-  activeTrack.value = null;
-  activeIndex.value = null;
-  activeQueueItemId.value = null;
-}
-
-function cancelPendingReset() {
-  if (!resetTimer) return;
-  clearTimeout(resetTimer);
-  resetTimer = null;
-}
-
-function scheduleReset() {
-  cancelPendingReset();
-  resetTimer = setTimeout(() => {
-    if (isDropdownOpen.value || isContextMenuOpen.value) return;
-    clearActiveState();
-  }, 120);
-}
-
+// Active state intentionally survives close: menu content must stay rendered
+// during the close animation, and every open overwrites it anyway.
 watch(isDropdownOpen, (isOpen, wasOpen) => {
   if (wasOpen && !isOpen) {
     lastCloseTime = Date.now();
     lastClosedTrackId = activeTrack.value?.id ?? null;
-
-    if (!isContextMenuOpen.value) {
-      scheduleReset();
-    }
-  }
-});
-
-watch(isContextMenuOpen, (isOpen, wasOpen) => {
-  if (wasOpen && !isOpen) {
-    if (!isDropdownOpen.value) {
-      scheduleReset();
-    }
   }
 });
 
@@ -68,7 +37,6 @@ export function useTrackMenu() {
     index: number,
     options?: OpenTrackMenuOptions,
   ) => {
-    cancelPendingReset();
     activeTrack.value = track;
     activeIndex.value = index;
     activeQueueItemId.value = options?.queueItemId ?? null;
@@ -91,8 +59,6 @@ export function useTrackMenu() {
     if (timeSinceClose < 150 && lastClosedTrackId === track.id) {
       return;
     }
-
-    cancelPendingReset();
 
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();

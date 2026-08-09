@@ -4,68 +4,67 @@
     class="flex flex-col h-full min-h-0 bg-background"
   >
     <template v-if="!queueStore.isEmpty">
-      <div
-        v-if="currentQueueItem"
-        class="px-4 mt-2 py-2 bg-card"
-      >
-        <span class="mb-2 block font-medium">
-          {{ t("queue.nowPlaying") }}
-        </span>
-
-        <div class="relative ">
-          <TrackContextMenu context="queue">
-            <TrackRow
-              :hide-index="true"
-              menu-target="queue"
-              :track="currentQueueItem.track as Track"
-              :menu-index="queueStore.currentIndex"
-              :queue-item-id="currentQueueItem.id"
-              :highlighted="true"
-              @play="queueStore.jumpTo(queueStore.currentIndex)"
-            />
-          </TrackContextMenu>
-        </div>
-      </div>
-      <div class="px-4 bg-card">
-        <span class=" block font-medium pb-2  ">
-          {{ t("queue.upNext") }}
-        </span>
-      </div>
       <TrackContextMenu context="queue">
-        <VirtualScrollable
-          ref="virtualRef"
-          :items="upcomingQueueItems"
-          :estimate-size="ITEM_HEIGHT"
-          :item-height="ITEM_HEIGHT"
-          :overscan="4"
-          :padding-bottom="8"
-          :get-item-key="getItemKey"
-          class="flex-1 bg-card"
-        >
-          <template #default="{ item, index }">
-            <div class="relative bg-card px-2 ">
-              <TrackRow
-                menu-target="queue"
-                :track="item.track as Track"
-                :index="toQueueIndex(index) + 1"
-                :menu-index="toQueueIndex(index)"
-                :queue-item-id="item.id"
-                :draggable="true"
-                :highlighted="false"
-                :dimmed="false"
-                :being-dragged="drag.isDragging.value && drag.dragIndex.value === index"
-                @play="queueStore.jumpTo(toQueueIndex(index))"
-                @drag-start="drag.startDrag(index, $event)"
-              />
+        <div class="flex flex-col flex-1 min-h-0">
+          <div
+            v-if="currentQueueItem"
+            class="px-4 mt-2 py-2 bg-card"
+          >
+            <span class="mb-2 block font-medium">
+              {{ t("queue.nowPlaying") }}
+            </span>
 
-              <div
-                v-if="showDropIndicator(index)"
-                class="absolute left-3 right-3 h-0.5 bg-primary rounded-full z-10 bottom-0"
+            <div class="relative ">
+              <TrackRow
+                :hide-index="true"
+                menu-target="queue"
+                :track="currentQueueItem.track as Track"
+                :menu-index="queueStore.currentIndex"
+                :queue-item-id="currentQueueItem.id"
+                :highlighted="true"
+                @play="queueStore.jumpTo(queueStore.currentIndex)"
               />
             </div>
-          </template>
+          </div>
+          <div class="px-4 bg-card">
+            <span class=" block font-medium pb-2  ">
+              {{ t("queue.upNext") }}
+            </span>
+          </div>
+          <VirtualScrollable
+            ref="virtualRef"
+            :items="upcomingQueueItems"
+            :estimate-size="ITEM_HEIGHT"
+            :item-height="ITEM_HEIGHT"
+            :overscan="4"
+            :padding-bottom="8"
+            :get-item-key="getItemKey"
+            class="flex-1 bg-card"
+          >
+            <template #default="{ item, index }">
+              <div class="relative bg-card px-2 ">
+                <TrackRow
+                  menu-target="queue"
+                  :track="item.track as Track"
+                  :index="toQueueIndex(index) + 1"
+                  :menu-index="toQueueIndex(index)"
+                  :queue-item-id="item.id"
+                  :draggable="true"
+                  :highlighted="false"
+                  :dimmed="false"
+                  :being-dragged="drag.isDragging.value && drag.dragIndex.value === index"
+                  @play="queueStore.jumpTo(toQueueIndex(index))"
+                  @drag-start="drag.startDrag(index, $event)"
+                />
 
-        </VirtualScrollable>
+                <div
+                  v-if="showDropIndicator(index)"
+                  class="absolute left-3 right-3 h-0.5 bg-primary rounded-full z-10 bottom-0"
+                />
+              </div>
+            </template>
+          </VirtualScrollable>
+        </div>
       </TrackContextMenu>
       <TrackDropdown context="queue" />
     </template>
