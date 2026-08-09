@@ -37,32 +37,30 @@
           class="w-full h-14 justify-start"
           size="xl"
           variant="ghost-primary"
+          :class="{ 'text-destructive': updateStore.status === 'error' }"
           :disabled="updateStore.isBusy"
+          :title="updateStore.error?.message"
           @click="updateStore.check()"
         >
           <IconLoader2
             v-if="updateStore.status === 'checking'"
             class="size-6 animate-spin"
           />
+          <IconCheck
+            v-else-if="updateStore.status === 'up-to-date'"
+            class="size-6"
+          />
+          <IconAlertTriangle
+            v-else-if="updateStore.status === 'error'"
+            class="size-6"
+          />
           <IconCloudDownload
             v-else
             class="size-6"
           />
-          {{ $t("update.checkForUpdates") }}
+          {{ checkStateLabel }}
         </Button>
       </SettingsGroup>
-
-      <div
-        v-if="checkResultLabel"
-        class="px-4 mt-2"
-      >
-        <p
-          class="text-sm break-words"
-          :class="updateStore.status === 'error' ? 'text-destructive' : 'text-primary'"
-        >
-          {{ checkResultLabel }}
-        </p>
-      </div>
 
       <template v-if="isTauri">
         <SettingsGroup class="mt-2">
@@ -128,6 +126,8 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconCloudDownload from "~icons/tabler/cloud-download";
+import IconCheck from "~icons/tabler/check";
+import IconAlertTriangle from "~icons/tabler/alert-triangle";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useGeneralSettings } from "@/modules/settings/store/general";
@@ -151,19 +151,21 @@ const { t } = useI18n();
 const updateStore = useUpdateStore();
 
 /**
- * Outcome of the last check. An available update is not reported here — the
- * sidebar update button owns that, and it stays until the user acts on it.
+ * The button carries its own state: label and icon swap with the check
+ * status (full error text lives in the title tooltip). An available update
+ * is not reported here — the sidebar update button owns that, and it stays
+ * until the user acts on it.
  */
-const checkResultLabel = computed(() => {
+const checkStateLabel = computed(() => {
   switch (updateStore.status) {
     case "checking":
       return t("update.checking");
     case "up-to-date":
       return t("update.upToDate");
     case "error":
-      return t("update.updateError", { message: updateStore.error?.message ?? "" });
+      return t("update.updaterError");
     default:
-      return undefined;
+      return t("update.checkForUpdates");
   }
 });
 
