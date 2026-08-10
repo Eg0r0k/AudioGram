@@ -57,11 +57,15 @@
               <ItemTitle>{{ $t("settings.appearance.zoom") }}</ItemTitle>
             </ItemContent>
             <ItemActions>
+              <!-- eslint-disable-next-line vuejs-accessibility/form-control-has-label -- renderless reka root, the trigger below carries the label -->
               <Select
                 :model-value="String(zoom)"
                 @update:model-value="(val) => setZoom(Number(val) as any)"
               >
-                <SelectTrigger class="w-[90px] h-8 font-medium pointer-events-auto">
+                <SelectTrigger
+                  class="w-[90px] h-8 font-medium pointer-events-auto"
+                  :aria-label="$t('settings.appearance.zoom')"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
