@@ -15,10 +15,7 @@
       @contextmenu="emit('contextmenu', track)"
     >
       <div :class="styles.indexCol">
-        <Transition
-          mode="out-in"
-          name="index-swap"
-        >
+        <Transition name="index-swap">
           <button
             v-if="isSelecting"
             key="checkbox"
@@ -153,7 +150,7 @@
             variant="ghost"
             size="icon-sm"
             :class="[
-              'rounded-full transition-colors',
+              'rounded-full transition-opacity',
               isLiked
                 ? 'text-primary hover:text-primary opacity-100'
                 : 'text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
@@ -227,7 +224,7 @@ const styles = {
     },
   ),
 
-  indexCol: "index-col flex items-center justify-center",
+  indexCol: "index-col relative flex items-center justify-center",
   index: "text-center text-sm font-medium text-muted-foreground",
   firstCol: "first-col flex min-w-0 items-center gap-3",
   image: "size-full rounded object-cover",
@@ -360,7 +357,12 @@ function handleAlbumClick() {
 
 .index-swap-enter-active,
 .index-swap-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+/* Leave element is taken out of flow so enter/leave crossfade in place
+   instead of playing sequentially. */
+.index-swap-leave-active {
+  position: absolute;
 }
 .index-swap-enter-from,
 .index-swap-leave-to {
