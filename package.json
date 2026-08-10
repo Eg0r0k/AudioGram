@@ -39,6 +39,7 @@
     "@tauri-apps/plugin-shell": "~2.3.5",
     "@tauri-apps/plugin-updater": "~2.10.1",
     "@vee-validate/valibot": "^4.15.1",
+    "@vuelor/picker": "^1.2.0",
     "@vueuse/core": "^14.1.0",
     "audio-decode": "^3.10.1",
     "class-variance-authority": "^0.7.1",

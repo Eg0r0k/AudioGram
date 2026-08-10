@@ -16,5 +16,7 @@
     "lib": "@/lib",
     "composables": "@/composables"
   },
-  "registries": {}
+  "registries": {
+    "@vuelor": "https://vuelor.dev/r/{name}.json"
+  }
 }

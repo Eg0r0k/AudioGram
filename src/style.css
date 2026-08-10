@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Registers the vuelor picker's classes with Tailwind v4 — without this the
+   canvas/slider styles get purged from the production build. */
+@import "@vuelor/picker/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -41,6 +44,18 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --vuelor-primary: var(--primary);
+  --vuelor-surface: var(--popover);
+  --vuelor-border: var(--border);
+  --vuelor-input: var(--muted);
+  --shadow-vuelor-card: 0 2px 5px 0 #00000026, 0 10px 16px 0 #0000001f, 0 0 .5px 0 #0000001f;
+  --shadow-vuelor-thumb: 0px 0px .5px #0000002e, 0px 3px 8px #0000001a, 0px 1px 3px #0000001a;
+  --shadow-vuelor-inner: inset 0 0 0 1px #0000001a;
+  --drop-shadow-vuelor-thumb: 0px 0px .5px #00000054, 0px 1px 3px #00000026;
+  --color-vuelor-input: var(--vuelor-input);
+  --color-vuelor-border: var(--vuelor-border);
+  --color-vuelor-surface: var(--vuelor-surface);
+  --color-vuelor-primary: var(--vuelor-primary);
 }
 
 :root {
@@ -248,14 +263,14 @@
 @utility press-scale {
   transition: transform .1s var(--ease-standard);
   transform: scale(1);
-  
+
   &:active {
     transform: scale(.96);
   }
-  
+
   body.is-mobile & {
     transform: var(--transform-extra, none) scale3d(1, 1, 1);
-    
+
     &:active {
       transform: var(--transform-extra, none) scale3d(.96, .96, 1);
     }

@@ -43,7 +43,9 @@
           <AccentColorPicker
             :model-value="accentColor"
             :colors="accentColors"
+            :custom-color="customAccentColor"
             @select="setAccentColor"
+            @select-custom="setCustomAccentColor"
           />
         </div>
       </SettingsGroup>
@@ -106,6 +108,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 const {
   theme, themes, setTheme,
   accentColor, accentColors, setAccentColor,
+  customAccentColor, setCustomAccentColor,
 } = useAppearanceSettings();
 
 const {

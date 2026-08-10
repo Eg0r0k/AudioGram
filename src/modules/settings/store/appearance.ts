@@ -17,7 +17,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
 
 export function useAppearanceSettings() {
   const { mode, resolvedTheme, isDark, changeTheme, toggleTheme } = useTheme();
-  const { accentColor, setAccentColor } = useAccentColor();
+  const { accentColor, customAccentColor, setAccentColor, setCustomAccentColor } = useAccentColor();
 
   return {
     theme: mode,
@@ -28,7 +28,9 @@ export function useAppearanceSettings() {
     toggleTheme,
 
     accentColor,
+    customAccentColor,
     accentColors: ACCENT_COLOR_OPTIONS,
     setAccentColor,
+    setCustomAccentColor,
   };
 }
