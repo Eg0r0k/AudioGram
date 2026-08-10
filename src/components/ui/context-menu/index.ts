@@ -1,5 +1,6 @@
 export { default as ContextMenu } from "./ContextMenu.vue";
 export { default as ContextMenuCheckboxItem } from "./ContextMenuCheckboxItem.vue";
+export { default as ContextMenuCloseBridge } from "./ContextMenuCloseBridge.vue";
 export { default as ContextMenuContent } from "./ContextMenuContent.vue";
 export { default as ContextMenuGroup } from "./ContextMenuGroup.vue";
 export { default as ContextMenuItem } from "./ContextMenuItem.vue";

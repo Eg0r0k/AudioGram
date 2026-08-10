@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
+import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
+import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import {
   dropdownMenuTrackComponents,
   provideTrackMenuComponents,
@@ -81,6 +83,15 @@ const localOpen = computed({
     isDropdownOpen.value = false;
   },
 });
+
+useTrackMenuAutoClose(localOpen, {
+  context: () => props.context,
+  playlistId: () => props.playlistId,
+});
+
+useMenuCursorAutoClose(localOpen, () => {
+  localOpen.value = false;
+}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
 
 const anchorStyle = computed(() => ({
   left: `${dropdownAnchor.value.x}px`,

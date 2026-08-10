@@ -1,5 +1,6 @@
 <template>
   <ContextMenu v-model:open="isContextMenuOpen">
+    <ContextMenuCloseBridge :open="isContextMenuOpen" />
     <div
       ref="guardRef"
       class="contents"
@@ -27,9 +28,11 @@ import { computed, type Component, useTemplateRef } from "vue";
 import { useEventListener } from "@vueuse/core";
 import {
   ContextMenu,
+  ContextMenuCloseBridge,
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryItem } from "@/modules/library/types";
@@ -46,6 +49,10 @@ const props = withDefaults(defineProps<{
 });
 
 const { activeItem, isContextMenuOpen } = useLibraryMenu();
+
+useMenuCursorAutoClose(isContextMenuOpen, () => {
+  isContextMenuOpen.value = false;
+}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 const { togglePin, createPlaylist } = useLibrary();
 const { addToQueue } = useLibraryContextActions();
 

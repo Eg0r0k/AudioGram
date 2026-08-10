@@ -1,5 +1,6 @@
 <template>
   <ContextMenu v-model:open="localOpen">
+    <ContextMenuCloseBridge :open="localOpen" />
     <div
       ref="guardRef"
       class="contents"
@@ -22,13 +23,15 @@
 <script setup lang="ts">
 import { computed, toRef, useTemplateRef } from "vue";
 import { useEventListener } from "@vueuse/core";
-import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCloseBridge } from "@/components/ui/context-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { AlbumId, PlaylistId } from "@/types/ids";
 import { contextMenuTrackComponents, provideTrackMenuComponents } from "../useTrackMenuComponents";
 import { TrackContext } from "../type";
 import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
+import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
+import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(contextMenuTrackComponents);
@@ -64,6 +67,15 @@ const localOpen = computed({
     isContextMenuOpen.value = false;
   },
 });
+
+useTrackMenuAutoClose(localOpen, {
+  context: () => props.context,
+  playlistId: () => props.playlistId,
+});
+
+useMenuCursorAutoClose(localOpen, () => {
+  localOpen.value = false;
+}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 
 const contextComponent = computed(() => trackContextComponents[props.context]);
 
