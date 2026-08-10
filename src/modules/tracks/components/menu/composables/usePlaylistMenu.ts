@@ -1,4 +1,4 @@
-import { computed } from "vue";
+import { computed, type MaybeRefOrGetter } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
@@ -7,13 +7,18 @@ import {
   playlistQueries,
 } from "@/queries/playlist.queries";
 
-export function usePlaylistMenu() {
+interface UsePlaylistMenuOptions {
+  enabled?: MaybeRefOrGetter<boolean>;
+}
+
+export function usePlaylistMenu(options: UsePlaylistMenuOptions = {}) {
   const queryClient = useQueryClient();
   const { t } = useI18n();
 
   const { data: playlistsData, isLoading } = useQuery({
     ...playlistQueries.all(),
     staleTime: Infinity,
+    enabled: options.enabled ?? true,
   });
 
   const playlists = computed(() =>

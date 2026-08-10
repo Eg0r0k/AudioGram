@@ -1,5 +1,52 @@
+<script setup lang="ts">
+import { ref, shallowRef, computed } from "vue";
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+} from "@/components/ui/input-group";
+import IconSearch from "~icons/tabler/search";
+import IconPlaylistAdd from "~icons/tabler/playlist-add";
+import IconPlus from "~icons/tabler/plus";
+import IconPlaylist from "~icons/tabler/playlist";
+import IconLoader2 from "~icons/tabler/loader-2";
+import type { PlaylistId } from "@/types/ids";
+import { useTrackMenuComponents } from "../../menu/useTrackMenuComponents";
+import { usePlaylistMenu } from "../composables/usePlaylistMenu";
+import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
+
+const emit = defineEmits<{
+  add: [playlistId: PlaylistId];
+}>();
+
+const { Item, Separator, Sub, SubTrigger, SubContent } = useTrackMenuComponents();
+
+// Список плейлистов не нужен, пока сабменю закрыто: запрос стартует при первом
+// открытии, а не при каждом показе меню, и дальше живёт в кэше.
+const hasOpenedSub = shallowRef(false);
+
+function onSubOpenChange(open: boolean) {
+  if (open) hasOpenedSub.value = true;
+}
+
+const { playlists, isLoading, handleCreatePlaylist } = usePlaylistMenu({
+  enabled: hasOpenedSub,
+});
+
+const searchQuery = ref("");
+
+const filteredPlaylists = computed(() => {
+  if (!searchQuery.value.trim()) return playlists.value;
+  const query = searchQuery.value.toLowerCase().trim();
+  return playlists.value.filter(p => p.name.toLowerCase().includes(query));
+});
+</script>
+
 <template>
-  <component :is="Sub">
+  <component
+    :is="Sub"
+    @update:open="onSubOpenChange"
+  >
     <component :is="SubTrigger">
       <IconPlaylistAdd class=" size-5.5" />
       {{ $t('track.contextMenu.addToPlaylist') }}
@@ -26,7 +73,7 @@
 
       <component
         :is="Item"
-        @click="emit('create')"
+        @click="handleCreatePlaylist"
       >
         <IconPlus class="size-5.5" />
         {{ $t('track.contextMenu.createPlaylist') }}
@@ -70,45 +117,3 @@
     </component>
   </component>
 </template>
-
-<script setup lang="ts">
-import { ref, computed } from "vue";
-import {
-  InputGroup,
-  InputGroupInput,
-  InputGroupAddon,
-} from "@/components/ui/input-group";
-import IconSearch from "~icons/tabler/search";
-import IconPlaylistAdd from "~icons/tabler/playlist-add";
-import IconPlus from "~icons/tabler/plus";
-import IconPlaylist from "~icons/tabler/playlist";
-import IconLoader2 from "~icons/tabler/loader-2";
-import type { PlaylistId } from "@/types/ids";
-import { useTrackMenuComponents } from "../../menu/useTrackMenuComponents";
-import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
-
-interface Playlist {
-  id: PlaylistId;
-  name: string;
-}
-
-const props = defineProps<{
-  playlists: Playlist[];
-  isLoading?: boolean;
-}>();
-
-const emit = defineEmits<{
-  add: [playlistId: PlaylistId];
-  create: [];
-}>();
-
-const { Item, Separator, Sub, SubTrigger, SubContent } = useTrackMenuComponents();
-
-const searchQuery = ref("");
-
-const filteredPlaylists = computed(() => {
-  if (!searchQuery.value.trim()) return props.playlists;
-  const query = searchQuery.value.toLowerCase().trim();
-  return props.playlists.filter(p => p.name.toLowerCase().includes(query));
-});
-</script>

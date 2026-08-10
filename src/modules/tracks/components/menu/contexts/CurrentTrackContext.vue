@@ -15,16 +15,11 @@
     <DownloadItem @download="actions.download" />
 
     <LyricsItem
-      :has-lyrics="!!track.lyricsPath"
+      :has-lyrics="trackHasLyrics(track)"
       @attach="actions.attachLyrics"
     />
 
-    <AddToPlaylistSub
-      :playlists="playlists"
-      :is-loading="isLoading"
-      @add="actions.addToPlaylist"
-      @create="handleCreatePlaylist"
-    />
+    <AddToPlaylistSub @add="actions.addToPlaylist" />
 
     <component :is="Separator" />
 
@@ -48,7 +43,7 @@ import ShowLyricsItem from "../items/ShowLyricsItem.vue";
 import DownloadItem from "../items/DownloadItem.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
-import { usePlaylistMenu } from "../composables/usePlaylistMenu";
+import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 
@@ -60,5 +55,4 @@ const props = defineProps<{
 const isLibrary = computed(() => isLibraryTrack(props.track));
 
 const { Separator } = useTrackMenuComponents();
-const { playlists, isLoading, handleCreatePlaylist } = usePlaylistMenu();
 </script>

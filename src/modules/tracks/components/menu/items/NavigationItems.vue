@@ -12,7 +12,10 @@
   </template>
 
   <template v-else-if="artistIds.length > 1">
-    <component :is="Sub">
+    <component
+      :is="Sub"
+      @update:open="onSubOpenChange"
+    >
       <component :is="SubTrigger">
         <IconUsers
           class="size-5.5"
@@ -55,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { shallowRef, watch } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import IconDisc from "~icons/tabler/disc";
 import IconUser from "~icons/tabler/user";
@@ -81,17 +84,32 @@ const props = withDefaults(defineProps<{
 
 const { Item, Sub, SubTrigger, SubContent } = useTrackMenuComponents();
 
-const artists = ref<ArtistEntity[]>([]);
-const isLoading = ref(true);
+const artists = shallowRef<ArtistEntity[]>([]);
+const isLoading = shallowRef(false);
+let hasLoaded = false;
 
-onMounted(async () => {
-  if (props.artistIds.length === 0) {
-    isLoading.value = false;
-    return;
-  }
-  const result = await db.artists.bulkGet(props.artistIds);
+// Артисты нужны только внутри сабменю «К исполнителям» — грузим их при первом
+// его открытии, а не при каждом показе меню.
+async function onSubOpenChange(open: boolean) {
+  if (!open || hasLoaded) return;
+  hasLoaded = true;
+  isLoading.value = true;
+
+  const requestedIds = props.artistIds;
+  const result = await db.artists.bulkGet(requestedIds);
+  // Пока грузили, меню могли переоткрыть на другом треке — результат устарел.
+  if (requestedIds !== props.artistIds) return;
+
   artists.value = result.filter((a): a is ArtistEntity => !!a);
   isLoading.value = false;
+}
+
+// Контент меню не размонтируется при смене трека под открытым меню —
+// сбрасываем загруженное под новый набор артистов.
+watch(() => props.artistIds, () => {
+  hasLoaded = false;
+  isLoading.value = false;
+  artists.value = [];
 });
 
 const emit = defineEmits<{
