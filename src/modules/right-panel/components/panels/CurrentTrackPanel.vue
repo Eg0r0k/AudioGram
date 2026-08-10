@@ -17,68 +17,76 @@
       <div
         class="grid gap-4 py-4 px-5 pt-0"
       >
-        <MorphingDialog
-          :transition="{
-            type: 'spring',
-            bounce: 0.3,
-            duration: 0.4,
-          }"
-        >
-          <MorphingDialogTrigger class="block w-full select-none  rounded-lg overflow-hidden ">
-            <NuxtImage
-              v-slot="{ imgAttrs, isLoaded, src }"
-              :src="coverUrl"
-              fallback-src="/img/fallback.svg"
-              custom
+        <TrackContextMenu context="current-track">
+          <div>
+            <MorphingDialog
+              :transition="{
+                type: 'spring',
+                bounce: 0.3,
+                duration: 0.4,
+              }"
             >
-              <img
-                :key="src"
-                v-bind="imgAttrs"
-                :src="src"
-                alt=""
-                class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
-                :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+              <MorphingDialogTrigger
+                data-track-menu-trigger
+                class="block w-full select-none  rounded-lg overflow-hidden "
+                @contextmenu="onCoverContextMenu"
               >
-            </NuxtImage>
-          </MorphingDialogTrigger>
-          <MorphingDialogContainer>
-            <MorphingDialogContent
-              class="
-        relative
-        select-none
-        overflow-hidden
-        rounded-3xl
-        bg-transparent
-        shadow-none
-      "
-            >
-              <NuxtImage
-                v-slot="{ imgAttrs, isLoaded, src }"
-                :src="coverUrl"
-                fallback-src="/img/fallback.svg"
-                class="
-          h-auto
-          w-full
-          max-w-[90vw]
-          object-cover
-          lg:h-[70vh]
-          lg:w-auto
-        "
-                custom
-              >
-                <img
-                  :key="src"
-                  v-bind="imgAttrs"
-                  :src="src"
-                  alt=""
-                  class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
-                  :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+                <NuxtImage
+                  v-slot="{ imgAttrs, isLoaded, src }"
+                  :src="coverUrl"
+                  fallback-src="/img/fallback.svg"
+                  custom
                 >
-              </NuxtImage>
-              <MorphingDialogClose />
-            </MorphingDialogContent>
-          </MorphingDialogContainer>
-        </MorphingDialog>
+                  <img
+                    :key="src"
+                    v-bind="imgAttrs"
+                    :src="src"
+                    alt=""
+                    class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
+                    :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+                  >
+                </NuxtImage>
+              </MorphingDialogTrigger>
+              <MorphingDialogContainer>
+                <MorphingDialogContent
+                  class="
+            relative
+            select-none
+            overflow-hidden
+            rounded-3xl
+            bg-transparent
+            shadow-none
+          "
+                >
+                  <NuxtImage
+                    v-slot="{ imgAttrs, isLoaded, src }"
+                    :src="coverUrl"
+                    fallback-src="/img/fallback.svg"
+                    class="
+              h-auto
+              w-full
+              max-w-[90vw]
+              object-cover
+              lg:h-[70vh]
+              lg:w-auto
+            "
+                    custom
+                  >
+                    <img
+                      :key="src"
+                      v-bind="imgAttrs"
+                      :src="src"
+                      alt=""
+                      class="aspect-square w-full object-cover transition-[transform,opacity] duration-180 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:duration-150"
+                      :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
+                    >
+                  </NuxtImage>
+                  <MorphingDialogClose />
+                </MorphingDialogContent>
+              </MorphingDialogContainer>
+            </MorphingDialog>
+          </div>
+        </TrackContextMenu>
 
         <template v-if="currentTrack">
           <div class="grid gap-3">
@@ -239,11 +247,16 @@ const rightPanel = useRightPanelStore();
 const router = useRouter();
 const { toggleTrackLike } = useToggleTrackLike();
 
-const { openDropdown } = useTrackMenu();
+const { openDropdown, openMenu } = useTrackMenu();
 
 function onDotsClick(event: MouseEvent): void {
   if (!libraryTrack.value) return;
   openDropdown(libraryTrack.value, 0, event, { target: "current-track" });
+}
+
+function onCoverContextMenu(): void {
+  if (!libraryTrack.value) return;
+  openMenu(libraryTrack.value, 0, { target: "current-track" });
 }
 
 const currentTrack = computed(() => playerStore.currentTrack);

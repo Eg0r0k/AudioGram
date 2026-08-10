@@ -121,7 +121,7 @@ useEventListener(guardRef, "contextmenu", (e: MouseEvent) => {
     return;
   }
 
-  if (!target.closest("[data-track-row]")) {
+  if (!target.closest("[data-track-row], [data-track-menu-trigger]")) {
     e.preventDefault();
     e.stopPropagation();
   }
