@@ -8,8 +8,7 @@
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex items-center gap-1.5 px-4 py-2 shrink-0 overflow-x-auto">
-        <span class="text-xs font-medium text-muted-foreground shrink-0 mr-0.5">{{ t("common.quickSelect") }}:</span>
+      <div class="flex items-center gap-1.5 py-2 shrink-0 overflow-x-auto">
         <Button
           size="sm"
           :variant="allArtistsSelected ? 'default' : 'secondary'"
