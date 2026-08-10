@@ -16,6 +16,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { routeLocation } from "@/app/router/route-locations";
 import { useAttachTrackLyrics } from "./useAttachTrackLyrics";
 import { useToggleTrackLike } from "./useToggleTrackLike";
+import { canDownloadTrack } from "@/modules/tracks/lib/trackPredicates";
 import {
   addTrackToPlaylistAndSync,
   removeTrackFromPlaylistAndSync,
@@ -47,18 +48,21 @@ export const useTrackContextActions = (
   const { toggleTrackLike } = useToggleTrackLike();
 
   const play = () => {
-    if (!track.value) return;
-    playerStore.playPlayerTrack(track.value);
+    const current = track.value;
+    if (!current) return;
+    playerStore.playPlayerTrack(current);
   };
 
   const playNext = () => {
-    if (!track.value) return;
-    queueStore.insertNext(track.value);
+    const current = track.value;
+    if (!current) return;
+    queueStore.insertNext(current);
   };
 
   const addToQueue = () => {
-    if (!track.value) return;
-    queueStore.addToQueue(track.value);
+    const current = track.value;
+    if (!current) return;
+    queueStore.addToQueue(current);
     toast.success(t("queue.added"), {
       action: {
         label: t("queue.goToQueue"),
@@ -67,14 +71,16 @@ export const useTrackContextActions = (
   };
 
   const toggleLike = async () => {
-    if (!track.value) return;
-    await toggleTrackLike(track.value);
+    const current = track.value;
+    if (!current) return;
+    await toggleTrackLike(current);
   };
 
   const showDetails = () => {
-    if (!track.value) return;
+    const current = track.value;
+    if (!current) return;
 
-    rightPanelStore.openTrackInfo({ track: track.value }, {
+    rightPanelStore.openTrackInfo({ track: current }, {
       scope: { type: "route", routeKey: route.fullPath },
       depth: 1,
     });
@@ -85,14 +91,16 @@ export const useTrackContextActions = (
   };
 
   const attachLyricsToTrack = async () => {
-    if (!track.value) return;
-    await attachTrackLyrics(track.value);
+    const current = track.value;
+    if (!current) return;
+    await attachTrackLyrics(current);
   };
 
   const addToPlaylist = async (playlistId: PlaylistId) => {
-    if (!track.value) return;
+    const current = track.value;
+    if (!current) return;
     try {
-      await addTrackToPlaylistAndSync(queryClient, playlistId, track.value);
+      await addTrackToPlaylistAndSync(queryClient, playlistId, current);
     }
     catch {
       toast.error(t("playlist.addTrackFailed"));
@@ -106,13 +114,11 @@ export const useTrackContextActions = (
   };
 
   const removeFromPlaylist = async () => {
-    if (!track.value || !options.playlistId?.value) return;
+    const current = track.value;
+    const playlistId = options.playlistId?.value;
+    if (!current || !playlistId) return;
     try {
-      await removeTrackFromPlaylistAndSync(
-        queryClient,
-        options.playlistId.value,
-        track.value.id,
-      );
+      await removeTrackFromPlaylistAndSync(queryClient, playlistId, current.id);
     }
     catch {
       toast.error(t("playlist.removeTrackFailed"));
@@ -120,9 +126,10 @@ export const useTrackContextActions = (
   };
 
   const removeFromHistory = async () => {
-    if (!track.value) return;
+    const current = track.value;
+    if (!current) return;
     try {
-      await statsService.removeFromHistory(track.value.id);
+      await statsService.removeFromHistory(current.id);
     }
     catch {
       toast.error(t("track.removeFromHistoryFailed"));
@@ -135,21 +142,23 @@ export const useTrackContextActions = (
   };
 
   const goToAlbum = () => {
-    if (!track.value) return;
-    router.push(routeLocation.album(track.value.albumId));
+    const current = track.value;
+    if (!current) return;
+    router.push(routeLocation.album(current.albumId));
     options.onNavigate?.();
   };
 
   const download = async () => {
-    if (!track.value) return;
+    const current = track.value;
+    if (!current || !canDownloadTrack(current)) return;
 
-    const sourcePath = track.value.storagePath;
+    const sourcePath = current.storagePath;
     const fallbackExt = sourcePath.split(".").pop()?.toLowerCase() ?? "mp3";
-    const fileName = sourcePath.split(/[\\/]/).pop() ?? `${track.value.title}.${fallbackExt}`;
+    const fileName = sourcePath.split(/[\\/]/).pop() ?? `${current.title}.${fallbackExt}`;
 
     try {
       const fileBlob = await (async () => {
-        if (track.value && track.value.source.toString() && IS_TAURI && hasNativeSupport(storageService)) {
+        if (current.source.toString() && IS_TAURI && hasNativeSupport(storageService)) {
           const isAbsolutePath = /^(?:[a-zA-Z]:[\\/]|\/)/.test(sourcePath);
 
           if (isAbsolutePath) {
