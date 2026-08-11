@@ -1,15 +1,15 @@
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "notes": "",
-  "pub_date": "2026-05-07T20:32:45Z",
+  "pub_date": "2026-08-11T18:53:25Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.1.5/Audiogram_0.1.5_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1FQaHB2UjVuaVBtUzVSUzRKZHR6Zk14MDFiNmVuMGozNVlhdDc1MWVsWmp0UW41RTVnWWdIV2FTUzdVaGdnZ25uRG5JUUFRVWR1L0dBbjNRSXUzaHdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4MTg2MDM5CWZpbGU6QXVkaW9ncmFtXzAuMS41X3g2NC1zZXR1cC5leGUKZnlRVmZDajMvT0IyWmtldm95MElVbXBiWWg3SzFMaGFKWmp0aFB0VHJEQzYwSnpXbjRUbUtIMzZJWGQrYjdacEtLeWlDTlA5WFIzT293SFVZMnlDQmc9PQo="
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.1.6/Audiogram_0.1.6_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1p1ZzMwb3RjV1dLeWQ1bXF3TlcydkhLVVhueG1sdHhqQVVlUHljeGZXL3BHQ00wZ3FVKzZ5NllCNDlCREsvSVZaNFNkTEFQdjJWTXFvK0YxZkhJRGdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDc0NDQ3CWZpbGU6QXVkaW9ncmFtXzAuMS42X3g2NC1zZXR1cC5leGUKWjNacmthNGxvVUdVbWxoUlJZdStDajdBdmtIK2ZnV1h4a0JDWXFtV1dNSXlTbWlTOXNNVjZYMHBLb2FteEtkRURPU1BtOFVLRU85bzVSaHJCK2wyQ3c9PQo="
     },
     "linux-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.1.5/Audiogram_0.1.5_amd64.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1Vmb1gwek5mNlNJV1IyQjZ6bGZheTJWVTQwN3lqdjNpRDh2YlRTeW0vVXpFdW1HL1lVTnlrbkdjQzJIL1BWQ1B0YlpUT3JqWFoyU1IxZnVUckU0RVFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4MTg1OTY0CWZpbGU6QXVkaW9ncmFtXzAuMS41X2FtZDY0LkFwcEltYWdlClJwM093NUcrZ3hCdTI3d2kyWExpRkFJdmxrRWFObzFXSEVwUG9TSU1nUjBzcXU4N09oOWVoODNHNE1MNjFjNFpBQXRZdTRQTExpQ25pU0REdUVwVkRnPT0K"
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.1.6/Audiogram_0.1.6_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1ZqRGU0VWl2Y3FMcXBrVVBaTzgvV0RGSEtVSFI3dkFUSjdFV3hJeHYvdHRjWkVhZ0pVK3FrQUJVbDR2QmJzTlo4aWpJWGdONklQS0JrZGtaT0s1aWc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NDc0NDA1CWZpbGU6QXVkaW9ncmFtXzAuMS42X2FtZDY0LkFwcEltYWdlCm00YlovSldrbGg2YWwwRkFkUExpUjFBYjRGQnYrMmlOQ1J4bk5PUFBZN2tKUytnOU5TNGFJSXY1NmE1MHQ0azVOT1Z5UUZPWUVXQUJLK1RzNzZieUF3PT0K"
     }
   }
 }
