@@ -78,6 +78,23 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      - name: Download yt-dlp sidecar (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -fsSL -o src-tauri/binaries/yt-dlp-x86_64-unknown-linux-gnu \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+          chmod +x src-tauri/binaries/yt-dlp-x86_64-unknown-linux-gnu
+
+      - name: Download yt-dlp sidecar (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -fsSL -o src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
+
       - name: Install frontend deps
         run: pnpm install
 
