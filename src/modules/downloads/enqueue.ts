@@ -3,7 +3,14 @@ import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { promoteTrackToLibrary } from "@/modules/tracks/lib/libraryMembership";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { queryClient } from "@/queries/client";
+import { unwrapResult } from "@/queries/shared";
+import { sources } from "@/modules/sources";
+import type { SourceTrackDTO } from "@/modules/sources/types";
+import { downloadJobRepository, playlistRepository, trackRepository } from "@/db/repositories";
+import { parseTrackRef } from "@/types/track-ref";
+import type { AlbumId, PlaylistId } from "@/types/ids";
 import { enqueueTrackDownload } from "./manager";
+import { useDownloadsStore } from "./store/downloads.store";
 
 /**
  * Download = library membership (§1): queuing a download pins the subject at
@@ -26,4 +33,77 @@ export async function downloadSubject(subject: TrackMenuSubject, batchId?: strin
   await ensurePinned(subject);
   await invalidateLibraryData(queryClient);
   return enqueueTrackDownload(subject.dto.id, batchId);
+}
+
+/**
+ * Pins every DTO and queues its job under the batch. The batch total counts
+ * only jobs actually created for this batch — tracks that already hold an
+ * offline copy (or an active job from elsewhere) never enter the progress.
+ */
+async function enqueueDtoBatch(tracks: SourceTrackDTO[]): Promise<string | null> {
+  if (tracks.length === 0) return null;
+  const store = useDownloadsStore();
+  const batchId = crypto.randomUUID();
+  store.registerBatch(batchId);
+
+  for (const dto of tracks) {
+    await ensurePinned({ kind: "remote", dto });
+    await enqueueTrackDownload(dto.id, batchId);
+  }
+  await invalidateLibraryData(queryClient);
+
+  const jobs = await unwrapResult(downloadJobRepository.findByBatchId(batchId));
+  if (jobs.length === 0) {
+    store.clearBatch(batchId);
+    return null;
+  }
+  store.setBatchTotal(batchId, jobs.length);
+  return batchId;
+}
+
+/** "Download album" from an ND album page. Returns the batch id, or null
+ * when nothing needed downloading. */
+export async function enqueueNdAlbumDownload(albumId: AlbumId): Promise<string | null> {
+  const result = await sources.get("nd").getAlbum(albumId);
+  if (result.isErr()) throw new Error(result.error.message);
+  return enqueueDtoBatch(result.value.tracks);
+}
+
+/** "Download playlist" from an ND playlist page (raw server id, no prefix). */
+export async function enqueueNdPlaylistDownload(rawPlaylistId: string): Promise<string | null> {
+  const result = await sources.get("nd").getPlaylist(rawPlaylistId);
+  if (result.isErr()) throw new Error(result.error.message);
+  return enqueueDtoBatch(result.value.tracks);
+}
+
+/**
+ * "Download playlist" on a local playlist: mixed content is filtered to the
+ * tracks that can hold an offline copy — in M4 that is ND rows (YT joins
+ * the shared mechanism in M5). Filtered-out tracks never enter the batch.
+ */
+export async function enqueueLocalPlaylistDownload(playlistId: PlaylistId): Promise<string | null> {
+  const playlist = await unwrapResult(playlistRepository.findById(playlistId));
+  if (!playlist) return null;
+  const tracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
+  const downloadable = tracks.filter(track => parseTrackRef(track.id).kind === "nd");
+  if (downloadable.length === 0) return null;
+
+  const store = useDownloadsStore();
+  const batchId = crypto.randomUUID();
+  store.registerBatch(batchId);
+
+  for (const track of downloadable) {
+    // Download = library membership: shadow rows get promoted on the way in.
+    if (track.pinned === 0) await promoteTrackToLibrary(track.id);
+    await enqueueTrackDownload(track.id, batchId);
+  }
+  await invalidateLibraryData(queryClient);
+
+  const jobs = await unwrapResult(downloadJobRepository.findByBatchId(batchId));
+  if (jobs.length === 0) {
+    store.clearBatch(batchId);
+    return null;
+  }
+  store.setBatchTotal(batchId, jobs.length);
+  return batchId;
 }

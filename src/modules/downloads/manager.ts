@@ -106,6 +106,7 @@ export async function cancelTrackDownload(jobId: string): Promise<void> {
   retryAt.delete(jobId);
   await unwrapResult(downloadJobRepository.delete(jobId));
   useDownloadsStore().remove(jobId);
+  if (job.batchId) useDownloadsStore().shrinkBatch(job.batchId);
 }
 
 /**
@@ -202,6 +203,7 @@ async function runJob(jobId: string): Promise<void> {
   if (store.jobs[jobId]?.cancelling) {
     await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
+    if (job.batchId) store.shrinkBatch(job.batchId);
     return;
   }
   store.upsert({ ...runtimeOf(job), status: "running" });
@@ -223,6 +225,7 @@ async function runJob(jobId: string): Promise<void> {
     }
     await unwrapResult(downloadJobRepository.upsert({ ...job, status: "done", error: undefined }));
     store.remove(jobId);
+    if (job.batchId) store.bumpBatch(job.batchId, "finished");
     getLogger().info(`[Downloads] Done: ${job.trackId}`);
     return;
   }
@@ -230,6 +233,7 @@ async function runJob(jobId: string): Promise<void> {
   if (result.error.message === "cancelled") {
     await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
+    if (job.batchId) store.shrinkBatch(job.batchId);
     getLogger().info(`[Downloads] Cancelled: ${job.trackId}`);
     return;
   }
@@ -261,5 +265,6 @@ async function failJob(job: DownloadJobEntity, error: SourceError): Promise<void
     error: error.message,
   }));
   store.remove(job.id);
+  if (job.batchId) store.bumpBatch(job.batchId, "failed");
   getLogger().error(`[Downloads] Failed ${job.trackId} (${error.kind}): ${error.message}`);
 }
