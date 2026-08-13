@@ -79,6 +79,14 @@ export const queryKeys = {
       ["recommendations", "forTrack", trackId, cacheVersion, limit] as const,
     analysisProgress: () => ["recommendations", "analysisProgress"] as const,
   },
+  nd: {
+    artists: () => ["nd", "artists"] as const,
+    albumsInf: (sort: string) => ["nd", "albums", sort] as const,
+    album: (id: AlbumId) => ["nd", "album", id] as const,
+    playlists: () => ["nd", "playlists"] as const,
+    playlist: (id: string) => ["nd", "playlist", id] as const,
+    search: (q: string) => ["nd", "search", q] as const,
+  },
   youtube: {
     searchAll: (query: string) => ["youtube", "search", "all", query] as const,
     searchList: (chip: string, query: string) => ["youtube", "search", chip, query] as const,
