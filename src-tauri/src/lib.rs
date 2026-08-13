@@ -91,6 +91,7 @@ pub fn run() {
         .manage(nd::NdState::default())
         .manage(nd::NdCoverCache::default())
         .manage(nd::NdAudioCache::default())
+        .manage(nd::NdDownloadRegistry::default())
         .register_asynchronous_uri_scheme_protocol("stream", stream::serve)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -130,6 +131,8 @@ pub fn run() {
         youtube::proxy_check,
         nd::nd_set_config,
         nd::nd_prefetch,
+        nd::nd_download,
+        nd::nd_download_cancel,
     ]);
 
     #[cfg(mobile)]
