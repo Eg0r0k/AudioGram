@@ -33,7 +33,7 @@
   </template>
 
   <!-- Ephemeral YouTube stream: queue ops act on the player track; download
-       resolves the video id back from the ytstream URL. -->
+       resolves the video id back from the stream URL. -->
   <template v-else-if="ytPlayable">
     <component :is="Separator" />
 

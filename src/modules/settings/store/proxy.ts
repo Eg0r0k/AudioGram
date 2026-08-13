@@ -16,7 +16,7 @@ export const PROXY_PROTOCOL_OPTIONS: ProtocolOption[] = PROXY_PROTOCOLS.map(valu
 /**
  * Reactive accessors for the user-configured network proxy. The proxy is a
  * desktop-only feature: it is threaded into the Innertube client and the
- * `ytstream://` streaming client on the Rust side. `isSupported` mirrors
+ * `stream://` streaming client on the Rust side. `isSupported` mirrors
  * that so the UI can hide the section in the web build (where it is a no-op).
  */
 export const useProxySettings = () => {

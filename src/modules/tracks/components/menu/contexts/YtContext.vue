@@ -26,7 +26,7 @@ import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 
 const props = defineProps<{
-  /** Ephemeral ytstream track built from the row's YtPlayable at open time. */
+  /** Ephemeral YT stream track built from the row's YtPlayable at open time. */
   track: PlayerTrack;
   actions: ContextActions;
 }>();

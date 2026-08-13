@@ -1,18 +1,18 @@
 import { isEphemeralTrack, type PlayerTrack, type Track } from "@/modules/player/types";
+import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
 import { unproxiedThumbnail } from "./thumbnail";
 import type { YtMusicTrack, YtPlayable, YtSearchResult } from "../types";
 
 /**
- * Rebuilds a {@link YtPlayable} from an ephemeral `ytstream://` queue track
- * (the video id is the stream URL's path) so menu actions like download can
- * work on already-playing YouTube tracks. Returns null for non-YT tracks.
+ * Rebuilds a {@link YtPlayable} from an ephemeral `stream://…/yt/…` queue
+ * track (the video id is the stream URL's last path segment) so menu actions
+ * like download can work on already-playing YouTube tracks. Returns null for
+ * non-YT tracks.
  */
 export function ytPlayableFromEphemeral(track: PlayerTrack | null): YtPlayable | null {
   if (!isEphemeralTrack(track) || track.source.type !== "url") return null;
-  const url = track.source.url;
-  if (!url.includes("ytstream")) return null;
 
-  const id = url.split("/").pop();
+  const id = ytVideoIdFromStreamUrl(track.source.url);
   if (!id) return null;
 
   const coverUrl = unproxiedThumbnail(track.cover);

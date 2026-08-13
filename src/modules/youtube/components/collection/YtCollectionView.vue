@@ -169,7 +169,7 @@ const albumRoutes = computed(() =>
   ),
 );
 
-/** Video id of the currently playing ephemeral ytstream track, if any. */
+/** Video id of the currently playing ephemeral YT stream track, if any. */
 const currentYtId = computed(() => ytPlayableFromEphemeral(playerStore.currentTrack)?.id ?? null);
 
 const { openMenu } = useTrackMenu();
@@ -185,7 +185,7 @@ function startImport(name: string, tracks: YtPlayable[]) {
 
 /**
  * Streams the collection as an ephemeral queue starting at `startIndex`.
- * `ytstream://` resolves lazily per track, so the whole queue is built
+ * `stream://…/yt/…` resolves lazily per track, so the whole queue is built
  * synchronously from loaded tracks — no per-track resolve round-trips.
  */
 async function playAll(startIndex: number) {

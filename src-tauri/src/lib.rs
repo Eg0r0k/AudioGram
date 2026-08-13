@@ -81,7 +81,7 @@ pub fn run() {
         .manage(youtube::ProxyState::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
-        .register_asynchronous_uri_scheme_protocol("ytstream", youtube::serve_stream)
+        .register_asynchronous_uri_scheme_protocol("stream", youtube::serve_stream)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();

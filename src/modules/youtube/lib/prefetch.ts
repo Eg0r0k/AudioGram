@@ -4,9 +4,9 @@ import { youtubeProvider } from "../provider";
 import { ytPlayableFromEphemeral } from "./playable";
 
 /**
- * Warms the Rust-side caches for an upcoming ytstream track: `yt_prefetch`
+ * Warms the Rust-side caches for an upcoming YT stream track: `yt_prefetch`
  * resolves the googlevideo URL AND downloads the whole audio into the backend
- * memory cache, so when the queue advances the `ytstream://` proxy answers
+ * memory cache, so when the queue advances the `stream://` proxy answers
  * from memory and playback starts instantly. No-op for local/non-YT tracks.
  *
  * The backend keeps only the last few prefetched tracks; the TTL here just

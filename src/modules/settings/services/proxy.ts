@@ -17,7 +17,7 @@ const toError = (message: string) => (cause: unknown) =>
 
 /**
  * Pushes the active proxy URL (or `null` to clear) to the Rust side, where the
- * Innertube client and the `ytstream://` client pick it up. A no-op outside Tauri.
+ * Innertube client and the `stream://` client pick it up. A no-op outside Tauri.
  */
 export const applyProxy = (url: string | null): ResultAsync<void, ProxyError> => {
   if (!IS_TAURI) return okAsync(undefined);

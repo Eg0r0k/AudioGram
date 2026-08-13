@@ -1,5 +1,5 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { ytStreamUrl } from "@/lib/stream-url";
 import { youtubeProvider } from "@/modules/youtube/provider";
 import { proxiedThumbnail, THUMB_SIZE_FULL } from "@/modules/youtube/lib/thumbnail";
 import { parseTrackRef, ytTrackId } from "@/types/track-ref";
@@ -109,7 +109,7 @@ export const ytSourceProvider: SourceProvider = {
     return youtubeProvider
       .resolve(videoId)
       .mapErr(mapError)
-      .map(resolvedId => convertFileSrc(resolvedId, "ytstream"));
+      .map(resolvedId => ytStreamUrl(resolvedId));
   },
 
   downloadToFile(id, onProgress) {

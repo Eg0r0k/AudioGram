@@ -41,7 +41,7 @@ const RUSTYPIPE_SUBDIR: &str = "rustypipe";
 
 /// The user-configured network proxy URL (`scheme://[user:pass@]host:port`),
 /// pushed from the frontend via `set_proxy`. Threaded into the yt-dlp sidecar
-/// (`--proxy`), the rustypipe search client and the `ytstream://` streaming
+/// (`--proxy`), the rustypipe search client and the `stream://` streaming
 /// client so all YouTube traffic shares one proxy. `None` means "direct".
 #[derive(Default)]
 pub struct ProxyState(Mutex<Option<String>>);

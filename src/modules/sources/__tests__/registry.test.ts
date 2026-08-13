@@ -60,8 +60,7 @@ describe("ytSourceProvider", () => {
     const result = await ytSourceProvider.resolveStreamUrl(ytTrackId("dQw4w9WgXcQ"));
 
     expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap()).toContain("ytstream");
-    expect(result._unsafeUnwrap()).toContain("dQw4w9WgXcQ");
+    expect(result._unsafeUnwrap()).toBe("stream://localhost/yt/dQw4w9WgXcQ");
   });
 
   it("downloads through the youtube provider and returns the file path", async () => {

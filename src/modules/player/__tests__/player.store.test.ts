@@ -638,7 +638,7 @@ describe("player.store", () => {
     it("lets the newest play request win when tracks start rapidly", async () => {
       const store = usePlayerStore();
 
-      // Track A's load hangs (slow remote stream, e.g. ytstream:// via proxy).
+      // Track A's load hangs (slow remote stream, e.g. stream:// via proxy).
       let resolveLoadA!: () => void;
       mockPlayerMethods.load.mockImplementationOnce(
         () => new Promise<void>((resolve) => { resolveLoadA = resolve; }),

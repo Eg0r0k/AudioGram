@@ -12,6 +12,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { unique, unwrapResult } from "@/queries/shared";
+import { migrateLegacyYtStreamUrl } from "@/lib/stream-url";
 import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
 
 const RESTART_THRESHOLD = 3;
@@ -384,9 +385,15 @@ export const useQueueStore = defineStore("queue", () => {
           continue;
         }
 
+        // One-time rewrite of pre-`stream://` snapshots: legacy ytstream://
+        // URLs are re-pointed at the generalized scheme (no legacy alias).
+        const track = item.track.source.type === "url"
+          ? { ...item.track, source: { ...item.track.source, url: migrateLegacyYtStreamUrl(item.track.source.url) } }
+          : item.track;
+
         restoredQueue.push({
           id: item.id,
-          track: item.track,
+          track,
           source: item.source,
           addedAt: item.addedAt,
           cover: item.cover,

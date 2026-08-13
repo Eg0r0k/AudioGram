@@ -1,4 +1,7 @@
-//! Stream resolution (yt-dlp `--get-url`) and the `ytstream://` audio proxy.
+//! Stream resolution (yt-dlp `--get-url`) and the `stream://` audio proxy.
+//!
+//! The scheme is source-generic: paths are dispatched by their first segment
+//! (`/yt/<videoId>` today; `/nd/…` arrives with the Navidrome source).
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -17,7 +20,7 @@ pub struct StreamEntry {
 }
 
 /// In-memory map of video id → resolved stream entry, populated by `yt_resolve`
-/// and consumed by the `ytstream://` proxy so seeks reuse a single resolution.
+/// and consumed by the `stream://` proxy so seeks reuse a single resolution.
 #[derive(Default)]
 pub struct YtStreamCache {
     urls: Mutex<HashMap<String, StreamEntry>>,
@@ -36,7 +39,7 @@ impl YtStreamCache {
 }
 
 /// Whole prefetched audio files, keyed by video id. Filled by `yt_prefetch`
-/// while the previous track is still playing; the `ytstream://` proxy serves
+/// while the previous track is still playing; the `stream://` proxy serves
 /// range requests straight from memory, so the next track starts instantly
 /// instead of waiting for the full googlevideo download.
 const MAX_PREFETCHED_TRACKS: usize = 3;
@@ -86,7 +89,7 @@ impl YtAudioCache {
 }
 
 /// Resolves the best audio stream URL via the yt-dlp sidecar and caches it
-/// for the `ytstream://` proxy.
+/// for the `stream://` proxy.
 async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<StreamEntry, String> {
     let url = format!("https://www.youtube.com/watch?v={id}");
     let mut args: Vec<String> = vec![
@@ -136,14 +139,14 @@ pub async fn yt_resolve<R: Runtime>(
 ) -> Result<String, YtError> {
     let id = validate_id(id).map_err(YtError::invalid_input)?;
 
-    // Cache under the id; the frontend plays `ytstream://localhost/<id>`, which the
+    // Cache under the id; the frontend plays `stream://localhost/yt/<id>`, which the
     // proxy resolves back to this URL (avoids re-running yt-dlp on every seek).
     resolve_stream(&app, &id).await?;
     Ok(id)
 }
 
 /// Downloads the whole audio file for `id` into the in-memory prefetch cache
-/// so the `ytstream://` proxy answers the upcoming track's requests instantly.
+/// so the `stream://` proxy answers the upcoming track's requests instantly.
 /// Called by the frontend for the next queue entry while the current track is
 /// still playing.
 #[tauri::command]
@@ -178,16 +181,27 @@ pub async fn yt_prefetch<R: Runtime>(
     Ok(())
 }
 
-/// Serves a cached YouTube audio stream over the `ytstream://` scheme. Proxies
-/// googlevideo server-side (bypassing the webview's CORS block) and adds
+/// Serves audio over the generalized `stream://` scheme, dispatching on the
+/// first path segment (`yt/<videoId>` — proxied googlevideo). Proxying happens
+/// server-side (bypassing the webview's CORS block) and the response carries
 /// `Access-Control-Allow-Origin: *` so the crossOrigin media element keeps
-/// Web Audio EQ/analyser/normalization. Range headers are forwarded for seeking.
+/// Web Audio EQ/analyser/normalization. Range headers are forwarded for
+/// seeking. The path arrives percent-encoded (built by `convertFileSrc`).
 pub fn serve_stream<R: Runtime>(
     ctx: tauri::UriSchemeContext<'_, R>,
     request: tauri::http::Request<Vec<u8>>,
     responder: tauri::UriSchemeResponder,
 ) {
-    let id = request.uri().path().trim_start_matches('/').to_owned();
+    let encoded = request.uri().path().trim_start_matches('/').to_owned();
+    let path = percent_encoding::percent_decode_str(&encoded)
+        .decode_utf8()
+        .map(|p| p.into_owned())
+        .unwrap_or(encoded);
+
+    let Some(id) = path.strip_prefix("yt/").map(str::to_owned) else {
+        responder.respond(status_response(404));
+        return;
+    };
     let range = request
         .headers()
         .get(tauri::http::header::RANGE)
@@ -227,11 +241,11 @@ async fn stream_with_retry<R: Runtime>(
         if response.status() != tauri::http::StatusCode::FORBIDDEN {
             return Ok(response);
         }
-        log::warn!("ytstream {id}: upstream returned 403, re-resolving stream URL");
+        log::warn!("stream yt/{id}: upstream returned 403, re-resolving stream URL");
     }
 
     let entry = resolve_stream(app, id).await.map_err(|e| {
-        log::warn!("ytstream {id}: re-resolve failed: {e}");
+        log::warn!("stream yt/{id}: re-resolve failed: {e}");
         e
     })?;
     fetch_stream(&entry.url, &entry.user_agent, range, proxy).await

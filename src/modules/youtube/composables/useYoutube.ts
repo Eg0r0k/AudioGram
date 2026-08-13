@@ -1,7 +1,7 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { useImport } from "@/composables/useImport";
+import { ytStreamUrl } from "@/lib/stream-url";
 import { ephemeralFromUrl } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { youtubeProvider } from "../provider";
@@ -89,13 +89,13 @@ export function useYoutube() {
 }
 
 /**
- * Builds an ephemeral queue track streaming over `ytstream://`. The scheme
+ * Builds an ephemeral queue track streaming over `stream://…/yt/…`. The scheme
  * resolves the googlevideo URL lazily on first request, so no `yt_resolve`
  * round-trip is needed up front — this is what makes synchronous
  * play-all queues possible.
  */
 export function ytEphemeralTrack(item: YtPlayable) {
-  const streamSrc = convertFileSrc(item.id, "ytstream");
+  const streamSrc = ytStreamUrl(item.id);
   return ephemeralFromUrl(streamSrc, {
     title: item.title,
     artist: item.artist ?? undefined,
