@@ -1,6 +1,6 @@
 import { queryOptions, skipToken } from "@tanstack/vue-query";
 import { sources } from "@/modules/sources";
-import type { AlbumId } from "@/types/ids";
+import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryKeys } from "./query-keys";
 import { unwrapSourceResult } from "./shared";
 
@@ -29,6 +29,13 @@ export const ndQueries = {
       queryKey: queryKeys.nd.album(id ?? ("" as AlbumId)),
       staleTime: ND_STALE_TIME,
       queryFn: id ? () => unwrapSourceResult(nd().getAlbum(id)) : skipToken,
+    }),
+
+  artist: (id: ArtistId | null) =>
+    queryOptions({
+      queryKey: queryKeys.nd.artist(id ?? ("" as ArtistId)),
+      staleTime: ND_STALE_TIME,
+      queryFn: id ? () => unwrapSourceResult(nd().getArtist(id)) : skipToken,
     }),
 
   playlists: (available: boolean) =>

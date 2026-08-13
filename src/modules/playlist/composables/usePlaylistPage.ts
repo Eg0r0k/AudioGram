@@ -17,6 +17,8 @@ import {
 } from "@/queries/playlist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import { useNdPlaylist } from "@/modules/sources/composables/useNdCatalog";
+import { sourceKindOf, sourcePlaylistToPlaylistData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { PlaylistChanges } from "@/queries/playlist.queries";
 
@@ -28,13 +30,25 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const playlistId = computed(() => PlaylistId(route.params.id as string));
 
+  // ND playlists route as "nd:<serverId>" — read-only live pages.
+  const isNd = computed(() => sourceKindOf(playlistId.value) === "nd");
+  const ndPlaylistId = computed(() => (isNd.value ? playlistId.value.slice("nd:".length) : null));
+
+  const ndQuery = useNdPlaylist(ndPlaylistId);
+
   const {
     data: playlistData,
-    isLoading: isPlaylistLoading,
-    isError,
+    isLoading: isLocalPlaylistLoading,
+    isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => playlistQueries.detail(playlistId.value)));
+  } = useQuery(computed(() => ({
+    ...playlistQueries.detail(playlistId.value),
+    enabled: !isNd.value,
+  }) as ReturnType<typeof playlistQueries.detail> & { enabled: boolean }));
+
+  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
+  const isPlaylistLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalPlaylistLoading.value));
 
   const playlist = computed(() => playlistData.value ?? null);
 
@@ -50,23 +64,37 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !!playlist.value),
+    enabled: computed(() => !isNd.value && !!playlist.value),
   });
 
+  const ndTracks = computed(() => (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay));
+
   const tracks = computed(() =>
-    infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    isNd.value
+      ? ndTracks.value
+      : infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
-  const trackCount = computed(
-    () => infiniteData.value?.pages[0]?.total ?? playlist.value?.trackIds.length ?? 0,
+  const trackCount = computed(() =>
+    isNd.value
+      ? ndTracks.value.length
+      : infiniteData.value?.pages[0]?.total ?? playlist.value?.trackIds.length ?? 0,
   );
 
   const { data: playlistTotalDurationSeconds } = useQuery(
-    computed(() => playlistQueries.totalDuration(playlistId.value)),
+    computed(() => ({
+      ...playlistQueries.totalDuration(playlistId.value),
+      enabled: !isNd.value,
+    }) as ReturnType<typeof playlistQueries.totalDuration> & { enabled: boolean }),
   );
 
   const totalDuration = computed(() =>
-    formatTotalDuration(playlistTotalDurationSeconds.value ?? 0, t),
+    formatTotalDuration(
+      isNd.value
+        ? ndTracks.value.reduce((sum, track) => sum + track.duration, 0)
+        : playlistTotalDurationSeconds.value ?? 0,
+      t,
+    ),
   );
 
   const {
@@ -79,6 +107,15 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const playlistDetailData = computed<PlaylistData | null>(() => {
+    if (isNd.value) {
+      const ndPlaylist = ndQuery.data.value?.playlist;
+      if (!ndPlaylist) return null;
+      return {
+        ...sourcePlaylistToPlaylistData(ndPlaylist, playlistId.value),
+        trackCount: trackCount.value,
+        duration: totalDuration.value,
+      };
+    }
     const current = playlist.value;
     if (!current) return null;
 

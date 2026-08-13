@@ -83,6 +83,7 @@ export const queryKeys = {
     artists: () => ["nd", "artists"] as const,
     albumsInf: (sort: string) => ["nd", "albums", sort] as const,
     album: (id: AlbumId) => ["nd", "album", id] as const,
+    artist: (id: ArtistId) => ["nd", "artist", id] as const,
     playlists: () => ["nd", "playlists"] as const,
     playlist: (id: string) => ["nd", "playlist", id] as const,
     search: (q: string) => ["nd", "search", q] as const,

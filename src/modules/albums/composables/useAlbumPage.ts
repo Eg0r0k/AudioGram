@@ -18,6 +18,8 @@ import { coverQueries } from "@/queries/cover.queries";
 import { getArtistByIdOrThrow } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import { useNdAlbum } from "@/modules/sources/composables/useNdCatalog";
+import { sourceAlbumToAlbumData, sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { AlbumChanges } from "@/queries/album.queries";
 
@@ -29,13 +31,25 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   const albumId = computed(() => AlbumId(route.params.id as string));
 
+  // Data path picks by id prefix: nd: albums come live from the source,
+  // everything below the VMs stays shared (no template branching).
+  const isNd = computed(() => sourceKindOf(albumId.value) === "nd");
+
+  const ndQuery = useNdAlbum(computed(() => (isNd.value ? albumId.value : null)));
+
   const {
     data: albumData,
-    isLoading: isAlbumLoading,
-    isError,
+    isLoading: isLocalAlbumLoading,
+    isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => albumQueries.detail(albumId.value)));
+  } = useQuery(computed(() => ({
+    ...albumQueries.detail(albumId.value),
+    enabled: !isNd.value,
+  }) as ReturnType<typeof albumQueries.detail> & { enabled: boolean }));
+
+  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
+  const isAlbumLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalAlbumLoading.value));
 
   const album = computed(() => albumData.value ?? null);
 
@@ -51,23 +65,37 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !!album.value),
+    enabled: computed(() => !isNd.value && !!album.value),
   });
 
+  const ndTracks = computed(() => (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay));
+
   const tracks = computed(() =>
-    infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    isNd.value
+      ? ndTracks.value
+      : infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
-  const trackCount = computed(
-    () => infiniteData.value?.pages[0]?.total ?? 0,
+  const trackCount = computed(() =>
+    isNd.value
+      ? ndTracks.value.length
+      : infiniteData.value?.pages[0]?.total ?? 0,
   );
 
   const { data: albumTotalDurationSeconds } = useQuery(
-    computed(() => albumQueries.totalDuration(albumId.value)),
+    computed(() => ({
+      ...albumQueries.totalDuration(albumId.value),
+      enabled: !isNd.value,
+    }) as ReturnType<typeof albumQueries.totalDuration> & { enabled: boolean }),
   );
 
   const totalDuration = computed(() =>
-    formatTotalDuration(albumTotalDurationSeconds.value ?? 0, t),
+    formatTotalDuration(
+      isNd.value
+        ? ndTracks.value.reduce((sum, track) => sum + track.duration, 0)
+        : albumTotalDurationSeconds.value ?? 0,
+      t,
+    ),
   );
 
   const artistId = computed(() => album.value?.artistId);
@@ -88,7 +116,10 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   const {
     data: coverBlob,
     isLoading: isCoverLoading,
-  } = useQuery(computed(() => coverQueries.detail("album", albumId.value)));
+  } = useQuery(computed(() => ({
+    ...coverQueries.detail("album", albumId.value),
+    enabled: !isNd.value,
+  }) as ReturnType<typeof coverQueries.detail> & { enabled: boolean }));
 
   // Stable across remounts (unlike useObjectUrl) so the hero cover doesn't
   // replay its load animation on every navigation back to the page.
@@ -103,6 +134,10 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const albumDataMapped = computed<AlbumData | null>(() => {
+    if (isNd.value) {
+      const ndAlbum = ndQuery.data.value?.album;
+      return ndAlbum ? sourceAlbumToAlbumData(ndAlbum, totalDuration.value) : null;
+    }
     if (!album.value) return null;
 
     return {

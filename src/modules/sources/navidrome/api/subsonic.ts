@@ -47,7 +47,8 @@ export function subsonicUrl(
   params: Record<string, string | number> = {},
   salt?: string,
 ): string {
-  const base = config.baseUrl.replace(/\/+$/, "");
+  let base = config.baseUrl;
+  while (base.endsWith("/")) base = base.slice(0, -1);
   const search = new URLSearchParams(subsonicAuthParams(config, salt));
   for (const [key, value] of Object.entries(params)) {
     search.append(key, String(value));

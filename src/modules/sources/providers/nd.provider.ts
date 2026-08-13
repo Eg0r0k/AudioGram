@@ -1,11 +1,12 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { ndCoverUrl, ndSongStreamUrl } from "@/lib/stream-url";
 import { parseTrackRef } from "@/types/track-ref";
-import type { AlbumId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { subsonicFetch, type NdConfig } from "../navidrome/api/subsonic";
 import type {
   GetAlbumList2Payload,
   GetAlbumPayload,
+  GetArtistPayload,
   GetArtistsPayload,
   GetPlaylistPayload,
   GetPlaylistsPayload,
@@ -26,7 +27,7 @@ function withConfig<T>(call: (config: NdConfig) => ResultAsync<T, SourceError>):
 }
 
 /** Strips the nd: prefix, rejecting foreign ids before they hit the server. */
-function ndIdOf(id: TrackId | AlbumId): string | null {
+function ndIdOf(id: TrackId | AlbumId | ArtistId): string | null {
   const ref = parseTrackRef(id as TrackId);
   return ref.kind === "nd" ? ref.songId : null;
 }
@@ -79,6 +80,20 @@ export const ndSourceProvider: SourceProvider = {
         return okAsync({
           album: mapNdAlbum(payload.album),
           tracks: (payload.album.song ?? []).map(mapNdSong),
+        });
+      }),
+    );
+  },
+
+  getArtist(id) {
+    const artistId = ndIdOf(id);
+    if (!artistId) return errAsync({ kind: "PARSE", message: `Not a Navidrome artist id: ${id}` });
+    return withConfig(config =>
+      subsonicFetch<GetArtistPayload>(config, "getArtist", { id: artistId }).andThen((payload) => {
+        if (!payload.artist) return errAsync<never, SourceError>({ kind: "PARSE", message: "getArtist returned no artist" });
+        return okAsync({
+          artist: mapNdArtist(payload.artist),
+          albums: (payload.artist.album ?? []).map(mapNdAlbum),
         });
       }),
     );

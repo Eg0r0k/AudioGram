@@ -70,6 +70,7 @@ export const ytSourceProvider: SourceProvider = {
   listArtists: () => unsupported("artist browsing"),
   listAlbums: () => unsupported("album browsing"),
   getAlbum: () => unsupported("album browsing"),
+  getArtist: () => unsupported("artist browsing"),
   listPlaylists: () => unsupported("playlist browsing"),
   getPlaylist: () => unsupported("playlist browsing"),
 

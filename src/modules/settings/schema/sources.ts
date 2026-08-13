@@ -26,7 +26,8 @@ export const DEFAULT_SOURCES_SETTINGS = parse(SourcesSettingsSchema, {});
 export const buildNdConfig = (settings: NdSourceSettings): NdConfig | null => {
   if (!settings.enabled) return null;
 
-  const baseUrl = settings.baseUrl.trim().replace(/\/+$/, "");
+  let baseUrl = settings.baseUrl.trim();
+  while (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
   const username = settings.username.trim();
   if (!baseUrl || !username) return null;
 

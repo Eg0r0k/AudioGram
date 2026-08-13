@@ -31,7 +31,7 @@
           >
             <TabsList class="inline-flex items-center gap-0 px-4">
               <TabsTrigger
-                v-for="filter in availableFilters"
+                v-for="filter in visibleFilters"
                 :key="filter"
                 :value="filter"
                 class="text-base font-medium mb-0.5"
@@ -40,7 +40,7 @@
               </TabsTrigger>
             </TabsList>
             <TabsContent
-              v-for="filter in availableFilters"
+              v-for="filter in visibleFilters"
               :key="filterContentKey(filter)"
               :value="filter"
               class="hidden"
@@ -58,7 +58,7 @@
           @remove-from-folder="removeItemFromActiveFolder"
         >
           <div
-            v-if="isLoading"
+            v-if="listLoading"
             class="flex-1 gap-2 flex flex-col p-2"
           >
             <div
@@ -112,7 +112,7 @@
       <UpdateButton :compact="isCompact" />
 
       <FloatingButton
-        v-if="!activeFolder"
+        v-if="!activeFolder && !isNdSource"
         inline
         class="pointer-events-auto"
         :class="!isCompact && 'ml-auto'"
@@ -121,7 +121,7 @@
       />
 
       <FloatingActionButton
-        v-else
+        v-else-if="activeFolder"
         inline
         class="pointer-events-auto"
         :class="!isCompact && 'ml-auto'"
@@ -188,6 +188,9 @@ import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
+import { useCurrentSourceStore } from "@/modules/sources/store/currentSource.store";
+import { useNdLibraryItems } from "@/modules/sources/composables/useNdLibraryItems";
+import { LIBRARY_FILTERS } from "@/modules/library/types";
 
 const {
   pinnedItems,
@@ -239,10 +242,20 @@ const isCompact = inject(SIDEBAR_COMPACT_KEY, computed(() => false));
 const scrollableRef = useTemplateRef("scrollableRef");
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 
-const libraryItems = computed(() => activeFolder.value
+// Library-pages source axis: ND swaps the item source, the list component
+// and menus stay shared (remote items simply have no sidebar menu).
+const currentSourceStore = useCurrentSourceStore();
+const isNdSource = computed(() => currentSourceStore.currentSource === "nd");
+const ndLibrary = useNdLibraryItems(activeFilter);
+
+const localItems = computed(() => activeFolder.value
   ? getFolderItems(activeFolder.value.id)
   : [...pinnedItems.value, ...unpinnedItems.value],
 );
+
+const libraryItems = computed(() => (isNdSource.value ? ndLibrary.items.value : localItems.value));
+const listLoading = computed(() => (isNdSource.value ? ndLibrary.isLoading.value : isLoading.value));
+const visibleFilters = computed(() => (isNdSource.value ? [...LIBRARY_FILTERS] : availableFilters.value));
 
 useScrollRestoration(scrollableRef, {
   key: "library-sidebar",
@@ -305,6 +318,10 @@ function handleScroll(event: Event) {
   const scrollTop = target.scrollTop;
   const isAtBottom
     = target.scrollHeight - scrollTop - target.clientHeight < BOTTOM_THRESHOLD;
+
+  if (isAtBottom && isNdSource.value) {
+    ndLibrary.loadMoreAlbums();
+  }
 
   if (scrollTop < 50 || isAtBottom) {
     isButtonVisible.value = true;

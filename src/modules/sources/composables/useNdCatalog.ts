@@ -3,7 +3,7 @@ import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import { ND_STALE_TIME, ndQueries } from "@/queries/nd.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { unwrapSourceResult } from "@/queries/shared";
-import type { AlbumId } from "@/types/ids";
+import type { AlbumId, ArtistId } from "@/types/ids";
 import { sources } from "../registry";
 import { getNdConfig } from "../navidrome/config";
 
@@ -31,6 +31,11 @@ export function useNdArtists() {
 export function useNdAlbum(id: MaybeRefOrGetter<AlbumId | null>) {
   const available = useNdAvailable();
   return useQuery(computed(() => ndQueries.album(available.value ? toValue(id) : null)));
+}
+
+export function useNdArtist(id: MaybeRefOrGetter<ArtistId | null>) {
+  const available = useNdAvailable();
+  return useQuery(computed(() => ndQueries.artist(available.value ? toValue(id) : null)));
 }
 
 export function useNdPlaylists() {

@@ -15,8 +15,25 @@ import {
 } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import { useNdArtist } from "@/modules/sources/composables/useNdCatalog";
+import { sourceArtistToArtistData, sourceKindOf } from "@/modules/sources/lib/display";
+import type { SourceAlbumDTO } from "@/modules/sources/types";
+import type { AlbumEntity } from "@/db/entities";
 
 export type { ArtistChanges } from "@/queries/artist.queries";
+
+/** Entity-shaped view of an ND album so the page's album cards keep working. */
+function sourceAlbumToLibraryAlbum(dto: SourceAlbumDTO): AlbumEntity {
+  return {
+    id: dto.id,
+    title: dto.title,
+    artistId: dto.artistId ?? ArtistId(""),
+    year: dto.year,
+    pinned: 0,
+    addedAt: 0,
+    updatedAt: 0,
+  };
+}
 
 export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   const route = useRoute();
@@ -25,13 +42,24 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const artistId = computed(() => ArtistId(route.params.id as string));
 
+  // Data path picks by id prefix — nd: artists come live from the source.
+  const isNd = computed(() => sourceKindOf(artistId.value) === "nd");
+
+  const ndQuery = useNdArtist(computed(() => (isNd.value ? artistId.value : null)));
+
   const {
     data: artistData,
-    isLoading: isArtistLoading,
-    isError,
+    isLoading: isLocalArtistLoading,
+    isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => artistQueries.detail(artistId.value)));
+  } = useQuery(computed(() => ({
+    ...artistQueries.detail(artistId.value),
+    enabled: !isNd.value,
+  }) as ReturnType<typeof artistQueries.detail> & { enabled: boolean }));
+
+  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
+  const isArtistLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalArtistLoading.value));
 
   const artist = computed(() => artistData.value ?? null);
 
@@ -47,11 +75,11 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !!artist.value),
+    enabled: computed(() => !isNd.value && !!artist.value),
   });
 
   const tracks = computed(() =>
-    tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    isNd.value ? [] : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
   const {
@@ -64,19 +92,25 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     queryFn: ({ pageParam = 0 }) => getArtistAlbumsPaginated(artistId.value, pageParam),
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
-    enabled: computed(() => !!artist.value),
+    enabled: computed(() => !isNd.value && !!artist.value),
   });
 
+  const ndAlbums = computed(() => ndQuery.data.value?.albums ?? []);
+
   const albums = computed(() =>
-    albumsInfiniteData.value?.pages.flatMap(page => page.albums) ?? [],
+    isNd.value
+      ? ndAlbums.value.map(sourceAlbumToLibraryAlbum)
+      : albumsInfiniteData.value?.pages.flatMap(page => page.albums) ?? [],
   );
 
   const trackCount = computed(
-    () => tracksInfiniteData.value?.pages[0]?.total ?? 0,
+    () => (isNd.value ? 0 : tracksInfiniteData.value?.pages[0]?.total ?? 0),
   );
 
-  const albumCount = computed(
-    () => albumsInfiniteData.value?.pages[0]?.total ?? 0,
+  const albumCount = computed(() =>
+    isNd.value
+      ? ndQuery.data.value?.artist.albumCount ?? ndAlbums.value.length
+      : albumsInfiniteData.value?.pages[0]?.total ?? 0,
   );
 
   const {
@@ -89,6 +123,10 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const artistDataMapped = computed<ArtistData | null>(() => {
+    if (isNd.value) {
+      const ndArtist = ndQuery.data.value?.artist;
+      return ndArtist ? sourceArtistToArtistData(ndArtist) : null;
+    }
     if (!artist.value) return null;
 
     return {
