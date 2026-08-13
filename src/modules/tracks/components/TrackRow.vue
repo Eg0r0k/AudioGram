@@ -96,6 +96,7 @@
     </div>
 
     <Button
+      v-if="isLibraryRow"
       variant="ghost"
       size="icon-sm"
       :class="[
@@ -115,6 +116,11 @@
         class="size-5"
       />
     </Button>
+    <YtDownloadButton
+      v-else-if="ytPlayable"
+      :item="ytPlayable"
+      icon-only
+    />
     <div class="w-7 flex justify-end items-center relative">
       <span :class="styles.duration">
         {{ formatDuration(track.duration) }}
@@ -154,6 +160,8 @@ import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
+import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import YtDownloadButton from "@/modules/youtube/components/YtDownloadButton.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { routeLocation } from "@/app/router/route-locations";
 
@@ -215,6 +223,14 @@ const isCurrentTrack = computed(() => {
 const isPlaying = computed(() => playerStore.isPlaying);
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);
+
+// Like writes to the library row — remote catalog rows (sourceDto) and
+// ephemeral streams have none. YT streams offer download instead; ND gets
+// its download button with the download manager (M4).
+const isLibraryRow = computed(() =>
+  !isEphemeralTrack(props.track as PlayerTrack) && !props.track.sourceDto,
+);
+const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track as PlayerTrack));
 
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
 const coverUrl = computed(() => {

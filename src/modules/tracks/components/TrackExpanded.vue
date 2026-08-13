@@ -155,6 +155,7 @@
         >
           <slot name="actions">
             <Button
+              v-if="isLibraryRow"
               variant="ghost"
               size="icon-sm"
               :class="[
@@ -308,6 +309,9 @@ const isActivePlayback = computed(() => props.isActive || isCurrentTrack.value);
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isExplicit = computed(() => Boolean(props.track.isExplicit));
 const isLiked = computed(() => props.track.isLiked);
+// Like writes to the library row — remote catalog rows (sourceDto) have
+// none, so the default action set drops the button for them.
+const isLibraryRow = computed(() => !props.track.sourceDto);
 const relativeAddedAt = computed(() =>
   props.track.addedAt ? formatRelativeTime(props.track.addedAt, locale.value) : "",
 );
