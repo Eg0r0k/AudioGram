@@ -200,4 +200,13 @@ export const ndSourceProvider: SourceProvider = {
         .map(result => ({ path: result.path, format: { codec: result.ext } })),
     );
   },
+
+  cancelDownload(id) {
+    const songId = ndIdOf(id);
+    if (!songId) return errAsync({ kind: "PARSE", message: `Not a Navidrome track id: ${id}` });
+    return ResultAsync.fromPromise(
+      invoke<void>("nd_download_cancel", { songId }),
+      mapNdDownloadError,
+    );
+  },
 };

@@ -10,8 +10,9 @@ import App from "@/app/App.vue";
 import { IS_TAURI } from "./lib/environment/userAgent";
 import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
-import { initLogging } from "./lib/logger";
+import { getLogger, initLogging } from "./lib/logger";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
+import { initDownloadManager } from "@/modules/downloads/manager";
 import { initZoom } from "@/modules/settings/composables/useZoom";
 
 await initLogging();
@@ -35,6 +36,12 @@ app.use(VueQueryPlugin, { queryClient });
 // Cross-store reactions to track lifecycle events (stats, queue advance,
 // sleep-after-track) — registered once, ordered explicitly.
 initPlayerLifecycle();
+
+// Download queue: requeue interrupted jobs, sweep temp orphans, resume.
+// No-op outside Tauri. Failures must not block app startup.
+initDownloadManager().catch(error =>
+  getLogger().error(`[Downloads] Init failed: ${String(error)}`),
+);
 
 // Re-apply the persisted zoom; previously it only kicked in once the user
 // visited a settings page.

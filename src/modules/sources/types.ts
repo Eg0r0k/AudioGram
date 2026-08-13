@@ -100,4 +100,10 @@ export interface SourceProvider {
   resolveStreamUrl(id: TrackId): ResultAsync<string, SourceError>;
   downloadToFile(id: TrackId, onProgress?: (e: DownloadEvent) => void):
   ResultAsync<{ path: string; format?: AudioFormat }, SourceError>;
+  /**
+   * Flags an in-flight downloadToFile as cancelled — that call then fails
+   * with message "cancelled". Optional: sources without cancellable
+   * downloads simply omit it. // добавлен в M4: отмена активной загрузки
+   */
+  cancelDownload?(id: TrackId): ResultAsync<void, SourceError>;
 }
