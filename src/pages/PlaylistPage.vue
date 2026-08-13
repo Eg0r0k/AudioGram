@@ -117,6 +117,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -206,7 +207,22 @@ const errorMessage = computed(() => {
   return t("errors.loadFailed");
 });
 
+// ND playlist: read-only live page, tracks.value already holds the full
+// server list — queue straight from it.
+const ndQueueSource = computed(() => {
+  const vm = playlistData.value;
+  return vm && sourceKindOf(vm.id) === "nd"
+    ? { type: "playlist", playlistId: vm.id } as const
+    : null;
+});
+
 function handlePlayAll() {
+  if (ndQueueSource.value) {
+    if (tracks.value.length > 0) {
+      queueStore.setQueue([...tracks.value], 0, ndQueueSource.value);
+    }
+    return;
+  }
   if (!playlist.value) return;
 
   getPlaylistPageData(playlist.value.id, sortKey.value).then((data) => {
@@ -220,8 +236,6 @@ function handlePlayAll() {
 }
 
 async function handlePlayTrack(index: number) {
-  if (!playlist.value) return;
-
   const selectedTrack = tracks.value[index];
   if (!selectedTrack) return;
 
@@ -229,6 +243,13 @@ async function handlePlayTrack(index: number) {
     playerStore.togglePlay();
     return;
   }
+
+  if (ndQueueSource.value) {
+    await queueStore.setQueue([...tracks.value], index, ndQueueSource.value);
+    return;
+  }
+
+  if (!playlist.value) return;
 
   const data = await getPlaylistPageData(playlist.value.id, sortKey.value);
   const fullIndex = data.tracks.findIndex(track => track.id === selectedTrack.id);
@@ -241,6 +262,12 @@ async function handlePlayTrack(index: number) {
 }
 
 async function handleShuffle() {
+  if (ndQueueSource.value) {
+    if (tracks.value.length > 0) {
+      await shuffleQueue(ndQueueSource.value, async () => [...tracks.value]);
+    }
+    return;
+  }
   if (!playlist.value) return;
 
   const source = {

@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, watch } from "vue";
+import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -224,7 +225,22 @@ function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "album" });
 }
 
+// ND album: no Dexie row, but tracks.value already holds the full unsorted
+// list from getAlbum — queue straight from it.
+const ndQueueSource = computed(() => {
+  const vm = albumData.value;
+  return vm && sourceKindOf(vm.id) === "nd"
+    ? { type: "album", albumId: vm.id } as const
+    : null;
+});
+
 function handlePlayAll() {
+  if (ndQueueSource.value) {
+    if (tracks.value.length > 0) {
+      queueStore.setQueue([...tracks.value], 0, ndQueueSource.value);
+    }
+    return;
+  }
   if (!album.value) return;
   getAlbumPageData(album.value.id, sortKey.value).then((data) => {
     if (data?.tracks.length) {
@@ -234,7 +250,6 @@ function handlePlayAll() {
 }
 
 async function handlePlayTrack(index: number) {
-  if (!album.value) return;
   const selectedTrack = tracks.value[index];
   if (!selectedTrack) return;
 
@@ -243,6 +258,12 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
+  if (ndQueueSource.value) {
+    await queueStore.setQueue([...tracks.value], index, ndQueueSource.value);
+    return;
+  }
+
+  if (!album.value) return;
   const data = await getAlbumPageData(album.value.id, sortKey.value);
   const fullIndex = data.tracks.findIndex(t => t.id === selectedTrack.id);
   if (fullIndex === -1) return;
@@ -287,6 +308,12 @@ async function handleSave(changes: AlbumChanges) {
 }
 
 async function handleShuffle() {
+  if (ndQueueSource.value) {
+    if (tracks.value.length > 0) {
+      await shuffleQueue(ndQueueSource.value, async () => [...tracks.value]);
+    }
+    return;
+  }
   if (!album.value) return;
   const source = { type: "album", albumId: album.value.id } as const;
   await shuffleQueue(source, async () => (await getAlbumPageData(album.value!.id, sortKey.value)).tracks);
