@@ -38,6 +38,7 @@
             :key="row.playable.id"
             :track="row.track"
             :cover-url="row.cover"
+            :artist-routes="row.artistRoutes"
             hide-index
             :menu-index="index"
             menu-target="yt-search"
@@ -85,6 +86,7 @@ import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
 import { playableFromMusicTrack } from "../../lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
+import { ytArtistRoutes } from "../../lib/searchRows";
 import type { YoutubeError, YtPlayable } from "../../types";
 import YtEntitySection from "./YtEntitySection.vue";
 
@@ -114,6 +116,7 @@ const trackRows = computed(() =>
         playable,
         track: ytEphemeralTrack(playable) as PlayerTrack as Track,
         cover: item.thumbnail ? proxiedThumbnail(item.thumbnail, THUMB_SIZE_ROW) : undefined,
+        artistRoutes: ytArtistRoutes(item.artists),
       };
     }),
 );

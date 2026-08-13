@@ -1,7 +1,7 @@
 import type { RouteLocationRaw } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
 import type { SearchResultItem } from "@/modules/search/types";
-import type { YtMusicEntity } from "../types";
+import type { YtArtistRef, YtMusicEntity } from "../types";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "./thumbnail";
 
 type Translate = (key: string, named?: Record<string, unknown>) => string;
@@ -33,6 +33,11 @@ export function ytEntityResultItem(item: YtMusicEntity, t: Translate): SearchRes
     score: 0,
     coverPath: item.thumbnail ? proxiedThumbnail(item.thumbnail, THUMB_SIZE_ROW) : undefined,
   };
+}
+
+/** Artist links for a YT track row — entries without an id stay plain text. */
+export function ytArtistRoutes(artists: YtArtistRef[]): (RouteLocationRaw | null)[] {
+  return artists.map(artist => (artist.id ? routeLocation.ytArtist(artist.id) : null));
 }
 
 /** YT routes diverge from the local ones `SearchDropdownRow` derives. */

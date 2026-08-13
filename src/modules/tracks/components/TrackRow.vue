@@ -155,7 +155,7 @@ import { isEphemeralTrack, type PlayerTrack, type Track } from "@/modules/player
 import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { Button } from "@/components/ui/button";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
@@ -179,6 +179,11 @@ interface Props {
   hideCover?: boolean;
   coverUrl?: string | null;
   hideIndex?: boolean;
+  /**
+   * Route overrides for remote (YT) rows whose artists live outside the
+   * library — indexes match the comma-split artist list; null = not clickable.
+   */
+  artistRoutes?: (RouteLocationRaw | null)[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -194,6 +199,7 @@ const props = withDefaults(defineProps<Props>(), {
   hideCover: false,
   coverUrl: undefined,
   hideIndex: false,
+  artistRoutes: undefined,
 });
 
 const emit = defineEmits<{
@@ -255,6 +261,11 @@ const artists = computed(() => {
 });
 
 const handleArtistClick = (index: number) => {
+  if (props.artistRoutes) {
+    const to = props.artistRoutes[index] ?? props.artistRoutes[0];
+    if (to) route.push(to);
+    return;
+  }
   const artistId = props.track.artistIds?.[index] ?? props.track.artistIds?.[0];
   if (artistId) {
     route.push(routeLocation.artist(artistId));

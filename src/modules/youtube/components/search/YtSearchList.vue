@@ -17,6 +17,7 @@
             v-if="item.kind === 'track'"
             :track="trackRowFor(item.id)!.track"
             :cover-url="trackRowCover(item)"
+            :artist-routes="trackRowFor(item.id)!.artistRoutes"
             hide-index
             :menu-index="index"
             menu-target="yt-search"
@@ -74,7 +75,7 @@ import { youtubeErrorMessage } from "../../lib/errors";
 import { playableFromMusicTrack } from "../../lib/playable";
 import type { YoutubeError, YtMusicEntity, YtPlayable } from "../../types";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
-import { ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
+import { ytArtistRoutes, ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
 import IconLoader from "~icons/tabler/loader-2";
 
 const props = defineProps<{
@@ -101,11 +102,15 @@ const entities = computed<YtMusicEntity[]>(() =>
 // Ephemeral display tracks are built once per result set so their ids stay
 // stable across re-renders (TrackRow/menu identity checks rely on that).
 const trackRowsById = computed(() => {
-  const map = new Map<string, { playable: YtPlayable; track: Track }>();
+  const map = new Map<string, { playable: YtPlayable; track: Track; artistRoutes: (RouteLocationRaw | null)[] }>();
   for (const item of entities.value) {
     if (item.kind !== "track") continue;
     const playable = playableFromMusicTrack(item);
-    map.set(item.id, { playable, track: ytEphemeralTrack(playable) as PlayerTrack as Track });
+    map.set(item.id, {
+      playable,
+      track: ytEphemeralTrack(playable) as PlayerTrack as Track,
+      artistRoutes: ytArtistRoutes(item.artists),
+    });
   }
   return map;
 });
