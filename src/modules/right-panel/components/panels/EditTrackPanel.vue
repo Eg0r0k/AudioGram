@@ -220,7 +220,6 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { RightPanelEditTrackPayload } from "@/modules/right-panel/types";
 import { searchAlbums } from "@/queries/album.queries";
-import { searchArtists } from "@/queries/artist.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { updateTrackMetadataAndSync } from "@/queries/track.queries";
 import type { AlbumId } from "@/types/ids";
@@ -281,25 +280,9 @@ const track = computed<Track | null>(() => {
 const artistSearch = ref("");
 const albumSearch = ref("");
 const selectedAlbumName = ref("");
-const isArtistSearchOpen = ref(false);
 const isAlbumSearchOpen = ref(false);
 const selectedArtists = computed(() => artists.value ?? []);
-const normalizedArtistSearch = computed(() => normalizeArtistName(artistSearch.value));
 const normalizedAlbumSearch = computed(() => albumSearch.value.trim().replace(/\s+/g, " "));
-
-const { data: artistSearchResults } = useQuery({
-  queryKey: computed(() => queryKeys.artists.search(normalizedArtistSearch.value)),
-  queryFn: computed(() => isArtistSearchOpen.value
-    ? () => searchArtists(normalizedArtistSearch.value)
-    : skipToken),
-});
-
-const artistSuggestions = computed(() => {
-  const selected = new Set(selectedArtists.value.map(artist => artist.toLowerCase()));
-  return (artistSearchResults.value ?? [])
-    .filter(artist => !selected.has(artist.name.toLowerCase()))
-    .slice(0, 6);
-});
 
 const { data: albumSearchResults } = useQuery({
   queryKey: computed(() => queryKeys.albums.search(normalizedAlbumSearch.value)),
@@ -312,16 +295,6 @@ const albumSuggestions = computed(() => {
   return (albumSearchResults.value ?? [])
     .filter(album => album.id !== albumId.value)
     .slice(0, 6);
-});
-
-const canCreateArtist = computed(() => {
-  const nextName = normalizedArtistSearch.value;
-  if (!nextName) return false;
-
-  const selected = selectedArtists.value.some(artist => artist.toLowerCase() === nextName.toLowerCase());
-  const existing = artistSuggestions.value.some(artist => artist.name.toLowerCase() === nextName.toLowerCase());
-
-  return !selected && !existing;
 });
 
 const hasChanges = computed(() => {
@@ -393,42 +366,6 @@ function parseArtists(value: string): string[] {
   }
 
   return result;
-}
-
-function normalizeArtistName(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function addArtist(name: string): void {
-  const normalizedName = normalizeArtistName(name);
-  if (!normalizedName) return;
-
-  const exists = selectedArtists.value.some(artist => artist.toLowerCase() === normalizedName.toLowerCase());
-  if (!exists) {
-    artists.value = [...selectedArtists.value, normalizedName];
-  }
-
-  artistSearch.value = "";
-  isArtistSearchOpen.value = true;
-}
-
-function addArtistFromSearch(): void {
-  addArtist(normalizedArtistSearch.value);
-}
-
-function removeArtist(name: string): void {
-  artists.value = selectedArtists.value.filter(artist => artist !== name);
-}
-
-function handleArtistBackspace(): void {
-  if (artistSearch.value || selectedArtists.value.length === 0) return;
-  artists.value = selectedArtists.value.slice(0, -1);
-}
-
-function handleArtistSearchBlur(): void {
-  window.setTimeout(() => {
-    isArtistSearchOpen.value = false;
-  }, 100);
 }
 
 function selectAlbum(nextAlbumId: AlbumId, title: string): void {

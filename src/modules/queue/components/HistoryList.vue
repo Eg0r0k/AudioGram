@@ -44,7 +44,6 @@
 <script setup lang="ts">
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
-import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import HistoryEmpty from "./HistoryEmpty.vue";
@@ -55,7 +54,7 @@ import type { RecentHistoryEntry } from "@/queries/stats.queries";
 const ITEM_HEIGHT = 64;
 
 const queueStore = useQueueStore();
-const { entries, isLoading, isEmpty } = useHistoryList();
+const { entries, isEmpty } = useHistoryList();
 
 function getItemKey(index: number): string | number {
   return entries.value[index]?.eventId ?? index;
