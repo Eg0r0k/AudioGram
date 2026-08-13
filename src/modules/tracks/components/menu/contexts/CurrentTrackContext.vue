@@ -57,6 +57,25 @@
       {{ $t("youtube.download") }}
     </component>
   </template>
+
+  <!-- "Open with" ephemeral file (desktop): the CTA into the import
+       pipeline — importing is what turns it into a library track. -->
+  <template v-else-if="importPath">
+    <component :is="Separator" />
+
+    <PlayItems
+      @play-next="actions.playNext"
+      @add-to-queue="actions.addToQueue"
+    />
+
+    <component
+      :is="Item"
+      @click="importCurrent"
+    >
+      <IconFileImport class="size-5.5" />
+      {{ $t("import.toLibrary") }}
+    </component>
+  </template>
 </template>
 
 <script setup lang="ts">
@@ -71,13 +90,15 @@ import ExportFileItem from "../items/ExportFileItem.vue";
 import SourceItems from "../items/SourceItems.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
-import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
+import { ephemeralFilePath, trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
+import { useImport } from "@/composables/useImport";
 import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
 import { useYoutube } from "@/modules/youtube/composables/useYoutube";
 import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
+import IconFileImport from "~icons/tabler/file-import";
 
 const props = defineProps<{
   track: PlayerTrack;
@@ -92,6 +113,13 @@ const { download } = useYoutube();
 
 function downloadYt() {
   if (ytPlayable.value) void download(ytPlayable.value);
+}
+
+const { importFromPaths } = useImport();
+const importPath = computed(() => ephemeralFilePath(props.track));
+
+function importCurrent() {
+  if (importPath.value) void importFromPaths([importPath.value]);
 }
 
 const { Separator, Item } = useTrackMenuComponents();

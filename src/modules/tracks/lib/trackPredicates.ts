@@ -1,4 +1,4 @@
-import type { Track } from "@/modules/player/types";
+import { isEphemeralTrack, type PlayerTrack, type Track } from "@/modules/player/types";
 import { parseTrackRef, type SourceKind } from "@/types/track-ref";
 
 /** Source of a library track, derived from its (possibly prefixed) id. */
@@ -22,4 +22,13 @@ export function canDownloadTrack(track: Track | Track[]): boolean {
 
 export function trackHasLyrics(track: Track): boolean {
   return !!track.lyricsPath;
+}
+
+/**
+ * Absolute file path of an "Open with" ephemeral track (desktop), null for
+ * everything else — the gate for the "Import to library" CTA.
+ */
+export function ephemeralFilePath(track: PlayerTrack | null): string | null {
+  if (!isEphemeralTrack(track) || track.source.type !== "path") return null;
+  return track.source.path;
 }

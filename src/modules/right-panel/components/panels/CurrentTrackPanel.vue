@@ -152,6 +152,18 @@
                   class="size-6"
                 />
               </Button>
+              <Button
+                v-else-if="importPath"
+                variant="ghost"
+                size="icon"
+                class="shrink-0 rounded-full"
+                :disabled="isImportRunning"
+                :title="$t('import.toLibrary')"
+                :aria-label="$t('import.toLibrary')"
+                @click="importCurrent"
+              >
+                <IconFileImport class="size-6" />
+              </Button>
             </div>
 
             <div
@@ -217,9 +229,12 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
+import { ephemeralFilePath } from "@/modules/tracks/lib/trackPredicates";
+import { useImport } from "@/composables/useImport";
 import IconHeart from "~icons/tabler/heart";
 import IconHeartFilled from "~icons/tabler/heart-filled";
 import IconDots from "~icons/tabler/dots";
+import IconFileImport from "~icons/tabler/file-import";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
 import RightPanelHeader from "../RightPanelHeader.vue";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
@@ -293,6 +308,15 @@ const nextQueueItem = computed(() => {
 async function toggleLike(): Promise<void> {
   if (!libraryTrack.value) return;
   await toggleTrackLike(libraryTrack.value);
+}
+
+// "Open with" ephemeral track (M3): explicit CTA into the import pipeline.
+const { importFromPaths, isRunning: isImportRunning } = useImport();
+const importPath = computed(() => ephemeralFilePath(currentTrack.value));
+
+function importCurrent(): void {
+  const path = importPath.value;
+  if (path) void importFromPaths([path]);
 }
 
 function goToArtist(index: number): void {

@@ -1,6 +1,7 @@
 {
   "import": {
     "button": "Импорт треков",
+    "toLibrary": "Импортировать в библиотеку",
     "progressLabel": "{current} из {total}",
     "doneTitle": "Импорт завершён",
     "summary": "{imported} добавлено · {failed} с ошибкой · {skipped} пропущено",

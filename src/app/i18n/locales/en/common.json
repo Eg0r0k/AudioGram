@@ -1,6 +1,7 @@
 {
   "import": {
     "button": "Import tracks",
+    "toLibrary": "Import to library",
     "progressLabel": "{current} of {total}",
     "doneTitle": "Import complete",
     "summary": "{imported} imported · {failed} failed · {skipped} skipped",
