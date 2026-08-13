@@ -21,6 +21,8 @@
     "addLyrics": "Add lyrics",
     "replaceLyrics": "Replace lyrics",
     "download": "Download",
+    "cancelDownload": "Cancel download",
+    "removeDownload": "Remove download",
     "exportFile": "Save as…",
     "addToLibrary": "Add to library",
     "removeFromLibrary": "Remove from library",
@@ -113,5 +115,6 @@
   "deleted": "Track deleted",
   "deleteFailed": "Failed to delete track",
   "downloadSuccess": "File downloaded",
-  "downloadFailed": "Failed to download file"
+  "downloadFailed": "Failed to download file",
+  "removeDownloadFailed": "Failed to remove download"
 }

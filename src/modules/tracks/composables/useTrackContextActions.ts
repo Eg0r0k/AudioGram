@@ -3,7 +3,7 @@ import type { ContextActions, TrackMenuSubject } from "@/modules/tracks/componen
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { ArtistId, PlaylistId, QueueItemId } from "@/types/ids";
+import { ArtistId, PlaylistId, QueueItemId, type TrackId } from "@/types/ids";
 import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
@@ -19,6 +19,10 @@ import { useAttachTrackLyrics } from "./useAttachTrackLyrics";
 import { useToggleTrackLike } from "./useToggleTrackLike";
 import { isRemoteTrack, trackHasLocalFile } from "@/modules/tracks/lib/trackPredicates";
 import { promoteTrackToLibrary, removeTrackFromLibrary } from "@/modules/tracks/lib/libraryMembership";
+import { downloadSubject } from "@/modules/downloads/enqueue";
+import { cancelTrackDownload } from "@/modules/downloads/manager";
+import { removeOfflineCopy as removeOfflineCopyFile } from "@/modules/downloads/removeCopy";
+import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { offlineCopyRepository } from "@/db/repositories";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -249,6 +253,45 @@ export const useTrackContextActions = (
     }
   };
 
+  const downloadsStore = useDownloadsStore();
+
+  /** The id downloads key on: the library row id or the remote DTO id. */
+  const subjectTrackId = (): TrackId | null => {
+    const subject = options.subject?.value;
+    if (subject?.kind === "remote") return subject.dto.id;
+    const current = track.value;
+    return isLibraryTrack(current) ? (current.id as TrackId) : null;
+  };
+
+  const downloadOffline = async () => {
+    const subject = options.subject?.value
+      ?? (isLibraryTrack(track.value) ? { kind: "library" as const, track: track.value } : null);
+    if (!subject || subject.kind === "ephemeral") return;
+    try {
+      await downloadSubject(subject);
+    }
+    catch {
+      toast.error(t("track.downloadFailed"));
+    }
+  };
+
+  const cancelOfflineDownload = async () => {
+    const trackId = subjectTrackId();
+    const job = trackId ? downloadsStore.byTrackId[trackId] : undefined;
+    if (job) await cancelTrackDownload(job.jobId);
+  };
+
+  const removeOfflineCopy = async () => {
+    const trackId = subjectTrackId();
+    if (!trackId) return;
+    try {
+      await removeOfflineCopyFile(trackId);
+    }
+    catch {
+      toast.error(t("track.removeDownloadFailed"));
+    }
+  };
+
   const addToLibrary = async () => {
     try {
       const subject = options.subject?.value;
@@ -332,6 +375,9 @@ export const useTrackContextActions = (
     goToArtist,
     goToAlbum,
     exportFile,
+    downloadOffline,
+    cancelOfflineDownload,
+    removeOfflineCopy,
     addToLibrary,
     removeFromLibrary,
     openExternal,

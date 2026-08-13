@@ -24,6 +24,8 @@
     "addLyrics": "Добавить текст",
     "replaceLyrics": "Заменить текст",
     "download": "Скачать",
+    "cancelDownload": "Отменить загрузку",
+    "removeDownload": "Удалить скачанное",
     "exportFile": "Сохранить как…",
     "addToLibrary": "Добавить в библиотеку",
     "removeFromLibrary": "Удалить из библиотеки",
@@ -116,5 +118,6 @@
   "deleted": "Трек удалён",
   "deleteFailed": "Не удалось удалить трек",
   "downloadSuccess": "Файл скачан",
-  "downloadFailed": "Не удалось скачать файл"
+  "downloadFailed": "Не удалось скачать файл",
+  "removeDownloadFailed": "Не удалось удалить скачанное"
 }

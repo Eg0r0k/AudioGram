@@ -21,6 +21,14 @@
 
     <AddToPlaylistSub @add="actions.addToPlaylist" />
 
+    <OfflineItem
+      :caps="caps"
+      :track-id="libTrack.id"
+      @download="actions.downloadOffline"
+      @cancel-download="actions.cancelOfflineDownload"
+      @remove-offline-copy="actions.removeOfflineCopy"
+    />
+
     <SourceItems
       :caps="caps"
       @add-to-library="actions.addToLibrary"
@@ -87,6 +95,7 @@ import LyricsItem from "../items/LyricsItem.vue";
 import PlayItems from "../items/PlayItems.vue";
 import ShowLyricsItem from "../items/ShowLyricsItem.vue";
 import ExportFileItem from "../items/ExportFileItem.vue";
+import OfflineItem from "../items/OfflineItem.vue";
 import SourceItems from "../items/SourceItems.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
