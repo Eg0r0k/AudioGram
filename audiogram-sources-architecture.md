@@ -6,7 +6,7 @@
 
 ## 1. Модель: Каталог ≠ Библиотека
 
-**Каталог** — то, что источник умеет показать. Локальный каталог = Dexie. ND-каталог = live-запросы к Subsonic через TanStack Query (ничего не пишется в БД). YT-каталог = live-поиск.
+**Каталог** — то, что источник умеет показать. Локальный каталог = Dexie. ND-каталог = live-запросы к Subsonic через TanStack Query (ничего не пишется в БД). YT-каталог = live: поиск и уже существующие browse-страницы (`YtAlbumPage`/`YtArtistPage`/`YtPlaylistPage`), в БД тоже не пишет.
 
 **Библиотека** (Dexie) = локальные треки + **закреплённые (pinned)** remote-треки.
 
@@ -172,7 +172,7 @@ queryKeys.nd = {
 
 Для remote-запросов `staleTime: 5 мин`; `refetchOnWindowFocus: false` глобально уже стоит — не трогаем.
 
-**Страницы.** Источник берётся из уже сделанного dropdown в `LibrarySidebarHeader` (store `currentSource`). Страница выбирает data-path по источнику; компоненты потребляют нормализованные VM (DTO выше им достаточно), ветвления в шаблонах нет. Пагинация ND-альбомов (`getAlbumList2`, `size ≤ 500`, `offset`) — существующий infinite-паттерн один в один.
+**Страницы.** Источник страниц библиотеки берётся из dropdown в хедере сайдбара (store `currentSource`) — компонент и store делаются в M2. Не путать с уже существующим переключателем источника **поиска** в `SidebarHeader` (library/youtube, из wip-коммита) — это отдельная ось, она остаётся как есть. Страница выбирает data-path по источнику; компоненты потребляют нормализованные VM (DTO выше им достаточно), ветвления в шаблонах нет. Пагинация ND-альбомов (`getAlbumList2`, `size ≤ 500`, `offset`) — существующий infinite-паттерн один в один.
 
 Открытые мелочи M2: `AllMusicPage` в ND-режиме — либо скрыть (у Subsonic нет «все треки»), либо `search3` с пустым query (Navidrome отдаёт всё с пагинацией) — решить по вкусу на месте.
 
@@ -192,7 +192,7 @@ queryKeys.nd = {
 
 **Принцип двух осей.** Вся source-зависимость раскладывается так, чтобы матрица «9 контекстов × 3 источника × pinned/offline» не существовала:
 
-- **Контекст** (`TrackContext`) отвечает за «ГДЕ открыто меню» — пункты про окружение (`removeFromQueue/-Playlist/-History`, `isOwner`). Ось не расширяется: read-only плейлист ND = `playlist` с `isOwner=false`, ND-браузинг = `default`, YT-поиск = `search`.
+- **Контекст** (`TrackContext`) отвечает за «ГДЕ открыто меню» — пункты про окружение (`removeFromQueue/-Playlist/-History`, `isOwner`). Ось не расширяется под новые источники: read-only плейлист ND = `playlist` с `isOwner=false`, ND-браузинг = `default`. Существующие `yt`/`yt-search` легитимно отдельные (обе поверхности могут быть смонтированы одновременно) — остаются как есть, их пересмотр — M5.
 - **Capabilities** отвечают за «ЧТО можно с этим субъектом» — источник, pinned, оффлайн-копия, платформа. Контекстные компоненты источник напрямую не проверяют никогда.
 
 ### Субъект меню
@@ -306,6 +306,8 @@ stream://localhost/nd/cover/<coverId>?size=<px>  → GET {base}/rest/getCoverArt
 
 Frontend получает URL через `convertFileSrc(path, "stream")` — на Android схема автоматически мапится в `https://stream.localhost/…`.
 
+Переезд схемы: персистированная очередь хранит ephemeral-YT-треки с `ytstream`-URL (`PersistedEphemeralTrack`; URL собирается в `useYoutube.ts`) — при restore выполняется **одноразовая строковая миграция** на `stream://…/yt/…`; legacy-алиас схемы не оставляем. Упоминания `ytstream` в `modules/youtube/lib/playable.ts` (проверка `url.includes("ytstream")`) и `modules/settings/*/proxy.ts` правятся тем же шагом. `ytimg://`-прокси обложек остаётся как есть — в скоуп не входит.
+
 ---
 
 ## 9. Download-менеджер (`modules/downloads`)
@@ -321,7 +323,7 @@ Frontend получает URL через `convertFileSrc(path, "stream")` — н
 
 ## 10. Open with
 
-**Десктоп (M3):** `fileAssociations` в `tauri.conf.json` (mp3, flac, ogg, opus, wav, m4a, aac); аргументы — через уже подключённый `single-instance` (argv второй копии) + `RunEvent::Opened` на macOS; первый запуск — argv в `setup`. Путь → `ephemeralFromPath` (готов) → play + явная CTA «Импортировать» (существующий import-pipeline). Авто-импорта нет.
+**Десктоп (M3):** фактически уже в коде: `fileAssociations` в `tauri.conf.json`, argv через подключённый `single-instance` + первый запуск в `setup`, фронт слушает открытие файлов → `ephemeralFromPath` → воспроизведение. Остаётся одно: явная CTA «Импортировать» на ephemeral-треке (существующий import-pipeline). Авто-импорта нет.
 
 **Android (M6):** intent-filter `ACTION_VIEW` (audio/*) + перехват в MainActivity/onNewIntent → мостик в Rust/JS; чтение `content://` через SAF. Готового плагина нет — отдельный милстоун, в M1–M5 не тащить.
 
@@ -342,13 +344,13 @@ Frontend получает URL через `convertFileSrc(path, "stream")` — н
 
 **M1 — фундамент.** `TrackRef` + фабрики ID; миграция схемы (§3); контракт + реестр `sources` (+ адаптер существующего YT-провайдера); рефактор плеера на единый `resolvePlayback`; обобщение `ytstream://` → `stream://` (YT переезжает первым — регресс-проверка прокси до появления ND). Меню: `TrackMenuSubject` + caps-слой + `ensurePinned`; починка `exportFile` (прямое чтение `storagePath` умрёт на remote); item'ы `addToLibrary` / `removeFromLibrary` / `openExternal`.
 
-**M2 — Navidrome, чтение.** Настройки + `nd_set_config` + `ping`; SubsonicClient (`tauri-plugin-http`); NdProvider; страницы артисты/альбомы/альбом/плейлисты в ND-режиме через dropdown; обложки через прокси (проверить палитру); `search3` в мультипоиске; play/queue из браузинга (shadow-pin); pin-действия (лайк / в плейлист) с каскадом через UoW; трековые меню на ND-страницах (те же контексты, `playlist` c `isOwner=false` для read-only), media-hero меню ND-альбома/плейлиста (play/queue).
+**M2 — Navidrome, чтение.** Настройки + `nd_set_config` + `ping`; SubsonicClient (`tauri-plugin-http`); NdProvider; страницы артисты/альбомы/альбом/плейлисты в ND-режиме; dropdown источника в хедере сайдбара + store `currentSource` (делается здесь); обложки через прокси (проверить палитру); `search3` в мультипоиске; play/queue из браузинга (shadow-pin); pin-действия (лайк / в плейлист) с каскадом через UoW; трековые меню на ND-страницах (те же контексты, `playlist` c `isOwner=false` для read-only), media-hero меню ND-альбома/плейлиста (play/queue); пересчёт `pinned` у альбома/артиста при `removeFromLibrary` (иначе альбомы-призраки после удаления последнего library-трека).
 
-**M3 — Open with, десктоп.** Ассоциации, argv/Opened, ephemeral + CTA импорта.
+**M3 — Open with, десктоп.** Почти готов в коде (ассоциации, argv, ephemeral-проигрывание); остаётся CTA «Импортировать».
 
 **M4 — Оффлайн.** Download-менеджер, `nd_download`, batch по альбому/плейлисту, storage-настройки, приоритет оффлайн-копии в резолве. Оффлайн-item в трековом меню (3 состояния) + batch-пункты «скачать альбом/плейлист» в media-hero меню.
 
-**M5 — YT в библиотеке.** Pin из поиска; YT-скачивание переезжает на общий механизм (б); Android-флаг для YT (rustypipe собирается — включить и проверить). Единое трековое меню на YT-поиске вместо кастомных кнопок.
+**M5 — YT в библиотеке.** Pin из поиска; YT-скачивание переезжает на общий механизм (б); Android-флаг для YT (rustypipe собирается — включить и проверить). Перевод yt/yt-search-меню на `TrackMenuSubject`/caps; схлопывать ли эти контексты в `default`/`search` — решается здесь.
 
 **M6 — добивка.** Радио → источник (`RadioStationEntity` уходит под общий контракт, `REMOTE_HLS` из TrackSource выпиливается); `entityLinks` + ручная связка альбомов; Android open-with.
 
