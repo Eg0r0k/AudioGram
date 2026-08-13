@@ -263,7 +263,11 @@ export const usePlayerStore = defineStore("player", () => {
     // history, stats and queue persistence have valid FKs. Fire-and-forget:
     // playback must not wait for the cascade.
     if (track.sourceDto) {
-      ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch(() => {});
+      ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
+        // A failed shadow-pin silently loses history/stats/persist for this
+        // play — surface it.
+        getLogger().warn(`[Player] Shadow-pin failed for ${track.id}: ${String(error)}`);
+      });
     }
 
     const copyResult = await offlineCopyRepository.findById(track.id);

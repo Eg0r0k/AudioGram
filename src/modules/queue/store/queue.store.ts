@@ -14,6 +14,7 @@ import { getRecommendations } from "@/modules/recommendations/service/recommende
 import { unique, unwrapResult } from "@/queries/shared";
 import { migrateLegacyYtStreamUrl } from "@/lib/stream-url";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
+import { getLogger } from "@/lib/logger";
 import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
 
 const RESTART_THRESHOLD = 3;
@@ -239,7 +240,11 @@ export const useQueueStore = defineStore("queue", () => {
     // upserts, fire-and-forget.
     for (const track of tracks) {
       if (track.kind === "library" && track.sourceDto) {
-        ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch(() => {});
+        ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
+          // A failed shadow-pin means this queued track will drop out of the
+          // persisted queue on restore — surface it.
+          getLogger().warn(`[Queue] Shadow-pin failed for ${track.id}: ${String(error)}`);
+        });
       }
     }
 

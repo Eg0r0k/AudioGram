@@ -65,6 +65,26 @@
         </button>
       </section>
 
+      <section v-if="playlists.length > 0">
+        <h3 class="mb-2 text-sm font-medium text-muted-foreground">
+          {{ $t("search.filter.playlist") }}
+        </h3>
+        <button
+          v-for="playlist in playlists"
+          :key="playlist.id"
+          type="button"
+          class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-accent"
+          @click="goTo(routeLocation.playlist(PlaylistId(`nd:${playlist.id}`)))"
+        >
+          <NuxtImage
+            :src="coverFor(playlist.coverRef)"
+            :alt="playlist.name"
+            class="size-10 shrink-0 rounded object-cover"
+          />
+          <span class="min-w-0 flex-1 truncate text-sm">{{ playlist.name }}</span>
+        </button>
+      </section>
+
       <section v-if="artists.length > 0">
         <h3 class="mb-2 text-sm font-medium text-muted-foreground">
           {{ $t("search.filter.artist") }}
@@ -99,7 +119,8 @@ import { useSearch } from "@/modules/search/composables/useSearch";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
-import { useNdSearch } from "../composables/useNdCatalog";
+import { PlaylistId } from "@/types/ids";
+import { useNdPlaylists, useNdSearch } from "../composables/useNdCatalog";
 import { sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_ROW } from "../lib/display";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -119,8 +140,22 @@ const tracks = computed(() => (searchQuery.data.value?.tracks ?? []).map(sourceT
 const albums = computed(() => searchQuery.data.value?.albums ?? []);
 const artists = computed(() => searchQuery.data.value?.artists ?? []);
 
+// search3 does not cover playlists — filter the (5-min-cached) playlist
+// list by name on the client instead.
+const playlistsQuery = useNdPlaylists();
+const playlists = computed(() => {
+  const q = debouncedQuery.value.toLowerCase();
+  if (!q) return [];
+  return (playlistsQuery.data.value ?? [])
+    .filter(playlist => playlist.name.toLowerCase().includes(q))
+    .slice(0, 10);
+});
+
 const isEmpty = computed(() =>
-  tracks.value.length === 0 && albums.value.length === 0 && artists.value.length === 0,
+  tracks.value.length === 0
+  && albums.value.length === 0
+  && artists.value.length === 0
+  && playlists.value.length === 0,
 );
 
 function coverFor(coverRef: string | undefined) {
