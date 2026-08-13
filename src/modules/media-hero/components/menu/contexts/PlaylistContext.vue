@@ -7,6 +7,15 @@
     {{ $t('common.addToQueue') }}
   </component>
 
+  <component
+    :is="Item"
+    v-if="actions.canDownloadOffline?.value"
+    @click="actions.downloadOffline?.()"
+  >
+    <IconDownload class="size-5.5" />
+    {{ $t('media.contextMenu.downloadPlaylist') }}
+  </component>
+
   <component :is="Separator" />
 
   <template v-if="isOwner">
@@ -30,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import IconDownload from "~icons/tabler/download";
 import IconPencil from "~icons/tabler/pencil";
 import IconTrash from "~icons/tabler/trash";
 import IconPlaylistAdd from "~icons/tabler/playlist-add";

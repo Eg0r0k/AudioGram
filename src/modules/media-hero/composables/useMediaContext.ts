@@ -1,10 +1,13 @@
-import { inject, provide, type InjectionKey } from "vue";
+import { inject, provide, type ComputedRef, type InjectionKey } from "vue";
 
 export interface MediaContextActions {
   addToQueue: () => void;
   edit: () => void;
   delete: () => void;
   share: () => void;
+  /** M4: ND album / any playlist — batch offline download. Absent = hidden. */
+  canDownloadOffline?: ComputedRef<boolean>;
+  downloadOffline?: () => void;
 }
 
 const MediaContextKey: InjectionKey<MediaContextActions> = Symbol("MediaContext");

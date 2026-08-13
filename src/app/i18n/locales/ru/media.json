@@ -11,5 +11,11 @@
     "compact": "Компактный"
   },
   "monthlyListeners": "{count} прослушиваний",
-  "editImage": "Изменить обложку"
+  "editImage": "Изменить обложку",
+  "contextMenu": {
+    "downloadAlbum": "Скачать альбом",
+    "downloadPlaylist": "Скачать плейлист"
+  },
+  "downloadQueued": "В очереди на скачивание: {count}",
+  "nothingToDownload": "Нечего скачивать"
 }

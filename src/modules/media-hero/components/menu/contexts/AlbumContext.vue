@@ -1,6 +1,15 @@
 <template>
   <component
     :is="Item"
+    v-if="actions.canDownloadOffline?.value"
+    @click="actions.downloadOffline?.()"
+  >
+    <IconDownload class="size-5.5" />
+    {{ $t('media.contextMenu.downloadAlbum') }}
+  </component>
+
+  <component
+    :is="Item"
     @click="actions.edit"
   >
     <IconPencil
@@ -23,6 +32,7 @@
 
 <script setup lang="ts">
 import type { MediaActions } from "../types";
+import IconDownload from "~icons/tabler/download";
 import IconPencil from "~icons/tabler/pencil";
 import IconTrash from "~icons/tabler/trash";
 import { useMenuComponents } from "@/modules/media-hero/composables/useMenuComponents";

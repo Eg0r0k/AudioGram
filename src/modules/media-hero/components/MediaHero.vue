@@ -76,7 +76,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { toast } from "vue-sonner";
 import { useImageColor } from "@/composables/useImageColor";
+import { IS_TAURI } from "@/lib/environment/userAgent";
+import { sourceKindOf } from "@/modules/sources/lib/display";
+import {
+  enqueueLocalPlaylistDownload,
+  enqueueNdAlbumDownload,
+  enqueueNdPlaylistDownload,
+} from "@/modules/downloads/enqueue";
+import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { provideMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import MediaHeader from "./MediaHeader.vue";
 import MediaHeroImage from "./MediaHeroImage.vue";
@@ -108,11 +117,49 @@ const fallbackSrc = computed(() => {
     : "/img/fallback.svg";
 });
 
+// M4: batch offline download — ND albums and playlists (a local playlist is
+// filtered to its downloadable tracks at enqueue time).
+const canDownloadOffline = computed(() => {
+  if (!IS_TAURI) return false;
+  const data = props.data;
+  if (isAlbum(data)) return sourceKindOf(data.id) === "nd";
+  return isPlaylist(data);
+});
+
+async function startOfflineDownload(): Promise<void> {
+  const data = props.data;
+  try {
+    let batchId: string | null = null;
+    if (isAlbum(data)) {
+      batchId = await enqueueNdAlbumDownload(data.id);
+    }
+    else if (isPlaylist(data)) {
+      batchId = sourceKindOf(data.id) === "nd"
+        ? await enqueueNdPlaylistDownload(String(data.id).slice("nd:".length))
+        : await enqueueLocalPlaylistDownload(data.id);
+    }
+    if (batchId) {
+      const total = useDownloadsStore().batches[batchId]?.total ?? 0;
+      toast.success(t("media.downloadQueued", { count: total }));
+    }
+    else {
+      toast.info(t("media.nothingToDownload"));
+    }
+  }
+  catch {
+    toast.error(t("track.downloadFailed"));
+  }
+}
+
 provideMediaContext({
   addToQueue: () => emit("addToQueue"),
   edit: () => emit("edit"),
   delete: () => emit("delete"),
   share: () => emit("share"),
+  canDownloadOffline,
+  downloadOffline: () => {
+    void startOfflineDownload();
+  },
 });
 
 const { color, extractColor, resetColor } = useImageColor();

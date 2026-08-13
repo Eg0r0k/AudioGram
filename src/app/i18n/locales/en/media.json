@@ -12,5 +12,11 @@
   },
   "monthlyListeners": "{count} listens",
   "trackCount": "{count} track | {count} tracks",
-  "editImage": "Edit cover"
+  "editImage": "Edit cover",
+  "contextMenu": {
+    "downloadAlbum": "Download album",
+    "downloadPlaylist": "Download playlist"
+  },
+  "downloadQueued": "Queued {count} tracks for download",
+  "nothingToDownload": "Nothing to download"
 }

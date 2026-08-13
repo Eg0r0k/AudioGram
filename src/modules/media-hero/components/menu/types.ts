@@ -1,3 +1,5 @@
+import type { ComputedRef } from "vue";
+
 export type MediaContext = "artist-page" | "liked" | "playlist" | "album";
 
 export interface MediaActions {
@@ -5,4 +7,7 @@ export interface MediaActions {
   edit: () => void;
   delete: () => void;
   share: () => void;
+  /** M4: ND album / any playlist — batch offline download. Absent = hidden. */
+  canDownloadOffline?: ComputedRef<boolean>;
+  downloadOffline?: () => void;
 }
