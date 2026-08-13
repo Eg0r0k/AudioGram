@@ -2,10 +2,12 @@ import { parseTrackRef, type SourceKind } from "@/types/track-ref";
 import type { TrackId } from "@/types/ids";
 import type { SourceProvider } from "./types";
 import { ytSourceProvider } from "./providers/yt.provider";
+import { ndSourceProvider } from "./providers/nd.provider";
 
-// "local" and "nd" register here as their providers land (M2).
+// "local" registers here when its thin repository wrapper lands.
 const providers: Partial<Record<SourceKind, SourceProvider>> = {
   yt: ytSourceProvider,
+  nd: ndSourceProvider,
 };
 
 export const sources = {

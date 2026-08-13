@@ -26,16 +26,17 @@ vi.mock("@/modules/youtube/provider", () => ({
 
 import { sources } from "../registry";
 import { ytSourceProvider } from "../providers/yt.provider";
+import { ndSourceProvider } from "../providers/nd.provider";
 
 describe("sources registry", () => {
-  it("returns the yt provider by kind and via forTrack on a yt: id", () => {
+  it("returns providers by kind and via forTrack on prefixed ids", () => {
     expect(sources.get("yt")).toBe(ytSourceProvider);
     expect(sources.forTrack(ytTrackId("dQw4w9WgXcQ"))).toBe(ytSourceProvider);
+    expect(sources.get("nd")).toBe(ndSourceProvider);
+    expect(sources.forTrack(TrackId("nd:song1"))).toBe(ndSourceProvider);
   });
 
   it("throws for kinds without a registered provider", () => {
-    expect(() => sources.get("nd")).toThrow(/No source provider registered/);
-    expect(() => sources.forTrack(TrackId("nd:song1"))).toThrow(/No source provider registered/);
     expect(() => sources.forTrack(TrackId("plain-local-uuid"))).toThrow(/No source provider registered/);
   });
 

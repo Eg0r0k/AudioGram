@@ -33,6 +33,20 @@ export function ytVideoIdFromStreamUrl(url: string | null | undefined): string |
   }
 }
 
+/** Builds the playable URL for a Navidrome song routed through the proxy. */
+export function ndSongStreamUrl(songId: string): string {
+  return convertFileSrc(`nd/song/${songId}`, "stream");
+}
+
+/**
+ * Builds the proxied Navidrome cover URL. The `?size=` query rides inside
+ * the encoded path; the Rust dispatcher decodes it back out.
+ */
+export function ndCoverUrl(coverId: string, size?: number): string {
+  const path = size ? `nd/cover/${coverId}?size=${size}` : `nd/cover/${coverId}`;
+  return convertFileSrc(path, "stream");
+}
+
 /**
  * One-time migration of queue snapshots persisted before the scheme was
  * generalized: `ytstream://localhost/<id>` (or `http://ytstream.localhost/<id>`
