@@ -72,12 +72,26 @@ vi.mock("@/modules/settings/store/audio", () => ({
   useAudioSettingsStore: () => mockAudioSettings,
 }));
 
+const storageMock = vi.hoisted(() => ({
+  getAudioUrl: vi.fn(() => Promise.resolve({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" })),
+}));
+
 vi.mock("@/db/storage", () => ({
   storageService: {
-    getAudioUrl: () => Promise.resolve({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" }),
+    getAudioUrl: storageMock.getAudioUrl,
     getFile: () => Promise.resolve({ isErr: () => true }),
   },
 }));
+
+const offlineCopyMock = vi.hoisted(() => ({ findById: vi.fn() }));
+
+vi.mock("@/db/repositories", () => ({
+  offlineCopyRepository: offlineCopyMock,
+}));
+
+const sourcesMock = vi.hoisted(() => ({ forTrack: vi.fn() }));
+
+vi.mock("@/modules/sources", () => ({ sources: sourcesMock }));
 
 vi.mock("@/services/stats.service", () => ({
   statsService: {
@@ -106,6 +120,7 @@ vi.mock("@/lib/environment/userAgent", () => ({
 }));
 
 import { useEventBus } from "@vueuse/core";
+import { ok, okAsync, errAsync } from "neverthrow";
 import { usePlayerStore } from "../store/player.store";
 import { trackEndedEvent } from "../lib/player-events";
 
@@ -677,6 +692,67 @@ describe("player.store", () => {
       expect(mockPlayer).toBe(engine);
       expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
       expect(mockPlayerMethods.load).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("resolvePlayback order for remote tracks", () => {
+    const remoteTrack = () => createLibraryTrack({
+      id: "yt:dQw4w9WgXcQ" as never,
+      source: TrackSource.REMOTE_YT,
+      storagePath: "",
+    });
+
+    beforeEach(() => {
+      offlineCopyMock.findById.mockResolvedValue(ok(undefined));
+    });
+
+    it("plays the offline copy before asking the source", async () => {
+      offlineCopyMock.findById.mockResolvedValue(ok({
+        trackId: "yt:dQw4w9WgXcQ",
+        storagePath: "offline/yt/dQw4w9WgXcQ.m4a",
+        sizeBytes: 1,
+        format: {},
+        downloadedAt: 0,
+      }));
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(remoteTrack());
+
+      expect(storageMock.getAudioUrl).toHaveBeenCalledWith("offline/yt/dQw4w9WgXcQ.m4a");
+      expect(sourcesMock.forTrack).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the source stream when no offline copy exists", async () => {
+      const resolveStreamUrl = vi.fn(() => okAsync("stream://localhost/yt/dQw4w9WgXcQ"));
+      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(remoteTrack());
+
+      expect(sourcesMock.forTrack).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
+      expect(resolveStreamUrl).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("stream://localhost/yt/dQw4w9WgXcQ");
+      // The offline copy was checked first and came back empty.
+      expect(offlineCopyMock.findById).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
+    });
+
+    it("surfaces a typed source error as a player error", async () => {
+      sourcesMock.forTrack.mockReturnValue({
+        resolveStreamUrl: vi.fn(() => errAsync({ kind: "NETWORK", message: "upstream down" })),
+      });
+      const store = usePlayerStore();
+
+      await expect(store.playPlayerTrack(remoteTrack())).rejects.toThrow("[NETWORK] upstream down");
+    });
+
+    it("never touches offline copies or sources for local tracks", async () => {
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack());
+
+      expect(offlineCopyMock.findById).not.toHaveBeenCalled();
+      expect(sourcesMock.forTrack).not.toHaveBeenCalled();
+      expect(storageMock.getAudioUrl).toHaveBeenCalledWith("/path/to/track.mp3");
     });
   });
 

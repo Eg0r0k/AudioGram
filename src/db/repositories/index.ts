@@ -5,3 +5,4 @@ export { trackRepository } from "./track.repository";
 export { coverRepository } from "./cover.repository";
 export { tagRepository } from "./tag.repository";
 export { folderRepository } from "./folder.repository";
+export { offlineCopyRepository } from "./offlineCopy.repository";

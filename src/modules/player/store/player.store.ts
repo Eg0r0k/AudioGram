@@ -13,6 +13,8 @@ import { TrackSource, TrackState } from "@/db/entities";
 import { StorageError } from "@/db/errors/storage.errors";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { storageService } from "@/db/storage";
+import { offlineCopyRepository } from "@/db/repositories";
+import { sources } from "@/modules/sources";
 import { statsService } from "@/services/stats.service";
 import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
@@ -192,19 +194,21 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   /**
-   * Resolves the audio URL/source for any PlayerTrack.
+   * Resolves the audio URL/source for any PlayerTrack — the single resolution
+   * point for playback.
    *
    * Library tracks:
-   *   LOCAL_INTERNAL → storageService.getAudioUrl (OPFS SW route or Tauri asset)
-   *   LOCAL_EXTERNAL → storageService.getAudioUrl (native FS path, Tauri only)
-   *   REMOTE_HLS     → storagePath IS the stream URL
+   *   1. local file (LOCAL_INTERNAL/LOCAL_EXTERNAL) → storageService.getAudioUrl
+   *   2. remote with an offline copy → storageService.getAudioUrl(copy path)
+   *   3. remote otherwise → sources.forTrack(id).resolveStreamUrl(id)
+   *   (REMOTE_HLS: storagePath IS the stream URL — folds into sources in M6)
    *
    * Ephemeral tracks:
    *   file → createObjectURL (web drag-and-drop / file picker)
    *   path → storageService.getAudioUrl (Tauri "Open with", no import)
-   *   url  → used directly (radio, HLS stream)
+   *   url  → used directly (radio, YT stream proxy)
    */
-  const resolveTrackUrl = async (track: PlayerTrack): Promise<string | null> => {
+  const resolvePlayback = async (track: PlayerTrack): Promise<string | null> => {
     if (isEphemeralTrack(track)) {
       switch (track.source.type) {
         case "file": {
@@ -234,14 +238,32 @@ export const usePlayerStore = defineStore("player", () => {
       return track.storagePath || null;
     }
 
-    if (track.source === TrackSource.LOCAL_EXTERNAL && !IS_TAURI) {
-      console.warn("[Player] LOCAL_EXTERNAL tracks require Tauri");
-      return null;
+    const isRemote = track.source === TrackSource.REMOTE_SUBSONIC
+      || track.source === TrackSource.REMOTE_YT;
+
+    if (!isRemote) {
+      if (track.source === TrackSource.LOCAL_EXTERNAL && !IS_TAURI) {
+        console.warn("[Player] LOCAL_EXTERNAL tracks require Tauri");
+        return null;
+      }
+      const result = await storageService.getAudioUrl(track.storagePath);
+      if (result.isErr()) throw result.error;
+      return result.value;
     }
 
-    const result = await storageService.getAudioUrl(track.storagePath);
-    if (result.isErr()) throw result.error;
-    return result.value;
+    const copyResult = await offlineCopyRepository.findById(track.id);
+    const copy = copyResult.isOk() ? copyResult.value : undefined;
+    if (copy) {
+      const result = await storageService.getAudioUrl(copy.storagePath);
+      if (result.isErr()) throw result.error;
+      return result.value;
+    }
+
+    const streamResult = await sources.forTrack(track.id).resolveStreamUrl(track.id);
+    if (streamResult.isErr()) {
+      throw new Error(`[${streamResult.error.kind}] ${streamResult.error.message}`);
+    }
+    return streamResult.value;
   };
 
   const applyLoudnessMetadata = (p: Player, track: PlayerTrack) => {
@@ -287,7 +309,7 @@ export const usePlayerStore = defineStore("player", () => {
 
       const requestId = ++_playRequestId;
 
-      const url = await resolveTrackUrl(track);
+      const url = await resolvePlayback(track);
       if (requestId !== _playRequestId) return;
       if (!url) {
         clearCurrentTrack();
@@ -437,7 +459,7 @@ export const usePlayerStore = defineStore("player", () => {
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
-    const url = await resolveTrackUrl(track);
+    const url = await resolvePlayback(track);
     // A newer play request took over while we resolved the source.
     if (requestId !== _playRequestId) return;
     if (!url) {
