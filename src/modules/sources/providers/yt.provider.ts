@@ -74,10 +74,10 @@ export const ytSourceProvider: SourceProvider = {
   getPlaylist: () => unsupported("playlist browsing"),
 
   search(q, types, p) {
-    // YT paginates with opaque continuation tokens; offset pages beyond the
-    // first cannot be addressed through this contract.
-    if (p.offset > 0) return errAsync({ kind: "PARSE", message: "YouTube search is not offset-addressable" });
-    if (!types.includes("track")) {
+    // YT paginates with opaque continuation tokens, so offset pages beyond
+    // the first are unaddressable. That is exhaustion, not an error — an
+    // empty page lets infinite queries terminate naturally.
+    if (p.offset > 0 || !types.includes("track")) {
       return okAsync({ tracks: [], albums: [], artists: [] });
     }
 

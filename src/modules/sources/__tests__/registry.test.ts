@@ -76,4 +76,11 @@ describe("ytSourceProvider", () => {
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().kind).toBe("UNAVAILABLE");
   });
+
+  it("returns an empty page (not an error) for offset pages beyond the first", async () => {
+    const result = await ytSourceProvider.search("query", ["track"], { offset: 50, limit: 50 });
+
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap()).toEqual({ tracks: [], albums: [], artists: [] });
+  });
 });
