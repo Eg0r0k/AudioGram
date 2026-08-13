@@ -16,7 +16,8 @@ import {
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { useNdArtist } from "@/modules/sources/composables/useNdCatalog";
-import { sourceArtistToArtistData, sourceKindOf } from "@/modules/sources/lib/display";
+import { sourceArtistToArtistData, sourceCoverUrl, sourceKindOf } from "@/modules/sources/lib/display";
+import { THUMB_SIZE_CARD } from "@/modules/youtube/lib/thumbnail";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
 
@@ -97,6 +98,14 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const ndAlbums = computed(() => ndQuery.data.value?.albums ?? []);
 
+  // Proxied cover URLs for the ND album cards — the entity-shaped album
+  // rows drop coverRef, and the Dexie cover query knows nothing about nd:.
+  const albumCovers = computed(() => new Map(
+    ndAlbums.value
+      .filter(album => album.coverRef)
+      .map(album => [album.id, sourceCoverUrl("nd", album.coverRef, THUMB_SIZE_CARD)] as const),
+  ));
+
   const albums = computed(() =>
     isNd.value
       ? ndAlbums.value.map(sourceAlbumToLibraryAlbum)
@@ -161,6 +170,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   return {
     artist,
     albums,
+    albumCovers,
     tracks,
     artistData: artistDataMapped,
     coverUrl,

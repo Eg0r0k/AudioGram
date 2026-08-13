@@ -89,6 +89,7 @@ pub fn run() {
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
         .manage(nd::NdState::default())
+        .manage(nd::NdCoverCache::default())
         .register_asynchronous_uri_scheme_protocol("stream", stream::serve)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {

@@ -170,6 +170,7 @@ const sortKey = ref<TrackSortKey | null>(null);
 const {
   artist,
   albums,
+  albumCovers,
   tracks,
   artistData,
   coverUrl,
@@ -194,6 +195,7 @@ const albumItems = computed<LibraryItem[]>(() => albums.value.map(album => ({
   id: album.id,
   type: "album",
   title: album.title,
+  image: albumCovers.value.get(album.id),
   subtitle: artist.value?.name,
   isPinned: isPinned("album", album.id),
   addedAt: album.addedAt,

@@ -11,10 +11,13 @@
     @contextmenu="handleContextMenu"
   >
     <div class="relative aspect-square z-1 overflow-hidden rounded-md bg-muted shadow-sm">
+      <!-- item.image (remote-source cover via the stream:// proxy) wins as
+           the fallback: the Dexie cover query knows nothing about nd: ids. -->
       <EntityCoverImage
         owner-type="album"
         :owner-id="item.id"
         :alt="item.title"
+        :fallback-src="item.image"
         image-class="size-full object-cover transition-transform duration-200 group-hover:scale-105"
       />
 
