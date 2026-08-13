@@ -3,6 +3,7 @@
   "removeSelected": "Remove selected",
   "addSelected": "Add selected",
   "likeToggleFailed": "Failed to change favorite status",
+  "pinFailed": "Failed to add the track to the library",
   "removeFromHistoryFailed": "Failed to remove track from history",
   "contextMenu": {
     "addToFavorites": "Add to favorites",

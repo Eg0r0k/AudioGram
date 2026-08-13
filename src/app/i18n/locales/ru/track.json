@@ -3,6 +3,7 @@
   "removeSelected": "Удалить выбранные",
   "addSelected": "Добавить выбранные",
   "likeToggleFailed": "Не удалось изменить статус избранного",
+  "pinFailed": "Не удалось добавить трек в библиотеку",
   "removeFromHistoryFailed": "Не удалось удалить трек из истории",
   "favorite": {
     "addTracks": "Добавить треки"

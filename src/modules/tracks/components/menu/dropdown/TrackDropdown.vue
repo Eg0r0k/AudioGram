@@ -67,6 +67,7 @@ const props = withDefaults(defineProps<Props>(), {
 const queueStore = useQueueStore();
 
 const {
+  activeSubject,
   activeTrack,
   activeIndex,
   activeQueueItemId,
@@ -109,6 +110,7 @@ const actions = useTrackContextActions(
     playlistId: toRef(props, "playlistId"),
     queueIndex: activeIndex,
     queueItemId: activeQueueItemId,
+    subject: activeSubject,
     onNavigate: props.onNavigate,
   },
 );

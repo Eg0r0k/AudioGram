@@ -51,6 +51,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const {
+  activeSubject,
   activeTrack,
   activeIndex,
   activeQueueItemId,
@@ -83,6 +84,7 @@ const actions = useTrackContextActions(activeTrack, {
   playlistId: toRef(props, "playlistId"),
   queueIndex: activeIndex,
   queueItemId: activeQueueItemId,
+  subject: activeSubject,
 });
 
 const contextProps = computed(() => {

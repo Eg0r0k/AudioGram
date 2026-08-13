@@ -1,5 +1,6 @@
-import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
-import type { ContextActions } from "@/modules/tracks/components/menu/type";
+import { isLibraryTrack, type PlayerTrack, type Track } from "@/modules/player/types";
+import type { ContextActions, TrackMenuSubject } from "@/modules/tracks/components/menu/type";
+import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { ArtistId, PlaylistId, QueueItemId } from "@/types/ids";
@@ -34,6 +35,8 @@ export const useTrackContextActions = (
     playlistId?: RefLike<PlaylistId | undefined>;
     queueIndex?: RefLike<number | null>;
     queueItemId?: RefLike<QueueItemId | null>;
+    /** Menu subject — lets DB-bound actions pin remote DTOs on demand. */
+    subject?: RefLike<TrackMenuSubject | null>;
     onNavigate?: () => void;
   } = {},
 ): ContextActions => {
@@ -70,9 +73,29 @@ export const useTrackContextActions = (
     });
   };
 
-  const toggleLike = async () => {
+  /**
+   * Resolves the track row a DB-bound action should operate on: the library
+   * track as-is, or a remote DTO pinned on demand (like from ND browsing
+   * just works). Null when the subject has no library identity (ephemeral).
+   */
+  const resolveDbTrack = async (): Promise<Track | null> => {
     const current = track.value;
-    if (!isLibraryTrack(current)) return;
+    if (isLibraryTrack(current)) return current;
+
+    const subject = options.subject?.value;
+    if (subject?.kind !== "remote") return null;
+    try {
+      return await ensurePinned(subject);
+    }
+    catch {
+      toast.error(t("track.pinFailed"));
+      return null;
+    }
+  };
+
+  const toggleLike = async () => {
+    const current = await resolveDbTrack();
+    if (!current) return;
     await toggleTrackLike(current);
   };
 
@@ -91,14 +114,14 @@ export const useTrackContextActions = (
   };
 
   const attachLyricsToTrack = async () => {
-    const current = track.value;
-    if (!isLibraryTrack(current)) return;
+    const current = await resolveDbTrack();
+    if (!current) return;
     await attachTrackLyrics(current);
   };
 
   const addToPlaylist = async (playlistId: PlaylistId) => {
-    const current = track.value;
-    if (!isLibraryTrack(current)) return;
+    const current = await resolveDbTrack();
+    if (!current) return;
     try {
       await addTrackToPlaylistAndSync(queryClient, playlistId, current);
     }

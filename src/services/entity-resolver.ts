@@ -1,6 +1,125 @@
 import { db } from "@/db";
+import {
+  TrackState,
+  TrackSource,
+  type AlbumEntity,
+  type ArtistEntity,
+  type PinnedFlag,
+  type TrackEntity,
+} from "@/db/entities";
 import { AlbumId, ArtistId } from "@/types/ids";
+import { parseTrackRef } from "@/types/track-ref";
+import type { SourceTrackDTO } from "@/modules/sources";
 import { BaseMetadata } from "@/workers/types";
+
+//
+// ── Remote pin cascade ────────────────────────────────────────────────────────
+//
+// TrackEntity.albumId/artistIds are mandatory FKs, so pinning a remote track
+// upserts shadow album/artist rows with the same deterministic prefixed ids
+// ("nd:<albumId>" / "nd:<artistId>"). Pure derivation lives here; the write
+// itself goes through unitOfWork in ensurePinned.
+//
+
+export interface RemotePinExisting {
+  track?: TrackEntity;
+  album?: AlbumEntity;
+  artists: ReadonlyMap<ArtistId, ArtistEntity>;
+}
+
+export interface RemotePinRows {
+  track: TrackEntity;
+  album: AlbumEntity | null;
+  artists: ArtistEntity[];
+}
+
+/** A shadow row never downgrades an existing full library member. */
+function mergePinned(existing: PinnedFlag | undefined, requested: PinnedFlag): PinnedFlag {
+  return existing === 1 ? 1 : requested;
+}
+
+function trackSourceOf(dto: SourceTrackDTO): TrackSource {
+  const ref = parseTrackRef(dto.id);
+  switch (ref.kind) {
+    case "nd": return TrackSource.REMOTE_SUBSONIC;
+    case "yt": return TrackSource.REMOTE_YT;
+    case "local": throw new Error(`Not a remote track id: ${dto.id}`);
+  }
+}
+
+/**
+ * Best-effort per-artist names: the DTO only carries a joined display string,
+ * so split it when the parts line up with the id list; otherwise the first
+ * row gets the display name. Revalidate-on-view refreshes them later.
+ */
+function artistNamesFor(dto: SourceTrackDTO, ids: ArtistId[]): (string | undefined)[] {
+  const parts = dto.artistName?.split(/,\s*/) ?? [];
+  if (parts.length === ids.length) return parts;
+  return ids.map((_, index) => (index === 0 ? dto.artistName : undefined));
+}
+
+/**
+ * Builds the merged track + shadow album/artist rows for pinning a remote
+ * DTO. Snapshot fields come from the DTO (revalidate-on-view semantics);
+ * user state on existing rows (likes, counts, tags, addedAt) is preserved.
+ */
+export function buildRemoteShadowEntities(
+  dto: SourceTrackDTO,
+  requestedPinned: PinnedFlag,
+  existing: RemotePinExisting,
+  now: number,
+): RemotePinRows {
+  const source = trackSourceOf(dto);
+  const artistIds = dto.artistIds ?? existing.track?.artistIds ?? [];
+  const albumId = dto.albumId ?? existing.track?.albumId ?? AlbumId("");
+
+  const track: TrackEntity = {
+    ...existing.track,
+    id: dto.id,
+    title: dto.title,
+    artistName: dto.artistName ?? existing.track?.artistName,
+    albumTitle: dto.albumTitle ?? existing.track?.albumTitle,
+    artistIds,
+    albumId,
+    tagIds: existing.track?.tagIds ?? [],
+    source,
+    pinned: mergePinned(existing.track?.pinned, requestedPinned),
+    state: existing.track?.state ?? TrackState.READY,
+    duration: dto.duration ?? existing.track?.duration ?? 0,
+    format: dto.format ?? existing.track?.format ?? {},
+    trackNo: dto.trackNo ?? existing.track?.trackNo,
+    diskNo: dto.discNo ?? existing.track?.diskNo,
+    playCount: existing.track?.playCount ?? 0,
+    addedAt: existing.track?.addedAt ?? now,
+  };
+
+  const album: AlbumEntity | null = dto.albumId
+    ? {
+        ...existing.album,
+        id: dto.albumId,
+        title: dto.albumTitle ?? existing.album?.title ?? "",
+        artistId: existing.album?.artistId ?? artistIds[0] ?? ArtistId(""),
+        pinned: mergePinned(existing.album?.pinned, requestedPinned),
+        addedAt: existing.album?.addedAt ?? now,
+        updatedAt: now,
+      }
+    : null;
+
+  const names = artistNamesFor(dto, artistIds);
+  const artists: ArtistEntity[] = artistIds.map((id, index) => {
+    const current = existing.artists.get(id);
+    return {
+      ...current,
+      id,
+      name: current?.name || names[index] || "",
+      pinned: mergePinned(current?.pinned, requestedPinned),
+      addedAt: current?.addedAt ?? now,
+      updatedAt: now,
+    };
+  });
+
+  return { track, album, artists };
+}
 
 type AlbumCacheKey = `${ArtistId}::${string}`;
 
