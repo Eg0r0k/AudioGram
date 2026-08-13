@@ -153,6 +153,7 @@ import { useRouter } from "vue-router";
 import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { routeLocation } from "@/app/router/route-locations";
 
@@ -218,6 +219,12 @@ const isLiked = computed(() => props.track.isLiked);
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
 const coverUrl = computed(() => {
   if (props.coverUrl) return props.coverUrl;
+  // Remote display rows (ND/YT catalog) carry their cover in the DTO —
+  // their albumId points to no local cover blob.
+  const coverRef = props.track.sourceDto?.coverRef;
+  if (coverRef) {
+    return sourceCoverUrl(sourceKindOf(props.track.id), coverRef, THUMB_SIZE_ROW) || "/img/fallback.svg";
+  }
   // Queue/history rows also render ephemeral tracks (YT streams, radio):
   // they carry their own cover URL and have no album to look up.
   const track = props.track as PlayerTrack;
