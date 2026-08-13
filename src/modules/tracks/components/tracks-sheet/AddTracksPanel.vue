@@ -10,10 +10,10 @@
 
     <div class=" bg-card px-4">
       <div class="flex items-center gap-3">
-        <InputGroup class="flex-1 rounded-full">
+        <InputGroup class="flex-1 bg-background! rounded-full">
           <InputGroupInput
             v-model="searchInput"
-            class="pl-3! text-[15px]"
+            class="pl-3! text-[15px] "
             :placeholder="t('search.placeholder')"
             @keydown.stop
           />

@@ -1,9 +1,9 @@
 import { computed, type MaybeRefOrGetter, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { CoverOwnerType } from "@/db/entities";
-import { useObjectUrl } from "@vueuse/core";
 import { queryKeys } from "@/queries/query-keys";
 import { getCoverBlob } from "@/queries/cover.queries";
+import { stableObjectUrl } from "../lib/stable-object-url";
 
 export function useEntityCover(
   ownerType: MaybeRefOrGetter<CoverOwnerType | null | undefined>,
@@ -31,7 +31,15 @@ export function useEntityCover(
     enabled: computed(() => !!toValue(ownerType) && !!toValue(ownerId)),
   });
 
-  const url = useObjectUrl(computed(() => query.data.value));
+  // Stable across remounts (unlike useObjectUrl) so covers don't replay
+  // their load animation on every panel switch.
+  const url = computed(() => {
+    const blob = query.data.value;
+    const type = toValue(ownerType);
+    const id = toValue(ownerId);
+    if (!blob || !type || !id) return undefined;
+    return stableObjectUrl(`${type}:${id}`, blob);
+  });
 
   return {
     blob: query.data,

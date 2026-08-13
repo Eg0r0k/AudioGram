@@ -24,6 +24,10 @@ vi.mock("@/services/importer.service", () => ({
   },
 }));
 
+vi.mock("@/modules/search/searchIndex", () => ({
+  indexImportedTracks: vi.fn().mockResolvedValue(undefined),
+}));
+
 function createFile(name: string) {
   return new File(["audio"], name, { type: "audio/mpeg" });
 }

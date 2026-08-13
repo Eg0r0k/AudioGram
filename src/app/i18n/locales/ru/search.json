@@ -14,5 +14,11 @@
     "artist": "Артист",
     "album": "Альбомы",
     "playlist": "Плейлисты"
-  }
+  },
+  "source": {
+    "library": "Библиотека",
+    "youtube": "YouTube"
+  },
+  "ytHint": "Нажмите Enter для поиска на YouTube",
+  "showAll": "Показать все"
 }

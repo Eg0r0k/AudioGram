@@ -2,8 +2,8 @@ import { computed, type Ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useMutation, useQuery, useQueryClient, useInfiniteQuery, skipToken } from "@tanstack/vue-query";
 import { AlbumId } from "@/types/ids";
-import { useObjectUrl } from "@vueuse/core";
 import type { AlbumData } from "@/modules/media-hero/types";
+import { stableObjectUrl } from "@/modules/covers/lib/stable-object-url";
 import { queryKeys } from "@/queries/query-keys";
 import { formatTotalDuration } from "@/lib/format/time";
 import { useI18n } from "vue-i18n";
@@ -90,7 +90,13 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     isLoading: isCoverLoading,
   } = useQuery(computed(() => coverQueries.detail("album", albumId.value)));
 
-  const coverUrl = useObjectUrl(computed(() => coverBlob.value));
+  // Stable across remounts (unlike useObjectUrl) so the hero cover doesn't
+  // replay its load animation on every navigation back to the page.
+  const coverUrl = computed(() => {
+    const blob = coverBlob.value;
+    if (!blob || !albumId.value) return undefined;
+    return stableObjectUrl(`album:${albumId.value}`, blob);
+  });
 
   const isLoading = computed(() =>
     isAlbumLoading.value || isCoverLoading.value || isTracksLoading.value,

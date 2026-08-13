@@ -596,6 +596,21 @@ export function syncTrackLikeCaches(
     ),
   }));
 
+  // The all-music page reads ["tracks","index","infinite",...] — without this
+  // patch its rows keep a stale isLiked until refetch.
+  setQueriesDataIfPresent<InfiniteData<PaginatedTracksResult>>(
+    queryClient,
+    {
+      predicate: query =>
+        query.queryKey[0] === "tracks"
+        && query.queryKey[1] === "index"
+        && query.queryKey[2] === "infinite",
+    },
+    data => mapInfiniteTrackPages(data, tracks =>
+      tracks.map(track => (track.id === nextTrack.id ? nextTrack : track)),
+    ),
+  );
+
   setQueryDataIfPresent<ArtistPageData>(
     queryClient,
     queryKeys.artists.page(nextTrack.artistIds[0]),

@@ -158,6 +158,16 @@
       >
         <IconShuffle class="size-6" />
       </Button>
+      <Button
+        v-if="currentTrack"
+        size="icon"
+        variant="ghost"
+        :class="{ 'text-primary': isChaptersOpen }"
+        :aria-label="$t('player.chapters')"
+        @click.stop="toggleChaptersPanel"
+      >
+        <IconBookmarks class="size-6" />
+      </Button>
       <DropdownMenu :modal="false">
         <DropdownMenuTrigger as-child>
           <Button
@@ -235,6 +245,7 @@ import IconDots from "~icons/tabler/dots";
 import IconLike from "~icons/tabler/heart";
 import IconLikedFilled from "~icons/tabler/heart-filled";
 import IconMoonStars from "~icons/tabler/moon-stars";
+import IconBookmarks from "~icons/tabler/bookmarks";
 import IconClockHour4 from "~icons/tabler/clock-hour-4";
 import IconPlayerStop from "~icons/tabler/circle-minus";
 
@@ -290,6 +301,21 @@ async function handleAddMark(percent: number) {
 
   rightPanelStore.openChapters({ track });
 }
+
+const isChaptersOpen = computed(() =>
+  rightPanelStore.isOpen && rightPanelStore.view === "chapters",
+);
+
+const toggleChaptersPanel = () => {
+  const track = playerStore.currentTrack;
+  if (!track || !isLibraryTrack(track)) return;
+
+  if (isChaptersOpen.value) {
+    rightPanelStore.close();
+    return;
+  }
+  rightPanelStore.openChapters({ track });
+};
 
 useSwipeControl(rootRef, {
   threshold: 50,

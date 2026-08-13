@@ -1,4 +1,4 @@
-import type { Track } from "@/modules/player/types";
+import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
 import type { ContextActions } from "@/modules/tracks/components/menu/type";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -29,7 +29,7 @@ interface RefLike<T> {
 }
 
 export const useTrackContextActions = (
-  track: Ref<Track | null>,
+  track: Ref<PlayerTrack | null>,
   options: {
     playlistId?: RefLike<PlaylistId | undefined>;
     queueIndex?: RefLike<number | null>;
@@ -72,13 +72,13 @@ export const useTrackContextActions = (
 
   const toggleLike = async () => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
     await toggleTrackLike(current);
   };
 
   const showDetails = () => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
 
     rightPanelStore.openTrackInfo({ track: current }, {
       scope: { type: "route", routeKey: route.fullPath },
@@ -92,13 +92,13 @@ export const useTrackContextActions = (
 
   const attachLyricsToTrack = async () => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
     await attachTrackLyrics(current);
   };
 
   const addToPlaylist = async (playlistId: PlaylistId) => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
     try {
       await addTrackToPlaylistAndSync(queryClient, playlistId, current);
     }
@@ -116,7 +116,7 @@ export const useTrackContextActions = (
   const removeFromPlaylist = async () => {
     const current = track.value;
     const playlistId = options.playlistId?.value;
-    if (!current || !playlistId) return;
+    if (!isLibraryTrack(current) || !playlistId) return;
     try {
       await removeTrackFromPlaylistAndSync(queryClient, playlistId, current.id);
     }
@@ -127,7 +127,7 @@ export const useTrackContextActions = (
 
   const removeFromHistory = async () => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
     try {
       await statsService.removeFromHistory(current.id);
     }
@@ -143,14 +143,14 @@ export const useTrackContextActions = (
 
   const goToAlbum = () => {
     const current = track.value;
-    if (!current) return;
+    if (!isLibraryTrack(current)) return;
     router.push(routeLocation.album(current.albumId));
     options.onNavigate?.();
   };
 
   const download = async () => {
     const current = track.value;
-    if (!current || !canDownloadTrack(current)) return;
+    if (!isLibraryTrack(current) || !canDownloadTrack(current)) return;
 
     const sourcePath = current.storagePath;
     const fallbackExt = sourcePath.split(".").pop()?.toLowerCase() ?? "mp3";

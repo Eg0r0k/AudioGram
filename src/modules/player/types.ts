@@ -111,7 +111,7 @@ export function ephemeralFromPath(
 /** Any platform: HLS stream, internet radio, direct URL. */
 export function ephemeralFromUrl(
   url: string,
-  meta: Pick<EphemeralTrack, "title" | "artist" | "albumName" | "cover">,
+  meta: Pick<EphemeralTrack, "title" | "artist" | "albumName" | "duration" | "cover">,
 ): EphemeralTrack {
   return {
     kind: "ephemeral",
@@ -119,6 +119,7 @@ export function ephemeralFromUrl(
     title: meta.title,
     artist: meta.artist,
     albumName: meta.albumName,
+    duration: meta.duration,
     cover: meta.cover,
     source: { type: "url", url },
   };

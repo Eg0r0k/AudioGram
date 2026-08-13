@@ -1,6 +1,8 @@
 import { ArtistId, PlaylistId } from "@/types/ids";
 
-export type TrackContext = "default" | "current-track" | "queue" | "playlist" | "album" | "search" | "history" | "liked" | "artist";
+// "yt" serves the YT collection/artist pages, "yt-search" the search overlay —
+// separate targets because both can be mounted at the same time.
+export type TrackContext = "default" | "current-track" | "queue" | "playlist" | "album" | "search" | "history" | "liked" | "artist" | "yt" | "yt-search";
 
 export interface ContextActions {
   play: () => void;

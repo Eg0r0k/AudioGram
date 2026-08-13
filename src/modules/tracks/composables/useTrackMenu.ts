@@ -1,9 +1,11 @@
-import type { Track } from "@/modules/player/types";
+import type { PlayerTrack } from "@/modules/player/types";
 import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import type { QueueItemId } from "@/types/ids";
 import { ref, watch } from "vue";
 
-const activeTrack = ref<Track | null>(null);
+// PlayerTrack, not Track: the current-track and queue contexts also open the
+// menu for ephemeral tracks (YouTube streams, radio).
+const activeTrack = ref<PlayerTrack | null>(null);
 const activeIndex = ref<number | null>(null);
 const activeQueueItemId = ref<QueueItemId | null>(null);
 
@@ -33,7 +35,7 @@ interface OpenTrackMenuOptions {
 
 export function useTrackMenu() {
   const openMenu = (
-    track: Track,
+    track: PlayerTrack,
     index: number,
     options?: OpenTrackMenuOptions,
   ) => {
@@ -50,7 +52,7 @@ export function useTrackMenu() {
   };
 
   const openDropdown = (
-    track: Track,
+    track: PlayerTrack,
     index: number,
     event: MouseEvent,
     options?: OpenTrackMenuOptions,

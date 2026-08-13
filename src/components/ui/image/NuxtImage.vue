@@ -11,14 +11,14 @@
     v-else
     v-bind="{
       imgAttrs,
-      isLoaded: placeholderLoaded,
+      isLoaded: slotLoaded,
       src: imageSrc,
     }"
   />
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useAttrs, useTemplateRef, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, useAttrs, useTemplateRef, watch } from "vue";
 import type { ImgHTMLAttributes } from "vue";
 
 export interface ImageProps {
@@ -71,6 +71,33 @@ const imgEl = useTemplateRef<HTMLImageElement>("imgEl");
 const placeholderLoaded = ref(false);
 const useFallback = ref(false);
 const originalSrcFailed = ref(false);
+
+// ── Load-animation gating (custom slot mode) ────────────────────────────────
+// The slot's `isLoaded` should flip through the "not loaded" state ONLY when
+// the image genuinely spends time loading. An image that resolves within the
+// grace window (memory/disk cache, blob:) is presented as loaded from the
+// first frame, so remounts never replay the fade-in. Until pixels exist the
+// <img> is blank anyway — showing it "loaded" during the grace window is
+// visually indistinguishable from hiding it.
+const LOAD_GRACE_MS = 80;
+
+const slowLoadRevealed = ref(false);
+let graceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const slotLoaded = computed(() => placeholderLoaded.value || !slowLoadRevealed.value);
+
+function startLoadGrace() {
+  if (graceTimer) clearTimeout(graceTimer);
+  slowLoadRevealed.value = false;
+  graceTimer = setTimeout(() => {
+    graceTimer = null;
+    if (!placeholderLoaded.value) slowLoadRevealed.value = true;
+  }, LOAD_GRACE_MS);
+}
+
+onUnmounted(() => {
+  if (graceTimer) clearTimeout(graceTimer);
+});
 
 defineExpose({
   imgEl,
@@ -177,6 +204,12 @@ function resetState() {
   originalSrcFailed.value = false;
 }
 
+function markFallback() {
+  useFallback.value = true;
+  originalSrcFailed.value = true;
+  placeholderLoaded.value = Boolean(props.fallbackSrc);
+}
+
 function handleLoadSuccess(event?: Event) {
   placeholderLoaded.value = true;
   emit("load", event || new Event("load"));
@@ -261,7 +294,13 @@ watch(() => props.src, (newSrc, oldSrc) => {
   if (newSrc !== oldSrc) {
     resetState();
 
+    if (!isValidImageSrc.value) {
+      markFallback();
+      return;
+    }
+
     if (props.placeholder || props.custom) {
+      startLoadGrace();
       loadMainImage();
     }
   }
@@ -269,12 +308,12 @@ watch(() => props.src, (newSrc, oldSrc) => {
 
 onMounted(() => {
   if (!isValidImageSrc.value) {
-    useFallback.value = true;
-    originalSrcFailed.value = true;
+    markFallback();
     return;
   }
 
   if (props.placeholder || props.custom) {
+    startLoadGrace();
     loadMainImage();
     return;
   }

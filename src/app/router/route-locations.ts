@@ -20,5 +20,7 @@ export const routeLocation = {
   settingsTerms: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_TERMS }),
   settingsPrivacy: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_PRIVACY }),
   allMusic: (): RouteLocationRaw => ({ name: ROUTE_NAMES.ALL_MUSIC }),
-  youtube: (): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE }),
+  ytPlaylist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_PLAYLIST, params: { id } }),
+  ytAlbum: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_ALBUM, params: { id } }),
+  ytArtist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_ARTIST, params: { id } }),
 } as const;

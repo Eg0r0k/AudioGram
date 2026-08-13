@@ -5,11 +5,11 @@
   >
     <IconLikedFilled
       v-if="isLiked"
-      class="size-5.5"
+      class="size-5.5 text-primary"
     />
     <IconLike
       v-else
-      class="size-5.5"
+      class="size-5.5 text-primary"
     />
     {{
       !isLiked

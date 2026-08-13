@@ -3,7 +3,7 @@
     <RightPanelHeader :title="$t('player.nowPlaying')">
       <template #trailing>
         <Button
-          v-if="libraryTrack"
+          v-if="currentTrack"
           size="icon"
           class="rounded-full"
           variant="ghost"
@@ -27,7 +27,7 @@
               }"
             >
               <MorphingDialogTrigger
-                data-track-menu-trigger
+                :data-track-menu-trigger="currentTrack ? true : undefined"
                 class="block w-full select-none  rounded-lg overflow-hidden "
                 @contextmenu="onCoverContextMenu"
               >
@@ -250,13 +250,13 @@ const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown, openMenu } = useTrackMenu();
 
 function onDotsClick(event: MouseEvent): void {
-  if (!libraryTrack.value) return;
-  openDropdown(libraryTrack.value, 0, event, { target: "current-track" });
+  if (!currentTrack.value) return;
+  openDropdown(currentTrack.value, 0, event, { target: "current-track" });
 }
 
 function onCoverContextMenu(): void {
-  if (!libraryTrack.value) return;
-  openMenu(libraryTrack.value, 0, { target: "current-track" });
+  if (!currentTrack.value) return;
+  openMenu(currentTrack.value, 0, { target: "current-track" });
 }
 
 const currentTrack = computed(() => playerStore.currentTrack);

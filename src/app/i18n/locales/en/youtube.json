@@ -1,11 +1,7 @@
 {
   "title": "YouTube",
-  "searchPlaceholder": "Search YouTube for music...",
-  "search": "Search",
   "unavailable": "YouTube search is only available in the desktop app.",
-  "empty": "Search for a track to get started.",
   "noResults": "Nothing found for \"{query}\".",
-  "searchFailed": "Search failed: {message}",
   "errorPrefix": "Error: {message}",
   "botError": "YouTube is temporarily blocking anonymous requests from your network (bot check). Try again later or enable a proxy in the settings.",
   "download": "Download",
@@ -13,5 +9,29 @@
   "processing": "Converting",
   "importing": "Adding",
   "done": "In library",
-  "failed": "Failed"
+  "failed": "Failed",
+  "chip": {
+    "all": "All",
+    "tracks": "Tracks",
+    "albums": "Albums",
+    "artists": "Artists",
+    "playlists": "Playlists",
+    "videos": "Videos"
+  },
+  "tracksCount": "{count} tracks",
+  "by": "By {name}",
+  "subscribers": "{count} subscribers",
+  "topTracks": "Popular tracks",
+  "playAll": "Play all",
+  "importToLibrary": "Import to library",
+  "import": {
+    "dialogTitle": "Import to library",
+    "playlistName": "Playlist name",
+    "selectAll": "Select all",
+    "start": "Import",
+    "cancel": "Cancel import",
+    "progress": "{current} of {total}",
+    "summary": "Imported {ok} tracks ({failed} failed, {skipped} skipped)",
+    "alreadyRunning": "Another import is already running"
+  }
 }

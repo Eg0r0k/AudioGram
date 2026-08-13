@@ -48,14 +48,6 @@
                 {{ t("nav.favorite") }}
               </DropdownMenuItem>
 
-              <DropdownMenuItem
-                v-if="isYoutubeAvailable"
-                @click="goYoutube"
-              >
-                <IconBrandYoutube class="size-5.5" />
-                {{ t("nav.youtube") }}
-              </DropdownMenuItem>
-
               <DropdownMenuItem @click="goSettings">
                 <IconSettings class="size-5.5" />
                 {{ t("nav.settings") }}
@@ -82,15 +74,60 @@
     >
       <InputGroup class="dark:bg-background!  bg-muted! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
-          <IconSearch class="ml-1 size-5" />
+          <DropdownMenu v-if="isYoutubeAvailable">
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                class="h-8 rounded-full px-1.5! gap-0.5 text-muted-foreground"
+                :aria-label="$t(`search.source.${source}`)"
+                :title="$t(`search.source.${source}`)"
+              >
+                <IconBrandYoutube
+                  v-if="source === 'youtube'"
+                  class="size-5"
+                />
+                <IconSearch
+                  v-else
+                  class="size-5"
+                />
+                <IconChevronDown class="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              class="w-44"
+              align="start"
+            >
+              <DropdownMenuItem @click="selectSource('library')">
+                <IconSearch class="size-5" />
+                {{ $t("search.source.library") }}
+                <IconCheck
+                  v-if="source === 'library'"
+                  class="ml-auto size-4"
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="selectSource('youtube')">
+                <IconBrandYoutube class="size-5" />
+                {{ $t("search.source.youtube") }}
+                <IconCheck
+                  v-if="source === 'youtube'"
+                  class="ml-auto size-4"
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <IconSearch
+            v-else
+            class="ml-1 size-5"
+          />
         </InputGroupAddon>
         <InputGroupInput
           ref="inputRef"
           v-model="query"
-          class="pl-4! text-base!"
+          class="pl-1! text-base!"
           :placeholder="$t('common.search')"
           @keydown.stop
           @keydown.escape="handleClose"
+          @keydown.enter="handleEnter"
           @update:model-value="openSearch"
         />
         <InputGroupAddon
@@ -131,13 +168,15 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { useTheme } from "@/modules/settings/composables/useTheme";
-import { useSearch } from "@/modules/search/composables/useSearch";
+import { useSearch, type SearchSource } from "@/modules/search/composables/useSearch";
 import IconMenu2 from "~icons/tabler/menu-2";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconBookmark from "~icons/tabler/bookmark";
 import IconSettings from "~icons/tabler/settings";
 import IconSearch from "~icons/tabler/search";
 import IconX from "~icons/tabler/x";
+import IconCheck from "~icons/tabler/check";
+import IconChevronDown from "~icons/tabler/chevron-down";
 import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
@@ -150,7 +189,18 @@ const { t } = useI18n();
 const router = useRouter();
 const theme = useTheme();
 
-const { query, isSearchOpen, openSearch, closeSearch, clear } = useSearch();
+const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear } = useSearch();
+
+const isYoutubeAvailable = youtubeProvider.isAvailable;
+
+function selectSource(next: SearchSource) {
+  setSource(next);
+  openSearch();
+}
+
+function handleEnter() {
+  if (source.value === "youtube") submitYtSearch();
+}
 
 const themeIcon = computed(() => (theme.isDark.value ? IconSun : IconMoon));
 
@@ -164,12 +214,6 @@ function goFavorite() {
 
 function goSettings() {
   router.push(routeLocation.settings());
-}
-
-const isYoutubeAvailable = youtubeProvider.isAvailable;
-
-function goYoutube() {
-  router.push(routeLocation.youtube());
 }
 
 function handleClose() {

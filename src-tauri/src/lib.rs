@@ -76,8 +76,11 @@ pub fn run() {
     let builder = builder
         .manage(discord::DiscordPresenceState::default())
         .manage(youtube::YtStreamCache::default())
+        .manage(youtube::YtImageCache::default())
+        .manage(youtube::YtAudioCache::default())
         .manage(youtube::ProxyState::default())
         .manage(youtube::YtClient::default())
+        .manage(youtube::YtDownloadRegistry::default())
         .register_asynchronous_uri_scheme_protocol("ytstream", youtube::serve_stream)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -102,8 +105,17 @@ pub fn run() {
         updater::check_update,
         updater::install_update,
         youtube::yt_search,
+        youtube::yt_search_continue,
+        youtube::yt_music_search,
+        youtube::yt_continue,
+        youtube::yt_music_suggest,
+        youtube::yt_music_playlist,
+        youtube::yt_music_album,
+        youtube::yt_music_artist,
         youtube::yt_resolve,
+        youtube::yt_prefetch,
         youtube::yt_download,
+        youtube::yt_download_cancel,
         youtube::set_proxy,
         youtube::proxy_check,
     ]);

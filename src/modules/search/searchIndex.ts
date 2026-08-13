@@ -1,5 +1,5 @@
 import SearchWorkerCtor from "./search.worker?worker";
-import { buildAllSearchDocuments } from "./buildDocuments";
+import { buildAlbumDoc, buildAllSearchDocuments, buildArtistDoc, buildTrackDoc } from "./buildDocuments";
 import type {
   SearchDocument,
   SearchFilter,
@@ -256,6 +256,40 @@ export async function removeSearchDocuments(ids: string[]): Promise<void> {
 
   await initSearchIndex();
   getClient().remove(ids);
+}
+
+/**
+ * Upserts freshly imported tracks (plus their artists and albums, which the
+ * import may have just created) into the live index. The full build happens
+ * once per session, so without this an import — file drop, watched folder,
+ * YT download — stays invisible to local search until the app restarts.
+ */
+export async function indexImportedTracks(trackIds: TrackId[]): Promise<void> {
+  if (trackIds.length === 0) return;
+
+  const tracksResult = await trackRepository.findByIds(trackIds);
+  if (tracksResult.isErr()) throw tracksResult.error;
+  const tracks = tracksResult.value;
+  if (tracks.length === 0) return;
+
+  const artistIds = [...new Set(tracks.flatMap(track => track.artistIds))];
+  const albumIds = [...new Set(tracks.map(track => track.albumId))];
+
+  const [artistsResult, albumsResult] = await Promise.all([
+    artistRepository.findByIds(artistIds),
+    albumRepository.findByIds(albumIds),
+  ]);
+  if (artistsResult.isErr()) throw artistsResult.error;
+  if (albumsResult.isErr()) throw albumsResult.error;
+
+  const artistMap = new Map(artistsResult.value.map(artist => [artist.id, artist]));
+  const albumMap = new Map(albumsResult.value.map(album => [album.id, album]));
+
+  await upsertSearchDocuments([
+    ...artistsResult.value.map(artist => buildArtistDoc(artist)),
+    ...albumsResult.value.map(album => buildAlbumDoc(album, artistMap)),
+    ...tracks.map(track => buildTrackDoc(track, artistMap, albumMap)),
+  ]);
 }
 
 export async function rebuildSearchIndex() {

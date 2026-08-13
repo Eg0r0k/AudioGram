@@ -73,16 +73,16 @@
         </MarqueeBlock>
       </div>
 
+      <Button
+        size="icon-sm"
+        class="rounded-full mr-1"
+        variant="ghost"
+        :aria-label="$t('player.moreOptions')"
+        @click.stop="onDotsClick"
+      >
+        <IconDots class="size-5" />
+      </Button>
       <template v-if="libraryTrack">
-        <Button
-          size="icon-sm"
-          class="rounded-full mr-1"
-          variant="ghost"
-          :aria-label="$t('player.moreOptions')"
-          @click.stop="onDotsClick"
-        >
-          <IconDots class="size-5" />
-        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -166,7 +166,7 @@ const toggleLike = async () => {
 };
 
 const onDotsClick = (event: MouseEvent) => {
-  if (!libraryTrack.value) return;
-  openDropdown(libraryTrack.value, 0, event, { target: "current-track" });
+  if (!track.value) return;
+  openDropdown(track.value, 0, event, { target: "current-track" });
 };
 </script>

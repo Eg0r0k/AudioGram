@@ -173,6 +173,7 @@ import LibraryFolderNameDialog from "@/components/layout/sidebar/LibraryFolderNa
 import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveToFolderDialog.vue";
 import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
 import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
+import SearchPanel from "@/modules/search/components/SearchPanel.vue";
 import SidebarHeader from "@/components/layout/sidebar/header/SidebarHeader.vue";
 import { SIDEBAR_COMPACT_KEY } from "@/components/layout/sidebar/sidebarCompact";
 import { useLibrarySidebarFolders } from "@/components/layout/sidebar/useLibrarySidebarFolders";
@@ -185,7 +186,6 @@ import { useSwipeControl } from "@/composables/useSwipeControl";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
-import SearchPanel from "@/modules/search/components/SearchPanel.vue";
 import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
 

@@ -75,6 +75,9 @@ export const usePlayerStore = defineStore("player", () => {
     if (!track) return false;
     const dur = duration.value;
     if (player.value?.isLive) return true;
+    // While a source is still loading, duration is 0 because it's *unknown*,
+    // not because the stream is endless — don't flag live until it settles.
+    if (isLoading.value) return false;
     if (isEphemeralTrack(track) && track.source.type === "url") {
       return dur <= 0;
     }
@@ -425,6 +428,10 @@ export const usePlayerStore = defineStore("player", () => {
     cancelActiveFade();
     currentTime.value = 0;
     duration.value = 0;
+    // Optimistic: the engine's own statechange only fires once load() starts,
+    // leaving the previous track's status (and a false live-stream reading
+    // from the zeroed duration) visible while the source URL resolves.
+    status.value = "loading";
 
     const p = ensurePlayer();
     currentTrack.value = track;

@@ -14,5 +14,11 @@
     "artist": "Artists",
     "album": "Albums",
     "playlist": "Playlists"
-  }
+  },
+  "source": {
+    "library": "Library",
+    "youtube": "YouTube"
+  },
+  "ytHint": "Press Enter to search YouTube",
+  "showAll": "Show all"
 }

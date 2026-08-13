@@ -11,11 +11,13 @@ export interface TrackLyricsLoadResult {
 }
 
 export async function loadTrackLyrics(track: PlayerTrack | null): Promise<TrackLyricsLoadResult> {
-  if (!track || !isLibraryTrack(track)) {
+  if (!track) {
     return { lines: [], status: "idle" };
   }
 
-  if (track.lyricsPath) {
+  // Ephemeral tracks (YouTube streams, radio) have no lyricsPath, but a
+  // title + artist is enough for the lrclib lookup below.
+  if (isLibraryTrack(track) && track.lyricsPath) {
     const result = await storageService.getFile(track.lyricsPath);
     if (result.isErr()) {
       return { lines: [], status: "error" };

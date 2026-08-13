@@ -2,6 +2,8 @@ import { ref, computed } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { musicLibraryEngine } from "@/services/importer.service";
 import { invalidateLibraryData } from "@/queries/library.queries";
+import { indexImportedTracks } from "@/modules/search/searchIndex";
+import { getLogger } from "@/lib/logger";
 import { filterFilesByExtension } from "@/lib/files/filterFiles";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { requestFiles } from "@/lib/files/requestFiles";
@@ -247,6 +249,15 @@ export function useImport() {
 
     if (result.successful.length > 0) {
       await invalidateLibraryData(queryClient);
+      // The session's search index is built once — feed it the new tracks so
+      // they're findable without an app restart. Best-effort: a failed index
+      // update must not mark the import itself as failed.
+      try {
+        await indexImportedTracks(result.successful.map(s => s.trackId));
+      }
+      catch (error) {
+        getLogger().error(`[Search] Failed to index imported tracks: ${String(error)}`);
+      }
     }
 
     state.value.isRunning = false;

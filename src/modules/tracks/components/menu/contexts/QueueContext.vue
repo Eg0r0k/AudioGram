@@ -19,11 +19,11 @@
   <!-- Library-only items: an ephemeral track (YouTube stream, radio) has no
        DB identity, so liking, playlists, download and navigation would all
        act on undefined ids. -->
-  <template v-if="isLibrary">
+  <template v-if="libTrack">
     <component :is="Separator" />
 
     <LikeItem
-      :is-liked="track.isLiked"
+      :is-liked="libTrack.isLiked"
       @toggle="actions.toggleLike"
     />
 
@@ -32,7 +32,7 @@
     <DownloadItem @download="actions.download" />
 
     <LyricsItem
-      :has-lyrics="trackHasLyrics(track)"
+      :has-lyrics="trackHasLyrics(libTrack)"
       @attach="actions.attachLyrics"
     />
 
@@ -41,11 +41,24 @@
     <component :is="Separator" />
 
     <NavigationItems
-      :artist-ids="track.artistIds"
-      :album-name="track.albumName"
+      :artist-ids="libTrack.artistIds"
+      :album-name="libTrack.albumName"
       @go-to-artist="actions.goToArtist"
       @go-to-album="actions.goToAlbum"
     />
+  </template>
+
+  <!-- Ephemeral YouTube stream: allow saving it into the library. -->
+  <template v-else-if="ytPlayable">
+    <component :is="Separator" />
+
+    <component
+      :is="Item"
+      @click="downloadYt"
+    >
+      <IconDownload class="size-5.5" />
+      {{ $t("youtube.download") }}
+    </component>
   </template>
 </template>
 
@@ -61,17 +74,27 @@ import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
-import { isLibraryTrack, type Track } from "@/modules/player/types";
+import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
+import { useYoutube } from "@/modules/youtube/composables/useYoutube";
+import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import IconDownload from "~icons/tabler/download";
 import IconTrash from "~icons/tabler/trash";
 
 const props = defineProps<{
-  track: Track;
+  track: PlayerTrack;
   actions: ContextActions;
   queueIndex: number;
   queueLength: number;
 }>();
 
-const isLibrary = computed(() => isLibraryTrack(props.track));
+const libTrack = computed(() => (isLibraryTrack(props.track) ? props.track : null));
+const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
+
+const { download } = useYoutube();
+
+function downloadYt() {
+  if (ytPlayable.value) void download(ytPlayable.value);
+}
 
 const { Separator, Item } = useTrackMenuComponents();
 </script>

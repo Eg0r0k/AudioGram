@@ -69,7 +69,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useLyricsStore } from "@/modules/player/store/lyrics.store";
-import type { Track } from "@/modules/player/types";
+import type { PlayerTrack } from "@/modules/player/types";
 import IconArrowDown from "~icons/tabler/arrow-down";
 
 const SKELETON_WIDTHS = ["55%", "72%", "48%", "66%", "38%", "60%", "44%"];
@@ -156,10 +156,8 @@ watch(() => lyricsStore.lines, () => {
   lastActiveIndex = -1;
 });
 
-const track = computed<Track | null>(() => {
-  const currentTrack = playerStore.currentTrack;
-  return currentTrack?.kind === "library" ? currentTrack : null;
-});
+// Any current track — ephemeral (YT/radio) tracks resolve lyrics via lrclib.
+const track = computed<PlayerTrack | null>(() => playerStore.currentTrack);
 
 const placeholderText = computed(() => {
   if (lyricsStore.status === "error") {

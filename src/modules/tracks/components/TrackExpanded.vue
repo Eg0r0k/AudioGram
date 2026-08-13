@@ -103,6 +103,12 @@
               v-if="isExplicit"
               class="mr-1 inline-flex size-4 font-bold shrink-0 items-center justify-center rounded-[4px] bg-muted  text-[10px] uppercase text-foreground"
             >E</span>
+            <IconCheck
+              v-if="downloaded"
+              class="mr-1 size-4 shrink-0 text-foreground"
+              :aria-label="$t('youtube.done')"
+              :title="$t('youtube.done')"
+            />
             <template
               v-for="(artist, artistIndex) in artists"
               :key="artist"
@@ -139,42 +145,45 @@
 
       <div :class="styles.lastCol">
         <span :class="[styles.duration, isSelecting && '!block']">
-          {{ formatDuration(track.duration) }}
+          <!-- Remote YT rows can have unknown durations (0) — blank beats a fake 0:00. -->
+          {{ track.duration > 0 ? formatDuration(track.duration) : "" }}
         </span>
 
         <div
           v-if="!isSelecting"
           :class="styles.actions"
         >
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            :class="[
-              'rounded-full transition-opacity',
-              isLiked
-                ? 'text-primary hover:text-primary opacity-100'
-                : 'text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
-            ]"
-            @click.stop="toggle"
-          >
-            <IconLikedFilled
-              v-if="isLiked"
-              class="size-5"
-            />
-            <IconLike
-              v-else
-              class="size-5"
-            />
-          </Button>
+          <slot name="actions">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :class="[
+                'rounded-full transition-opacity',
+                isLiked
+                  ? 'text-primary hover:text-primary opacity-100'
+                  : 'text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
+              ]"
+              @click.stop="toggle"
+            >
+              <IconLikedFilled
+                v-if="isLiked"
+                class="size-5"
+              />
+              <IconLike
+                v-else
+                class="size-5"
+              />
+            </Button>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="rounded-full opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity"
-            @click.stop="onDotsClick"
-          >
-            <IconDots class="size-4" />
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="rounded-full opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity"
+              @click.stop="onDotsClick"
+            >
+              <IconDots class="size-4" />
+            </Button>
+          </slot>
         </div>
       </div>
     </div>
@@ -196,8 +205,9 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
+import IconCheck from "~icons/tabler/check";
 import IconDots from "~icons/tabler/dots";
 import IconLike from "~icons/tabler/heart";
 import IconLikedFilled from "~icons/tabler/heart-filled";
@@ -242,20 +252,34 @@ interface Props {
   track: Track;
   index: number;
   showCover?: boolean;
+  /** Direct cover URL override; skips the album cover lookup (remote tracks). */
+  coverSrc?: string;
   isActive?: boolean;
   isSelected?: boolean;
   isSelecting?: boolean;
   isDisabled?: boolean;
   menuTarget?: TrackContext;
+  /**
+   * Route overrides for remote (YT) rows whose artists/album live outside the
+   * library — indexes match the comma-split artist list; null = not clickable.
+   */
+  artistRoutes?: (RouteLocationRaw | null)[];
+  albumRoute?: RouteLocationRaw | null;
+  /** Remote (YT) row already saved to the library — check mark by the title. */
+  downloaded?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isActive: false,
   showCover: true,
+  coverSrc: undefined,
   isSelected: false,
   isSelecting: false,
   isDisabled: false,
   menuTarget: "default",
+  artistRoutes: undefined,
+  albumRoute: undefined,
+  downloaded: false,
 });
 
 const emit = defineEmits<{
@@ -274,7 +298,7 @@ const rowRef = useTemplateRef("rowRef");
 const isRowHovered = useElementHover(() => rowRef.value);
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
 
-const coverUrl = computed(() => coverBlobUrl.value ?? "/img/fallback.svg");
+const coverUrl = computed(() => props.coverSrc ?? coverBlobUrl.value ?? "/img/fallback.svg");
 
 const isCurrentTrack = computed(
   () => props.isActive || playerStore.currentTrack?.id === props.track.id,
@@ -284,7 +308,9 @@ const isActivePlayback = computed(() => props.isActive || isCurrentTrack.value);
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isExplicit = computed(() => Boolean(props.track.isExplicit));
 const isLiked = computed(() => props.track.isLiked);
-const relativeAddedAt = computed(() => formatRelativeTime(props.track.addedAt, locale.value));
+const relativeAddedAt = computed(() =>
+  props.track.addedAt ? formatRelativeTime(props.track.addedAt, locale.value) : "",
+);
 
 const artists = computed(() => {
   const artistStr = props.track.artist;
@@ -328,11 +354,20 @@ async function toggle() {
 }
 
 function handleArtistClick(index: number) {
+  if (props.artistRoutes) {
+    const to = props.artistRoutes[index] ?? props.artistRoutes[0];
+    if (to) router.push(to);
+    return;
+  }
   const artistId = props.track.artistIds?.[index] ?? props.track.artistIds?.[0];
   if (artistId) router.push(routeLocation.artist(artistId));
 }
 
 function handleAlbumClick() {
+  if (props.artistRoutes || props.albumRoute !== undefined) {
+    if (props.albumRoute) router.push(props.albumRoute);
+    return;
+  }
   if (props.track.albumId) router.push(routeLocation.album(props.track.albumId));
 }
 </script>

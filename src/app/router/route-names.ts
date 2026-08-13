@@ -17,7 +17,9 @@ export const ROUTE_NAMES = {
   SETTINGS_TERMS: "settings-terms",
   SETTINGS_PRIVACY: "settings-privacy",
   ALL_MUSIC: "all-music",
-  YOUTUBE: "youtube",
+  YOUTUBE_PLAYLIST: "youtube-playlist",
+  YOUTUBE_ALBUM: "youtube-album",
+  YOUTUBE_ARTIST: "youtube-artist",
 } as const;
 
 export type AppRouteName = (typeof ROUTE_NAMES)[keyof typeof ROUTE_NAMES];

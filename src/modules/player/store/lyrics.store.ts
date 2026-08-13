@@ -23,7 +23,10 @@ export const useLyricsStore = defineStore("lyrics", () => {
   const loadFor = async (track: PlayerTrack | null): Promise<void> => {
     const id = ++requestId;
     lines.value = [];
-    status.value = track && isLibraryTrack(track) ? "loading" : "idle";
+    // Ephemeral tracks with metadata also resolve lyrics (lrclib lookup).
+    const canHaveLyrics = track
+      && (isLibraryTrack(track) || Boolean(track.title && track.artist));
+    status.value = canHaveLyrics ? "loading" : "idle";
 
     const result = await loadTrackLyrics(track);
     if (id !== requestId) return;

@@ -18,7 +18,14 @@ const TOP_RESULTS_COUNT = 6;
 const MAX_HISTORY_ITEMS = 6;
 const SEARCH_HISTORY_KEY = "audiogram-search-history";
 
+export type SearchSource = "library" | "youtube";
+export type YtChip = "all" | "tracks" | "albums" | "artists" | "playlists" | "videos";
+
 const query = ref("");
+const source = ref<SearchSource>("library");
+const ytChip = ref<YtChip>("all");
+/** YouTube searches run only on explicit commit (Enter / tab switch). */
+const submittedYtQuery = ref("");
 const activeFilter = ref<SearchFilter>("all");
 const results = shallowRef<GroupedResults>(createEmptyResults());
 const isSearching = ref(false);
@@ -108,8 +115,26 @@ export function useSearch() {
     isSearchOpen.value = false;
   };
 
+  const submitYtSearch = () => {
+    const trimmed = query.value.trim();
+    if (!trimmed) return;
+    submittedYtQuery.value = trimmed;
+    saveQueryToHistory(trimmed);
+  };
+
+  const setSource = (next: SearchSource) => {
+    source.value = next;
+    // Switching to YouTube with a pending query commits it right away.
+    if (next === "youtube" && query.value.trim() && query.value.trim() !== submittedYtQuery.value) {
+      submitYtSearch();
+    }
+  };
+
   return {
     query,
+    source: readonly(source),
+    ytChip: readonly(ytChip),
+    submittedYtQuery: readonly(submittedYtQuery),
     activeFilter,
     availableFilters,
     recentQueries: readonly(recentQueries),
@@ -120,6 +145,10 @@ export function useSearch() {
     openSearch,
     closeSearch,
 
+    setSource,
+    setYtChip(chip: YtChip) { ytChip.value = chip; },
+    submitYtSearch,
+
     setFilter(filter: SearchFilter) { activeFilter.value = filter; },
     saveQueryToHistory,
     removeHistoryItem,
@@ -129,6 +158,7 @@ export function useSearch() {
     clear() {
       query.value = "";
       activeFilter.value = "all";
+      submittedYtQuery.value = "";
     },
     async rebuildIndex() {
       await rebuildSearchIndex();

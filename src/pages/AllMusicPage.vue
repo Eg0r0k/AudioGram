@@ -6,7 +6,7 @@
           <Button
             variant="ghost"
             size="icon-lg"
-            class="rounded-full shrink-0 text-white"
+            class="rounded-full shrink-0 "
             @click="goBack()"
           >
             <IconArrowLeft class="size-6" />

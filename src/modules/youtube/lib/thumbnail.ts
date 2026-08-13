@@ -2,11 +2,53 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 
 /**
+ * googleusercontent/ggpht covers are served at the size encoded in the URL,
+ * and YT Music search/browse payloads only carry tiny renditions (w60–w120)
+ * that look crushed once rendered on a hidpi screen. The CDN serves any
+ * requested size, so rewrite the size params to a sharp rendition.
+ */
+function upscaledThumbnail(url: string, size: number): string {
+  if (!/\.(?:googleusercontent|ggpht)\.com\//.test(url)) return url;
+  return url
+    .replace(/=w\d+-h\d+/, `=w${size}-h${size}`)
+    .replace(/=s\d+/, `=s${size}`);
+}
+
+/** Hero/full-cover rendition (YT Music's standard album cover size). */
+export const THUMB_SIZE_FULL = 544;
+/** Card rendition (~144px cards on hidpi screens). */
+export const THUMB_SIZE_CARD = 320;
+/** List-row rendition — plenty for 40–56px covers on hidpi screens. */
+export const THUMB_SIZE_ROW = 226;
+
+/**
  * Routes a YouTube thumbnail URL through the `ytimg://` scheme so the Rust
  * side fetches it honoring the configured proxy. `<img>` loads in the webview
  * go straight to the network and bypass the app proxy otherwise. No-op on web.
+ *
+ * `size` picks the CDN rendition — request only what the layout needs so long
+ * lists don't decode hero-sized covers per row.
  */
-export function proxiedThumbnail(url: string): string {
-  if (!IS_TAURI) return url;
-  return convertFileSrc(url, "ytimg");
+export function proxiedThumbnail(url: string, size: number = THUMB_SIZE_FULL): string {
+  const sharp = upscaledThumbnail(url, size);
+  if (!IS_TAURI) return sharp;
+  return convertFileSrc(sharp, "ytimg");
+}
+
+/**
+ * Recovers the original https thumbnail URL from a `ytimg://`-proxied one
+ * (the original arrives percent-encoded as the request path). Non-proxied
+ * URLs pass through unchanged.
+ */
+export function unproxiedThumbnail(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const isProxied = parsed.protocol === "ytimg:" || parsed.hostname === "ytimg.localhost";
+    if (!isProxied) return url;
+    return decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  }
+  catch {
+    return null;
+  }
 }

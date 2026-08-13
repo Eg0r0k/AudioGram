@@ -145,7 +145,7 @@ import IconPause from "~icons/audiogram/pause-rounded";
 
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { formatDuration } from "@/lib/format/time";
-import type { Track } from "@/modules/player/types";
+import { isEphemeralTrack, type PlayerTrack, type Track } from "@/modules/player/types";
 import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { Button } from "@/components/ui/button";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -216,8 +216,14 @@ const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);
 
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
-const computedCoverUrl = computed(() => coverBlobUrl.value ?? "/img/fallback.svg");
-const coverUrl = computed(() => props.coverUrl ?? computedCoverUrl.value);
+const coverUrl = computed(() => {
+  if (props.coverUrl) return props.coverUrl;
+  // Queue/history rows also render ephemeral tracks (YT streams, radio):
+  // they carry their own cover URL and have no album to look up.
+  const track = props.track as PlayerTrack;
+  if (isEphemeralTrack(track)) return track.cover ?? "/img/fallback.svg";
+  return coverBlobUrl.value ?? "/img/fallback.svg";
+});
 
 const artists = computed(() => {
   const artistStr = props.track.artist;

@@ -76,6 +76,13 @@ export const queryKeys = {
       ["recommendations", "forTrack", trackId, cacheVersion, limit] as const,
     analysisProgress: () => ["recommendations", "analysisProgress"] as const,
   },
+  youtube: {
+    searchAll: (query: string) => ["youtube", "search", "all", query] as const,
+    searchList: (chip: string, query: string) => ["youtube", "search", chip, query] as const,
+    playlist: (id: string) => ["youtube", "playlist", id] as const,
+    album: (id: string) => ["youtube", "album", id] as const,
+    artist: (id: string) => ["youtube", "artist", id] as const,
+  },
   stats: {
     all: () => ["stats"] as const,
     topTracks: (limit: number, since?: number) =>

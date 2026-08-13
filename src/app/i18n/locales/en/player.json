@@ -42,10 +42,11 @@
   "chapterIntro": "Intro",
   "addMarkAt": "Add mark at {time}",
   "emptyDescription": "For now...",
-"sleepTimer": "Sleep timer",
+  "sleepTimer": "Sleep timer",
   "cancelSleepTimer": "Turn off timer",
   "sleepTimerOff": "Timer is off",
   "sleepTimerScheduledIn": "Will stop in {time}",
   "nothingPlaying": "Nothing is playing right now.",
-  "upNextLabel": "Up Next"
+  "upNextLabel": "Up Next",
+  "moreOptions": "More options"
 }

@@ -1,6 +1,9 @@
 <template>
   <div class="library-sort-header-container border-b border-border/40 px-4 sm:px-6">
-    <div class="library-sort-header">
+    <div
+      class="library-sort-header"
+      :class="!sortable && 'pointer-events-none'"
+    >
       <div class="index-col flex items-center pl-3">
         <IconHashtag class="size-4" />
       </div>
@@ -80,15 +83,20 @@ import IconClock from "~icons/tabler/clock-hour-4";
 import IconHashtag from "~icons/tabler/hash";
 import { getNextTrackSortKey, TrackSortField } from "../lib/trackSort";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   sortKey: TrackSortKey | null;
-}>();
+  /** Static column header without sort interaction (e.g. remote YT lists). */
+  sortable?: boolean;
+}>(), {
+  sortable: true,
+});
 
 const emit = defineEmits<{
   "update:sortKey": [value: TrackSortKey | null];
 }>();
 
 function toggle(field: TrackSortField) {
+  if (!props.sortable) return;
   emit("update:sortKey", getNextTrackSortKey(props.sortKey, field));
 }
 </script>

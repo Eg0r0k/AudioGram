@@ -7,12 +7,12 @@
       <div class="border-b  px-6 py-5 shrink-0">
         <DialogHeader class="gap-2 pr-10">
           <DialogTitle>
-            What's new <span class="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            {{ t("update.whatsNewTitle") }} <span class="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
               v{{ activeVersion }}
             </span>
           </DialogTitle>
           <DialogDescription>
-            Changes included in this release.
+            {{ t("update.whatsNewDescription") }}
           </DialogDescription>
         </DialogHeader>
       </div>
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Dialog,
   DialogDescription,
@@ -41,12 +42,17 @@ import { useChangelogStore } from "../store/changelog.store";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
 import DialogContent from "@/components/ui/dialog/DialogContent.vue";
 
+const { t } = useI18n();
 const changelogStore = useChangelogStore();
 
 const activeVersion = computed(() => changelogStore.activeVersion ?? __APP_VERSION__);
-const activeChangelog = computed(
-  () => changelogStore.activeChangelog ?? EMPTY_RELEASE_NOTES_MESSAGE,
-);
+const activeChangelog = computed(() => {
+  const changelog = changelogStore.activeChangelog;
+  if (!changelog || changelog === EMPTY_RELEASE_NOTES_MESSAGE) {
+    return t("update.emptyReleaseNotes");
+  }
+  return changelog;
+});
 
 watch(
   () => changelogStore.hasUnseenUpdate,
