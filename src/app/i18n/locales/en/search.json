@@ -17,7 +17,8 @@
   },
   "source": {
     "library": "Library",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "nd": "Navidrome"
   },
   "ytHint": "Press Enter to search YouTube",
   "showAll": "Show all"

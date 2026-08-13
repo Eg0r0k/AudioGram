@@ -18,7 +18,7 @@ const TOP_RESULTS_COUNT = 6;
 const MAX_HISTORY_ITEMS = 6;
 const SEARCH_HISTORY_KEY = "audiogram-search-history";
 
-export type SearchSource = "library" | "youtube";
+export type SearchSource = "library" | "youtube" | "nd";
 export type YtChip = "all" | "tracks" | "albums" | "artists" | "playlists" | "videos";
 
 const query = ref("");

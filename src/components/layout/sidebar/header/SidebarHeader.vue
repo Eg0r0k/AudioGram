@@ -74,7 +74,7 @@
     >
       <InputGroup class="dark:bg-background!  bg-muted! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
-          <DropdownMenu v-if="isYoutubeAvailable">
+          <DropdownMenu v-if="isYoutubeAvailable || isNdSearchAvailable">
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
@@ -84,6 +84,10 @@
               >
                 <IconBrandYoutube
                   v-if="source === 'youtube'"
+                  class="size-5"
+                />
+                <IconServer
+                  v-else-if="source === 'nd'"
                   class="size-5"
                 />
                 <IconSearch
@@ -105,11 +109,25 @@
                   class="ml-auto size-4"
                 />
               </DropdownMenuItem>
-              <DropdownMenuItem @click="selectSource('youtube')">
+              <DropdownMenuItem
+                v-if="isYoutubeAvailable"
+                @click="selectSource('youtube')"
+              >
                 <IconBrandYoutube class="size-5" />
                 {{ $t("search.source.youtube") }}
                 <IconCheck
                   v-if="source === 'youtube'"
+                  class="ml-auto size-4"
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                v-if="isNdSearchAvailable"
+                @click="selectSource('nd')"
+              >
+                <IconServer class="size-5" />
+                {{ $t("search.source.nd") }}
+                <IconCheck
+                  v-if="source === 'nd'"
                   class="ml-auto size-4"
                 />
               </DropdownMenuItem>
@@ -187,6 +205,8 @@ import { routeLocation } from "@/app/router/route-locations";
 import { youtubeProvider } from "@/modules/youtube/provider";
 import IconBrandYoutube from "~icons/tabler/brand-youtube";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
+import IconServer from "~icons/tabler/server";
+import { getNdConfig } from "@/modules/sources/navidrome/config";
 
 defineProps<{ compact?: boolean }>();
 
@@ -197,6 +217,7 @@ const theme = useTheme();
 const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear } = useSearch();
 
 const isYoutubeAvailable = youtubeProvider.isAvailable;
+const isNdSearchAvailable = computed(() => getNdConfig() !== null);
 
 function selectSource(next: SearchSource) {
   setSource(next);

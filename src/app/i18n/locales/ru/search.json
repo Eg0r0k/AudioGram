@@ -17,7 +17,8 @@
   },
   "source": {
     "library": "Библиотека",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "nd": "Navidrome"
   },
   "ytHint": "Нажмите Enter для поиска на YouTube",
   "showAll": "Показать все"
