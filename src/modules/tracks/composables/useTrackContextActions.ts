@@ -289,7 +289,9 @@ export const useTrackContextActions = (
     }
 
     const current = track.value;
-    const id = subject?.kind === "remote" ? subject.dto.id : (isLibraryTrack(current) ? current.id : null);
+    let id = null;
+    if (subject?.kind === "remote") id = subject.dto.id;
+    else if (isLibraryTrack(current)) id = current.id;
     if (!id) return null;
 
     const ref = parseTrackRef(id);

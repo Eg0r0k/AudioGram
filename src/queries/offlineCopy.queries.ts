@@ -14,7 +14,7 @@ export const offlineCopyQueries = {
       queryKey: queryKeys.offlineCopies.detail(trackId ?? NO_TRACK_ID),
       queryFn: trackId
         ? async (): Promise<OfflineCopyEntity | null> =>
-            (await unwrapResult(offlineCopyRepository.findById(trackId))) ?? null
+          (await unwrapResult(offlineCopyRepository.findById(trackId))) ?? null
         : skipToken,
     }),
 } as const;

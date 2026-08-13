@@ -7,6 +7,8 @@ import {
   type PlayerTrack,
   isLibraryTrack,
   isEphemeralTrack,
+  type EphemeralTrack,
+  type Track,
   type RepeatMode,
 } from "../types";
 import { TrackSource, TrackState } from "@/db/entities";
@@ -209,31 +211,36 @@ export const usePlayerStore = defineStore("player", () => {
    *   url  → used directly (radio, YT stream proxy)
    */
   const resolvePlayback = async (track: PlayerTrack): Promise<string | null> => {
-    if (isEphemeralTrack(track)) {
-      switch (track.source.type) {
-        case "file": {
-          if (_activeBlobUrl) {
-            URL.revokeObjectURL(_activeBlobUrl);
-          }
-          _activeBlobUrl = URL.createObjectURL(track.source.file);
-          return _activeBlobUrl;
-        }
+    if (isEphemeralTrack(track)) return resolveEphemeralPlayback(track);
+    return resolveLibraryPlayback(track);
+  };
 
-        case "path": {
-          if (!IS_TAURI) {
-            console.warn("[Player] path-based ephemeral tracks require Tauri");
-            return null;
-          }
-          const result = await storageService.getAudioUrl(track.source.path);
-          if (result.isErr()) throw result.error;
-          return result.value;
+  const resolveEphemeralPlayback = async (track: EphemeralTrack): Promise<string | null> => {
+    switch (track.source.type) {
+      case "file": {
+        if (_activeBlobUrl) {
+          URL.revokeObjectURL(_activeBlobUrl);
         }
-
-        case "url":
-          return track.source.url;
+        _activeBlobUrl = URL.createObjectURL(track.source.file);
+        return _activeBlobUrl;
       }
-    }
 
+      case "path": {
+        if (!IS_TAURI) {
+          console.warn("[Player] path-based ephemeral tracks require Tauri");
+          return null;
+        }
+        const result = await storageService.getAudioUrl(track.source.path);
+        if (result.isErr()) throw result.error;
+        return result.value;
+      }
+
+      case "url":
+        return track.source.url;
+    }
+  };
+
+  const resolveLibraryPlayback = async (track: Track): Promise<string | null> => {
     if (track.source === TrackSource.REMOTE_HLS) {
       return track.storagePath || null;
     }
