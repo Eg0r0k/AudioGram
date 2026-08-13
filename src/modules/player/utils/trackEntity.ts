@@ -13,6 +13,7 @@ export function mapTrackEntityToPlayerTrack(entity: TrackEntity): Track {
     storagePath: entity.storagePath ?? "",
     source: entity.source,
     state: entity.state,
+    pinned: entity.pinned,
     duration: entity.duration,
     isLiked: !!entity.likedAt,
     playCount: entity.playCount,

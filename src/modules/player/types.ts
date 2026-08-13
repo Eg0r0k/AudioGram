@@ -1,4 +1,4 @@
-import type { TrackSource, TrackState } from "@/db/entities";
+import type { PinnedFlag, TrackSource, TrackState } from "@/db/entities";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 
 export const REPEAT_MODES = ["off", "all", "one"] as const;
@@ -28,6 +28,8 @@ export interface Track extends TrackLoudnessMetadata {
   storagePath: string;
   source: TrackSource;
   state: TrackState;
+  /** Absent only in legacy fixtures — entity rows always carry the flag. */
+  pinned?: PinnedFlag;
   duration: number;
   isLiked: boolean;
   playCount?: number;
