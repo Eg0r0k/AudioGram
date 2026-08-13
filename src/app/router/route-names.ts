@@ -10,6 +10,7 @@ export const ROUTE_NAMES = {
   SETTINGS_AUDIO: "settings-audio",
   SETTINGS_STORAGE: "settings-storage",
   SETTINGS_PROXY: "settings-proxy",
+  SETTINGS_SOURCES: "settings-sources",
   SETTINGS_LANGUAGE: "settings-language",
   SETTINGS_NOTIFICATIONS: "settings-notifications",
   SETTINGS_APPEARANCE: "settings-appearance",

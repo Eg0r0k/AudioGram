@@ -21,6 +21,14 @@ import {
   type ProxySettings,
   type ProxyProtocol,
 } from "./proxy";
+import {
+  DEFAULT_SOURCES_SETTINGS,
+  NdSourceSettingsSchema,
+  SourcesSettingsSchema,
+  buildNdConfig,
+  type NdSourceSettings,
+  type SourcesSettings,
+} from "./sources";
 
 export const SettingsSchema = object({
   version: optional(number(), 1),
@@ -28,6 +36,7 @@ export const SettingsSchema = object({
   playback: optional(PlaybackSettingsSchema, DEFAULT_PLAYBACK_SETTINGS),
   audio: optional(AudioSettingsSchema, DEFAULT_AUDIO_SETTINGS),
   proxy: optional(ProxySettingsSchema, DEFAULT_PROXY_SETTINGS),
+  sources: optional(SourcesSettingsSchema, DEFAULT_SOURCES_SETTINGS),
 });
 
 export type Settings = InferOutput<typeof SettingsSchema>;
@@ -40,6 +49,9 @@ export {
   ProxySettingsSchema,
   PROXY_PROTOCOLS,
   buildProxyUrl,
+  NdSourceSettingsSchema,
+  SourcesSettingsSchema,
+  buildNdConfig,
   EQ_PRESETS,
   EQ_FREQUENCIES,
   SUPPORTED_LANGUAGES,
@@ -52,5 +64,7 @@ export {
   type AudioSettings,
   type ProxySettings,
   type ProxyProtocol,
+  type NdSourceSettings,
+  type SourcesSettings,
   type SupportedLanguage,
 };

@@ -13,6 +13,7 @@ export const routeLocation = {
   settingsAudio: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_AUDIO }),
   settingsStorage: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_STORAGE }),
   settingsProxy: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_PROXY }),
+  settingsSources: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_SOURCES }),
   settingsLanguage: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_LANGUAGE }),
   settingsNotifications: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_NOTIFICATIONS }),
   settingsAppearance: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_APPEARANCE }),

@@ -4,6 +4,7 @@ import {
   AudioSettings,
   DEFAULT_SETTINGS,
   GeneralSettings,
+  NdSourceSettings,
   PlaybackSettings,
   ProxySettings,
   Settings,
@@ -28,6 +29,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const playback = computed(() => settings.value.playback);
   const audio = computed(() => settings.value.audio);
   const proxy = computed(() => settings.value.proxy);
+  const sources = computed(() => settings.value.sources);
 
   const updateGeneral = (partial: Partial<GeneralSettings>) => {
     settings.value.general = { ...settings.value.general, ...partial };
@@ -43,6 +45,13 @@ export const useSettingsStore = defineStore("settings", () => {
 
   const updateProxy = (partial: Partial<ProxySettings>) => {
     settings.value.proxy = { ...settings.value.proxy, ...partial };
+  };
+
+  const updateNdSource = (partial: Partial<NdSourceSettings>) => {
+    settings.value.sources = {
+      ...settings.value.sources,
+      nd: { ...settings.value.sources.nd, ...partial },
+    };
   };
 
   const reset = () => {
@@ -95,11 +104,13 @@ export const useSettingsStore = defineStore("settings", () => {
     playback,
     audio,
     proxy,
+    sources,
 
     updateGeneral,
     updatePlayback,
     updateAudio,
     updateProxy,
+    updateNdSource,
     reset,
     resetSection,
     exportToJSON,

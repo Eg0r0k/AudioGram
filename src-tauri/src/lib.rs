@@ -17,6 +17,9 @@ mod discord_utils;
 #[cfg(desktop)]
 mod youtube;
 
+#[cfg(desktop)]
+mod nd;
+
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
 
@@ -82,6 +85,7 @@ pub fn run() {
         .manage(youtube::ProxyState::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
+        .manage(nd::NdState::default())
         .register_asynchronous_uri_scheme_protocol("stream", youtube::serve_stream)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -119,6 +123,7 @@ pub fn run() {
         youtube::yt_download_cancel,
         youtube::set_proxy,
         youtube::proxy_check,
+        nd::nd_set_config,
     ]);
 
     #[cfg(mobile)]

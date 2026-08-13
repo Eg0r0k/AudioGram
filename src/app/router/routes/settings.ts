@@ -48,6 +48,15 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/settings/sources",
+    name: ROUTE_NAMES.SETTINGS_SOURCES,
+    component: () => import("@/pages/settings/SourcesSettings.vue"),
+    meta: {
+      titleKey: "settings.sources",
+      depth: 4,
+    },
+  },
+  {
     path: "/settings/language",
     name: ROUTE_NAMES.SETTINGS_LANGUAGE,
     component: () => import("@/pages/settings/LanguageSettings.vue"),

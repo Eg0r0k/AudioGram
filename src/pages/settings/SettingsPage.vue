@@ -42,6 +42,12 @@
           :icon="IconWorld"
           :title="$t('settings.index.proxy')"
         />
+        <SettingsLink
+          v-if="isTauri"
+          :to="routeLocation.settingsSources()"
+          :icon="IconServer"
+          :title="$t('settings.index.sources')"
+        />
         <!-- <SettingsLink
           :to="routeLocation.settingsNotifications()"
           :icon="IconBell"
@@ -91,6 +97,7 @@ import IconPalette from "~icons/tabler/palette";
 import IconLanguage from "~icons/tabler/language";
 import IconHeadphones from "~icons/tabler/headphones";
 import IconDatabase from "~icons/tabler/database";
+import IconServer from "~icons/tabler/server";
 import IconInfo from "~icons/tabler/info-circle";
 import IconWorld from "~icons/tabler/world";
 import IconRefresh from "~icons/tabler/refresh";

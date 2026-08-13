@@ -7,6 +7,7 @@
         "audio": "Audio & Playback",
         "storage": "Store",
         "proxy": "Proxy",
+        "sources": "Music sources",
         "notifications": "Notifications",
         "about": "About",
         "resetAll": "Reset settings",
@@ -32,6 +33,18 @@
         "test": "Test connection",
         "testOk": "Connected ({ms} ms)",
         "testFailed": "Connection failed: {error}"
+    },
+    "sources": {
+        "nd": {
+            "enable": "Navidrome server",
+            "description": "Browse and stream your own Navidrome (Subsonic) library.",
+            "baseUrl": "Server address",
+            "username": "Username",
+            "password": "Password",
+            "test": "Test connection",
+            "testOk": "Connected",
+            "testFailed": "Connection failed: {error}"
+        }
     },
     "about": {
         "madeWith": "Made with",

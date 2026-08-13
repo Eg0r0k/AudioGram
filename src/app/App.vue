@@ -50,6 +50,7 @@ import { useChangelogOnStartup } from "@/modules/update/composables/useChangelog
 import WhatsNewDialog from "@/modules/update/components/WhatsNewDialog.vue";
 import { useTrayBehavior } from "@/modules/settings/composables/useTrayBehavior";
 import { useProxySync } from "@/modules/settings/composables/useProxySync";
+import { useNdSourceSync } from "@/modules/settings/composables/useNdSourceSync";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { ephemeralFromPath } from "@/modules/player/types";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
@@ -146,6 +147,7 @@ useChangelogOnStartup();
 if (IS_TAURI) {
   useTrayBehavior();
   useProxySync();
+  useNdSourceSync();
 }
 
 watch(() => currentRoute.fullPath, (fullPath) => {
