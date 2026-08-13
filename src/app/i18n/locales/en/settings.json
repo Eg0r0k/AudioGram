@@ -108,6 +108,8 @@
         "total": "total",
         "tracks": "Audio files",
         "tracksCount": "tracks",
+        "offline": "Offline tracks",
+        "clearOffline": "Clear offline",
         "lyrics": "Track lyrics",
         "covers": "Cover art",
         "albumCovers": "Album artwork cache",

@@ -48,7 +48,7 @@ fn dir_size(path: &Path) -> u64 {
 #[tauri::command]
 async fn app_data_folder_size(app: tauri::AppHandle, folder: String) -> Result<u64, String> {
     match folder.as_str() {
-        "tracks" | "lyrics" => {}
+        "tracks" | "lyrics" | "offline" | "offline/nd" | "offline/yt" => {}
         _ => return Err("unsupported app data folder".into()),
     }
 

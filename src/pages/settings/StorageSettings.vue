@@ -94,6 +94,36 @@
           <ItemActions />
         </Item>
 
+        <Item v-if="IS_TAURI">
+          <ItemMedia>
+            <CloudDownIcon class="size-6 mr-3" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{{ $t('settings.storage.offline') }}</ItemTitle>
+            <ItemSubtitle v-if="isLoading">
+              {{ $t('common.loading') }}
+            </ItemSubtitle>
+            <ItemSubtitle v-else>
+              <span class="text-sm text-muted-foreground">
+                {{ formatted.offlineTotal }}
+                · Navidrome {{ formatted.offlineNdSize }}
+                · YouTube {{ formatted.offlineYtSize }}
+              </span>
+            </ItemSubtitle>
+          </ItemContent>
+          <ItemActions class="pointer-events-auto">
+            <Button
+              variant="ghost-primary"
+              size="sm"
+              :disabled="isLoading || isClearing || !formatted.hasOffline"
+              @click="clearOfflineData"
+            >
+              {{ $t("settings.storage.clearOffline") }}
+              <TrashIcon class="size-4" />
+            </Button>
+          </ItemActions>
+        </Item>
+
         <Item>
           <ItemMedia>
             <FileTextIcon class="size-6 mr-3" />
@@ -216,6 +246,7 @@ import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useStorageSettings } from "@/modules/settings/store/storage";
 
 import TrashIcon from "~icons/tabler/trash";
+import CloudDownIcon from "~icons/tabler/cloud-down";
 import FileTextIcon from "~icons/tabler/file-text";
 import MusicIcon from "~icons/tabler/music";
 import FolderIcon from "~icons/tabler/folder";
@@ -233,6 +264,7 @@ const {
   clearAllData,
   clearLyricsData,
   clearFoldersData,
+  clearOfflineData,
   clearTimingsData,
 } = useStorageSettings();
 
