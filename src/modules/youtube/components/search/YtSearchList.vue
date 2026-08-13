@@ -1,58 +1,32 @@
 <template>
   <TrackContextMenu context="yt-search">
+    <SearchLoading v-if="isLoading" />
+
     <VirtualScrollable
+      v-else
       class="flex-1 min-h-0"
       :items="entities"
       :estimate-size="64"
       :get-item-key="index => entities[index]?.id ?? index"
-      :loading="isLoading || isFetchingNextPage"
+      :loading="isFetchingNextPage"
       @load-more="onLoadMore"
     >
       <template #default="{ item, index }">
-        <div class="px-4">
-          <YtTrackRow
+        <div class="px-3">
+          <TrackRow
             v-if="item.kind === 'track'"
-            :item="playableFromMusicTrack(item)"
-            :wide="item.isVideo"
-            @play="play"
-            @contextmenu="openYtMenu(playableFromMusicTrack(item), index)"
+            :track="trackRowFor(item.id)!.track"
+            :cover-url="trackRowCover(item)"
+            hide-index
+            :menu-index="index"
+            menu-target="yt-search"
+            @play="play(trackRowFor(item.id)!.playable)"
           />
-          <Item
+          <SearchDropdownRow
             v-else
-            as="button"
-            type="button"
-            size="sm"
-            class="w-full cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-muted/60"
-            @click="openEntity(item)"
-          >
-            <ItemMedia
-              class="size-12 overflow-hidden bg-muted"
-              :class="item.kind === 'artist' ? 'rounded-full' : 'rounded'"
-            >
-              <img
-                v-if="entityThumbnail(item)"
-                :src="proxiedThumbnail(entityThumbnail(item)!, THUMB_SIZE_ROW)"
-                alt=""
-                loading="lazy"
-                class="h-full w-full object-cover"
-              >
-              <IconMusic
-                v-else
-                class="size-6 text-muted-foreground"
-              />
-            </ItemMedia>
-            <ItemContent class="min-w-0">
-              <ItemTitle class="block min-w-0 w-full! overflow-hidden text-ellipsis whitespace-nowrap text-sm">
-                {{ entityTitle(item) }}
-              </ItemTitle>
-              <ItemDescription
-                v-if="entitySubtitle(item)"
-                class="line-clamp-1 text-xs"
-              >
-                {{ entitySubtitle(item) }}
-              </ItemDescription>
-            </ItemContent>
-          </Item>
+            :item="entityResultItem(item)"
+            :to="entityRoute(item)"
+          />
         </div>
       </template>
 
@@ -69,35 +43,39 @@
         >
           {{ errorText }}
         </p>
-        <p
+        <SearchNoResults
           v-else
-          class="py-12 px-6 text-center text-sm text-muted-foreground"
-        >
-          {{ $t("youtube.noResults", { query }) }}
-        </p>
+          :query="query"
+        />
       </template>
     </VirtualScrollable>
+
+    <TrackDropdown context="yt-search" />
   </TrackContextMenu>
 </template>
 
 <script setup lang="ts">
 import { computed, toRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import type { RouteLocationRaw } from "vue-router";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
-import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { routeLocation } from "@/app/router/route-locations";
+import type { SearchResultItem } from "@/modules/search/types";
+import SearchDropdownRow from "@/modules/search/components/SearchDropdownRow.vue";
+import SearchLoading from "@/modules/search/components/SearchLoading.vue";
+import SearchNoResults from "@/modules/search/components/SearchNoResults.vue";
+import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
+import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
+import TrackRow from "@/modules/tracks/components/TrackRow.vue";
+import type { PlayerTrack, Track } from "@/modules/player/types";
 import { useYtSearchList, type YtListChip } from "../../composables/useYtSearchQueries";
 import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
 import { playableFromMusicTrack } from "../../lib/playable";
 import type { YoutubeError, YtMusicEntity, YtPlayable } from "../../types";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
-import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
-import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
-import YtTrackRow from "../YtTrackRow.vue";
+import { ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
 import IconLoader from "~icons/tabler/loader-2";
-import IconMusic from "~icons/tabler/music";
 
 const props = defineProps<{
   chip: YtListChip;
@@ -105,13 +83,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const router = useRouter();
 const { play } = useYoutube();
-const { openMenu } = useTrackMenu();
-
-function openYtMenu(playable: YtPlayable, index: number) {
-  openMenu(ytEphemeralTrack(playable), index, { target: "yt-search" });
-}
 
 const {
   data,
@@ -126,6 +98,34 @@ const entities = computed<YtMusicEntity[]>(() =>
   data.value?.pages.flatMap(page => page.items) ?? [],
 );
 
+// Ephemeral display tracks are built once per result set so their ids stay
+// stable across re-renders (TrackRow/menu identity checks rely on that).
+const trackRowsById = computed(() => {
+  const map = new Map<string, { playable: YtPlayable; track: Track }>();
+  for (const item of entities.value) {
+    if (item.kind !== "track") continue;
+    const playable = playableFromMusicTrack(item);
+    map.set(item.id, { playable, track: ytEphemeralTrack(playable) as PlayerTrack as Track });
+  }
+  return map;
+});
+
+function trackRowFor(id: string) {
+  return trackRowsById.value.get(id);
+}
+
+function trackRowCover(item: YtMusicEntity): string | undefined {
+  return item.thumbnail ? proxiedThumbnail(item.thumbnail, THUMB_SIZE_ROW) : undefined;
+}
+
+function entityResultItem(item: YtMusicEntity): SearchResultItem {
+  return ytEntityResultItem(item, t);
+}
+
+function entityRoute(item: YtMusicEntity): RouteLocationRaw {
+  return ytEntityRoute(item) ?? routeLocation.home();
+}
+
 const errorText = computed(() =>
   error.value ? youtubeErrorMessage(error.value as unknown as YoutubeError, t) : null,
 );
@@ -133,43 +133,6 @@ const errorText = computed(() =>
 function onLoadMore() {
   if (hasNextPage.value && !isFetchingNextPage.value) {
     void fetchNextPage();
-  }
-}
-
-function openEntity(item: YtMusicEntity) {
-  if (item.kind === "album") {
-    router.push(routeLocation.ytAlbum(item.id));
-  }
-  else if (item.kind === "playlist") {
-    router.push(routeLocation.ytPlaylist(item.id));
-  }
-  else if (item.kind === "artist") {
-    router.push(routeLocation.ytArtist(item.id));
-  }
-}
-
-function entityTitle(item: YtMusicEntity): string {
-  return item.kind === "artist" ? item.name : item.title;
-}
-
-function entityThumbnail(item: YtMusicEntity): string | null {
-  return item.thumbnail;
-}
-
-function entitySubtitle(item: YtMusicEntity): string | null {
-  switch (item.kind) {
-    case "album": {
-      const artist = item.artists.map(a => a.name).join(", ");
-      return [artist, item.year].filter(Boolean).join(" · ") || null;
-    }
-    case "playlist":
-      return item.trackCount != null
-        ? t("youtube.tracksCount", { count: item.trackCount })
-        : item.owner;
-    case "artist":
-      return t("youtube.chip.artists");
-    default:
-      return null;
   }
 }
 </script>

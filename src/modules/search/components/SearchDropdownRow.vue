@@ -8,7 +8,12 @@ import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
 import { routeLocation } from "@/app/router/route-locations";
 
-const props = defineProps<{ item: SearchResultItem; track?: Track }>();
+const props = defineProps<{
+  item: SearchResultItem;
+  track?: Track;
+  /** Route override for entities living outside the local library (YT). */
+  to?: RouteLocationRaw;
+}>();
 const emit = defineEmits<{ click: [] }>();
 
 function routeForItem(item: SearchResultItem): RouteLocationRaw {
@@ -29,7 +34,7 @@ const libraryItem = computed<LibraryItem>(() => ({
   isPinned: false,
   addedAt: 0,
   rounded: props.item.type === "artist",
-  to: routeForItem(props.item),
+  to: props.to ?? routeForItem(props.item),
 }));
 </script>
 
