@@ -52,6 +52,17 @@
     "dialog:default",
     "dialog:allow-open",
     "shell:default",
-    "log:default"
+    "log:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "http://**"
+        },
+        {
+          "url": "https://**"
+        }
+      ]
+    }
   ]
 }
