@@ -7,6 +7,7 @@ import { sources } from "@/modules/sources";
 import type { SourceError } from "@/modules/sources";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackId } from "@/types/ids";
+import { finalizeOfflineCopy } from "./finalize";
 import { useDownloadsStore, type DownloadRuntime } from "./store/downloads.store";
 
 //
@@ -14,9 +15,6 @@ import { useDownloadsStore, type DownloadRuntime } from "./store/downloads.store
 // restarts; runtime progress lives in the downloads store. The loop runs at
 // most MAX_PARALLEL jobs, retries transient failures with backoff, and
 // treats a cancel as "changed my mind" — the job disappears, no error row.
-//
-// Step 3 scope: the finished temp file is finalized by `finalizeDownload`
-// (offline copy import + cache sync) — wired in step 4.
 //
 
 const MAX_PARALLEL = 2;
@@ -30,13 +28,13 @@ const inFlight = new Set<string>();
 const retryAt = new Map<string, number>();
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Step 4 replaces this hook with offline-copy import + cache sync. */
 type DownloadFinalizer = (
   job: DownloadJobEntity,
   file: { path: string; format?: { codec?: string } },
 ) => Promise<void>;
 
-let finalizeDownload: DownloadFinalizer = async () => {};
+/** Offline-copy import + cache sync; replaceable in unit tests. */
+let finalizeDownload: DownloadFinalizer = finalizeOfflineCopy;
 
 export function setDownloadFinalizer(finalizer: DownloadFinalizer): void {
   finalizeDownload = finalizer;

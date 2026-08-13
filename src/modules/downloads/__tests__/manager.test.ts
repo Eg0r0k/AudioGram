@@ -26,6 +26,10 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   readDir: fsMock.readDir,
   remove: fsMock.remove,
 }));
+// The real finalizer needs native storage — these tests cover the loop only.
+vi.mock("../finalize", () => ({
+  finalizeOfflineCopy: vi.fn(async () => {}),
+}));
 
 import { db } from "@/db";
 
