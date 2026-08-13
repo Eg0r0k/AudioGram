@@ -11,6 +11,8 @@
 //! the crossOrigin media element keeps Web Audio processing and canvas
 //! palette extraction stays untainted.
 
+use std::sync::Arc;
+
 use tauri::{AppHandle, Runtime};
 
 pub fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
@@ -71,6 +73,58 @@ pub(crate) async fn forward_get(
     }
 
     builder.body(bytes).map_err(|e| e.to_string())
+}
+
+/// Serves a fully cached body honoring an optional `Range` header — the media
+/// element probes with `bytes=0-` first and follows up with seek ranges.
+pub(crate) fn range_response(
+    content_type: &str,
+    bytes: &Arc<Vec<u8>>,
+    range: Option<&str>,
+) -> tauri::http::Response<Vec<u8>> {
+    let total = bytes.len();
+
+    let base = |status: u16| {
+        tauri::http::Response::builder()
+            .status(status)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Content-Type", content_type)
+            .header("Accept-Ranges", "bytes")
+    };
+
+    match range.and_then(parse_range_header) {
+        Some((start, _)) if start >= total => base(416)
+            .header("Content-Range", format!("bytes */{total}"))
+            .body(Vec::new())
+            .unwrap_or_else(|_| status_response(500)),
+        Some((start, end)) => {
+            let end = end.map_or(total - 1, |e| e.min(total - 1));
+            base(206)
+                .header("Content-Range", format!("bytes {start}-{end}/{total}"))
+                .body(bytes[start..=end].to_vec())
+                .unwrap_or_else(|_| status_response(500))
+        }
+        // No (or unsupported) range: a full 200 body is a valid answer to any
+        // Range request per RFC 9110.
+        None => base(200)
+            .body(bytes.as_ref().clone())
+            .unwrap_or_else(|_| status_response(500)),
+    }
+}
+
+/// Parses `bytes=start-end?` (suffix ranges like `bytes=-500` are not used by
+/// media elements and fall back to a full response).
+fn parse_range_header(raw: &str) -> Option<(usize, Option<usize>)> {
+    let spec = raw.strip_prefix("bytes=")?;
+    let (start, end) = spec.split_once('-')?;
+    let start = start.trim().parse().ok()?;
+    let end = end.trim();
+    let end = if end.is_empty() {
+        None
+    } else {
+        Some(end.parse().ok()?)
+    };
+    Some((start, end))
 }
 
 pub fn serve<R: Runtime>(

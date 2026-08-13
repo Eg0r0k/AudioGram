@@ -3,6 +3,7 @@ import { usePlayerStore } from "./store/player.store";
 import { useLyricsStore } from "./store/lyrics.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { prefetchYtStream } from "@/modules/youtube/lib/prefetch";
+import { prefetchNdStream } from "@/modules/sources/lib/prefetch";
 import { isLibraryTrack } from "./types";
 import { trackChangedEvent, trackEndedEvent } from "./lib/player-events";
 import { statsService } from "@/services/stats.service";
@@ -22,6 +23,7 @@ function schedulePrefetchOfNextTrack(): void {
     // hasNext is also true at the last index under repeat-all — wrap around.
     const nextIndex = (queue.currentIndex + 1) % queue.size;
     prefetchYtStream(queue.queue[nextIndex]?.track);
+    prefetchNdStream(queue.queue[nextIndex]?.track);
   }, PREFETCH_DELAY_MS);
 }
 

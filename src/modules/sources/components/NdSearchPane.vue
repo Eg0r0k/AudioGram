@@ -1,4 +1,10 @@
 <template>
+  <SearchFilters
+    :active-filter="activeFilter"
+    :available-filters="availableFilters"
+    @update:filter="setFilter($event)"
+  />
+
   <Scrollable
     direction="vertical"
     class="flex-1 min-h-0"
@@ -18,7 +24,7 @@
         {{ $t("search.noResults.title", { query: debouncedQuery }) }}
       </p>
 
-      <section v-if="tracks.length > 0">
+      <section v-if="showSection('track') && tracks.length > 0">
         <h3 class="mb-2 text-sm font-medium text-muted-foreground">
           {{ $t("search.filter.track") }}
         </h3>
@@ -42,7 +48,7 @@
         </button>
       </section>
 
-      <section v-if="albums.length > 0">
+      <section v-if="showSection('album') && albums.length > 0">
         <h3 class="mb-2 text-sm font-medium text-muted-foreground">
           {{ $t("search.filter.album") }}
         </h3>
@@ -65,7 +71,7 @@
         </button>
       </section>
 
-      <section v-if="playlists.length > 0">
+      <section v-if="showSection('playlist') && playlists.length > 0">
         <h3 class="mb-2 text-sm font-medium text-muted-foreground">
           {{ $t("search.filter.playlist") }}
         </h3>
@@ -85,7 +91,7 @@
         </button>
       </section>
 
-      <section v-if="artists.length > 0">
+      <section v-if="showSection('artist') && artists.length > 0">
         <h3 class="mb-2 text-sm font-medium text-muted-foreground">
           {{ $t("search.filter.artist") }}
         </h3>
@@ -116,6 +122,8 @@ import { Scrollable } from "@/components/ui/scrollable";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { routeLocation } from "@/app/router/route-locations";
 import { useSearch } from "@/modules/search/composables/useSearch";
+import SearchFilters from "@/modules/search/components/SearchFilters.vue";
+import type { SearchFilter } from "@/modules/search/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
@@ -128,7 +136,12 @@ const SEARCH_DEBOUNCE_MS = 300;
 const router = useRouter();
 const queueStore = useQueueStore();
 const { openMenu } = useTrackMenu();
-const { query, closeSearch, saveQueryToHistory } = useSearch();
+const { query, closeSearch, saveQueryToHistory, activeFilter, availableFilters, setFilter } = useSearch();
+
+/** Same filter axis as the library pane; sections narrow on the client. */
+function showSection(type: SearchFilter) {
+  return activeFilter.value === "all" || activeFilter.value === type;
+}
 
 const debouncedQuery = refDebounced(computed(() => query.value.trim()), SEARCH_DEBOUNCE_MS);
 const hasQuery = computed(() => debouncedQuery.value.length > 0);
