@@ -1,7 +1,6 @@
-//! Stream resolution (yt-dlp `--get-url`) and the `stream://` audio proxy.
-//!
-//! The scheme is source-generic: paths are dispatched by their first segment
-//! (`/yt/<videoId>` today; `/nd/…` arrives with the Navidrome source).
+//! Stream resolution (yt-dlp `--get-url`) and the yt handler of the
+//! `stream://` proxy. The scheme itself and its dispatcher live in
+//! `crate::stream`; this module only serves `yt/<videoId>` paths.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -9,7 +8,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::ShellExt;
 
-use super::{proxy_args, status_response, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
+use crate::stream::{forward_get, status_response};
+
+use super::{proxy_args, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
 
 /// A resolved googlevideo stream: the URL plus the User-Agent to fetch it
 /// with. yt-dlp URLs are served to a generic browser UA.
@@ -181,40 +182,14 @@ pub async fn yt_prefetch<R: Runtime>(
     Ok(())
 }
 
-/// Serves audio over the generalized `stream://` scheme, dispatching on the
-/// first path segment (`yt/<videoId>` — proxied googlevideo). Proxying happens
-/// server-side (bypassing the webview's CORS block) and the response carries
-/// `Access-Control-Allow-Origin: *` so the crossOrigin media element keeps
-/// Web Audio EQ/analyser/normalization. Range headers are forwarded for
-/// seeking. The path arrives percent-encoded (built by `convertFileSrc`).
-pub fn serve_stream<R: Runtime>(
-    ctx: tauri::UriSchemeContext<'_, R>,
-    request: tauri::http::Request<Vec<u8>>,
-    responder: tauri::UriSchemeResponder,
-) {
-    let encoded = request.uri().path().trim_start_matches('/').to_owned();
-    let path = percent_encoding::percent_decode_str(&encoded)
-        .decode_utf8()
-        .map(|p| p.into_owned())
-        .unwrap_or(encoded);
-
-    let Some(id) = path.strip_prefix("yt/").map(str::to_owned) else {
-        responder.respond(status_response(404));
-        return;
-    };
-    let range = request
-        .headers()
-        .get(tauri::http::header::RANGE)
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_owned);
-    let app = ctx.app_handle().clone();
-
-    tauri::async_runtime::spawn(async move {
-        let response = stream_with_retry(&app, &id, range)
-            .await
-            .unwrap_or_else(|_| status_response(502));
-        responder.respond(response);
-    });
+/// Handles `stream://…/yt/<videoId>`: proxied googlevideo audio (bypassing
+/// the webview's CORS block), served from the prefetch cache when warm.
+pub(crate) async fn stream_yt<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    range: Option<String>,
+) -> Result<tauri::http::Response<Vec<u8>>, String> {
+    stream_with_retry(app, id, range).await
 }
 
 /// Streams from the cached googlevideo URL, transparently re-resolving it when
@@ -237,7 +212,7 @@ async fn stream_with_retry<R: Runtime>(
     let proxy = app.state::<ProxyState>().get();
 
     if let Some(entry) = app.state::<YtStreamCache>().get(id) {
-        let response = fetch_stream(&entry.url, &entry.user_agent, range.clone(), proxy.clone()).await?;
+        let response = forward_get(&entry.url, Some(&entry.user_agent), range.clone(), proxy.clone()).await?;
         if response.status() != tauri::http::StatusCode::FORBIDDEN {
             return Ok(response);
         }
@@ -248,7 +223,7 @@ async fn stream_with_retry<R: Runtime>(
         log::warn!("stream yt/{id}: re-resolve failed: {e}");
         e
     })?;
-    fetch_stream(&entry.url, &entry.user_agent, range, proxy).await
+    forward_get(&entry.url, Some(&entry.user_agent), range, proxy).await
 }
 
 /// Downloads a full upstream body: `(status, content_type, bytes)`.
@@ -336,49 +311,3 @@ fn parse_range_header(raw: &str) -> Option<(usize, Option<usize>)> {
     Some((start, end))
 }
 
-async fn fetch_stream(
-    url: &str,
-    user_agent: &str,
-    range: Option<String>,
-    proxy: Option<String>,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
-    let mut builder = reqwest::Client::builder();
-    if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
-        if let Ok(proxy) = reqwest::Proxy::all(url) {
-            builder = builder.proxy(proxy);
-        }
-    }
-    let client = builder.build().map_err(|e| e.to_string())?;
-    let mut req = client
-        .get(url)
-        .header(reqwest::header::USER_AGENT, user_agent);
-    if let Some(range) = &range {
-        req = req.header(reqwest::header::RANGE, range);
-    }
-
-    let resp = req.send().await.map_err(|e| e.to_string())?;
-    let status = resp.status().as_u16();
-    let headers = resp.headers().clone();
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
-
-    let content_type = headers
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("audio/mp4")
-        .to_owned();
-
-    let mut builder = tauri::http::Response::builder()
-        .status(status)
-        .header("Access-Control-Allow-Origin", "*")
-        .header("Content-Type", content_type)
-        .header("Accept-Ranges", "bytes");
-
-    if let Some(cr) = headers
-        .get(reqwest::header::CONTENT_RANGE)
-        .and_then(|v| v.to_str().ok())
-    {
-        builder = builder.header("Content-Range", cr.to_owned());
-    }
-
-    builder.body(bytes).map_err(|e| e.to_string())
-}

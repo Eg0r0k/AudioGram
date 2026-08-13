@@ -198,10 +198,4 @@ fn validate_browse_id(id: String) -> Result<String, YtError> {
     Ok(id)
 }
 
-fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
-    tauri::http::Response::builder()
-        .status(code)
-        .header("Access-Control-Allow-Origin", "*")
-        .body(Vec::new())
-        .unwrap_or_default()
-}
+pub(crate) use crate::stream::status_response;

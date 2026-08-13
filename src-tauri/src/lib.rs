@@ -20,6 +20,9 @@ mod youtube;
 #[cfg(desktop)]
 mod nd;
 
+#[cfg(desktop)]
+mod stream;
+
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
 
@@ -86,7 +89,7 @@ pub fn run() {
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
         .manage(nd::NdState::default())
-        .register_asynchronous_uri_scheme_protocol("stream", youtube::serve_stream)
+        .register_asynchronous_uri_scheme_protocol("stream", stream::serve)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
