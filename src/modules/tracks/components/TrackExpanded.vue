@@ -154,6 +154,10 @@
           :class="styles.actions"
         >
           <slot name="actions">
+            <NdDownloadButton
+              v-if="isNdCatalogRow"
+              :track="track"
+            />
             <Button
               v-if="isLibraryRow"
               variant="ghost"
@@ -205,6 +209,8 @@ import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
+import { trackSourceKind } from "@/modules/tracks/lib/trackPredicates";
+import NdDownloadButton from "@/modules/downloads/components/NdDownloadButton.vue";
 import { useI18n } from "vue-i18n";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
@@ -310,8 +316,12 @@ const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isExplicit = computed(() => Boolean(props.track.isExplicit));
 const isLiked = computed(() => props.track.isLiked);
 // Like writes to the library row — remote catalog rows (sourceDto) have
-// none, so the default action set drops the button for them.
+// none, so the default action set drops the button for them; ND catalog
+// rows get the offline download button in its place (M4).
 const isLibraryRow = computed(() => !props.track.sourceDto);
+const isNdCatalogRow = computed(() =>
+  !!props.track.sourceDto && trackSourceKind(props.track) === "nd",
+);
 const relativeAddedAt = computed(() =>
   props.track.addedAt ? formatRelativeTime(props.track.addedAt, locale.value) : "",
 );

@@ -121,6 +121,10 @@
       :item="ytPlayable"
       icon-only
     />
+    <NdDownloadButton
+      v-else-if="isNdCatalogRow"
+      :track="track"
+    />
     <div class="w-7 flex justify-end items-center relative">
       <span :class="styles.duration">
         {{ formatDuration(track.duration) }}
@@ -162,6 +166,7 @@ import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
 import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import YtDownloadButton from "@/modules/youtube/components/YtDownloadButton.vue";
+import NdDownloadButton from "@/modules/downloads/components/NdDownloadButton.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { routeLocation } from "@/app/router/route-locations";
 
@@ -237,6 +242,9 @@ const isLibraryRow = computed(() =>
   !isEphemeralTrack(props.track as PlayerTrack) && !props.track.sourceDto,
 );
 const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track as PlayerTrack));
+const isNdCatalogRow = computed(() =>
+  !!props.track.sourceDto && sourceKindOf(props.track.id) === "nd",
+);
 
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
 const coverUrl = computed(() => {
