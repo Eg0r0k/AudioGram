@@ -117,6 +117,7 @@ export async function persistTracks(
       albumId,
       tagIds: [],
       source: item.source,
+      pinned: 1,
       state: TrackState.READY,
       storagePath: item.storagePath,
       duration: item.meta.duration,
@@ -242,6 +243,7 @@ function collectAlbum(
       title: item.meta.album,
       artistId: firstArtistId,
       year: item.meta.year,
+      pinned: 1,
       addedAt: now,
       updatedAt: now,
     });
@@ -268,7 +270,7 @@ function collectArtists(
 
     const name = item.meta.artists.find(a => resolver.getArtistId(a) === artistId);
     if (name) {
-      artistsToCreate.set(artistId, { id: artistId, name, addedAt: now, updatedAt: now });
+      artistsToCreate.set(artistId, { id: artistId, name, pinned: 1, addedAt: now, updatedAt: now });
     }
   }
 }

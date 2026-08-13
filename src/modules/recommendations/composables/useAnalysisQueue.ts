@@ -54,7 +54,7 @@ function getWorker(): Worker {
 
 async function analyzeTrack(trackId: TrackId): Promise<void> {
   const trackResult = await trackRepository.findById(trackId);
-  if (trackResult.isErr() || !trackResult.value) return;
+  if (trackResult.isErr() || !trackResult.value?.storagePath) return;
 
   const fileResult = await storageService.getFile(trackResult.value.storagePath);
   if (fileResult.isErr()) return;

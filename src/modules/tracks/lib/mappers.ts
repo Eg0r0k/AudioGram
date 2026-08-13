@@ -18,7 +18,7 @@ export function mapTrack(
     artistIds: entity.artistIds,
     albumId: entity.albumId,
     albumName: album?.title ?? entity.albumTitle ?? "",
-    storagePath: entity.storagePath,
+    storagePath: entity.storagePath ?? "",
     source: entity.source,
     state: entity.state,
     duration: entity.duration,

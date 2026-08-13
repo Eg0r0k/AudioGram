@@ -68,7 +68,7 @@ export function useWatchedFolders() {
 
     const filteredTracks = nestedPaths.length > 0
       ? tracksToRemove.filter(
-          t => !nestedPaths.some(np => t.storagePath.startsWith(np + "/")),
+          t => !nestedPaths.some(np => t.storagePath?.startsWith(np + "/")),
         )
       : tracksToRemove;
 
@@ -230,7 +230,7 @@ export function useWatchedFolders() {
         .startsWith(folder.path + "/")
         .toArray();
       count = allTracks.filter(
-        t => !nestedPaths.some(np => t.storagePath.startsWith(np + "/")),
+        t => !nestedPaths.some(np => t.storagePath?.startsWith(np + "/")),
       ).length;
     }
     else {
@@ -287,7 +287,8 @@ export function useWatchedFolders() {
       if (tracks.length > 0) {
         const updated = tracks.map(track => ({
           ...track,
-          storagePath: newPath + track.storagePath.slice(oldPath.length),
+          // Rows came off the storagePath index, so the path is always present.
+          storagePath: newPath + (track.storagePath ?? "").slice(oldPath.length),
         }));
         await db.tracks.bulkPut(updated);
       }

@@ -171,6 +171,7 @@ export async function createAlbumAndSync(
     id: createAlbumId(crypto.randomUUID()),
     title,
     artistId,
+    pinned: 1,
     addedAt: now,
     updatedAt: now,
   };

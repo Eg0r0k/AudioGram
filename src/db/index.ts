@@ -4,7 +4,9 @@ import {
   ArtistEntity,
   AudioFeaturesEntity,
   CoverEntity,
+  DownloadJobEntity,
   ListenEventEntity,
+  OfflineCopyEntity,
   PlaylistEntity,
   RadioStationEntity,
   SidebarFolderEntity,
@@ -12,6 +14,7 @@ import {
   TrackChapterEntity,
   TrackEntity,
 } from "./entities";
+import { upgradeToV10 } from "./migrations";
 import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
 
 export class AppDatabase extends Dexie {
@@ -26,6 +29,8 @@ export class AppDatabase extends Dexie {
   radioStations!: Table<RadioStationEntity, RadioStationId>;
   audioFeatures!: Table<AudioFeaturesEntity, TrackId>;
   trackChapters!: Table<TrackChapterEntity, TrackId>;
+  offlineCopies!: Table<OfflineCopyEntity, TrackId>;
+  downloadJobs!: Table<DownloadJobEntity, string>;
 
   constructor() {
     super("AudiogramDB");
@@ -44,6 +49,12 @@ export class AppDatabase extends Dexie {
       trackChapters: "&trackId, updatedAt",
     });
 
+    this.version(10).stores({
+      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, state, likedAt, addedAt, duration, playCount, storagePath, fingerprint, pinned, source, [title+likedAt], [addedAt+likedAt], [duration+likedAt], [artistName+likedAt], [albumTitle+likedAt], [playCount+likedAt]",
+      offlineCopies: "&trackId",
+      downloadJobs: "&id, status, batchId",
+    }).upgrade(upgradeToV10);
+
     this.tracks = this.table("tracks");
     this.artists = this.table("artists");
     this.albums = this.table("albums");
@@ -55,6 +66,8 @@ export class AppDatabase extends Dexie {
     this.radioStations = this.table("radioStations");
     this.audioFeatures = this.table("audioFeatures");
     this.trackChapters = this.table("trackChapters");
+    this.offlineCopies = this.table("offlineCopies");
+    this.downloadJobs = this.table("downloadJobs");
   }
 }
 

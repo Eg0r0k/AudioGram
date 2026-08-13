@@ -136,14 +136,14 @@ export class FolderSyncService {
     let existingTracks = await unwrapResult(trackRepository.findByStoragePathPrefix(folderPath + "/"));
     if (normalizedExcluded.length) {
       existingTracks = existingTracks.filter(
-        t => !normalizedExcluded.some(ep => t.storagePath.startsWith(ep + "/")),
+        t => !normalizedExcluded.some(ep => t.storagePath?.startsWith(ep + "/")),
       );
     }
 
     const existingPaths = new Set(existingTracks.map(t => t.storagePath));
     return {
       newFiles: scanned.filter(f => !existingPaths.has(f.absolutePath)),
-      removedTracks: existingTracks.filter(t => !scannedPaths.has(t.storagePath)),
+      removedTracks: existingTracks.filter(t => t.storagePath != null && !scannedPaths.has(t.storagePath)),
     };
   }
 

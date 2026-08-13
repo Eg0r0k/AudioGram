@@ -189,6 +189,7 @@ export async function createArtistAndSync(
   const artist: ArtistEntity = {
     id: createArtistId(crypto.randomUUID()),
     name,
+    pinned: 1,
     addedAt: now,
     updatedAt: now,
   };

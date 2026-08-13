@@ -4,7 +4,17 @@ export enum TrackSource {
   LOCAL_INTERNAL = "local_internal",
   LOCAL_EXTERNAL = "local_external",
   REMOTE_HLS = "remote_hls",
+  REMOTE_SUBSONIC = "remote_subsonic",
+  REMOTE_YT = "remote_yt",
 }
+
+//
+// 1 — the row is a full library member, visible on library pages.
+// 0 — shadow row: exists only so history/stats/queue persistence have valid
+// FKs for a remote track that was merely played from browsing.
+// Numeric (not boolean) because Dexie cannot index booleans.
+//
+export type PinnedFlag = 0 | 1;
 
 export enum TrackState {
   READY,
@@ -28,6 +38,7 @@ export interface ArtistEntity {
   id: ArtistId;
   name: string;
   bio?: string;
+  pinned: PinnedFlag;
   addedAt: number;
   updatedAt: number;
 }
@@ -37,6 +48,7 @@ export interface AlbumEntity {
   title: string;
   artistId: ArtistId;
   year?: number;
+  pinned: PinnedFlag;
   addedAt: number;
   updatedAt: number;
 }
@@ -74,7 +86,9 @@ export interface TrackEntity {
   albumId: AlbumId;
   tagIds: TagId[];
   source: TrackSource;
-  storagePath: string;
+  /** Empty for remote tracks; an offline copy's path lives in offlineCopies. */
+  storagePath?: string;
+  pinned: PinnedFlag;
   state: TrackState;
   duration: number;
   format: AudioFormat;
@@ -147,6 +161,32 @@ export interface AudioFeaturesEntity {
 
   analyzedAt: number;
   algorithmVersion: number;
+}
+
+//
+// Offline copy of a remote track — a separate entity so downloading/removing
+// the copy never mutates the track row itself.
+//
+export interface OfflineCopyEntity {
+  trackId: TrackId;
+  storagePath: string;
+  sizeBytes: number;
+  format: AudioFormat;
+  downloadedAt: number;
+}
+
+export type DownloadJobStatus = "queued" | "running" | "done" | "error";
+
+/** Persisted download queue entry — survives app restarts. */
+export interface DownloadJobEntity {
+  id: string;
+  trackId: TrackId;
+  status: DownloadJobStatus;
+  attempts: number;
+  error?: string;
+  /** Groups jobs spawned by one "download album/playlist" action. */
+  batchId?: string;
+  addedAt: number;
 }
 
 export interface TrackChapterMark {

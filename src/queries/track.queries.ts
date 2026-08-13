@@ -100,6 +100,7 @@ async function findOrCreateArtists(queryClient: QueryClient, names: string[]) {
     const artist = {
       id: createArtistId(crypto.randomUUID()),
       name,
+      pinned: 1 as const,
       addedAt: now,
       updatedAt: now,
     };

@@ -10,7 +10,7 @@ export function mapTrackEntityToPlayerTrack(entity: TrackEntity): Track {
     artistIds: entity.artistIds,
     albumId: entity.albumId,
     albumName: entity.albumTitle ?? "",
-    storagePath: entity.storagePath,
+    storagePath: entity.storagePath ?? "",
     source: entity.source,
     state: entity.state,
     duration: entity.duration,
