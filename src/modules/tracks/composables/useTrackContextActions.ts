@@ -17,7 +17,8 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { routeLocation } from "@/app/router/route-locations";
 import { useAttachTrackLyrics } from "./useAttachTrackLyrics";
 import { useToggleTrackLike } from "./useToggleTrackLike";
-import { canDownloadTrack } from "@/modules/tracks/lib/trackPredicates";
+import { trackHasLocalFile } from "@/modules/tracks/lib/trackPredicates";
+import { offlineCopyRepository } from "@/db/repositories";
 import {
   addTrackToPlaylistAndSync,
   removeTrackFromPlaylistAndSync,
@@ -171,17 +172,32 @@ export const useTrackContextActions = (
     options.onNavigate?.();
   };
 
-  const download = async () => {
-    const current = track.value;
-    if (!isLibraryTrack(current) || !canDownloadTrack(current)) return;
+  /**
+   * Picks the file the "Save as…" export reads from: the track's own local
+   * file, or its offline copy. Remote tracks without a copy have nothing to
+   * export — storagePath is never read blindly.
+   */
+  const resolveExportPath = async (current: Track): Promise<string | null> => {
+    if (trackHasLocalFile(current)) return current.storagePath;
 
-    const sourcePath = current.storagePath;
+    const copyResult = await offlineCopyRepository.findById(current.id);
+    const copy = copyResult.isOk() ? copyResult.value : undefined;
+    return copy?.storagePath ?? null;
+  };
+
+  const exportFile = async () => {
+    const current = track.value;
+    if (!isLibraryTrack(current)) return;
+
+    const sourcePath = await resolveExportPath(current);
+    if (!sourcePath) return;
+
     const fallbackExt = sourcePath.split(".").pop()?.toLowerCase() ?? "mp3";
     const fileName = sourcePath.split(/[\\/]/).pop() ?? `${current.title}.${fallbackExt}`;
 
     try {
       const fileBlob = await (async () => {
-        if (current.source.toString() && IS_TAURI && hasNativeSupport(storageService)) {
+        if (IS_TAURI && hasNativeSupport(storageService)) {
           const isAbsolutePath = /^(?:[a-zA-Z]:[\\/]|\/)/.test(sourcePath);
 
           if (isAbsolutePath) {
@@ -241,6 +257,6 @@ export const useTrackContextActions = (
     removeFromHistory,
     goToArtist,
     goToAlbum,
-    download,
+    exportFile,
   };
 };

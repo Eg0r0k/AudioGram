@@ -29,7 +29,7 @@
 
     <DetailsItem @show="actions.showDetails" />
 
-    <DownloadItem @download="actions.download" />
+    <ExportFileItem @export="actions.exportFile" />
 
     <LyricsItem
       :has-lyrics="trackHasLyrics(libTrack)"
@@ -69,7 +69,7 @@ import AddToPlaylistSub from "../items/AddToPlaylistSub.vue";
 import DetailsItem from "../items/DetailsItem.vue";
 import NavigationItems from "../items/NavigationItems.vue";
 import LyricsItem from "../items/LyricsItem.vue";
-import DownloadItem from "../items/DownloadItem.vue";
+import ExportFileItem from "../items/ExportFileItem.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";

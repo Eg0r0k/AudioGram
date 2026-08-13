@@ -12,7 +12,7 @@
       @toggle="actions.toggleLike"
     />
 
-    <DownloadItem @download="actions.download" />
+    <ExportFileItem @export="actions.exportFile" />
 
     <LyricsItem
       :has-lyrics="trackHasLyrics(libTrack)"
@@ -60,7 +60,7 @@ import LikeItem from "../items/LikeItem.vue";
 import LyricsItem from "../items/LyricsItem.vue";
 import PlayItems from "../items/PlayItems.vue";
 import ShowLyricsItem from "../items/ShowLyricsItem.vue";
-import DownloadItem from "../items/DownloadItem.vue";
+import ExportFileItem from "../items/ExportFileItem.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";

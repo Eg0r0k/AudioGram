@@ -1,10 +1,10 @@
 <template>
   <component
     :is="Item"
-    @click="emit('download')"
+    @click="emit('export')"
   >
     <IconDownload class="size-5.5" />
-    {{ $t("track.contextMenu.download") }}
+    {{ $t("track.contextMenu.exportFile") }}
   </component>
 </template>
 
@@ -15,6 +15,6 @@ import { useTrackMenuComponents } from "../useTrackMenuComponents";
 const { Item } = useTrackMenuComponents();
 
 const emit = defineEmits<{
-  download: [];
+  export: [];
 }>();
 </script>

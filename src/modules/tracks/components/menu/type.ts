@@ -47,5 +47,6 @@ export interface ContextActions {
   removeFromHistory?: () => void;
   goToArtist: (artistId: ArtistId) => void;
   goToAlbum: () => void;
-  download: () => void;
+  /** "Save as…" — exports the local file or the offline copy to user disk. */
+  exportFile: () => void;
 }
