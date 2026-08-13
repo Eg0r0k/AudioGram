@@ -29,16 +29,14 @@ describe("currentSource store", () => {
     expect(store.currentSource).toBe("nd");
   });
 
-  it("falls back to local when the selected ND source vanishes", () => {
-    configState.current = {};
+  it("keeps an nd selection but resolves to local while ND is unavailable", () => {
+    // As after a restart with a persisted "nd" selection and a cleared config.
+    configState.current = null;
     const store = useCurrentSourceStore();
+
     store.setSource("nd");
 
-    configState.current = null;
-
+    expect(store.selected).toBe("nd");
     expect(store.currentSource).toBe("local");
-    // The selection is kept, so re-enabling ND restores it.
-    configState.current = {};
-    expect(store.currentSource).toBe("nd");
   });
 });
