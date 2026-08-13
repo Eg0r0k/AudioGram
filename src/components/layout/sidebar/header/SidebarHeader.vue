@@ -146,6 +146,10 @@
         </InputGroupAddon>
       </InputGroup>
     </div>
+
+    <!-- Library-pages source (local/nd) — a separate axis from the search
+         source switcher inside the input above. -->
+    <PageSourceDropdown v-if="!compact && !isSearchOpen" />
   </div>
 </template>
 
@@ -182,6 +186,7 @@ import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
 import { youtubeProvider } from "@/modules/youtube/provider";
 import IconBrandYoutube from "~icons/tabler/brand-youtube";
+import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
 
 defineProps<{ compact?: boolean }>();
 

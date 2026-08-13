@@ -1,5 +1,9 @@
 {
   "title": "Моя медиатека",
+  "source": {
+    "local": "Моя медиатека",
+    "nd": "Navidrome"
+  },
   "filterPlaylists": "Плейлисты",
   "filterArtists": "Артист",
   "filterAlbums": "Альбомы",
