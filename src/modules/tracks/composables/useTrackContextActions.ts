@@ -300,9 +300,9 @@ export const useTrackContextActions = (
     if (ref.kind === "nd") {
       const config = getNdConfig();
       if (!config) return null;
-      const albumId = subject?.kind === "remote"
-        ? subject.dto.albumId
-        : (isLibraryTrack(current) ? current.albumId : undefined);
+      let albumId;
+      if (subject?.kind === "remote") albumId = subject.dto.albumId;
+      else if (isLibraryTrack(current)) albumId = current.albumId;
       const albumRef = albumId ? parseTrackRef(albumId as unknown as typeof id) : null;
       return albumRef?.kind === "nd"
         ? `${config.baseUrl}/app/#/album/${albumRef.songId}/show`
