@@ -1,10 +1,21 @@
 import type { PlayerTrack } from "@/modules/player/types";
-import type { TrackContext } from "@/modules/tracks/components/menu/type";
+import {
+  isTrackMenuSubject,
+  toTrackMenuSubject,
+  trackMenuSubjectId,
+  type TrackContext,
+  type TrackMenuSubject,
+} from "@/modules/tracks/components/menu/type";
 import type { QueueItemId } from "@/types/ids";
 import { ref, watch } from "vue";
 
-// PlayerTrack, not Track: the current-track and queue contexts also open the
-// menu for ephemeral tracks (YouTube streams, radio).
+// The menu subject: a library track, a not-yet-pinned remote DTO, or an
+// ephemeral track. PlayerTrack call sites keep working through the adapter
+// overload on openMenu/openDropdown.
+const activeSubject = ref<TrackMenuSubject | null>(null);
+
+// Legacy view of the subject for shells that still consume PlayerTrack.
+// Remote subjects have no PlayerTrack shape, so this stays null for them.
 const activeTrack = ref<PlayerTrack | null>(null);
 const activeIndex = ref<number | null>(null);
 const activeQueueItemId = ref<QueueItemId | null>(null);
@@ -24,7 +35,7 @@ let lastClosedTrackId: string | null = null;
 watch(isDropdownOpen, (isOpen, wasOpen) => {
   if (wasOpen && !isOpen) {
     lastCloseTime = Date.now();
-    lastClosedTrackId = activeTrack.value?.id ?? null;
+    lastClosedTrackId = trackMenuSubjectId(activeSubject.value);
   }
 });
 
@@ -33,13 +44,19 @@ interface OpenTrackMenuOptions {
   target?: TrackContext;
 }
 
+function setActiveSubject(input: PlayerTrack | TrackMenuSubject) {
+  const subject = isTrackMenuSubject(input) ? input : toTrackMenuSubject(input);
+  activeSubject.value = subject;
+  activeTrack.value = subject.kind === "remote" ? null : subject.track;
+}
+
 export function useTrackMenu() {
   const openMenu = (
-    track: PlayerTrack,
+    track: PlayerTrack | TrackMenuSubject,
     index: number,
     options?: OpenTrackMenuOptions,
   ) => {
-    activeTrack.value = track;
+    setActiveSubject(track);
     activeIndex.value = index;
     activeQueueItemId.value = options?.queueItemId ?? null;
     activeContextMenuTarget.value = options?.target ?? "default";
@@ -52,20 +69,21 @@ export function useTrackMenu() {
   };
 
   const openDropdown = (
-    track: PlayerTrack,
+    track: PlayerTrack | TrackMenuSubject,
     index: number,
     event: MouseEvent,
     options?: OpenTrackMenuOptions,
   ) => {
+    const inputId = isTrackMenuSubject(track) ? trackMenuSubjectId(track) : track.id;
     const timeSinceClose = Date.now() - lastCloseTime;
-    if (timeSinceClose < 150 && lastClosedTrackId === track.id) {
+    if (timeSinceClose < 150 && lastClosedTrackId === inputId) {
       return;
     }
 
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
 
-    activeTrack.value = track;
+    setActiveSubject(track);
     activeIndex.value = index;
     activeQueueItemId.value = options?.queueItemId ?? null;
     activeDropdownTarget.value = options?.target ?? "default";
@@ -86,6 +104,7 @@ export function useTrackMenu() {
   };
 
   return {
+    activeSubject,
     activeTrack,
     activeIndex,
     activeQueueItemId,
