@@ -121,6 +121,7 @@ export interface SourceProvider {
   readonly isAvailable: boolean; // платформа + настройки (IS_TAURI, сконфигурен ли ND…)
 
   listArtists(): ResultAsync<SourceArtistDTO[], SourceError>;
+  getArtist(id: ArtistId): ResultAsync<{ artist: SourceArtistDTO; albums: SourceAlbumDTO[] }, SourceError>; // добавлен в M2: страница артиста
   listAlbums(p: { offset: number; limit: number; sort: "alpha" | "newest" }):
     ResultAsync<SourceAlbumDTO[], SourceError>;
   getAlbum(id: AlbumId): ResultAsync<{ album: SourceAlbumDTO; tracks: SourceTrackDTO[] }, SourceError>;
@@ -174,7 +175,7 @@ queryKeys.nd = {
 
 **Страницы.** Источник страниц библиотеки берётся из dropdown в хедере сайдбара (store `currentSource`) — компонент и store делаются в M2. Не путать с уже существующим переключателем источника **поиска** в `SidebarHeader` (library/youtube, из wip-коммита) — это отдельная ось, она остаётся как есть. Страница выбирает data-path по источнику; компоненты потребляют нормализованные VM (DTO выше им достаточно), ветвления в шаблонах нет. Пагинация ND-альбомов (`getAlbumList2`, `size ≤ 500`, `offset`) — существующий infinite-паттерн один в один.
 
-Открытые мелочи M2: `AllMusicPage` в ND-режиме — либо скрыть (у Subsonic нет «все треки»), либо `search3` с пустым query (Navidrome отдаёт всё с пагинацией) — решить по вкусу на месте.
+AllMusicPage и liked в ND-режиме скрыты (решение M2): у Subsonic нет «всех треков», а `search3` с пустым query — рискованная Navidrome-специфика (§13).
 
 **Поиск.** Мультиисточниковый, секциями по источнику (локальный minisearch + `search3` + YT), без сквозного ранжирования — честно смешать скоры minisearch и API нельзя. Источники — тем же dropdown-паттерном.
 
