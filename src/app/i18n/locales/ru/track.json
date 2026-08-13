@@ -4,6 +4,9 @@
   "addSelected": "Добавить выбранные",
   "likeToggleFailed": "Не удалось изменить статус избранного",
   "pinFailed": "Не удалось добавить трек в библиотеку",
+  "addedToLibrary": "Добавлено в библиотеку",
+  "removedFromLibrary": "Удалено из библиотеки",
+  "removeFromLibraryFailed": "Не удалось удалить трек из библиотеки",
   "removeFromHistoryFailed": "Не удалось удалить трек из истории",
   "favorite": {
     "addTracks": "Добавить треки"
@@ -22,6 +25,9 @@
     "replaceLyrics": "Заменить текст",
     "download": "Скачать",
     "exportFile": "Сохранить как…",
+    "addToLibrary": "Добавить в библиотеку",
+    "removeFromLibrary": "Удалить из библиотеки",
+    "openExternal": "Открыть в браузере",
     "addToPlaylist": "Добавить в плейлист",
     "searchPlaylist": "Поиск плейлиста...",
     "createPlaylist": "Создать плейлист",

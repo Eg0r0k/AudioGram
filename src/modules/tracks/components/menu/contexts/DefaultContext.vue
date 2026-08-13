@@ -21,6 +21,13 @@
 
   <AddToPlaylistSub @add="actions.addToPlaylist" />
 
+  <SourceItems
+    :caps="caps"
+    @add-to-library="actions.addToLibrary"
+    @remove-from-library="actions.removeFromLibrary"
+    @open-external="actions.openExternal"
+  />
+
   <component :is="Separator" />
 
   <NavigationItems
@@ -40,14 +47,17 @@ import DetailsItem from "../items/DetailsItem.vue";
 import LikeItem from "../items/LikeItem.vue";
 import LyricsItem from "../items/LyricsItem.vue";
 import ExportFileItem from "../items/ExportFileItem.vue";
+import SourceItems from "../items/SourceItems.vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
+import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import type { Track } from "@/modules/player/types";
 
 defineProps<{
   track: Track;
   actions: ContextActions;
+  caps?: TrackMenuCaps | null;
 }>();
 
 const { Separator } = useTrackMenuComponents();

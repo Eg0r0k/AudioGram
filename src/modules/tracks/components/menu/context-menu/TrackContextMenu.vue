@@ -30,6 +30,7 @@ import { contextMenuTrackComponents, provideTrackMenuComponents } from "../useTr
 import { TrackContext } from "../type";
 import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
+import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
 import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -87,12 +88,16 @@ const actions = useTrackContextActions(activeTrack, {
   subject: activeSubject,
 });
 
+// Computed once per active subject; contexts receive ready-made booleans.
+const caps = useTrackMenuCaps(activeSubject);
+
 const contextProps = computed(() => {
   if (!activeTrack.value) return {};
 
   const base = {
     track: activeTrack.value,
     actions,
+    caps: caps.value,
   };
 
   switch (props.context) {

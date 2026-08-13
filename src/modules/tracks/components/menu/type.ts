@@ -49,4 +49,10 @@ export interface ContextActions {
   goToAlbum: () => void;
   /** "Save as…" — exports the local file or the offline copy to user disk. */
   exportFile: () => void;
+  /** Pins a remote subject with pinned = 1 (or upgrades a shadow row). */
+  addToLibrary: () => void;
+  /** Degrades a remote row to shadow: playlists/like/offline copy cascade. */
+  removeFromLibrary: () => void;
+  /** Opens the track's page at its source (yt/nd) via plugin-opener. */
+  openExternal: () => void;
 }

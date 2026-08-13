@@ -17,8 +17,13 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { routeLocation } from "@/app/router/route-locations";
 import { useAttachTrackLyrics } from "./useAttachTrackLyrics";
 import { useToggleTrackLike } from "./useToggleTrackLike";
-import { trackHasLocalFile } from "@/modules/tracks/lib/trackPredicates";
+import { isRemoteTrack, trackHasLocalFile } from "@/modules/tracks/lib/trackPredicates";
+import { promoteTrackToLibrary, removeTrackFromLibrary } from "@/modules/tracks/lib/libraryMembership";
+import { invalidateLibraryData } from "@/queries/library.queries";
 import { offlineCopyRepository } from "@/db/repositories";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { parseTrackRef } from "@/types/track-ref";
+import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
 import {
   addTrackToPlaylistAndSync,
   removeTrackFromPlaylistAndSync,
@@ -243,6 +248,60 @@ export const useTrackContextActions = (
     }
   };
 
+  const addToLibrary = async () => {
+    try {
+      const subject = options.subject?.value;
+      if (subject?.kind === "remote") {
+        await ensurePinned(subject);
+      }
+      else {
+        const current = track.value;
+        if (!isLibraryTrack(current) || !isRemoteTrack(current)) return;
+        await promoteTrackToLibrary(current.id);
+      }
+      await invalidateLibraryData(queryClient);
+      toast.success(t("track.addedToLibrary"));
+    }
+    catch {
+      toast.error(t("track.pinFailed"));
+    }
+  };
+
+  const removeFromLibrary = async () => {
+    const current = track.value;
+    if (!isLibraryTrack(current) || !isRemoteTrack(current)) return;
+    try {
+      await removeTrackFromLibrary(current.id);
+      await invalidateLibraryData(queryClient);
+      toast.success(t("track.removedFromLibrary"));
+    }
+    catch {
+      toast.error(t("track.removeFromLibraryFailed"));
+    }
+  };
+
+  /** yt → the watch page; nd → the server page (wired with ND settings, M2). */
+  const externalUrl = (): string | null => {
+    const subject = options.subject?.value;
+    if (subject?.kind === "ephemeral" && subject.track.source.type === "url") {
+      const videoId = ytVideoIdFromStreamUrl(subject.track.source.url);
+      return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
+    }
+
+    const current = track.value;
+    const id = subject?.kind === "remote" ? subject.dto.id : (isLibraryTrack(current) ? current.id : null);
+    if (!id) return null;
+
+    const ref = parseTrackRef(id);
+    return ref.kind === "yt" ? `https://www.youtube.com/watch?v=${ref.videoId}` : null;
+  };
+
+  const openExternal = async () => {
+    const url = externalUrl();
+    if (!url) return;
+    await openUrl(url);
+  };
+
   return {
     play,
     playNext,
@@ -258,5 +317,8 @@ export const useTrackContextActions = (
     goToArtist,
     goToAlbum,
     exportFile,
+    addToLibrary,
+    removeFromLibrary,
+    openExternal,
   };
 };

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
+import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
 import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import {
@@ -115,10 +116,13 @@ const actions = useTrackContextActions(
   },
 );
 
+// Computed once per active subject; contexts receive ready-made booleans.
+const caps = useTrackMenuCaps(activeSubject);
+
 const contextProps = computed(() => {
   if (!activeTrack.value) return {};
 
-  const base = { track: activeTrack.value, actions };
+  const base = { track: activeTrack.value, actions, caps: caps.value };
 
   if (props.context === "playlist") {
     return { ...base, playlistId: props.playlistId, isOwner: props.isPlaylistOwner };

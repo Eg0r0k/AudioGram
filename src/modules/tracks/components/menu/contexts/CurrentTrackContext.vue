@@ -21,6 +21,13 @@
 
     <AddToPlaylistSub @add="actions.addToPlaylist" />
 
+    <SourceItems
+      :caps="caps"
+      @add-to-library="actions.addToLibrary"
+      @remove-from-library="actions.removeFromLibrary"
+      @open-external="actions.openExternal"
+    />
+
     <component :is="Separator" />
 
     <NavigationItems
@@ -61,10 +68,12 @@ import LyricsItem from "../items/LyricsItem.vue";
 import PlayItems from "../items/PlayItems.vue";
 import ShowLyricsItem from "../items/ShowLyricsItem.vue";
 import ExportFileItem from "../items/ExportFileItem.vue";
+import SourceItems from "../items/SourceItems.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
+import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
 import { useYoutube } from "@/modules/youtube/composables/useYoutube";
 import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
@@ -73,6 +82,7 @@ import IconDownload from "~icons/tabler/download";
 const props = defineProps<{
   track: PlayerTrack;
   actions: ContextActions;
+  caps?: TrackMenuCaps | null;
 }>();
 
 const libTrack = computed(() => (isLibraryTrack(props.track) ? props.track : null));
