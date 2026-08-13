@@ -17,6 +17,7 @@ import {
 } from "@/queries/playlist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
 import { useNdPlaylist } from "@/modules/sources/composables/useNdCatalog";
 import { sourceKindOf, sourcePlaylistToPlaylistData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
@@ -67,7 +68,10 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     enabled: computed(() => !isNd.value && !!playlist.value),
   });
 
-  const ndTracks = computed(() => (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay));
+  const ndTracks = computed(() => {
+    const mapped = (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
+    return sortKey.value ? sortDisplayTracks(mapped, sortKey.value) : mapped;
+  });
 
   const tracks = computed(() =>
     isNd.value

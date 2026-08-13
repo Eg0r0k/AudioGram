@@ -225,8 +225,8 @@ function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "album" });
 }
 
-// ND album: no Dexie row, but tracks.value already holds the full unsorted
-// list from getAlbum — queue straight from it.
+// ND album: no Dexie row, but tracks.value already holds the full list from
+// getAlbum (in the current sort order) — queue straight from it.
 const ndQueueSource = computed(() => {
   const vm = albumData.value;
   return vm && sourceKindOf(vm.id) === "nd"
