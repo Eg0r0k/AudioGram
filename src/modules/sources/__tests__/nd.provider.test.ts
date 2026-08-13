@@ -4,6 +4,7 @@ import { AlbumId, TrackId } from "@/types/ids";
 import { ndAlbumId, ndTrackId } from "@/types/track-ref";
 
 const subsonicFetchMock = vi.hoisted(() => vi.fn());
+const invokeMock = vi.hoisted(() => vi.fn());
 const configState = vi.hoisted(() => ({
   // Mock config for tests only — never a real credential.
   current: { baseUrl: "https://demo.example", username: "joe", password: "sesame" } as object | null,
@@ -18,9 +19,15 @@ vi.mock("../navidrome/config", () => ({
 }));
 vi.mock(import("@tauri-apps/api/core"), async (importOriginal) => {
   const actual = await importOriginal();
+  // The real Channel registers itself in __TAURI_INTERNALS__ — absent here.
+  class MockChannel {
+    onmessage: ((event: unknown) => void) | undefined;
+  }
   return {
     ...actual,
     convertFileSrc: (path: string, scheme: string) => `${scheme}://localhost/${path}`,
+    invoke: invokeMock,
+    Channel: MockChannel as unknown as typeof actual.Channel,
   };
 });
 
@@ -29,6 +36,7 @@ import { ndSourceProvider } from "../providers/nd.provider";
 describe("ndSourceProvider", () => {
   beforeEach(() => {
     subsonicFetchMock.mockReset();
+    invokeMock.mockReset();
     configState.current = { baseUrl: "https://demo.example", username: "joe", password: "sesame" };
   });
 
@@ -166,8 +174,51 @@ describe("ndSourceProvider", () => {
     expect(ndSourceProvider.coverUrl("al-al1")).toBe("stream://localhost/nd/cover/al-al1");
   });
 
-  it("keeps download off until the download manager lands", async () => {
-    expect(ndSourceProvider.capabilities.download).toBe(false);
-    expect((await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("UNAVAILABLE");
+  describe("downloadToFile", () => {
+    it("advertises the download capability", () => {
+      expect(ndSourceProvider.capabilities.download).toBe(true);
+    });
+
+    it("passes the getSong suffix to nd_download and maps the result and progress", async () => {
+      subsonicFetchMock.mockReturnValue(okAsync({ song: { id: "s1", title: "Come Together", suffix: "flac" } }));
+      invokeMock.mockImplementation((_cmd, args) => {
+        const { onProgress } = args as { onProgress: { onmessage?: (event: unknown) => void } };
+        onProgress.onmessage?.({ type: "progress", data: { downloaded: 512, total: 1024 } });
+        return Promise.resolve({ path: "C:/appdata/downloads-tmp/s1.flac", ext: "flac" });
+      });
+      const onProgress = vi.fn();
+
+      const result = await ndSourceProvider.downloadToFile(ndTrackId("s1"), onProgress);
+
+      expect(subsonicFetchMock).toHaveBeenCalledWith(configState.current, "getSong", { id: "s1" });
+      expect(invokeMock).toHaveBeenCalledWith("nd_download", expect.objectContaining({ songId: "s1", suffix: "flac" }));
+      expect(onProgress).toHaveBeenCalledWith({ type: "progress", data: { downloaded: 512, total: 1024 } });
+      expect(result._unsafeUnwrap()).toEqual({
+        path: "C:/appdata/downloads-tmp/s1.flac",
+        format: { codec: "flac" },
+      });
+    });
+
+    it("maps backend failures onto SourceError kinds", async () => {
+      subsonicFetchMock.mockReturnValue(okAsync({ song: { id: "s1", title: "x" } }));
+
+      invokeMock.mockRejectedValueOnce("upstream status 401");
+      expect((await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("AUTH");
+
+      invokeMock.mockRejectedValueOnce("request failed: connect timeout");
+      expect((await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("NETWORK");
+
+      invokeMock.mockRejectedValueOnce("cancelled");
+      const cancelled = (await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr();
+      expect(cancelled).toEqual({ kind: "UNKNOWN", message: "cancelled" });
+    });
+
+    it("rejects foreign ids and missing config before any request", async () => {
+      expect((await ndSourceProvider.downloadToFile(TrackId("yt:x")))._unsafeUnwrapErr().kind).toBe("PARSE");
+
+      configState.current = null;
+      expect((await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("UNAVAILABLE");
+      expect(invokeMock).not.toHaveBeenCalled();
+    });
   });
 });

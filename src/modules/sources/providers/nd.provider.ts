@@ -1,4 +1,5 @@
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { ndCoverUrl, ndSongStreamUrl } from "@/lib/stream-url";
 import { parseTrackRef } from "@/types/track-ref";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
@@ -15,7 +16,7 @@ import type {
 } from "../navidrome/api/types";
 import { mapNdAlbum, mapNdArtist, mapNdPlaylist, mapNdSong } from "../navidrome/mappers";
 import { getNdConfig } from "../navidrome/config";
-import type { SourceError, SourceProvider } from "../types";
+import type { DownloadEvent, SourceError, SourceProvider } from "../types";
 
 const unavailable = <T>(): ResultAsync<T, SourceError> =>
   errAsync<T, SourceError>({ kind: "UNAVAILABLE", message: "Navidrome source is not configured" });
@@ -35,6 +36,21 @@ function ndIdOf(id: TrackId | AlbumId | ArtistId): string | null {
 /** getAlbumList2 caps size at 500 per the Subsonic contract. */
 const MAX_ALBUM_PAGE = 500;
 
+/**
+ * `invoke("nd_download")` rejects with plain strings built on the Rust side
+ * (never carrying upstream URLs). A manager-initiated cancel surfaces as
+ * UNKNOWN with the literal message "cancelled".
+ */
+function mapNdDownloadError(raw: unknown): SourceError {
+  const message = raw instanceof Error ? raw.message : String(raw);
+  if (/status 40[13]\b/.test(message)) return { kind: "AUTH", message };
+  if (message.includes("not configured")) return { kind: "UNAVAILABLE", message };
+  if (message.startsWith("request failed") || message.startsWith("download failed")) {
+    return { kind: "NETWORK", message };
+  }
+  return { kind: "UNKNOWN", message };
+}
+
 export const ndSourceProvider: SourceProvider = {
   id: "nd",
 
@@ -43,8 +59,7 @@ export const ndSourceProvider: SourceProvider = {
     browseAlbums: true,
     browsePlaylists: true,
     search: true,
-    // Offline copies land in M4.
-    download: false,
+    download: true,
   },
 
   get isAvailable() {
@@ -159,7 +174,30 @@ export const ndSourceProvider: SourceProvider = {
     return okAsync(ndSongStreamUrl(songId));
   },
 
-  downloadToFile() {
-    return errAsync({ kind: "UNAVAILABLE", message: "Navidrome downloads land with the download manager (M4)" });
+  /**
+   * Downloads the original file into the Rust temp dir and returns its
+   * absolute path — the download manager moves it into offline storage.
+   * `getSong` supplies the suffix for the file extension (normalized
+   * lowercase on the Rust side; Content-Type is the fallback there).
+   */
+  downloadToFile(id, onProgress) {
+    const songId = ndIdOf(id);
+    if (!songId) return errAsync({ kind: "PARSE", message: `Not a Navidrome track id: ${id}` });
+    return withConfig(config =>
+      subsonicFetch<GetSongPayload>(config, "getSong", { id: songId })
+        .andThen((payload) => {
+          const channel = new Channel<DownloadEvent>();
+          if (onProgress) channel.onmessage = onProgress;
+          return ResultAsync.fromPromise(
+            invoke<{ path: string; ext: string }>("nd_download", {
+              songId,
+              suffix: payload.song?.suffix ?? null,
+              onProgress: channel,
+            }),
+            mapNdDownloadError,
+          );
+        })
+        .map(result => ({ path: result.path, format: { codec: result.ext } })),
+    );
   },
 };
