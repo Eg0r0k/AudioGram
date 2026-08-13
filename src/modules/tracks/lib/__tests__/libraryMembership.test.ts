@@ -10,13 +10,18 @@ const repos = vi.hoisted(() => ({
 }));
 
 const uow = vi.hoisted(() => ({ runScoped: vi.fn() }));
-const dexie = vi.hoisted(() => ({
-  albums: { update: vi.fn() },
-  artists: { update: vi.fn() },
-}));
+const dexie = vi.hoisted(() => {
+  const count = vi.fn();
+  return {
+    albums: { update: vi.fn() },
+    artists: { update: vi.fn() },
+    tracks: { where: vi.fn(() => ({ equals: vi.fn(() => ({ and: vi.fn(() => ({ count })) })) })) },
+    pinnedCount: count,
+  };
+});
 const storage = vi.hoisted(() => ({ deleteFile: vi.fn() }));
 
-vi.mock("@/db", () => ({ db: { tracks: {}, albums: dexie.albums, artists: dexie.artists, playlists: {}, offlineCopies: {} } }));
+vi.mock("@/db", () => ({ db: { tracks: dexie.tracks, albums: dexie.albums, artists: dexie.artists, playlists: {}, offlineCopies: {} } }));
 vi.mock("@/db/repositories", () => ({
   trackRepository: repos.track,
   playlistRepository: repos.playlist,
@@ -64,6 +69,12 @@ describe("removeTrackFromLibrary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     uow.runScoped.mockImplementation(async (_tables: unknown, cb: () => Promise<unknown>) => ok(await cb()));
+    repos.track.findById.mockResolvedValue(ok({
+      id: TRACK_ID,
+      albumId: ndAlbumId("album1"),
+      artistIds: [ndArtistId("artist1")],
+    }));
+    dexie.pinnedCount.mockResolvedValue(0);
     repos.offlineCopy.findById.mockResolvedValue(ok({
       trackId: TRACK_ID,
       storagePath: "offline/nd/song1.flac",
@@ -90,6 +101,22 @@ describe("removeTrackFromLibrary", () => {
     expect(repos.track.update).toHaveBeenCalledWith(TRACK_ID, { pinned: 0, likedAt: undefined });
     expect(repos.offlineCopy.delete).toHaveBeenCalledWith(TRACK_ID);
     expect(storage.deleteFile).toHaveBeenCalledWith("offline/nd/song1.flac");
+  });
+
+  it("degrades the shadow album/artist when no pinned tracks remain", async () => {
+    await removeTrackFromLibrary(TRACK_ID);
+
+    expect(dexie.albums.update).toHaveBeenCalledWith(ndAlbumId("album1"), { pinned: 0 });
+    expect(dexie.artists.update).toHaveBeenCalledWith(ndArtistId("artist1"), { pinned: 0 });
+  });
+
+  it("keeps album/artist pinned while other library tracks remain", async () => {
+    dexie.pinnedCount.mockResolvedValue(2);
+
+    await removeTrackFromLibrary(TRACK_ID);
+
+    expect(dexie.albums.update).not.toHaveBeenCalled();
+    expect(dexie.artists.update).not.toHaveBeenCalled();
   });
 
   it("skips file deletion when there is no offline copy", async () => {

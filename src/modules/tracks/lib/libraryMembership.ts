@@ -5,6 +5,7 @@ import { storageService } from "@/db/storage";
 import { unwrapResult } from "@/queries/shared";
 import { getLogger } from "@/lib/logger";
 import type { TrackId } from "@/types/ids";
+import { parseTrackRef } from "@/types/track-ref";
 
 /**
  * Upgrades an existing (shadow) remote row to a full library member,
@@ -40,8 +41,10 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
   const copy = await unwrapResult(offlineCopyRepository.findById(trackId));
 
   const result = await unitOfWork.runScoped(
-    [db.tracks, db.playlists, db.offlineCopies],
+    [db.tracks, db.albums, db.artists, db.playlists, db.offlineCopies],
     async () => {
+      const track = await unwrapResult(trackRepository.findById(trackId));
+
       const playlists = await unwrapResult(playlistRepository.findAll());
       for (const playlist of playlists) {
         if (!playlist.trackIds.includes(trackId)) continue;
@@ -52,6 +55,25 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
 
       await unwrapResult(trackRepository.update(trackId, { pinned: 0, likedAt: undefined }));
       await unwrapResult(offlineCopyRepository.delete(trackId));
+
+      // Recalculate the shadow-album/artist pinned flags: without this the
+      // album would linger in the library after its last library track left
+      // (ghost albums). Local rows are never touched from here.
+      if (track?.albumId && parseTrackRef(track.albumId as unknown as TrackId).kind !== "local") {
+        const stillPinned = await db.tracks
+          .where("albumId").equals(track.albumId)
+          .and(candidate => candidate.pinned === 1)
+          .count();
+        if (stillPinned === 0) await db.albums.update(track.albumId, { pinned: 0 });
+      }
+      for (const artistId of track?.artistIds ?? []) {
+        if (parseTrackRef(artistId as unknown as TrackId).kind === "local") continue;
+        const stillPinned = await db.tracks
+          .where("artistIds").equals(artistId)
+          .and(candidate => candidate.pinned === 1)
+          .count();
+        if (stillPinned === 0) await db.artists.update(artistId, { pinned: 0 });
+      }
     },
   );
   if (result.isErr()) throw result.error;
