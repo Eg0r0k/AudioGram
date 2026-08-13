@@ -7,6 +7,7 @@ import {
   type TrackMenuSubject,
 } from "@/modules/tracks/components/menu/type";
 import type { QueueItemId } from "@/types/ids";
+import { sourceTrackToDisplay } from "@/modules/sources/lib/display";
 import { ref, watch } from "vue";
 
 // The menu subject: a library track, a not-yet-pinned remote DTO, or an
@@ -47,7 +48,12 @@ interface OpenTrackMenuOptions {
 function setActiveSubject(input: PlayerTrack | TrackMenuSubject) {
   const subject = isTrackMenuSubject(input) ? input : toTrackMenuSubject(input);
   activeSubject.value = subject;
-  activeTrack.value = subject.kind === "remote" ? null : subject.track;
+  // Remote subjects surface as display VMs so shells, contexts and actions
+  // keep consuming a PlayerTrack; DB-bound actions still see the remote
+  // subject and pin it on demand.
+  activeTrack.value = subject.kind === "remote"
+    ? sourceTrackToDisplay(subject.dto)
+    : subject.track;
 }
 
 export function useTrackMenu() {

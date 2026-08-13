@@ -18,9 +18,14 @@ export type TrackMenuSubject
 
 /** Adapter for the existing PlayerTrack call sites — they stay unchanged. */
 export function toTrackMenuSubject(track: PlayerTrack): TrackMenuSubject {
-  return track.kind === "library"
-    ? { kind: "library", track }
-    : { kind: "ephemeral", track };
+  if (track.kind === "library") {
+    // Display VMs from live source pages carry their DTO — the menu acts on
+    // the remote subject, not on a Dexie row that does not exist.
+    return track.sourceDto
+      ? { kind: "remote", dto: track.sourceDto }
+      : { kind: "library", track };
+  }
+  return { kind: "ephemeral", track };
 }
 
 /** Subjects wrap their payload — unlike tracks/DTOs they carry no own id. */

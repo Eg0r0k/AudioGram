@@ -19,7 +19,7 @@
       <TrackContextMenu
         context="playlist"
         :playlist-id="playlist?.id"
-        :is-playlist-owner="true"
+        :is-playlist-owner="playlistData?.isOwner ?? true"
       >
         <VirtualScrollable
           :items="tracks"
@@ -102,7 +102,7 @@
       <TrackDropdown
         context="playlist"
         :playlist-id="playlist?.id"
-        :is-playlist-owner="true"
+        :is-playlist-owner="playlistData?.isOwner ?? true"
       />
     </template>
 

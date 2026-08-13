@@ -1,4 +1,5 @@
 import type { PinnedFlag, TrackSource, TrackState } from "@/db/entities";
+import type { SourceTrackDTO } from "@/modules/sources/types";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 
 export const REPEAT_MODES = ["off", "all", "one"] as const;
@@ -30,6 +31,12 @@ export interface Track extends TrackLoudnessMetadata {
   state: TrackState;
   /** Absent only in legacy fixtures — entity rows always carry the flag. */
   pinned?: PinnedFlag;
+  /**
+   * Present on display VMs built from live source pages (ND browsing): the
+   * original DTO. Menus open remote subjects from it and playback/queueing
+   * shadow-pins it — the row itself is NOT in Dexie.
+   */
+  sourceDto?: SourceTrackDTO;
   duration: number;
   isLiked: boolean;
   playCount?: number;

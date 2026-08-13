@@ -45,6 +45,7 @@ export function sourceTrackToDisplay(dto: SourceTrackDTO): Track {
     isLiked: false,
     trackNo: dto.trackNo,
     diskNo: dto.discNo,
+    sourceDto: dto,
   };
 }
 

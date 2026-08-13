@@ -64,14 +64,29 @@ describe("useTrackMenu subject adapter", () => {
     expect(menu.isContextMenuOpen.value).toBe(true);
   });
 
-  it("accepts a remote subject and leaves the legacy activeTrack empty", () => {
+  it("accepts a remote subject and mirrors it as a display VM", () => {
     const menu = useTrackMenu();
 
     menu.openMenu(remoteSubject, 3, { target: "search" });
 
     expect(menu.activeSubject.value).toEqual(remoteSubject);
-    expect(menu.activeTrack.value).toBeNull();
+    expect(menu.activeTrack.value).toMatchObject({
+      kind: "library",
+      id: "yt:abc",
+      title: "Remote song",
+      sourceDto: remoteSubject.dto,
+    });
     expect(menu.activeContextMenuTarget.value).toBe("search");
+  });
+
+  it("re-opens a display VM as a remote subject (round-trip)", () => {
+    const menu = useTrackMenu();
+    menu.openMenu(remoteSubject, 0);
+    const displayTrack = menu.activeTrack.value!;
+
+    menu.openMenu(displayTrack, 1);
+
+    expect(menu.activeSubject.value).toEqual(remoteSubject);
   });
 
   it("accepts ephemeral tracks through the adapter", () => {

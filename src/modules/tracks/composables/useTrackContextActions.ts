@@ -24,6 +24,7 @@ import { offlineCopyRepository } from "@/db/repositories";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { parseTrackRef } from "@/types/track-ref";
 import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
+import { getNdConfig } from "@/modules/sources/navidrome/config";
 import {
   addTrackToPlaylistAndSync,
   removeTrackFromPlaylistAndSync,
@@ -295,7 +296,19 @@ export const useTrackContextActions = (
     if (!id) return null;
 
     const ref = parseTrackRef(id);
-    return ref.kind === "yt" ? `https://www.youtube.com/watch?v=${ref.videoId}` : null;
+    if (ref.kind === "yt") return `https://www.youtube.com/watch?v=${ref.videoId}`;
+    if (ref.kind === "nd") {
+      const config = getNdConfig();
+      if (!config) return null;
+      const albumId = subject?.kind === "remote"
+        ? subject.dto.albumId
+        : (isLibraryTrack(current) ? current.albumId : undefined);
+      const albumRef = albumId ? parseTrackRef(albumId as unknown as typeof id) : null;
+      return albumRef?.kind === "nd"
+        ? `${config.baseUrl}/app/#/album/${albumRef.songId}/show`
+        : config.baseUrl;
+    }
+    return null;
   };
 
   const openExternal = async () => {

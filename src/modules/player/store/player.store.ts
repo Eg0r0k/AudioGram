@@ -18,6 +18,7 @@ import { storageService } from "@/db/storage";
 import { offlineCopyRepository } from "@/db/repositories";
 import { sources } from "@/modules/sources";
 import { statsService } from "@/services/stats.service";
+import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
@@ -256,6 +257,13 @@ export const usePlayerStore = defineStore("player", () => {
       const result = await storageService.getAudioUrl(track.storagePath);
       if (result.isErr()) throw result.error;
       return result.value;
+    }
+
+    // Playing from live browsing shadow-pins the row (pinned = 0) so
+    // history, stats and queue persistence have valid FKs. Fire-and-forget:
+    // playback must not wait for the cascade.
+    if (track.sourceDto) {
+      ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch(() => {});
     }
 
     const copyResult = await offlineCopyRepository.findById(track.id);

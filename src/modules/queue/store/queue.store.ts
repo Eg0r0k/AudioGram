@@ -13,6 +13,7 @@ import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity"
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { unique, unwrapResult } from "@/queries/shared";
 import { migrateLegacyYtStreamUrl } from "@/lib/stream-url";
+import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
 
 const RESTART_THRESHOLD = 3;
@@ -233,6 +234,15 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function createQueueItems(tracks: PlayerTrack[], source: QueueSource): QueueItem[] {
+    // Queued tracks from live browsing shadow-pin their rows so the persisted
+    // snapshot (library kind → trackId only) can restore them. Idempotent
+    // upserts, fire-and-forget.
+    for (const track of tracks) {
+      if (track.kind === "library" && track.sourceDto) {
+        ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch(() => {});
+      }
+    }
+
     const canReuseExistingItems = currentItem.value !== null
       && isSameQueueSource(currentItem.value.source, source);
 
