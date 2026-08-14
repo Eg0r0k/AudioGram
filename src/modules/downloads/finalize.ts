@@ -45,4 +45,14 @@ export async function finalizeOfflineCopy(
   };
   await unwrapResult(offlineCopyRepository.upsert(copy));
   queryClient.setQueryData(queryKeys.offlineCopies.detail(job.trackId), copy);
+
+  // importFile copies rather than moves — drop the temp source so the yt
+  // cache / downloads-tmp don't hold finished files until the next sweep.
+  try {
+    const { remove } = await import("@tauri-apps/plugin-fs");
+    await remove(file.path);
+  }
+  catch {
+    // Best-effort: a stray temp file is reclaimed by the startup sweep.
+  }
 }

@@ -121,4 +121,10 @@ export const ytSourceProvider: SourceProvider = {
       .mapErr(mapError)
       .map(result => ({ path: result.path }));
   },
+
+  cancelDownload(id) {
+    const videoId = videoIdOf(id);
+    if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
+    return youtubeProvider.cancelDownload(videoId).mapErr(mapError);
+  },
 };

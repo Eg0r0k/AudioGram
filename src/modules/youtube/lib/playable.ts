@@ -1,5 +1,7 @@
 import { isEphemeralTrack, type PlayerTrack, type Track } from "@/modules/player/types";
 import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
+import type { SourceTrackDTO } from "@/modules/sources/types";
+import { ytTrackId } from "@/types/track-ref";
 import { unproxiedThumbnail } from "./thumbnail";
 import type { YtMusicTrack, YtPlayable, YtSearchResult } from "../types";
 
@@ -28,6 +30,21 @@ export function ytPlayableFromEphemeral(track: PlayerTrack | null): YtPlayable |
       album: track.albumName ?? null,
       coverUrl,
     },
+  };
+}
+
+/**
+ * Bridges a YT playable into the generic source DTO — the shape the pin
+ * cascade and the download manager consume (M5: shared offline mechanism).
+ */
+export function ytPlayableToDto(item: YtPlayable): SourceTrackDTO {
+  return {
+    id: ytTrackId(item.id),
+    title: item.title,
+    artistName: item.artist ?? undefined,
+    albumTitle: item.meta?.album ?? undefined,
+    duration: item.duration ?? undefined,
+    coverRef: item.thumbnail ?? undefined,
   };
 }
 

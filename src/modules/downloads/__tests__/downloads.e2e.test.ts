@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { okAsync, ResultAsync } from "neverthrow";
-import { ndAlbumId, ndArtistId, ndTrackId } from "@/types/track-ref";
+import { ndAlbumId, ndArtistId, ndTrackId, ytTrackId } from "@/types/track-ref";
 import type { SourceError, SourceTrackDTO } from "@/modules/sources/types";
 
 //
@@ -16,6 +16,10 @@ const storageMock = vi.hoisted(() => ({
   getFileSize: vi.fn(),
   deleteFile: vi.fn(),
   getAudioUrl: vi.fn(),
+}));
+const fsMock = vi.hoisted(() => ({
+  readDir: vi.fn(async () => []),
+  remove: vi.fn(async () => {}),
 }));
 const providerMock = vi.hoisted(() => ({
   getAlbum: vi.fn(),
@@ -33,8 +37,8 @@ vi.mock("@/modules/sources", () => ({
 }));
 vi.mock("@tauri-apps/plugin-fs", () => ({
   BaseDirectory: { AppData: 1 },
-  readDir: vi.fn(async () => []),
-  remove: vi.fn(async () => {}),
+  readDir: fsMock.readDir,
+  remove: fsMock.remove,
 }));
 vi.mock("@/queries/library.queries", () => ({
   invalidateLibraryData: vi.fn(async () => {}),
@@ -94,6 +98,34 @@ describe("downloads end-to-end", () => {
       expect((await db.tracks.get(ndTrackId(rawId)))?.pinned).toBe(1);
     }
     expect(useDownloadsStore().batches[batchId!]).toMatchObject({ total: 3, finished: 3, failed: 0 });
+  });
+
+  it("downloads a single YT track through the shared manager (M5)", async () => {
+    providerMock.downloadToFile.mockImplementation((trackId: string) =>
+      okAsync({ path: `C:/yt-cache/${trackId.slice("yt:".length)}.m4a` }));
+
+    vi.resetModules();
+    const { downloadSubject } = await import("../enqueue");
+
+    const dto: SourceTrackDTO = {
+      id: ytTrackId("dQw4w9WgXcQ"),
+      title: "Never Gonna Give You Up",
+      artistName: "Rick Astley",
+    };
+    const jobId = await downloadSubject({ kind: "remote", dto });
+    expect(jobId).not.toBeNull();
+
+    await vi.waitFor(async () => {
+      expect(await db.downloadJobs.count()).toBe(0);
+    });
+
+    expect(await db.offlineCopies.get(ytTrackId("dQw4w9WgXcQ"))).toMatchObject({
+      storagePath: "offline/yt/dQw4w9WgXcQ.m4a",
+    });
+    // Download = library membership: a pinned yt shadow row exists.
+    expect((await db.tracks.get(ytTrackId("dQw4w9WgXcQ")))?.pinned).toBe(1);
+    // The finalizer cleans the source temp file once the copy landed.
+    expect(fsMock.remove).toHaveBeenCalledWith("C:/yt-cache/dQw4w9WgXcQ.m4a");
   });
 
   it("resumes the persisted queue after the manager is recreated", async () => {
