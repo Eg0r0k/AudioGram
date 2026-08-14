@@ -16,6 +16,11 @@ function mapError(error: YoutubeError): SourceError {
       return { kind: "NETWORK", message: error.message };
     case "NOT_FOUND":
       return { kind: "NOT_FOUND", message: error.message };
+    case "CANCELLED":
+      // The generic contract (sources/types.ts) marks a cancelled
+      // downloadToFile with the literal message "cancelled" — the download
+      // manager matches on it to drop the job instead of retrying it.
+      return { kind: "UNKNOWN", message: "cancelled" };
     default:
       return { kind: "UNKNOWN", message: error.message };
   }
