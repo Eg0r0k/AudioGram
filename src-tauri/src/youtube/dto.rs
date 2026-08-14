@@ -198,9 +198,18 @@ fn album_type_str(album_type: AlbumType) -> String {
     .to_owned()
 }
 
+/// YT Music search rows sometimes leak the type badge ("Song" / "Video",
+/// the client is pinned to English) into the artist runs as an id-less
+/// pseudo-artist; it then pollutes row display and the tags written on
+/// download. A real artist named "Song" would carry a channel id.
+fn is_type_badge(id: Option<&str>, name: &str) -> bool {
+    id.is_none() && matches!(name, "Song" | "Video")
+}
+
 fn artist_refs(artists: Vec<rustypipe::model::ArtistId>) -> Vec<YtArtistRef> {
     artists
         .into_iter()
+        .filter(|a| !is_type_badge(a.id.as_deref(), &a.name))
         .map(|a| YtArtistRef { id: a.id, name: a.name })
         .collect()
 }
@@ -297,5 +306,23 @@ pub(super) fn to_artist_detail(artist: MusicArtist) -> YtArtistDetail {
         top_tracks: artist.tracks.into_iter().map(to_music_track).collect(),
         albums: artist.albums.into_iter().map(to_music_album).collect(),
         playlists: artist.playlists.into_iter().map(to_music_playlist).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_type_badge;
+
+    #[test]
+    fn drops_idless_song_and_video_badges() {
+        assert!(is_type_badge(None, "Song"));
+        assert!(is_type_badge(None, "Video"));
+    }
+
+    #[test]
+    fn keeps_real_artists() {
+        assert!(!is_type_badge(Some("UC123"), "Song"));
+        assert!(!is_type_badge(None, "Rick Astley"));
+        assert!(!is_type_badge(None, "song"));
     }
 }
