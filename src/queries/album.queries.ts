@@ -3,8 +3,12 @@ import {
   albumRepository,
   artistRepository,
   coverRepository,
+  playlistRepository,
   trackRepository,
 } from "@/db/repositories";
+import { removeOfflineCopy } from "@/modules/downloads/removeCopy";
+import { sourceKindOf } from "@/modules/sources/lib/display";
+import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { queryKeys } from "@/queries/query-keys";
 import { buildAlbumDocFromDb, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
 import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/searchIndex";
@@ -15,7 +19,10 @@ import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
   removeAlbumCaches,
+  removeTracksFromCaches,
   syncAlbumCaches,
+  syncPlaylistCaches,
+  syncPlaylistTrackRemoval,
   updateCoverCache,
 } from "./cache";
 import { sortTracks, unwrapResult, unique } from "./shared";
@@ -247,6 +254,37 @@ export async function updateAlbumAndSync(
   return nextAlbum;
 }
 
+/**
+ * Remote (shadow) album deletion cascade: the downloaded tracks, their
+ * offline copies and files leave with the album; playlists drop the ids and
+ * GC collects the orphaned artist. Local albums keep the ungroup semantics.
+ */
+async function deleteRemoteAlbumTracks(
+  queryClient: QueryClient,
+  rawTracks: TrackEntity[],
+): Promise<void> {
+  const trackIds = rawTracks.map(track => track.id);
+
+  const playlists = await unwrapResult(playlistRepository.findAll());
+  for (const playlist of playlists) {
+    const remaining = playlist.trackIds.filter(id => !trackIds.includes(id));
+    if (remaining.length === playlist.trackIds.length) continue;
+    for (const id of playlist.trackIds.filter(trackId => trackIds.includes(trackId))) {
+      await unwrapResult(playlistRepository.removeTrack(playlist.id, id));
+      syncPlaylistTrackRemoval(queryClient, playlist.id, id);
+    }
+    syncPlaylistCaches(queryClient, { ...playlist, trackIds: remaining, updatedAt: Date.now() });
+  }
+
+  for (const id of trackIds) {
+    await removeOfflineCopy(id);
+    await unwrapResult(trackRepository.delete(id));
+  }
+
+  removeTracksFromCaches(queryClient, trackIds);
+  await removeSearchDocuments(trackIds.map(id => `track:${id}`));
+}
+
 export async function deleteAlbumAndSync(
   queryClient: QueryClient,
   albumEntity: AlbumEntity | null,
@@ -256,11 +294,24 @@ export async function deleteAlbumAndSync(
   }
 
   const rawTracks = await unwrapResult(trackRepository.findByAlbumId(albumEntity.id));
+  const isRemote = sourceKindOf(albumEntity.id) !== "local";
 
-  for (const track of rawTracks) {
-    await unwrapResult(trackRepository.update(track.id, {
-      albumTitle: undefined,
-    }));
+  if (isRemote) {
+    await deleteRemoteAlbumTracks(queryClient, rawTracks);
+    // GC would also collect the album with its last track, but an empty
+    // shadow album (0 tracks) must not survive either — delete explicitly
+    // below, then let the artist cascade run.
+    await cleanupAfterTrackRemoval(rawTracks);
+  }
+  else {
+    for (const track of rawTracks) {
+      // Detach fully: a cleared title with a dangling albumId would keep
+      // pointing list queries at a row that no longer exists.
+      await unwrapResult(trackRepository.update(track.id, {
+        albumTitle: undefined,
+        albumId: createAlbumId(""),
+      }));
+    }
   }
 
   await unwrapResult(coverRepository.deleteAlbumCover(albumEntity.id));
@@ -268,8 +319,10 @@ export async function deleteAlbumAndSync(
   await removeSearchDocuments([
     `album:${albumEntity.id}`,
   ]);
-  const updatedTracks = await unwrapResult(trackRepository.findByIds(rawTracks.map(track => track.id)));
-  await upsertSearchDocuments(await Promise.all(updatedTracks.map(track => buildTrackDocFromDb(track))));
+  if (!isRemote) {
+    const updatedTracks = await unwrapResult(trackRepository.findByIds(rawTracks.map(track => track.id)));
+    await upsertSearchDocuments(await Promise.all(updatedTracks.map(track => buildTrackDocFromDb(track))));
+  }
 
   removeAlbumCaches(queryClient, albumEntity.id, albumEntity.artistId);
 

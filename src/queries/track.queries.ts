@@ -32,6 +32,8 @@ import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } 
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
+import { removeOfflineCopy } from "@/modules/downloads/removeCopy";
+import { sourceKindOf } from "@/modules/sources/lib/display";
 
 const PAGE_SIZE = 50;
 
@@ -590,6 +592,10 @@ export async function deleteTrackAndSync(
     syncPlaylistTrackRemoval(queryClient, playlist.id, trackId);
   }
 
+  // A deleted remote row must not strand its offline copy on disk.
+  if (sourceKindOf(trackId) !== "local") {
+    await removeOfflineCopy(trackId);
+  }
   await unwrapResult(trackRepository.delete(trackId));
   // Cascade: the album dies with its last track, the artist with their last
   // track and album. The list invalidations below pick the removals up.

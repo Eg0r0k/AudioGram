@@ -2,7 +2,7 @@ import { db } from "@/db";
 import type { PinnedFlag } from "@/db/entities";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
-import { buildRemoteShadowEntities, type RemotePinExisting } from "@/services/entity-resolver";
+import { buildRemoteShadowEntities, substituteLocalArtists, type RemotePinExisting } from "@/services/entity-resolver";
 import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackMenuSubject } from "../components/menu/type";
@@ -29,13 +29,19 @@ export async function ensurePinned(
     throw new Error("Ephemeral tracks have no library identity and cannot be pinned");
   }
 
-  const dto = subject.dto;
   const requestedPinned = options.pinned ?? 1;
   const now = Date.now();
 
   const result = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists],
     async () => {
+      // A same-named local artist absorbs the remote track instead of a
+      // shadow row — downloading never duplicates an artist the user has.
+      const allArtists = (subject.dto.artistIds ?? []).length > 0
+        ? await unwrapResult(artistRepository.findAll())
+        : [];
+      const dto = substituteLocalArtists(subject.dto, allArtists);
+
       const artistIds = dto.artistIds ?? [];
       const [track, album, artists] = await Promise.all([
         unwrapResult(trackRepository.findById(dto.id)),
@@ -62,8 +68,8 @@ export async function ensurePinned(
 
   // A pinned shadow album should look like a local one on library pages —
   // fetch its artwork in the background (idempotent, best-effort).
-  if (result.value.album && dto.coverRef) {
-    void ensureShadowAlbumCover(result.value.album.id, dto.coverRef);
+  if (result.value.album && subject.dto.coverRef) {
+    void ensureShadowAlbumCover(result.value.album.id, subject.dto.coverRef);
   }
 
   return mapTrack(result.value.track, result.value.artists, result.value.album);

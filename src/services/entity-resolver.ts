@@ -121,6 +121,37 @@ export function buildRemoteShadowEntities(
   return { track, album, artists };
 }
 
+/**
+ * Remote pin cascade, artist identity: a same-named LOCAL artist wins over
+ * creating a remote-prefixed shadow row, so downloading a YT/ND album never
+ * duplicates an artist the library already has. Matching is the same
+ * whitespace/case-insensitive identity the import pipeline uses; only
+ * unprefixed (local) rows are candidates — never another source's shadow.
+ */
+export function substituteLocalArtists(
+  dto: SourceTrackDTO,
+  allArtists: readonly ArtistEntity[],
+): SourceTrackDTO {
+  const remoteIds = dto.artistIds ?? [];
+  if (remoteIds.length === 0) return dto;
+
+  const locals = new Map<string, ArtistId>();
+  for (const artist of allArtists) {
+    if (/^(?:nd|yt):/.test(artist.id)) continue;
+    const key = identityKey(artist.name);
+    if (!locals.has(key)) locals.set(key, artist.id);
+  }
+  if (locals.size === 0) return dto;
+
+  const names = artistNamesFor(dto, [...remoteIds]);
+  const artistIds = remoteIds.map((id, index) => {
+    const name = names[index];
+    return (name && locals.get(identityKey(name))) || id;
+  });
+
+  return { ...dto, artistIds };
+}
+
 type AlbumCacheKey = `${ArtistId}::${string}`;
 
 // Identity is whitespace- AND case-insensitive: tags routinely carry stray

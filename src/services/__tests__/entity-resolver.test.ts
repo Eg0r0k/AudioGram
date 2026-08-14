@@ -1,79 +1,51 @@
-import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "@/db";
-import type { AlbumId, ArtistId } from "@/types/ids";
-import type { BaseMetadata } from "@/workers/types";
-import { EntityResolver } from "../entity-resolver";
+import { describe, expect, it, vi } from "vitest";
+import type { ArtistEntity } from "@/db/entities";
+import { ArtistId } from "@/types/ids";
+import { ytAlbumId, ytArtistId, ytTrackId } from "@/types/track-ref";
+import type { SourceTrackDTO } from "@/modules/sources";
+import { substituteLocalArtists } from "../entity-resolver";
 
-function meta(artists: string[], album: string): BaseMetadata {
-  return { title: "T", artists, album, duration: 100, format: {} } as BaseMetadata;
+vi.mock("@/db", () => ({ db: {} }));
+
+const localId = ArtistId("41180b61-7c4a-44aa-bcd7-166e6b0e4b50");
+
+function artist(id: ArtistId, name: string): ArtistEntity {
+  return { id, name, pinned: 1, addedAt: 1, updatedAt: 1 };
 }
 
-describe("EntityResolver identity normalization", () => {
-  beforeEach(async () => {
-    await db.open();
-    await Promise.all(db.tables.map(table => table.clear()));
+const dto: SourceTrackDTO = {
+  id: ytTrackId("v1"),
+  title: "T",
+  artistName: "Серега Пират",
+  albumTitle: "A",
+  albumId: ytAlbumId("MPREb_1"),
+  artistIds: [ytArtistId("UC1")],
+};
+
+describe("substituteLocalArtists", () => {
+  it("swaps a remote artist id for a same-named local artist (case-insensitive)", () => {
+    const result = substituteLocalArtists(dto, [artist(localId, "СЕРЕГА ПИРАТ")]);
+
+    expect(result.artistIds).toEqual([localId]);
   });
 
-  it("treats whitespace-padded artist names as one artist", async () => {
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["Artist "], "Album"), meta(["Artist"], "Album")]);
+  it("keeps the remote id when no local artist matches", () => {
+    const result = substituteLocalArtists(dto, [artist(localId, "Кто-то другой")]);
 
-    const padded = resolver.getArtistId("Artist ");
-    const clean = resolver.getArtistId("Artist");
-    expect(padded).toBeDefined();
-    expect(padded).toBe(clean);
+    expect(result.artistIds).toEqual([ytArtistId("UC1")]);
   });
 
-  it("keys new albums so a padded lookup still hits the entry", async () => {
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["Artist"], " Album ")]);
+  it("never swaps onto another remote-prefixed artist", () => {
+    const ndArtist = artist(ArtistId("nd:x9") as ArtistId, "Серега Пират");
 
-    const artistId = resolver.getArtistId("Artist")!;
-    const padded = resolver.getAlbumEntry(artistId, " Album ");
-    const clean = resolver.getAlbumEntry(artistId, "Album");
-    expect(padded).toBeDefined();
-    expect(padded).toBe(clean);
+    const result = substituteLocalArtists(dto, [ndArtist]);
+
+    expect(result.artistIds).toEqual([ytArtistId("UC1")]);
   });
 
-  it("treats case variants of an artist name as one artist", async () => {
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["СЕРЕГА ПИРАТ"], "Album"), meta(["Серега Пират"], "Album")]);
+  it("passes through DTOs without artist ids", () => {
+    const bare: SourceTrackDTO = { id: ytTrackId("v2"), title: "T2" };
 
-    const upper = resolver.getArtistId("СЕРЕГА ПИРАТ");
-    const mixed = resolver.getArtistId("Серега Пират");
-    expect(upper).toBeDefined();
-    expect(upper).toBe(mixed);
-  });
-
-  it("matches an existing DB artist regardless of tag casing", async () => {
-    await db.artists.put({ id: "ar1" as ArtistId, name: "Серега Пират", pinned: 1, addedAt: 1, updatedAt: 1 });
-
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["СЕРЕГА ПИРАТ"], "Album")]);
-
-    expect(resolver.getArtistId("СЕРЕГА ПИРАТ")).toBe("ar1");
-  });
-
-  it("treats case variants of an album title as one album", async () => {
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["Artist"], "ВОТ МОЙ АЛЬБОМ"), meta(["Artist"], "Вот мой альбом")]);
-
-    const artistId = resolver.getArtistId("Artist")!;
-    expect(resolver.getAlbumEntry(artistId, "ВОТ МОЙ АЛЬБОМ"))
-      .toBe(resolver.getAlbumEntry(artistId, "Вот мой альбом"));
-  });
-
-  it("matches an existing DB album whose stored title carries whitespace", async () => {
-    await db.artists.put({ id: "ar1" as ArtistId, name: "Artist", pinned: 1, addedAt: 1, updatedAt: 1 });
-    await db.albums.put({
-      id: "al1" as AlbumId, title: "Album ", artistId: "ar1" as ArtistId, pinned: 1, addedAt: 1, updatedAt: 1,
-    });
-
-    const resolver = new EntityResolver();
-    await resolver.resolve([meta(["Artist"], "Album")]);
-
-    const entry = resolver.getAlbumEntry("ar1" as ArtistId, "Album");
-    expect(entry).toMatchObject({ id: "al1", isNew: false });
+    expect(substituteLocalArtists(bare, [artist(localId, "X")])).toBe(bare);
   });
 });

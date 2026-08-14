@@ -6,7 +6,7 @@ import type { SourceTrackDTO } from "@/modules/sources";
 const repos = vi.hoisted(() => ({
   track: { findById: vi.fn(), upsert: vi.fn() },
   album: { findById: vi.fn(), upsert: vi.fn() },
-  artist: { findByIds: vi.fn(), upsertMany: vi.fn() },
+  artist: { findByIds: vi.fn(), upsertMany: vi.fn(), findAll: vi.fn() },
 }));
 
 const uow = vi.hoisted(() => ({ runScoped: vi.fn() }));
@@ -42,6 +42,7 @@ describe("ensurePinned", () => {
     repos.album.upsert.mockResolvedValue(ok("nd:album1"));
     repos.artist.findByIds.mockResolvedValue(ok([]));
     repos.artist.upsertMany.mockResolvedValue(ok(["nd:artist1"]));
+    repos.artist.findAll.mockResolvedValue(ok([]));
   });
 
   it("returns library subjects untouched without touching the DB", async () => {
@@ -81,6 +82,19 @@ describe("ensurePinned", () => {
       storagePath: "",
       pinned: 1,
     });
+  });
+
+  it("attaches the track to a same-named local artist instead of a shadow row", async () => {
+    const localId = "a1b2c3d4-0000-0000-0000-000000000001";
+    repos.artist.findAll.mockResolvedValue(ok([
+      { id: localId, name: "ARTIST A", pinned: 1, addedAt: 1, updatedAt: 1 },
+    ]));
+
+    await ensurePinned({ kind: "remote", dto });
+
+    expect(repos.track.upsert.mock.calls[0][0]).toMatchObject({ artistIds: [localId] });
+    const upsertedArtists = repos.artist.upsertMany.mock.calls[0][0];
+    expect(upsertedArtists.map((artist: { id: string }) => artist.id)).toEqual([localId]);
   });
 
   it("shadow-pins with pinned = 0 when requested", async () => {
