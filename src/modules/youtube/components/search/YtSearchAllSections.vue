@@ -84,7 +84,7 @@ import type { YtChip } from "@/modules/search/composables/useSearch";
 import { useYtSearchAll } from "../../composables/useYtSearchQueries";
 import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
-import { playableFromMusicTrack } from "../../lib/playable";
+import { playableFromMusicTrack, ytMusicTrackToDto } from "../../lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
 import { ytArtistRoutes } from "../../lib/searchRows";
 import type { YoutubeError, YtPlayable } from "../../types";
@@ -114,7 +114,8 @@ const trackRows = computed(() =>
       const playable: YtPlayable = playableFromMusicTrack(item);
       return {
         playable,
-        track: ytEphemeralTrack(playable) as PlayerTrack as Track,
+        // The catalog entity rides along so a download pins the full identity.
+        track: ytEphemeralTrack(playable, ytMusicTrackToDto(item)) as PlayerTrack as Track,
         cover: item.thumbnail ? proxiedThumbnail(item.thumbnail, THUMB_SIZE_ROW) : undefined,
         artistRoutes: ytArtistRoutes(item.artists),
       };

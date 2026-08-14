@@ -72,7 +72,7 @@ import type { PlayerTrack, Track } from "@/modules/player/types";
 import { useYtSearchList, type YtListChip } from "../../composables/useYtSearchQueries";
 import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
-import { playableFromMusicTrack } from "../../lib/playable";
+import { playableFromMusicTrack, ytMusicTrackToDto } from "../../lib/playable";
 import type { YoutubeError, YtMusicEntity, YtPlayable } from "../../types";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
 import { ytArtistRoutes, ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
@@ -108,7 +108,8 @@ const trackRowsById = computed(() => {
     const playable = playableFromMusicTrack(item);
     map.set(item.id, {
       playable,
-      track: ytEphemeralTrack(playable) as PlayerTrack as Track,
+      // The catalog entity rides along so a download pins the full identity.
+      track: ytEphemeralTrack(playable, ytMusicTrackToDto(item)) as PlayerTrack as Track,
       artistRoutes: ytArtistRoutes(item.artists),
     });
   }

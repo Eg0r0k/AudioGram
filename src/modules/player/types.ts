@@ -74,6 +74,12 @@ export interface EphemeralTrack {
   duration?: number;
   cover?: string;
   source: EphemeralSource;
+  /**
+   * Catalog DTO the row was built from (YT search/collection streams). The
+   * stream itself needs none of it, but downloading pins the track — without
+   * the DTO's artist/album ids the copy lands in the library orphaned.
+   */
+  sourceDto?: SourceTrackDTO;
 }
 
 export type PlayerTrack = Track | EphemeralTrack;

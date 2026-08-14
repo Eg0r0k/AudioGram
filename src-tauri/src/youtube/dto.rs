@@ -227,6 +227,25 @@ pub(super) fn to_music_track(item: TrackItem) -> YtMusicTrack {
     }
 }
 
+/// YT Music's top-result shelf returns songs stripped down: no artists, no
+/// album, no duration, and the artist avatar where the cover belongs. A
+/// per-track `music_details` lookup carries the real values — whatever the
+/// details know wins, the shelf row keeps only the fields they left out.
+pub(super) fn apply_track_details(base: &mut YtMusicTrack, details: YtMusicTrack) {
+    if !details.artists.is_empty() {
+        base.artists = details.artists;
+    }
+    if details.album.is_some() {
+        base.album = details.album;
+    }
+    if details.duration.is_some() {
+        base.duration = details.duration;
+    }
+    if details.thumbnail.is_some() {
+        base.thumbnail = details.thumbnail;
+    }
+}
+
 pub(super) fn to_music_album(item: AlbumItem) -> YtMusicAlbum {
     YtMusicAlbum {
         thumbnail: best_thumbnail(&item.cover),
@@ -311,7 +330,67 @@ pub(super) fn to_artist_detail(artist: MusicArtist) -> YtArtistDetail {
 
 #[cfg(test)]
 mod tests {
-    use super::is_type_badge;
+    use super::{apply_track_details, is_type_badge, YtAlbumRef, YtArtistRef, YtMusicTrack};
+
+    fn shelf_row() -> YtMusicTrack {
+        YtMusicTrack {
+            id: "WOBqcF6PW_8".into(),
+            title: "Почему ты еще не фанат?".into(),
+            artists: Vec::new(),
+            album: None,
+            duration: None,
+            // Top-result shelf rows carry the artist avatar, not the cover.
+            thumbnail: Some("https://yt3.googleusercontent.com/avatar=w120-h120".into()),
+            is_video: false,
+            track_nr: None,
+        }
+    }
+
+    fn details_row() -> YtMusicTrack {
+        YtMusicTrack {
+            id: "WOBqcF6PW_8".into(),
+            title: "Почему ты еще не фанат?".into(),
+            artists: vec![YtArtistRef {
+                id: Some("UCTLkOu1J8aNJhEiWFWbMnVQ".into()),
+                name: "СЕРЕГА ПИРАТ".into(),
+            }],
+            album: Some(YtAlbumRef { id: "MPREb_1".into(), name: "Фанат".into() }),
+            duration: Some(163),
+            thumbnail: Some("https://lh3.googleusercontent.com/cover=w544-h544".into()),
+            is_video: false,
+            track_nr: None,
+        }
+    }
+
+    #[test]
+    fn details_fill_the_stripped_shelf_row() {
+        let mut track = shelf_row();
+
+        apply_track_details(&mut track, details_row());
+
+        assert_eq!(track.artists.len(), 1);
+        assert_eq!(track.artists[0].name, "СЕРЕГА ПИРАТ");
+        assert_eq!(track.album.as_ref().unwrap().id, "MPREb_1");
+        assert_eq!(track.duration, Some(163));
+        assert!(track.thumbnail.as_deref().unwrap().contains("lh3."));
+    }
+
+    #[test]
+    fn shelf_values_survive_when_details_lack_them() {
+        let mut track = shelf_row();
+        let mut details = details_row();
+        details.artists.clear();
+        details.album = None;
+        details.duration = None;
+        details.thumbnail = None;
+
+        apply_track_details(&mut track, details);
+
+        assert!(track.artists.is_empty());
+        assert!(track.album.is_none());
+        assert_eq!(track.duration, None);
+        assert!(track.thumbnail.as_deref().unwrap().contains("yt3."));
+    }
 
     #[test]
     fn drops_idless_song_and_video_badges() {

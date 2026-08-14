@@ -105,7 +105,7 @@ import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
 import { downloadDtoWithFeedback } from "@/modules/downloads/downloadFeedback";
-import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
+import { ytDownloadDto, ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 import IconFileImport from "~icons/tabler/file-import";
 
@@ -122,7 +122,7 @@ const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
 // is rebuilt from the stream URL, pin + job + offline copy follow.
 async function downloadYt() {
   if (!ytPlayable.value) return;
-  await downloadDtoWithFeedback(ytPlayableToDto(ytPlayable.value));
+  await downloadDtoWithFeedback(ytDownloadDto(props.track, ytPlayable.value));
 }
 
 // Import-to-library CTA: on success the queue entry swaps onto the

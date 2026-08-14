@@ -226,12 +226,13 @@ const { openMenu } = useTrackMenu();
 
 function openYtMenu(index: number) {
   const playable = playables.value[index];
-  if (playable) openMenu(ytEphemeralTrack(playable), index, { target: "yt" });
+  if (playable) openMenu(ytEphemeralTrack(playable, dtos.value[index]), index, { target: "yt" });
 }
 
 async function playTopTracks(startIndex: number) {
   if (playables.value.length === 0) return;
-  const queueTracks = playables.value.map(ytEphemeralTrack);
+  const queueTracks = playables.value.map((playable, index) =>
+    ytEphemeralTrack(playable, dtos.value[index]));
   await queue.setQueue(queueTracks, startIndex, { type: "manual" });
 }
 

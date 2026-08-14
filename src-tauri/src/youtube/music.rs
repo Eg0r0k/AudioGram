@@ -7,9 +7,12 @@ use rustypipe::model::{
     AlbumItem, ArtistItem, MusicItem, MusicPlaylistItem, TrackItem, VideoItem,
 };
 
+use futures_util::future::join_all;
+use rustypipe::client::RustyPipeQuery;
+
 use super::dto::{
-    page_from_paginator, to_music_album, to_music_artist, to_music_entity, to_music_playlist,
-    to_music_track, ContinuationToken, YtMusicEntity, YtPage,
+    apply_track_details, page_from_paginator, to_music_album, to_music_artist, to_music_entity,
+    to_music_playlist, to_music_track, ContinuationToken, YtMusicEntity, YtPage,
 };
 use super::{best_thumbnail, yt_client, YtError};
 
@@ -25,6 +28,55 @@ pub enum YtMusicSearchKind {
 
 fn empty_page<T>() -> YtPage<T> {
     YtPage { items: Vec::new(), continuation: None, total: None, corrected_query: None }
+}
+
+/// Only the top-result shelf serves stripped rows, so a handful of parallel
+/// lookups covers them without turning one search into a request fan-out.
+const MAX_ENRICHED_TRACKS: usize = 6;
+
+/// Fills in artist/album/duration/cover for search rows YT returned without
+/// them (top-result shelf). Best-effort: a failed lookup leaves its row as
+/// it came, and the whole pass never fails the search.
+async fn enrich_stripped_tracks(q: &RustyPipeQuery, page: &mut YtPage<YtMusicEntity>) {
+    let targets: Vec<(usize, String)> = page
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| match item {
+            YtMusicEntity::Track(track) if track.artists.is_empty() => {
+                Some((index, track.id.clone()))
+            }
+            _ => None,
+        })
+        .take(MAX_ENRICHED_TRACKS)
+        .collect();
+
+    if targets.is_empty() {
+        return;
+    }
+
+    let details = join_all(targets.iter().map(|(_, id)| {
+        let q = q.clone();
+        let id = id.clone();
+        async move {
+            match q.music_details(&id).await {
+                Ok(details) => Some(to_music_track(details.track)),
+                Err(e) => {
+                    log::warn!("music_details for {id} failed, keeping the stripped row: {e}");
+                    None
+                }
+            }
+        }
+    }))
+    .await;
+
+    for ((index, _), detail) in targets.into_iter().zip(details) {
+        let (Some(detail), Some(YtMusicEntity::Track(track))) = (detail, page.items.get_mut(index))
+        else {
+            continue;
+        };
+        apply_track_details(track, detail);
+    }
 }
 
 #[tauri::command]
@@ -80,6 +132,7 @@ pub async fn yt_music_search<R: Runtime>(
     };
 
     page.corrected_query = corrected;
+    enrich_stripped_tracks(&q, &mut page).await;
     Ok(page)
 }
 
@@ -97,7 +150,7 @@ pub async fn yt_continue<R: Runtime>(
     let q = rp.query();
     let visitor_data = token.visitor_data.as_deref();
 
-    let page = match kind {
+    let mut page = match kind {
         YtMusicSearchKind::All => {
             let p = q
                 .continuation::<MusicItem, _>(&token.ctoken, token.endpoint, visitor_data)
@@ -130,6 +183,7 @@ pub async fn yt_continue<R: Runtime>(
         }
     };
 
+    enrich_stripped_tracks(&q, &mut page).await;
     Ok(page)
 }
 

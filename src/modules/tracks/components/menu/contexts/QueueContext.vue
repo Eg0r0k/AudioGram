@@ -94,7 +94,7 @@ import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
 import { downloadDtoWithFeedback } from "@/modules/downloads/downloadFeedback";
-import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
+import { ytDownloadDto, ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 import IconTrash from "~icons/tabler/trash";
 
@@ -112,7 +112,7 @@ const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
 // M5: YT downloads go through the shared manager (pin → job → offline copy).
 async function downloadYt() {
   if (!ytPlayable.value) return;
-  await downloadDtoWithFeedback(ytPlayableToDto(ytPlayable.value));
+  await downloadDtoWithFeedback(ytDownloadDto(props.track, ytPlayable.value));
 }
 
 const { Separator, Item } = useTrackMenuComponents();

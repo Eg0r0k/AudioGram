@@ -169,7 +169,7 @@ const { openMenu } = useTrackMenu();
 
 function openYtMenu(index: number) {
   const playable = playables.value[index];
-  if (playable) openMenu(ytEphemeralTrack(playable), index, { target: "yt" });
+  if (playable) openMenu(ytEphemeralTrack(playable, dtos.value[index]), index, { target: "yt" });
 }
 
 // M5: the hero button queues every loaded track as one batch on the shared
@@ -196,7 +196,8 @@ async function startImport() {
  */
 async function playAll(startIndex: number) {
   if (props.tracks.length === 0) return;
-  const queueTracks = playables.value.map(ytEphemeralTrack);
+  const queueTracks = playables.value.map((playable, index) =>
+    ytEphemeralTrack(playable, dtos.value[index]));
   await queue.setQueue(queueTracks, startIndex, { type: "manual" });
 }
 
