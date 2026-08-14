@@ -204,6 +204,8 @@ const albumItems = computed<LibraryItem[]>(() => albums.value.map(album => ({
   artistName: artist.value?.name,
   to: routeLocation.album(album.id),
   rounded: false,
+  // A catalog artist page lists catalog albums: no Dexie rows behind them.
+  isCatalog: !artist.value,
 })));
 
 function getTrackKey(index: number) {

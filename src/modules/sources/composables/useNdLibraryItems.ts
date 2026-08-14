@@ -1,4 +1,4 @@
-import { computed, type MaybeRefOrGetter, toValue } from "vue";
+﻿import { computed, type MaybeRefOrGetter, toValue } from "vue";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import { routeLocation } from "@/app/router/route-locations";
 import { getLogger } from "@/lib/logger";
@@ -29,6 +29,7 @@ export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
           type: "artist",
           title: artist.name,
           isPinned: false,
+          isCatalog: true,
           addedAt: 0,
           updatedAt: 0,
           artistName: artist.name,
@@ -47,6 +48,7 @@ export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
           title: album.title,
           subtitle: album.artistName,
           isPinned: false,
+          isCatalog: true,
           addedAt: 0,
           updatedAt: 0,
           artistName: album.artistName,
@@ -65,6 +67,7 @@ export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
           type: "playlist",
           title: playlist.name,
           isPinned: false,
+          isCatalog: true,
           addedAt: 0,
           updatedAt: 0,
           image: sourceCoverUrl("nd", playlist.coverRef, THUMB_SIZE_ROW) || undefined,

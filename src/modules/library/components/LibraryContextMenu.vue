@@ -37,6 +37,7 @@ import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryItem } from "@/modules/library/types";
 import ArtistContext from "./contexts/ArtistContext.vue";
+import CatalogContext from "./contexts/CatalogContext.vue";
 import DefaultContext from "./contexts/DefaultContext.vue";
 import FavoriteContext from "./contexts/FavoriteContext.vue";
 import FolderContext from "./contexts/FolderContext.vue";
@@ -48,13 +49,13 @@ const props = withDefaults(defineProps<{
   insideFolder: false,
 });
 
-const { activeItem, isContextMenuOpen } = useLibraryMenu();
+const { activeItem, menuFlavor, isContextMenuOpen } = useLibraryMenu();
 
 useMenuCursorAutoClose(isContextMenuOpen, () => {
   isContextMenuOpen.value = false;
 }, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 const { togglePin, createPlaylist } = useLibrary();
-const { addToQueue } = useLibraryContextActions();
+const { addToQueue, addCatalogToQueue, downloadCatalog } = useLibraryContextActions();
 
 const contexts: Record<LibraryItem["type"], Component> = {
   artist: ArtistContext,
@@ -65,13 +66,24 @@ const contexts: Record<LibraryItem["type"], Component> = {
   folder: FolderContext,
 };
 
-const contextComponent = computed(() =>
-  activeItem.value ? contexts[activeItem.value.type] : null,
-);
+const contextComponent = computed(() => {
+  if (!activeItem.value) return null;
+  // Catalog rows share one context: only source actions apply to them.
+  if (menuFlavor.value === "catalog") return CatalogContext;
+  return contexts[activeItem.value.type];
+});
 
 const contextProps = computed(() => {
   if (!activeItem.value) {
     return {};
+  }
+
+  if (menuFlavor.value === "catalog") {
+    return {
+      item: activeItem.value,
+      addToQueue: handleCatalogAddToQueue,
+      download: handleCatalogDownload,
+    };
   }
 
   switch (activeItem.value.type) {
@@ -132,6 +144,16 @@ const handleAddToQueue = async () => {
 
 const handleCreatePlaylist = async () => {
   await createPlaylist();
+};
+
+const handleCatalogAddToQueue = async () => {
+  if (!activeItem.value) return;
+  await addCatalogToQueue(activeItem.value);
+};
+
+const handleCatalogDownload = async () => {
+  if (!activeItem.value) return;
+  await downloadCatalog(activeItem.value);
 };
 
 const emit = defineEmits<{

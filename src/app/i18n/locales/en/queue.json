@@ -5,6 +5,7 @@
   "nowPlaying": "Now Playing",
   "upNext": "Up Next",
   "added": "Added to queue",
+  "addFailed": "Could not add to the queue",
   "drag": "Drag to reorder",
   "clear": "Clear queue",
   "showQueue": "Show queue",

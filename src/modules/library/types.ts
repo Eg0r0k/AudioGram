@@ -38,6 +38,12 @@ export interface LibraryItem {
   rounded: boolean;
   trackCount?: number;
   folderItemCount?: number;
+  /**
+   * Live catalog row (ND browsing, albums on a catalog artist page): no Dexie
+   * row behind it, so library actions (pin, folders, delete) have nothing to
+   * write to. The menu switches to the catalog flavor instead.
+   */
+  isCatalog?: boolean;
 }
 
 export interface PinnedItem {

@@ -5,7 +5,14 @@ import { getLogger } from "@/lib/logger";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 
+/**
+ * Which action set the open menu serves: a Dexie-backed library row, or a
+ * live catalog row (ND browsing) that only supports source actions.
+ */
+export type LibraryMenuFlavor = "library" | "catalog";
+
 const activeItem = ref<LibraryItem | null>(null);
+const menuFlavor = ref<LibraryMenuFlavor>("library");
 const isContextMenuOpen = ref(false);
 let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -49,29 +56,49 @@ async function hasLibraryRow(item: LibraryItem): Promise<boolean> {
   }
 }
 
+/** Catalog rows with something actionable — the rest never open a menu. */
+function hasCatalogMenu(item: LibraryItem): boolean {
+  return item.type === "album" || item.type === "playlist";
+}
+
 export function useLibraryMenu() {
-  const show = (item: LibraryItem) => {
+  const show = (item: LibraryItem, flavor: LibraryMenuFlavor) => {
     cancelPendingReset();
     activeItem.value = item;
+    menuFlavor.value = flavor;
     isContextMenuOpen.value = true;
   };
 
+  /** The shell opens itself on right-click; with no items it must close. */
+  const closeEmpty = () => {
+    isContextMenuOpen.value = false;
+  };
+
   const openMenu = (item: LibraryItem) => {
-    if (sourceKindOf(item.id) === "local") {
-      show(item);
+    if (item.isCatalog) {
+      // Live catalog row: no DB lookup to make, only source actions apply.
+      if (hasCatalogMenu(item)) show(item, "catalog");
+      else closeEmpty();
       return;
     }
-    // Remote-prefixed ids split in two: downloaded/pinned SHADOW rows are
-    // library entities with the full action set (M5); live CATALOG rows
-    // from ND/YT browsing have no DB row — the menu stays closed for them.
+
+    if (sourceKindOf(item.id) === "local") {
+      show(item, "library");
+      return;
+    }
+
+    // Remote-prefixed id outside catalog browsing = a downloaded/pinned
+    // SHADOW row: a library entity with the full action set (M5).
     hasLibraryRow(item).then(
       (exists) => {
-        if (exists) show(item);
+        if (exists) show(item, "library");
+        else closeEmpty();
       },
       (error: unknown) => {
-        // The menu stays closed — say why, otherwise a broken read looks
-        // exactly like "this row is a catalog row".
+        // The menu closes — say why, otherwise a broken read looks exactly
+        // like "this row is a catalog row".
         getLogger().error(`[Library] Menu lookup failed for ${item.type} ${item.id}: ${String(error)}`);
+        closeEmpty();
       },
     );
   };
@@ -82,6 +109,7 @@ export function useLibraryMenu() {
 
   return {
     activeItem,
+    menuFlavor,
     isContextMenuOpen,
     openMenu,
     closeMenu,

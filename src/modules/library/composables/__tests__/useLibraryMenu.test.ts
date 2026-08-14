@@ -10,9 +10,9 @@ vi.mock("@/db/repositories", () => ({
   playlistRepository: { findById: vi.fn() },
 }));
 
-function item(id: string, type: LibraryItem["type"]): LibraryItem {
+function item(id: string, type: LibraryItem["type"], isCatalog = false): LibraryItem {
   return {
-    id, type, title: "T", isPinned: true, addedAt: 1, to: "/", rounded: false,
+    id, type, title: "T", isPinned: true, addedAt: 1, to: "/", rounded: false, isCatalog,
   };
 }
 
@@ -57,5 +57,40 @@ describe("useLibraryMenu", () => {
 
     expect(menu.activeItem.value).toBeNull();
     expect(menu.isContextMenuOpen.value).toBe(false);
+  });
+
+  //
+  // ND browsing: catalog rows have no DB row, so the library flavor would
+  // render an empty popup. Albums/playlists get the catalog flavor (queue +
+  // download); an artist has nothing actionable and must not open at all.
+  //
+  it("opens a catalog album with the catalog flavor, without touching the DB", () => {
+    const menu = useLibraryMenu();
+
+    menu.openMenu(item("nd:album1", "album", true));
+
+    expect(menu.activeItem.value?.id).toBe("nd:album1");
+    expect(menu.menuFlavor.value).toBe("catalog");
+    expect(menu.isContextMenuOpen.value).toBe(true);
+    expect(albumRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it("never opens for a catalog artist", () => {
+    const menu = useLibraryMenu();
+
+    menu.openMenu(item("nd:artist1", "artist", true));
+
+    expect(menu.activeItem.value).toBeNull();
+    expect(menu.isContextMenuOpen.value).toBe(false);
+  });
+
+  it("keeps the library flavor for a downloaded shadow album", async () => {
+    vi.mocked(albumRepository.findById).mockResolvedValue(ok({ id: "yt:MPREb_1" } as never));
+    const menu = useLibraryMenu();
+
+    menu.openMenu(item("yt:MPREb_1", "album"));
+    await flush();
+
+    expect(menu.menuFlavor.value).toBe("library");
   });
 });
