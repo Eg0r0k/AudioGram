@@ -203,14 +203,14 @@ const handleClick = () => {
                 :class="isExactActive ? 'text-white' : 'text-primary'"
               />
 
+              <!-- Fixed box + leading-none: the xs line-height otherwise
+                   pushes the digits off the pill's optical center. -->
               <Badge
                 v-if="item.type === 'folder'"
                 variant="secondary"
                 size="sm"
-                class="shrink-0"
-              >
-                {{ item.folderItemCount ?? 0 }}
-              </Badge>
+                class="shrink-0 font-bold h-5 min-w-5 px-1 py-0 leading-none tabular-nums"
+              >{{ item.folderItemCount ?? 0 }}</Badge>
             </span>
           </ItemDescription>
         </ItemContent>
