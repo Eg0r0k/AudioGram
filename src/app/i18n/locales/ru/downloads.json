@@ -1,4 +1,9 @@
 {
   "failed": "Не удалось скачать трек",
-  "failedTitled": "Не удалось скачать «{title}»"
+  "failedTitled": "Не удалось скачать «{title}»",
+  "active": "Активные загрузки",
+  "batch": "Альбом / плейлист",
+  "tracks": "Треки",
+  "progress": "{done} из {total}",
+  "failedCount": "{count} с ошибкой"
 }

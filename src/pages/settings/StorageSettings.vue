@@ -124,6 +124,10 @@
           </ItemActions>
         </Item>
 
+        <!-- Live queue state next to the cache it fills (M4: visible batch
+             progress). Renders nothing while no download is active. -->
+        <ActiveDownloads v-if="IS_TAURI" />
+
         <Item>
           <ItemMedia>
             <FileTextIcon class="size-6 mr-3" />
@@ -254,6 +258,7 @@ import ClockIcon from "~icons/tabler/clock";
 
 import { Button } from "@/components/ui/button";
 import { IS_TAURI } from "@/lib/environment/userAgent";
+import ActiveDownloads from "@/modules/downloads/components/ActiveDownloads.vue";
 import WatchedFoldersSection from "@/modules/watched-folders/components/WatchedFoldersSection.vue";
 
 const {

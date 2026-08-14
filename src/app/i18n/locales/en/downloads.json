@@ -1,4 +1,9 @@
 {
   "failed": "Download failed",
-  "failedTitled": "Failed to download “{title}”"
+  "failedTitled": "Failed to download “{title}”",
+  "active": "Active downloads",
+  "batch": "Album / playlist",
+  "tracks": "Tracks",
+  "progress": "{done} of {total}",
+  "failedCount": "{count} failed"
 }
