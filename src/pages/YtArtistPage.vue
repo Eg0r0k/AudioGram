@@ -177,7 +177,7 @@ import YtCardRow from "@/modules/youtube/components/YtCardRow.vue";
 import { ytEphemeralTrack } from "@/modules/youtube/composables/useYoutube";
 import { useYtArtist } from "@/modules/youtube/composables/useYtSearchQueries";
 import { youtubeErrorMessage } from "@/modules/youtube/lib/errors";
-import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
+import { playableFromMusicTrack, ytDisplayTrack, ytMusicTrackToDto, ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "@/modules/youtube/lib/thumbnail";
 import type { YoutubeError } from "@/modules/youtube/types";
 import IconLoader2 from "~icons/tabler/loader-2";
@@ -197,7 +197,7 @@ const errorText = computed(() =>
 );
 
 const playables = computed(() => (artist.value?.topTracks ?? []).map(track => playableFromMusicTrack(track)));
-const dtos = computed(() => playables.value.map(ytPlayableToDto));
+const dtos = computed(() => (artist.value?.topTracks ?? []).map(track => ytMusicTrackToDto(track)));
 const displayTracks = computed(() => (artist.value?.topTracks ?? []).map(ytDisplayTrack));
 
 // Route rows' artist/album clicks to the YT pages instead of library ones.

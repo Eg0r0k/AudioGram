@@ -2,6 +2,7 @@
   <YtCollectionView
     :title="album?.title ?? ''"
     kind="album"
+    :collection-id="albumId"
     :owner="albumArtist"
     :artists="album?.artists"
     :track-count="album?.trackCount"

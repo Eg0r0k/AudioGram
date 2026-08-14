@@ -7,6 +7,7 @@ import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackMenuSubject } from "../components/menu/type";
 import { mapTrack } from "./mappers";
+import { ensureShadowAlbumCover } from "./shadowAlbumCover";
 
 /**
  * Actions-layer utility (NOT a menu item): guarantees a Dexie row for the
@@ -58,5 +59,12 @@ export async function ensurePinned(
   );
 
   if (result.isErr()) throw result.error;
+
+  // A pinned shadow album should look like a local one on library pages —
+  // fetch its artwork in the background (idempotent, best-effort).
+  if (result.value.album && dto.coverRef) {
+    void ensureShadowAlbumCover(result.value.album.id, dto.coverRef);
+  }
+
   return mapTrack(result.value.track, result.value.artists, result.value.album);
 }

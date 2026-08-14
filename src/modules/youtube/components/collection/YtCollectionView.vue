@@ -100,7 +100,7 @@ import { toast } from "vue-sonner";
 import { enqueueSourceTracksDownload } from "@/modules/downloads/enqueue";
 import { ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
-import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral, ytPlayableToDto } from "../../lib/playable";
+import { playableFromMusicTrack, ytDisplayTrack, ytMusicTrackToDto, ytPlayableFromEphemeral } from "../../lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
 import type { YoutubeError, YtArtistRef, YtMusicTrack, YtPlayable } from "../../types";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
@@ -113,6 +113,8 @@ import IconLoader2 from "~icons/tabler/loader-2";
 const props = defineProps<{
   title: string;
   kind: "playlist" | "album";
+  /** Album browse id (MPREb_…) — feeds the yt album id space (M5). */
+  collectionId?: string | null;
   owner?: string | null;
   artists?: YtArtistRef[];
   description?: string | null;
@@ -140,7 +142,13 @@ const errorText = computed(() =>
 const playables = computed<YtPlayable[]>(() =>
   props.tracks.map(track => playableFromMusicTrack(track, props.thumbnail)),
 );
-const dtos = computed(() => playables.value.map(ytPlayableToDto));
+// Album pages hand every track the page's album id/title/cover, so the pin
+// cascade creates the shadow album (with artwork) alongside the tracks.
+const dtos = computed(() => props.tracks.map(track => ytMusicTrackToDto(track, {
+  albumId: props.kind === "album" ? props.collectionId : null,
+  albumTitle: props.kind === "album" ? props.title : null,
+  thumbnail: props.thumbnail,
+})));
 const displayTracks = computed(() => props.tracks.map(ytDisplayTrack));
 
 // Route rows' artist/album clicks to the YT pages instead of library ones.
