@@ -1,7 +1,8 @@
-import { ResultAsync, errAsync } from "neverthrow";
+import { ResultAsync, err, errAsync, ok, type Result } from "neverthrow";
 import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
 import type {
   YoutubeError,
+  YoutubeErrorKind,
   YtAlbumDetail,
   YtArtistDetail,
   YtDownloadEvent,
@@ -67,6 +68,35 @@ const unavailable = <T>(): ResultAsync<T, YoutubeError> =>
     message: "YouTube is only available in the desktop app",
   });
 
+const DOWNLOAD_ATTEMPTS = 3;
+const DOWNLOAD_RETRY_BASE_MS = 2000;
+
+/** Transient failures worth another shot; a cancel or a hard 4xx is not. */
+const RETRIABLE_DOWNLOAD_KINDS: ReadonlySet<YoutubeErrorKind>
+  = new Set(["NETWORK", "DOWNLOAD_FAILED", "UNKNOWN"]);
+
+/**
+ * Runs `yt_download` with up to {@link DOWNLOAD_ATTEMPTS} attempts (2s/4s
+ * pauses). Progress events keep flowing from whichever attempt is live.
+ */
+function downloadWithRetry(
+  id: string,
+  onEvent?: (event: YtDownloadEvent) => void,
+  meta?: YtTrackMeta,
+): ResultAsync<YtDownloadResult, YoutubeError> {
+  return ResultAsync.fromSafePromise((async (): Promise<Result<YtDownloadResult, YoutubeError>> => {
+    let lastError: YoutubeError = { kind: "UNKNOWN", message: "download never ran" };
+    for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+      const result = await downloadYoutube(id, onEvent, meta);
+      if (result.isOk()) return ok(result.value);
+      lastError = result.error;
+      if (!RETRIABLE_DOWNLOAD_KINDS.has(lastError.kind) || attempt === DOWNLOAD_ATTEMPTS) break;
+      await new Promise(resolve => setTimeout(resolve, DOWNLOAD_RETRY_BASE_MS * attempt));
+    }
+    return err(lastError);
+  })()).andThen(result => result);
+}
+
 const desktopProvider: YoutubeProvider = {
   isAvailable: true,
   search: query => searchYoutube(query),
@@ -79,7 +109,7 @@ const desktopProvider: YoutubeProvider = {
   artist: id => getYoutubeArtist(id),
   resolve: id => resolveYoutube(id),
   prefetch: id => prefetchYoutube(id),
-  download: (id, onEvent, meta) => downloadYoutube(id, onEvent, meta),
+  download: (id, onEvent, meta) => downloadWithRetry(id, onEvent, meta),
   cancelDownload: id => cancelYoutubeDownload(id),
 };
 
