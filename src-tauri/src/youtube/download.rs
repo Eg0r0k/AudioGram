@@ -258,6 +258,14 @@ async fn embed_metadata<R: Runtime>(
         tag.set_title(meta.title);
         if !meta.artists.is_empty() {
             tag.set_artist(meta.artists.join(", "));
+        } else {
+            // Search rows sometimes come without parsed artist names; the
+            // channel name from video_details beats an artist-less file.
+            if let Ok(rp) = yt_client(app).await {
+                if let Ok(details) = rp.query().video_details(id).await {
+                    tag.set_artist(details.channel.name);
+                }
+            }
         }
         // SSRF guard: the frontend-provided URL must point at a known host.
         cover_url = meta.cover_url.filter(|url| {

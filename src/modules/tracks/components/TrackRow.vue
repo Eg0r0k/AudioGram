@@ -49,8 +49,13 @@
           showOverlay ? 'opacity-100' : 'opacity-0',
         ]"
       >
+        <IconLoader
+          v-if="isTrackLoading"
+          class="size-4 animate-spin text-white drop-shadow-md"
+        />
+
         <span
-          v-if="isCurrentTrack && isPlaying && !isRowHovered"
+          v-else-if="isCurrentTrack && isPlaying && !isRowHovered"
           class="playing-pulse-dot"
         >
           <span />
@@ -153,6 +158,7 @@ import IconLike from "~icons/tabler/heart";
 import IconLikedFilled from "~icons/tabler/heart-filled";
 import IconPlay from "~icons/audiogram/play-rounded";
 import IconPause from "~icons/audiogram/pause-rounded";
+import IconLoader from "~icons/tabler/loader-2";
 
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { formatDuration } from "@/lib/format/time";
@@ -233,6 +239,8 @@ const isCurrentTrack = computed(() => {
   return playerStore.currentTrack?.id === props.track.id;
 });
 const isPlaying = computed(() => playerStore.isPlaying);
+// The clicked row's stream is still resolving — spinner instead of play/pause.
+const isTrackLoading = computed(() => isCurrentTrack.value && playerStore.status === "loading");
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);
 

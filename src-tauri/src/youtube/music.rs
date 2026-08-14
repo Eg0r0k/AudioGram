@@ -27,6 +27,21 @@ fn empty_page<T>() -> YtPage<T> {
     YtPage { items: Vec::new(), continuation: None, total: None, corrected_query: None }
 }
 
+/// Author of a single video — the fallback for search rows whose artist
+/// name list came back empty (`video_details` is not stream-gated).
+#[tauri::command]
+pub async fn yt_track_author<R: Runtime>(
+    app: AppHandle<R>,
+    video_id: String,
+) -> Result<super::dto::YtArtistRef, YtError> {
+    let rp = yt_client(&app).await?;
+    let details = rp.query().video_details(&video_id).await?;
+    Ok(super::dto::YtArtistRef {
+        id: Some(details.channel.id),
+        name: details.channel.name,
+    })
+}
+
 #[tauri::command]
 pub async fn yt_music_search<R: Runtime>(
     app: AppHandle<R>,

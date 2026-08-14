@@ -38,6 +38,9 @@ pub struct YtMusicTrack {
     pub id: String,
     pub title: String,
     pub artists: Vec<YtArtistRef>,
+    /// Primary artist channel id — often present even when the artist NAME
+    /// list comes back empty, so the frontend can resolve the author lazily.
+    pub artist_id: Option<String>,
     pub album: Option<YtAlbumRef>,
     /// Seconds; `None` when extracted from an artist page.
     pub duration: Option<u32>,
@@ -221,6 +224,7 @@ pub(super) fn to_music_track(item: TrackItem) -> YtMusicTrack {
         id: item.id,
         title: item.name,
         artists: artist_refs(item.artists),
+        artist_id: item.artist_id,
         album: item.album.map(|a| YtAlbumRef { id: a.id, name: a.name }),
         duration: item.duration,
         track_nr: item.track_nr,

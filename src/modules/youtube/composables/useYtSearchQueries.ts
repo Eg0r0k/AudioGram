@@ -24,6 +24,7 @@ function videoToEntity(video: YtSearchResult): YtMusicEntity {
     id: video.id,
     title: video.title,
     artists: video.uploader ? [{ id: null, name: video.uploader }] : [],
+    artistId: null,
     album: null,
     duration: video.duration,
     thumbnail: video.thumbnail,

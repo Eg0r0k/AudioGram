@@ -124,6 +124,7 @@ pub fn run() {
         youtube::yt_music_album,
         youtube::yt_music_artist,
         youtube::yt_resolve,
+        youtube::yt_track_author,
         youtube::yt_prefetch,
         youtube::yt_download,
         youtube::yt_download_cancel,
