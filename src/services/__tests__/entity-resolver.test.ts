@@ -36,6 +36,34 @@ describe("EntityResolver identity normalization", () => {
     expect(padded).toBe(clean);
   });
 
+  it("treats case variants of an artist name as one artist", async () => {
+    const resolver = new EntityResolver();
+    await resolver.resolve([meta(["СЕРЕГА ПИРАТ"], "Album"), meta(["Серега Пират"], "Album")]);
+
+    const upper = resolver.getArtistId("СЕРЕГА ПИРАТ");
+    const mixed = resolver.getArtistId("Серега Пират");
+    expect(upper).toBeDefined();
+    expect(upper).toBe(mixed);
+  });
+
+  it("matches an existing DB artist regardless of tag casing", async () => {
+    await db.artists.put({ id: "ar1" as ArtistId, name: "Серега Пират", pinned: 1, addedAt: 1, updatedAt: 1 });
+
+    const resolver = new EntityResolver();
+    await resolver.resolve([meta(["СЕРЕГА ПИРАТ"], "Album")]);
+
+    expect(resolver.getArtistId("СЕРЕГА ПИРАТ")).toBe("ar1");
+  });
+
+  it("treats case variants of an album title as one album", async () => {
+    const resolver = new EntityResolver();
+    await resolver.resolve([meta(["Artist"], "ВОТ МОЙ АЛЬБОМ"), meta(["Artist"], "Вот мой альбом")]);
+
+    const artistId = resolver.getArtistId("Artist")!;
+    expect(resolver.getAlbumEntry(artistId, "ВОТ МОЙ АЛЬБОМ"))
+      .toBe(resolver.getAlbumEntry(artistId, "Вот мой альбом"));
+  });
+
   it("matches an existing DB album whose stored title carries whitespace", async () => {
     await db.artists.put({ id: "ar1" as ArtistId, name: "Artist", pinned: 1, addedAt: 1, updatedAt: 1 });
     await db.albums.put({

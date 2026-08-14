@@ -101,7 +101,7 @@ vi.mock("@/db", () => {
   const chain = { equals: vi.fn().mockReturnThis(), anyOf: vi.fn().mockReturnThis(), toArray: vi.fn().mockResolvedValue([]) };
   return {
     db: {
-      artists: { where: vi.fn().mockReturnValue(chain) },
+      artists: { where: vi.fn().mockReturnValue(chain), toArray: vi.fn().mockResolvedValue([]) },
       albums: { where: vi.fn().mockReturnValue(chain) },
       tracks: { where: vi.fn().mockReturnValue(chain) },
     },
