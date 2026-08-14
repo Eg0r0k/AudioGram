@@ -1,24 +1,23 @@
 <template>
+  <!-- A finished copy renders no button: the check next to the title
+       (TrackExpanded) is the downloaded indicator. -->
   <Button
+    v-if="!hasCopy"
     size="icon-sm"
     variant="ghost"
     class="shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-opacity"
     :class="[
-      // Idle and done fade in on row hover like the like/dots actions;
-      // an active download stays visible.
+      // Idle fades in on row hover like the like/dots actions; an active
+      // download stays visible.
       activeJob ? '' : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
     ]"
-    :disabled="!!activeJob || hasCopy"
+    :disabled="!!activeJob"
     :aria-label="label"
     :title="label"
     @click.stop="download"
   >
-    <IconCheck
-      v-if="hasCopy"
-      class="size-4.5 text-green-500"
-    />
     <IconLoader
-      v-else-if="activeJob"
+      v-if="activeJob"
       class="size-4.5 animate-spin"
     />
     <IconDownload
@@ -34,36 +33,32 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { Button } from "@/components/ui/button";
-import type { Track } from "@/modules/player/types";
+import type { SourceTrackDTO } from "@/modules/sources/types";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { downloadSubject } from "../enqueue";
 import { useDownloadsStore } from "../store/downloads.store";
-import IconCheck from "~icons/tabler/check";
 import IconDownload from "~icons/tabler/download";
 import IconLoader from "~icons/tabler/loader-2";
 
 //
-// The ND counterpart of YtDownloadButton's row action — same pattern, own
-// mechanism: jobs go through the download manager (pin → queue → offline
-// copy), not through yt-dlp. Rendered on catalog rows (sourceDto) where the
-// like button has no library row to write to.
+// Row action for any remote catalog row (ND, YT — M5): jobs go through the
+// shared download manager (pin → queue → offline copy).
 //
 
 const props = defineProps<{
-  /** Display VM of an ND catalog row — carries its DTO. */
-  track: Track;
+  /** Source DTO of the remote row. */
+  dto: SourceTrackDTO;
 }>();
 
 const { t } = useI18n();
 const downloadsStore = useDownloadsStore();
 
-const activeJob = computed(() => downloadsStore.byTrackId[props.track.id]);
+const activeJob = computed(() => downloadsStore.byTrackId[props.dto.id]);
 
-const { data: offlineCopy } = useQuery(computed(() => offlineCopyQueries.detail(props.track.id)));
+const { data: offlineCopy } = useQuery(computed(() => offlineCopyQueries.detail(props.dto.id)));
 const hasCopy = computed(() => !!offlineCopy.value);
 
 const label = computed(() => {
-  if (hasCopy.value) return t("downloads.done");
   const job = activeJob.value;
   if (job) {
     return job.status === "running" && job.total
@@ -74,10 +69,9 @@ const label = computed(() => {
 });
 
 async function download(): Promise<void> {
-  const dto = props.track.sourceDto;
-  if (!dto || activeJob.value || hasCopy.value) return;
+  if (activeJob.value || hasCopy.value) return;
   try {
-    await downloadSubject({ kind: "remote", dto });
+    await downloadSubject({ kind: "remote", dto: props.dto });
   }
   catch {
     toast.error(t("track.downloadFailed"));

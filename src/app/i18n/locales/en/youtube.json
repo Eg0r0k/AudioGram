@@ -5,11 +5,6 @@
   "errorPrefix": "Error: {message}",
   "botError": "YouTube is temporarily blocking anonymous requests from your network (bot check). Try again later or enable a proxy in the settings.",
   "download": "Download",
-  "downloading": "Downloading",
-  "processing": "Converting",
-  "importing": "Adding",
-  "done": "In library",
-  "failed": "Failed",
   "chip": {
     "all": "All",
     "tracks": "Tracks",
@@ -23,11 +18,5 @@
   "subscribers": "{count} subscribers",
   "topTracks": "Popular tracks",
   "playAll": "Play all",
-  "importToLibrary": "Import to library",
-  "import": {
-    "cancel": "Cancel import",
-    "progress": "{current} of {total}",
-    "summary": "Imported {ok} tracks ({failed} failed, {skipped} skipped)",
-    "alreadyRunning": "Another import is already running"
-  }
+  "importToLibrary": "Import to library"
 }

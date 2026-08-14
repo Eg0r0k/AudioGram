@@ -36,11 +36,12 @@ export async function downloadSubject(subject: TrackMenuSubject, batchId?: strin
 }
 
 /**
- * Pins every DTO and queues its job under the batch. The batch total counts
+ * Pins every DTO and queues its job under one batch. The batch total counts
  * only jobs actually created for this batch — tracks that already hold an
  * offline copy (or an active job from elsewhere) never enter the progress.
+ * Callers: ND album/playlist below, YT collection pages (M5).
  */
-async function enqueueDtoBatch(tracks: SourceTrackDTO[]): Promise<string | null> {
+export async function enqueueSourceTracksDownload(tracks: SourceTrackDTO[]): Promise<string | null> {
   if (tracks.length === 0) return null;
   const store = useDownloadsStore();
   const batchId = crypto.randomUUID();
@@ -65,26 +66,26 @@ async function enqueueDtoBatch(tracks: SourceTrackDTO[]): Promise<string | null>
 export async function enqueueNdAlbumDownload(albumId: AlbumId): Promise<string | null> {
   const result = await sources.get("nd").getAlbum(albumId);
   if (result.isErr()) throw new Error(result.error.message);
-  return enqueueDtoBatch(result.value.tracks);
+  return enqueueSourceTracksDownload(result.value.tracks);
 }
 
 /** "Download playlist" from an ND playlist page (raw server id, no prefix). */
 export async function enqueueNdPlaylistDownload(rawPlaylistId: string): Promise<string | null> {
   const result = await sources.get("nd").getPlaylist(rawPlaylistId);
   if (result.isErr()) throw new Error(result.error.message);
-  return enqueueDtoBatch(result.value.tracks);
+  return enqueueSourceTracksDownload(result.value.tracks);
 }
 
 /**
  * "Download playlist" on a local playlist: mixed content is filtered to the
- * tracks that can hold an offline copy — in M4 that is ND rows (YT joins
- * the shared mechanism in M5). Filtered-out tracks never enter the batch.
+ * tracks that can hold an offline copy — any remote row (ND and, since M5,
+ * YT). Filtered-out local tracks never enter the batch.
  */
 export async function enqueueLocalPlaylistDownload(playlistId: PlaylistId): Promise<string | null> {
   const playlist = await unwrapResult(playlistRepository.findById(playlistId));
   if (!playlist) return null;
   const tracks = await unwrapResult(trackRepository.findByIds(playlist.trackIds));
-  const downloadable = tracks.filter(track => parseTrackRef(track.id).kind === "nd");
+  const downloadable = tracks.filter(track => parseTrackRef(track.id).kind !== "local");
   if (downloadable.length === 0) return null;
 
   const store = useDownloadsStore();

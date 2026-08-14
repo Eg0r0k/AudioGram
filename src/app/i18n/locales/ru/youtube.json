@@ -5,11 +5,6 @@
   "errorPrefix": "Ошибка: {message}",
   "botError": "YouTube временно блокирует анонимные запросы из вашей сети (бот-чек). Попробуйте позже или включите прокси в настройках.",
   "download": "Скачать",
-  "downloading": "Загрузка",
-  "processing": "Конвертация",
-  "importing": "Добавление",
-  "done": "В библиотеке",
-  "failed": "Ошибка",
   "chip": {
     "all": "Все",
     "tracks": "Треки",
@@ -23,11 +18,5 @@
   "subscribers": "{count} подписчиков",
   "topTracks": "Популярные треки",
   "playAll": "Играть всё",
-  "importToLibrary": "Импортировать в библиотеку",
-  "import": {
-    "cancel": "Отменить импорт",
-    "progress": "{current} из {total}",
-    "summary": "Импортировано треков: {ok} (ошибок: {failed}, пропущено: {skipped})",
-    "alreadyRunning": "Другой импорт уже выполняется"
-  }
+  "importToLibrary": "Импортировать в библиотеку"
 }

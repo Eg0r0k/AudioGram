@@ -47,7 +47,6 @@
         </template>
 
         <template #sticky>
-          <YtImportProgressBar />
           <LibrarySortHeader
             v-if="tracks.length"
             :sort-key="null"
@@ -65,15 +64,12 @@
               :is-active="currentYtId === item.id"
               :artist-routes="artistRoutes[index]"
               :album-route="albumRoutes[index]"
-              :downloaded="ytStore.downloads[item.id]?.status === 'done'"
+              :download-id="dtos[index].id"
               @play="playAll(index)"
               @contextmenu="openYtMenu(index)"
             >
               <template #actions>
-                <YtDownloadButton
-                  :item="playables[index]"
-                  icon-only
-                />
+                <SourceDownloadButton :dto="dtos[index]" />
               </template>
             </TrackExpanded>
           </div>
@@ -100,18 +96,18 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
+import { toast } from "vue-sonner";
+import { enqueueSourceTracksDownload } from "@/modules/downloads/enqueue";
 import { ytEphemeralTrack } from "../../composables/useYoutube";
-import { useYoutubeStore } from "../../store/youtube.store";
-import { useYtBatchImport } from "../../composables/useYtBatchImport";
 import { youtubeErrorMessage } from "../../lib/errors";
-import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral } from "../../lib/playable";
+import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral, ytPlayableToDto } from "../../lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
 import type { YoutubeError, YtArtistRef, YtMusicTrack, YtPlayable } from "../../types";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
+import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
+import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import YtCollectionHero from "./YtCollectionHero.vue";
-import YtDownloadButton from "../YtDownloadButton.vue";
-import YtImportProgressBar from "./YtImportProgressBar.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
 
 const props = defineProps<{
@@ -136,8 +132,6 @@ const { t } = useI18n();
 const router = useRouter();
 const queue = useQueueStore();
 const playerStore = usePlayerStore();
-const ytStore = useYoutubeStore();
-const { start } = useYtBatchImport();
 
 const errorText = computed(() =>
   props.error ? youtubeErrorMessage(props.error, t) : null,
@@ -146,6 +140,7 @@ const errorText = computed(() =>
 const playables = computed<YtPlayable[]>(() =>
   props.tracks.map(track => playableFromMusicTrack(track, props.thumbnail)),
 );
+const dtos = computed(() => playables.value.map(ytPlayableToDto));
 const displayTracks = computed(() => props.tracks.map(ytDisplayTrack));
 
 // Route rows' artist/album clicks to the YT pages instead of library ones.
@@ -170,10 +165,24 @@ function openYtMenu(index: number) {
   if (playable) openMenu(ytEphemeralTrack(playable), index, { target: "yt" });
 }
 
-// No dialog and no auto-playlist: the hero button imports every loaded
-// track; per-row download buttons cover partial imports.
-function startImport() {
-  void start(playables.value);
+// M5: the hero button queues every loaded track as one batch on the shared
+// download manager (pin → job → offline copy). No dialog, no auto-playlist;
+// per-row buttons cover partial downloads, progress lives in the storage
+// settings' active-downloads row.
+async function startImport() {
+  try {
+    const batchId = await enqueueSourceTracksDownload(dtos.value);
+    if (batchId) {
+      const total = useDownloadsStore().batches[batchId]?.total ?? 0;
+      toast.success(t("media.downloadQueued", { count: total }));
+    }
+    else {
+      toast.info(t("media.nothingToDownload"));
+    }
+  }
+  catch {
+    toast.error(t("track.downloadFailed"));
+  }
 }
 
 /**

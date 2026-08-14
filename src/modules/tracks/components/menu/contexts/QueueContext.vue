@@ -93,8 +93,10 @@ import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
-import { useYoutube } from "@/modules/youtube/composables/useYoutube";
-import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import { useI18n } from "vue-i18n";
+import { toast } from "vue-sonner";
+import { downloadSubject } from "@/modules/downloads/enqueue";
+import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 import IconTrash from "~icons/tabler/trash";
 
@@ -106,13 +108,19 @@ const props = defineProps<{
   caps?: TrackMenuCaps | null;
 }>();
 
+const { t } = useI18n();
 const libTrack = computed(() => (isLibraryTrack(props.track) ? props.track : null));
 const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
 
-const { download } = useYoutube();
-
-function downloadYt() {
-  if (ytPlayable.value) void download(ytPlayable.value);
+// M5: YT downloads go through the shared manager (pin → job → offline copy).
+async function downloadYt() {
+  if (!ytPlayable.value) return;
+  try {
+    await downloadSubject({ kind: "remote", dto: ytPlayableToDto(ytPlayable.value) });
+  }
+  catch {
+    toast.error(t("track.downloadFailed"));
+  }
 }
 
 const { Separator, Item } = useTrackMenuComponents();

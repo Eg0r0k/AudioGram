@@ -1,6 +1,6 @@
 <template>
-  <!-- M4: только ND — YT переезжает на общий механизм в M5. -->
-  <template v-if="caps && caps.source === 'nd'">
+  <!-- Any remote source served by the shared download manager (ND, YT — M5). -->
+  <template v-if="caps && caps.source !== 'local'">
     <component
       :is="Item"
       v-if="activeJob"

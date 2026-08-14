@@ -121,14 +121,9 @@
         class="size-5"
       />
     </Button>
-    <YtDownloadButton
-      v-else-if="ytPlayable"
-      :item="ytPlayable"
-      icon-only
-    />
-    <NdDownloadButton
-      v-else-if="isNdCatalogRow"
-      :track="track"
+    <SourceDownloadButton
+      v-else-if="downloadableDto"
+      :dto="downloadableDto"
     />
     <div class="w-7 flex justify-end items-center relative">
       <span :class="styles.duration">
@@ -171,10 +166,9 @@ import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
-import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
-import YtDownloadButton from "@/modules/youtube/components/YtDownloadButton.vue";
-import NdDownloadButton from "@/modules/downloads/components/NdDownloadButton.vue";
+import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { routeLocation } from "@/app/router/route-locations";
 
@@ -259,9 +253,12 @@ const isLibraryRow = computed(() =>
   !isEphemeralTrack(props.track as PlayerTrack) && !props.track.sourceDto,
 );
 const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track as PlayerTrack));
-const isNdCatalogRow = computed(() =>
-  !!props.track.sourceDto && sourceKindOf(props.track.id) === "nd",
-);
+// Any remote row the shared download manager can serve: catalog rows carry
+// their DTO; playing YT streams rebuild one from the stream URL (M5).
+const downloadableDto = computed(() => {
+  if (props.track.sourceDto) return props.track.sourceDto;
+  return ytPlayable.value ? ytPlayableToDto(ytPlayable.value) : null;
+});
 
 const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
 const coverUrl = computed(() => {

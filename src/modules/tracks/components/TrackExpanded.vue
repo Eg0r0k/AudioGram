@@ -104,10 +104,10 @@
               class="mr-1 inline-flex size-4 font-bold shrink-0 items-center justify-center rounded-[4px] bg-muted  text-[10px] uppercase text-foreground"
             >E</span>
             <IconCheck
-              v-if="downloaded"
+              v-if="isDownloaded"
               class="mr-1 size-4 shrink-0 text-foreground"
-              :aria-label="$t('youtube.done')"
-              :title="$t('youtube.done')"
+              :aria-label="$t('downloads.done')"
+              :title="$t('downloads.done')"
             />
             <template
               v-for="(artist, artistIndex) in artists"
@@ -154,9 +154,9 @@
           :class="styles.actions"
         >
           <slot name="actions">
-            <NdDownloadButton
-              v-if="isNdCatalogRow"
-              :track="track"
+            <SourceDownloadButton
+              v-if="track.sourceDto"
+              :dto="track.sourceDto"
             />
             <Button
               v-if="isLibraryRow"
@@ -209,8 +209,10 @@ import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
-import { trackSourceKind } from "@/modules/tracks/lib/trackPredicates";
-import NdDownloadButton from "@/modules/downloads/components/NdDownloadButton.vue";
+import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
+import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
+import { useQuery } from "@tanstack/vue-query";
+import type { TrackId } from "@/types/ids";
 import { useI18n } from "vue-i18n";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
@@ -272,8 +274,11 @@ interface Props {
    */
   artistRoutes?: (RouteLocationRaw | null)[];
   albumRoute?: RouteLocationRaw | null;
-  /** Remote (YT) row already saved to the library — check mark by the title. */
-  downloaded?: boolean;
+  /**
+   * Track id to check for an offline copy when the row itself carries no
+   * sourceDto (YT display rows) — drives the check mark by the title.
+   */
+  downloadId?: TrackId | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -286,7 +291,7 @@ const props = withDefaults(defineProps<Props>(), {
   menuTarget: "default",
   artistRoutes: undefined,
   albumRoute: undefined,
-  downloaded: false,
+  downloadId: null,
 });
 
 const emit = defineEmits<{
@@ -319,9 +324,11 @@ const isLiked = computed(() => props.track.isLiked);
 // none, so the default action set drops the button for them; ND catalog
 // rows get the offline download button in its place (M4).
 const isLibraryRow = computed(() => !props.track.sourceDto);
-const isNdCatalogRow = computed(() =>
-  !!props.track.sourceDto && trackSourceKind(props.track) === "nd",
-);
+// The downloaded check by the title: catalog rows carry their DTO id, YT
+// display rows pass downloadId explicitly.
+const offlineTrackId = computed(() => props.downloadId ?? props.track.sourceDto?.id ?? null);
+const { data: offlineCopy } = useQuery(computed(() => offlineCopyQueries.detail(offlineTrackId.value)));
+const isDownloaded = computed(() => !!offlineCopy.value);
 const relativeAddedAt = computed(() =>
   props.track.addedAt ? formatRelativeTime(props.track.addedAt, locale.value) : "",
 );

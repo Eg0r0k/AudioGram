@@ -104,8 +104,10 @@ import { useEphemeralImport } from "@/modules/tracks/composables/useEphemeralImp
 import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
-import { useYoutube } from "@/modules/youtube/composables/useYoutube";
-import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import { useI18n } from "vue-i18n";
+import { toast } from "vue-sonner";
+import { downloadSubject } from "@/modules/downloads/enqueue";
+import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 import IconFileImport from "~icons/tabler/file-import";
 
@@ -115,13 +117,20 @@ const props = defineProps<{
   caps?: TrackMenuCaps | null;
 }>();
 
+const { t } = useI18n();
 const libTrack = computed(() => (isLibraryTrack(props.track) ? props.track : null));
 const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
 
-const { download } = useYoutube();
-
-function downloadYt() {
-  if (ytPlayable.value) void download(ytPlayable.value);
+// M5: the playing YT stream downloads through the shared manager — the DTO
+// is rebuilt from the stream URL, pin + job + offline copy follow.
+async function downloadYt() {
+  if (!ytPlayable.value) return;
+  try {
+    await downloadSubject({ kind: "remote", dto: ytPlayableToDto(ytPlayable.value) });
+  }
+  catch {
+    toast.error(t("track.downloadFailed"));
+  }
 }
 
 // Import-to-library CTA: on success the queue entry swaps onto the

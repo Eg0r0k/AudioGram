@@ -140,15 +140,12 @@
               :is-active="currentYtId === item.id"
               :artist-routes="artistRoutes[index]"
               :album-route="albumRoutes[index]"
-              :downloaded="ytStore.downloads[item.id]?.status === 'done'"
+              :download-id="dtos[index].id"
               @play="playTopTracks(index)"
               @contextmenu="openYtMenu(index)"
             >
               <template #actions>
-                <YtDownloadButton
-                  :item="playables[index]"
-                  icon-only
-                />
+                <SourceDownloadButton :dto="dtos[index]" />
               </template>
             </TrackExpanded>
           </div>
@@ -174,14 +171,13 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
+import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
 import YtCard from "@/modules/youtube/components/YtCard.vue";
 import YtCardRow from "@/modules/youtube/components/YtCardRow.vue";
-import YtDownloadButton from "@/modules/youtube/components/YtDownloadButton.vue";
 import { ytEphemeralTrack } from "@/modules/youtube/composables/useYoutube";
-import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
 import { useYtArtist } from "@/modules/youtube/composables/useYtSearchQueries";
 import { youtubeErrorMessage } from "@/modules/youtube/lib/errors";
-import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import { playableFromMusicTrack, ytDisplayTrack, ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "@/modules/youtube/lib/thumbnail";
 import type { YoutubeError } from "@/modules/youtube/types";
 import IconLoader2 from "~icons/tabler/loader-2";
@@ -192,7 +188,6 @@ const route = useRoute();
 const router = useRouter();
 const queue = useQueueStore();
 const playerStore = usePlayerStore();
-const ytStore = useYoutubeStore();
 
 const artistId = computed(() => String(route.params.id ?? ""));
 const { data: artist, isLoading, error } = useYtArtist(artistId);
@@ -202,6 +197,7 @@ const errorText = computed(() =>
 );
 
 const playables = computed(() => (artist.value?.topTracks ?? []).map(track => playableFromMusicTrack(track)));
+const dtos = computed(() => playables.value.map(ytPlayableToDto));
 const displayTracks = computed(() => (artist.value?.topTracks ?? []).map(ytDisplayTrack));
 
 // Route rows' artist/album clicks to the YT pages instead of library ones.
