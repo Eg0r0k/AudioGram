@@ -61,6 +61,18 @@ function hasCatalogMenu(item: LibraryItem): boolean {
   return item.type === "album" || item.type === "playlist";
 }
 
+/**
+ * Whether right-clicking the row may open a menu at all. Rows must mark
+ * themselves in the DOM with this: the reka trigger sits on an ancestor and
+ * opens the shell AFTER the row's own handler runs, so closing the menu from
+ * `openMenu` is too late — the event has to be stopped before it gets there
+ * (see the capture-phase guard in LibraryContextMenu).
+ */
+export function canOpenLibraryMenu(item: LibraryItem): boolean {
+  if (!item.isCatalog) return true;
+  return hasCatalogMenu(item);
+}
+
 export function useLibraryMenu() {
   const show = (item: LibraryItem, flavor: LibraryMenuFlavor) => {
     cancelPendingReset();

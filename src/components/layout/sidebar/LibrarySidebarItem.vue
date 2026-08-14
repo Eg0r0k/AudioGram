@@ -8,7 +8,7 @@ import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/comp
 import IconPinFilled from "~icons/tabler/pin-filled";
 import IconVolume from "~icons/tabler/volume";
 import IconFolder from "~icons/tabler/folder";
-import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
+import { canOpenLibraryMenu, useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import type { CoverOwnerType } from "@/db/entities";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
@@ -96,6 +96,7 @@ const handleClick = () => {
     v-ripple
     class="block  rounded-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none focus-visible:border-ring cursor-pointer"
     data-library-item
+    :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
     role="button"
     tabindex="0"
     :title="compact ? item.title : undefined"

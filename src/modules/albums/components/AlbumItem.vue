@@ -3,6 +3,7 @@
     v-ripple
     class="group w-40 shrink-0 select-none cursor-pointer rounded-lg p-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-44"
     data-library-item
+    :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
     data-media-context
     role="button"
     tabindex="0"
@@ -69,7 +70,7 @@ import { Button } from "@/components/ui/button";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
+import { canOpenLibraryMenu, useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import type { LibraryItem } from "@/modules/library/types";
 import type { QueueSource } from "@/modules/queue/types";
 import type { AlbumId } from "@/types/ids";

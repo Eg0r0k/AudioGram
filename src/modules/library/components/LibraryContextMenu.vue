@@ -1,9 +1,13 @@
 <template>
   <ContextMenu v-model:open="isContextMenuOpen">
     <ContextMenuCloseBridge :open="isContextMenuOpen" />
+    <!-- Capture phase, declared in the template so it is guaranteed to bind:
+         the reka trigger below opens the shell on right-click no matter what
+         our row handlers do, so an event that cannot fill the menu has to be
+         stopped before it ever reaches the trigger. -->
     <div
-      ref="guardRef"
       class="contents"
+      @contextmenu.capture="guardContextMenu"
     >
       <ContextMenuTrigger as-child>
         <slot />
@@ -24,8 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type Component, useTemplateRef } from "vue";
-import { useEventListener } from "@vueuse/core";
+import { computed, type Component } from "vue";
 import {
   ContextMenu,
   ContextMenuCloseBridge,
@@ -122,15 +125,15 @@ const contextProps = computed(() => {
   }
 });
 
-const guardRef = useTemplateRef<HTMLElement>("guardRef");
-
-useEventListener(guardRef, "contextmenu", (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  if (!target.closest("[data-library-item]")) {
-    e.preventDefault();
-    e.stopPropagation();
+function guardContextMenu(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  const row = target.closest("[data-library-item]");
+  // Off-row, or a row with nothing to show (a catalog artist).
+  if (!row || row.matches("[data-library-menu=\"none\"]")) {
+    event.preventDefault();
+    event.stopPropagation();
   }
-}, { capture: true });
+}
 
 const handleTogglePin = () => {
   if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;
