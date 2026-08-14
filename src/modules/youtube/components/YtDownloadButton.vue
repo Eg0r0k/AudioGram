@@ -1,14 +1,16 @@
 <template>
+  <!-- A downloaded track renders no button at all: the persistent check next
+       to the title already says it, a hover-in check would only repeat it. -->
   <Button
+    v-if="status !== 'done'"
     :size="iconOnly ? 'icon-sm' : 'sm'"
     :variant="iconOnly ? 'ghost' : 'ghost-primary'"
     class="shrink-0 rounded-full"
     :class="[
       iconOnly ? 'text-muted-foreground hover:text-foreground transition-opacity' : '',
-      // Idle and done icon buttons fade in on row hover like the like/dots
-      // actions (done is also shown as a check next to the title, so the
-      // button must not cover the duration); progress/error stay visible.
-      iconOnly && (!status || status === 'done')
+      // Idle icon buttons fade in on row hover like the like/dots actions
+      // (the button must not cover the duration); progress/error stay visible.
+      iconOnly && !status
         ? 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
         : '',
     ]"
@@ -17,12 +19,8 @@
     :title="label"
     @click.stop="download(item)"
   >
-    <IconCheck
-      v-if="status === 'done'"
-      class="size-4.5 text-green-500"
-    />
     <IconAlert
-      v-else-if="status === 'error'"
+      v-if="status === 'error'"
       class="size-4.5 text-destructive"
     />
     <IconLoader
@@ -47,7 +45,6 @@ import { Button } from "@/components/ui/button";
 import { useYoutube } from "../composables/useYoutube";
 import type { YtPlayable } from "../types";
 import IconDownload from "~icons/tabler/download";
-import IconCheck from "~icons/tabler/check";
 import IconAlert from "~icons/tabler/alert-triangle";
 import IconLoader from "~icons/tabler/loader-2";
 
@@ -77,8 +74,6 @@ const label = computed(() => {
       return t("youtube.processing");
     case "importing":
       return t("youtube.importing");
-    case "done":
-      return t("youtube.done");
     case "error":
       return t("youtube.failed");
     default:

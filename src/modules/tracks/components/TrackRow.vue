@@ -127,7 +127,8 @@
     />
     <div class="w-7 flex justify-end items-center relative">
       <span :class="styles.duration">
-        {{ formatDuration(track.duration) }}
+        <!-- Remote rows can have unknown durations (0) — blank beats a fake 0:00. -->
+        {{ track.duration > 0 ? formatDuration(track.duration) : "" }}
       </span>
       <Button
         variant="ghost"
