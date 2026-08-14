@@ -59,4 +59,14 @@ describe("right-panel.store", () => {
     expect(store.scope).toEqual({ type: "global" });
     expect(store.depth).toBe(0);
   });
+
+  it("opens the downloads queue panel", () => {
+    const store = useRightPanelStore();
+
+    store.openDownloads();
+
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("downloads");
+    expect(store.scope).toEqual({ type: "global" });
+  });
 });

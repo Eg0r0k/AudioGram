@@ -7,5 +7,9 @@
   "batch": "Альбом / плейлист",
   "tracks": "Треки",
   "progress": "{done} из {total}",
-  "failedCount": "{count} с ошибкой"
+  "failedCount": "{count} с ошибкой",
+  "queueTitle": "Загрузки",
+  "queued": "В очереди",
+  "cancelling": "Отмена…",
+  "empty": "Нет активных загрузок"
 }

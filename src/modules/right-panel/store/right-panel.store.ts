@@ -78,6 +78,10 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     open("add-tracks", nextPayload, { ...options, depth: options.depth ?? 1 });
   }
 
+  function openDownloads(options: OpenRightPanelOptions = {}): void {
+    open("downloads", undefined, { ...options, depth: options.depth ?? 0 });
+  }
+
   function openChapters(
     nextPayload: RightPanelPayloadMap["chapters"],
     options: OpenRightPanelOptions = {},
@@ -126,6 +130,7 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     openEditTrack,
     openAddTracks,
     openChapters,
+    openDownloads,
     back,
     close,
     invalidateRouteScope,

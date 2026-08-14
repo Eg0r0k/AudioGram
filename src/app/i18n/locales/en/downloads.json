@@ -7,5 +7,9 @@
   "batch": "Album / playlist",
   "tracks": "Tracks",
   "progress": "{done} of {total}",
-  "failedCount": "{count} failed"
+  "failedCount": "{count} failed",
+  "queueTitle": "Downloads",
+  "queued": "Queued",
+  "cancelling": "Cancelling…",
+  "empty": "No active downloads"
 }

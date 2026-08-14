@@ -35,7 +35,16 @@
               class="rounded-full"
               :aria-label="$t('nav.menu')"
             >
-              <IconMenu2 class="size-6" />
+              <!-- An active download takes over the burger: the header is the
+                   always-visible hint that the queue is working. -->
+              <IconDownload
+                v-if="hasActiveDownloads"
+                class="size-6 animate-pulse text-primary"
+              />
+              <IconMenu2
+                v-else
+                class="size-6"
+              />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -51,6 +60,15 @@
               <DropdownMenuItem @click="goSettings">
                 <IconSettings class="size-5.5" />
                 {{ t("nav.settings") }}
+              </DropdownMenuItem>
+
+              <DropdownMenuItem @click="openDownloadsPanel">
+                <IconDownload class="size-5.5" />
+                {{ t("nav.downloads") }}
+                <span
+                  v-if="hasActiveDownloads"
+                  class="ml-auto text-xs text-primary"
+                >{{ activeDownloadsCount }}</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -193,6 +211,7 @@ import {
 import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useSearch, type SearchSource } from "@/modules/search/composables/useSearch";
 import IconMenu2 from "~icons/tabler/menu-2";
+import IconDownload from "~icons/tabler/download";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconBookmark from "~icons/tabler/bookmark";
 import IconSettings from "~icons/tabler/settings";
@@ -208,6 +227,8 @@ import IconBrandYoutube from "~icons/tabler/brand-youtube";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
 import IconServer from "~icons/tabler/server";
 import { getNdConfig } from "@/modules/sources/navidrome/config";
+import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 
 defineProps<{ compact?: boolean }>();
 
@@ -219,6 +240,15 @@ const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitY
 
 const isYoutubeAvailable = youtubeProvider.isAvailable;
 const isNdSearchAvailable = computed(() => getNdConfig() !== null);
+
+const downloads = useDownloadsStore();
+const rightPanel = useRightPanelStore();
+const activeDownloadsCount = computed(() => Object.keys(downloads.jobs).length);
+const hasActiveDownloads = computed(() => activeDownloadsCount.value > 0);
+
+function openDownloadsPanel() {
+  rightPanel.openDownloads();
+}
 
 function selectSource(next: SearchSource) {
   setSource(next);

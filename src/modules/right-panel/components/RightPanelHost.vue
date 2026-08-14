@@ -34,6 +34,7 @@ import TrackInfoPanel from "./panels/TrackInfoPanel.vue";
 import EditTrackPanel from "./panels/EditTrackPanel.vue";
 import AddTracksPanel from "@/modules/tracks/components/tracks-sheet/AddTracksPanel.vue";
 import ChaptersPanel from "./panels/ChaptersPanel.vue";
+import DownloadsPanel from "./panels/DownloadsPanel.vue";
 const { isMobileLayout } = useDeviceLayout();
 const rightPanel = useRightPanelStore();
 const player = usePlayerStore();
@@ -70,6 +71,8 @@ const activeComponent = computed(() => {
       return QueuePanel;
     case "chapters":
       return ChaptersPanel;
+    case "downloads":
+      return DownloadsPanel;
     default:
       return QueuePanel;
   }
