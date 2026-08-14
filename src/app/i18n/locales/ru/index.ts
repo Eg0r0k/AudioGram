@@ -17,6 +17,7 @@ import sheet from "./sheet.json";
 import update from "./update.json";
 import chapters from "./chapters.json";
 import youtube from "./youtube.json";
+import downloads from "./downloads.json";
 
 export default {
   common,
@@ -38,4 +39,5 @@ export default {
   update,
   chapters,
   youtube,
+  downloads,
 };

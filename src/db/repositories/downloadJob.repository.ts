@@ -44,6 +44,21 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
     }
   }
 
+  /** Drops terminal-error rows for a track — a fresh enqueue supersedes them. */
+  async deleteErrorsByTrackId(trackId: TrackId): Promise<Result<number, Error>> {
+    try {
+      const deleted = await db.downloadJobs
+        .where("status")
+        .equals("error")
+        .filter(job => job.trackId === trackId)
+        .delete();
+      return ok(deleted);
+    }
+    catch (error) {
+      return err(error as Error);
+    }
+  }
+
   /**
    * Atomically claims a queued job for running. False means another worker
    * (or a stale pump) got there first — the caller must skip the job.

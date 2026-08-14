@@ -1,6 +1,8 @@
 import pLimit from "p-limit";
+import { toast } from "vue-sonner";
+import { i18n } from "@/app/i18n";
 import type { DownloadJobEntity } from "@/db/entities";
-import { downloadJobRepository, offlineCopyRepository } from "@/db/repositories";
+import { downloadJobRepository, offlineCopyRepository, trackRepository } from "@/db/repositories";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { getLogger } from "@/lib/logger";
 import { sources } from "@/modules/sources";
@@ -68,6 +70,9 @@ export async function enqueueTrackDownload(trackId: TrackId, batchId?: string): 
   const copy = await unwrapResult(offlineCopyRepository.findById(trackId));
   if (copy) return null;
 
+  // A terminal error from a previous run is superseded by this attempt.
+  await unwrapResult(downloadJobRepository.deleteErrorsByTrackId(trackId));
+
   const job: DownloadJobEntity = {
     id: crypto.randomUUID(),
     trackId,
@@ -77,7 +82,9 @@ export async function enqueueTrackDownload(trackId: TrackId, batchId?: string): 
     addedAt: Date.now(),
   };
   await unwrapResult(downloadJobRepository.upsert(job));
-  useDownloadsStore().upsert(runtimeOf(job));
+  const store = useDownloadsStore();
+  store.upsert(runtimeOf(job));
+  if (batchId) store.growBatch(batchId);
   void pump();
   return job.id;
 }
@@ -223,7 +230,9 @@ async function runJob(jobId: string): Promise<void> {
       await failJob(job, { kind: "UNKNOWN", message: `finalize failed: ${String(error)}` });
       return;
     }
-    await unwrapResult(downloadJobRepository.upsert({ ...job, status: "done", error: undefined }));
+    // Done = deleted: offlineCopies is the ledger of finished downloads,
+    // keeping a "done" row would only accumulate garbage.
+    await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
     if (job.batchId) store.bumpBatch(job.batchId, "finished");
     getLogger().info(`[Downloads] Done: ${job.trackId}`);
@@ -267,4 +276,19 @@ async function failJob(job: DownloadJobEntity, error: SourceError): Promise<void
   store.remove(job.id);
   if (job.batchId) store.bumpBatch(job.batchId, "failed");
   getLogger().error(`[Downloads] Failed ${job.trackId} (${error.kind}): ${error.message}`);
+  await notifyTerminalFailure(job.trackId);
+}
+
+/** Terminal failure toast; the title lookup is best-effort decoration. */
+async function notifyTerminalFailure(trackId: TrackId): Promise<void> {
+  let title: string | undefined;
+  try {
+    title = (await unwrapResult(trackRepository.findById(trackId)))?.title;
+  }
+  catch {
+    // The toast still fires, just without the track name.
+  }
+  toast.error(title
+    ? i18n.global.t("downloads.failedTitled", { title })
+    : i18n.global.t("downloads.failed"));
 }

@@ -80,9 +80,9 @@ describe("downloads end-to-end", () => {
 
     const batchId = await enqueueNdAlbumDownload(ndAlbumId("album1"));
 
+    // Finished jobs are deleted; offlineCopies below is the ledger.
     await vi.waitFor(async () => {
-      const jobs = await db.downloadJobs.toArray();
-      expect(jobs.map(job => job.status)).toEqual(["done", "done", "done"]);
+      expect(await db.downloadJobs.count()).toBe(0);
     });
 
     for (const rawId of rawIds) {
@@ -121,8 +121,7 @@ describe("downloads end-to-end", () => {
     await second.initDownloadManager();
 
     await vi.waitFor(async () => {
-      const jobs = await db.downloadJobs.toArray();
-      expect(jobs.map(job => job.status)).toEqual(["done", "done", "done"]);
+      expect(await db.downloadJobs.count()).toBe(0);
     });
     expect(await db.offlineCopies.count()).toBe(3);
   });

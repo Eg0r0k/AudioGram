@@ -70,9 +70,13 @@ export const useDownloadsStore = defineStore("downloads", () => {
     ensureBatch(batchId);
   }
 
-  /** Called once the batch's jobs are enqueued; completions may pre-date it. */
-  function setBatchTotal(batchId: string, total: number): void {
-    ensureBatch(batchId).total = total;
+  /**
+   * Counts a job into its batch the moment it is created — jobs can finish
+   * (and delete their persisted row) before the whole batch is enqueued, so
+   * a post-hoc row count would undercount.
+   */
+  function growBatch(batchId: string): void {
+    ensureBatch(batchId).total += 1;
   }
 
   function bumpBatch(batchId: string, outcome: "finished" | "failed"): void {
@@ -99,7 +103,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
     markCancelling,
     remove,
     registerBatch,
-    setBatchTotal,
+    growBatch,
     bumpBatch,
     shrinkBatch,
     clearBatch,

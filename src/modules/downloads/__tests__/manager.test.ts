@@ -9,6 +9,7 @@ const providerMock = vi.hoisted(() => ({
   downloadToFile: vi.fn(),
   cancelDownload: vi.fn(),
 }));
+const toastMock = vi.hoisted(() => ({ error: vi.fn() }));
 const fsMock = vi.hoisted(() => ({
   readDir: vi.fn(async () => [] as { name: string; isFile: boolean }[]),
   remove: vi.fn(async () => {}),
@@ -26,6 +27,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   readDir: fsMock.readDir,
   remove: fsMock.remove,
 }));
+vi.mock("vue-sonner", () => ({ toast: toastMock }));
 // The real finalizer needs native storage — these tests cover the loop only.
 vi.mock("../finalize", () => ({
   finalizeOfflineCopy: vi.fn(async () => {}),
@@ -60,6 +62,7 @@ describe("download manager", () => {
     setActivePinia(createPinia());
     providerMock.downloadToFile.mockReset();
     providerMock.cancelDownload.mockReset();
+    toastMock.error.mockReset();
     fsMock.readDir.mockReset().mockResolvedValue([]);
     fsMock.remove.mockReset().mockResolvedValue(undefined);
     await db.open();
@@ -70,7 +73,7 @@ describe("download manager", () => {
     vi.useRealTimers();
   });
 
-  it("runs at most two downloads concurrently and marks finished jobs done", async () => {
+  it("runs at most two downloads concurrently and deletes finished jobs", async () => {
     const downloads = [deferredDownload(), deferredDownload(), deferredDownload()];
     let next = 0;
     providerMock.downloadToFile.mockImplementation(() => downloads[next++].result);
@@ -87,9 +90,9 @@ describe("download manager", () => {
 
     downloads[1].resolve({ path: "C:/tmp/s2.flac" });
     downloads[2].resolve({ path: "C:/tmp/s3.flac" });
+    // Done = deleted: offlineCopies is the ledger of finished downloads.
     await vi.waitFor(async () => {
-      const jobs = await db.downloadJobs.toArray();
-      expect(jobs.map(job => job.status)).toEqual(["done", "done", "done"]);
+      expect(await db.downloadJobs.count()).toBe(0);
     });
   });
 
@@ -136,8 +139,7 @@ describe("download manager", () => {
     await vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0));
     await vi.advanceTimersByTimeAsync(5000);
     await vi.waitFor(async () => {
-      const [job] = await db.downloadJobs.toArray();
-      expect(job.status).toBe("done");
+      expect(await db.downloadJobs.count()).toBe(0);
     });
     expect(providerMock.downloadToFile).toHaveBeenCalledTimes(2);
   });
@@ -155,6 +157,29 @@ describe("download manager", () => {
       expect(job).toMatchObject({ status: "error", attempts: 1, error: "upstream status 401" });
     });
     expect(providerMock.downloadToFile).toHaveBeenCalledTimes(1);
+    // The toast trails the row write (best-effort title lookup in between).
+    await vi.waitFor(() => expect(toastMock.error).toHaveBeenCalledTimes(1));
+  });
+
+  it("a re-enqueue replaces the stale error job with a fresh queued one", async () => {
+    await db.downloadJobs.put({
+      id: "stale-error",
+      trackId: ndTrackId("s1"),
+      status: "error",
+      attempts: 3,
+      error: "upstream status 401",
+      addedAt: 1,
+    });
+    providerMock.downloadToFile.mockImplementation(() => deferredDownload().result);
+    const manager = await freshManager();
+
+    const jobId = await manager.enqueueTrackDownload(ndTrackId("s1"));
+
+    expect(jobId).not.toBe("stale-error");
+    const jobs = await db.downloadJobs.toArray();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ id: jobId, attempts: 0 });
+    expect(jobs[0].status).not.toBe("error");
   });
 
   it("cancelling a queued job removes it; a running one dies via the source flag", async () => {
@@ -206,11 +231,11 @@ describe("download manager", () => {
     ));
     download.resolve({ path: "C:/tmp/s1.flac" });
     await vi.waitFor(async () => {
-      expect((await db.downloadJobs.get("job-1"))?.status).toBe("done");
+      expect(await db.downloadJobs.get("job-1")).toBeUndefined();
     });
   });
 
-  it("hands the finished file to the finalizer before marking done", async () => {
+  it("hands the finished file to the finalizer, then deletes the job", async () => {
     providerMock.downloadToFile.mockImplementation(() => okAsync({ path: "C:/tmp/s1.flac", format: { codec: "flac" } }));
     const manager = await freshManager();
     const finalize = vi.fn(async () => {});
@@ -219,7 +244,7 @@ describe("download manager", () => {
     await manager.enqueueTrackDownload(ndTrackId("s1"));
 
     await vi.waitFor(async () => {
-      expect((await db.downloadJobs.toArray())[0]?.status).toBe("done");
+      expect(await db.downloadJobs.count()).toBe(0);
     });
     expect(finalize).toHaveBeenCalledWith(
       expect.objectContaining({ trackId: ndTrackId("s1") }),

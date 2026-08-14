@@ -122,7 +122,7 @@ describe("download → offline copy plays → remove → streams (integration)",
     // and the finished file becomes an offline copy in offline/nd/.
     await downloadSubject({ kind: "remote", dto });
     await vi.waitFor(async () => {
-      expect((await db.downloadJobs.toArray())[0]?.status).toBe("done");
+      expect(await db.offlineCopies.get(dto.id)).toBeDefined();
     });
 
     expect((await db.tracks.get(dto.id))?.pinned).toBe(1);

@@ -78,8 +78,6 @@ describe("batch downloads", () => {
     const batchId = await enqueueNdAlbumDownload(ndAlbumId("album1"));
 
     expect(batchId).not.toBeNull();
-    const jobs = await db.downloadJobs.where("batchId").equals(batchId!).toArray();
-    expect(jobs).toHaveLength(2);
 
     // Download = membership: the whole cascade is pinned at 1.
     expect((await db.tracks.get(ndTrackId("s1")))?.pinned).toBe(1);

@@ -6,7 +6,7 @@ import { queryClient } from "@/queries/client";
 import { unwrapResult } from "@/queries/shared";
 import { sources } from "@/modules/sources";
 import type { SourceTrackDTO } from "@/modules/sources/types";
-import { downloadJobRepository, playlistRepository, trackRepository } from "@/db/repositories";
+import { playlistRepository, trackRepository } from "@/db/repositories";
 import { parseTrackRef } from "@/types/track-ref";
 import type { AlbumId, PlaylistId } from "@/types/ids";
 import { enqueueTrackDownload } from "./manager";
@@ -52,12 +52,11 @@ async function enqueueDtoBatch(tracks: SourceTrackDTO[]): Promise<string | null>
   }
   await invalidateLibraryData(queryClient);
 
-  const jobs = await unwrapResult(downloadJobRepository.findByBatchId(batchId));
-  if (jobs.length === 0) {
+  // The manager grew the total per created job; nothing created — no batch.
+  if ((store.batches[batchId]?.total ?? 0) === 0) {
     store.clearBatch(batchId);
     return null;
   }
-  store.setBatchTotal(batchId, jobs.length);
   return batchId;
 }
 
@@ -99,11 +98,9 @@ export async function enqueueLocalPlaylistDownload(playlistId: PlaylistId): Prom
   }
   await invalidateLibraryData(queryClient);
 
-  const jobs = await unwrapResult(downloadJobRepository.findByBatchId(batchId));
-  if (jobs.length === 0) {
+  if ((store.batches[batchId]?.total ?? 0) === 0) {
     store.clearBatch(batchId);
     return null;
   }
-  store.setBatchTotal(batchId, jobs.length);
   return batchId;
 }
