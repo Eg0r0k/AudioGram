@@ -11,6 +11,7 @@ import { useWatchedFoldersStore } from "../store/watched-folders.store";
 import { startWatching, type StopWatchFn } from "../services/folder-watcher";
 import type { WatchedFolder } from "../types";
 import { musicLibraryEngine } from "@/services/importer.service";
+import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { normalizePath } from "@/lib/files/filterFiles";
 import { invalidateLibraryData } from "@/queries/library.queries";
 
@@ -74,6 +75,8 @@ export function useWatchedFolders() {
 
     if (filteredTracks.length > 0) {
       await db.tracks.bulkDelete(filteredTracks.map(t => t.id));
+      // Cascade: albums/artists that lost their last reference die with them.
+      await cleanupAfterTrackRemoval(filteredTracks);
     }
 
     const removedPath = folder.path;

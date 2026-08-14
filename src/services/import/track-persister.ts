@@ -112,7 +112,7 @@ export async function persistTracks(
       id: item.trackId,
       title: item.meta.title,
       artistName: item.meta.artists.join(", "),
-      albumTitle: item.meta.album || "",
+      albumTitle: item.meta.album?.trim() || "",
       artistIds,
       albumId,
       tagIds: [],
@@ -240,7 +240,8 @@ function collectAlbum(
   if (entry.isNew && !existingAlbumIds.has(entry.id) && !albumsToCreate.has(entry.id)) {
     albumsToCreate.set(entry.id, {
       id: entry.id,
-      title: item.meta.album,
+      // Stored trimmed so the next import's key derivation round-trips.
+      title: item.meta.album.trim(),
       artistId: firstArtistId,
       year: item.meta.year,
       pinned: 1,
@@ -268,9 +269,9 @@ function collectArtists(
   for (const artistId of artistIds) {
     if (existingArtistIds.has(artistId) || artistsToCreate.has(artistId)) continue;
 
-    const name = item.meta.artists.find(a => resolver.getArtistId(a) === artistId);
+    const name = item.meta.artists.find(a => a && resolver.getArtistId(a) === artistId);
     if (name) {
-      artistsToCreate.set(artistId, { id: artistId, name, pinned: 1, addedAt: now, updatedAt: now });
+      artistsToCreate.set(artistId, { id: artistId, name: name.trim(), pinned: 1, addedAt: now, updatedAt: now });
     }
   }
 }

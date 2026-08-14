@@ -13,6 +13,7 @@ import { ScannedFile, SyncResult, WatchedFolder } from "@/modules/watched-folder
 import { computeFileFingerprint } from "@/modules/watched-folders/services/file-fingerprint";
 import { scanFolder } from "@/modules/watched-folders/services/folder-scanner";
 import { EntityResolver } from "../entity-resolver";
+import { cleanupAfterTrackRemoval } from "../library-gc";
 import { ImportError, TrackToSave } from "../types";
 import { DB_BATCH_SIZE, MAX_METADATA_READ, PROCESS_CONCURRENCY } from "./constants";
 import { MetadataParser } from "./metadata-parser";
@@ -62,6 +63,8 @@ export class FolderSyncService {
 
     if (removedTracks.length > 0) {
       await trackRepository.deleteMany(removedTracks.map(t => t.id));
+      // Cascade: albums/artists that lost their last reference die with them.
+      await cleanupAfterTrackRemoval(removedTracks);
       result.removed = removedTracks.length;
       advance(removedTracks.length);
     }

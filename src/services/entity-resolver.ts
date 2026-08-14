@@ -123,8 +123,11 @@ export function buildRemoteShadowEntities(
 
 type AlbumCacheKey = `${ArtistId}::${string}`;
 
+// Identity is whitespace-insensitive on both ends: tags routinely carry
+// stray padding, and a key registered trimmed but looked up raw would split
+// one album (or artist) into several. Case stays significant on purpose.
 function albumKey(artistId: ArtistId, albumTitle: string): AlbumCacheKey {
-  return `${artistId}::${albumTitle}`;
+  return `${artistId}::${albumTitle.trim()}`;
 }
 
 interface AlbumEntry {
@@ -142,7 +145,7 @@ export class EntityResolver {
   }
 
   getArtistId(name: string): ArtistId | undefined {
-    return this.artists.get(name);
+    return this.artists.get(name.trim());
   }
 
   getAlbumEntry(artistId: ArtistId, albumTitle: string): AlbumEntry | undefined {
@@ -151,7 +154,8 @@ export class EntityResolver {
 
   getArtistIds(meta: BaseMetadata): ArtistId[] {
     return meta.artists
-      .filter(a => a?.trim())
+      .map(name => name?.trim())
+      .filter(Boolean)
       .map(name => this.artists.get(name))
       .filter((id): id is ArtistId => !!id);
   }
@@ -159,18 +163,21 @@ export class EntityResolver {
   private async resolveArtists(metas: BaseMetadata[]): Promise<void> {
     const uniqueNames = [
       ...new Set(
-        metas.flatMap(m => m.artists).filter(a => a?.trim()),
+        metas.flatMap(m => m.artists).map(a => a?.trim()).filter(Boolean),
       ),
     ];
 
     if (uniqueNames.length === 0) return;
 
+    // Rows written before trim-normalization may carry padded names, so the
+    // query matches both spellings; the cache key is always the trimmed one.
+    const paddedSpellings = metas.flatMap(m => m.artists).filter(a => a?.trim());
     const existing = await db.artists
       .where("name")
-      .anyOf(uniqueNames)
+      .anyOf([...new Set([...uniqueNames, ...paddedSpellings])])
       .toArray();
     for (const artist of existing) {
-      this.artists.set(artist.name, artist.id);
+      this.artists.set(artist.name.trim(), artist.id);
     }
 
     for (const name of uniqueNames) {
@@ -184,7 +191,7 @@ export class EntityResolver {
     const knownArtistIds = [
       ...new Set(
         metas.flatMap(m => m.artists)
-          .map(name => this.artists.get(name))
+          .map(name => name && this.artists.get(name.trim()))
           .filter((id): id is ArtistId => !!id),
       ),
     ];
@@ -196,6 +203,8 @@ export class EntityResolver {
       .anyOf(knownArtistIds)
       .toArray();
 
+    // albumKey trims, so stored titles with stray padding land on the same
+    // key a clean tag resolves to.
     for (const album of existing) {
       this.albums.set(
         albumKey(album.artistId, album.title),
@@ -207,7 +216,7 @@ export class EntityResolver {
       const title = meta.album?.trim();
       if (!title || title === "Unknown Album") continue;
 
-      const firstArtistId = this.artists.get(meta.artists[0]);
+      const firstArtistId = meta.artists[0] && this.artists.get(meta.artists[0].trim());
       if (!firstArtistId) continue;
 
       const key = albumKey(firstArtistId, title);

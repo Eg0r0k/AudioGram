@@ -13,6 +13,7 @@ import { queryClient } from "@/queries/client";
 import { getLogger, initLogging } from "./lib/logger";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
 import { initDownloadManager } from "@/modules/downloads/manager";
+import { sweepOrphanedEntities } from "@/services/library-gc";
 import { initZoom } from "@/modules/settings/composables/useZoom";
 
 await initLogging();
@@ -41,6 +42,12 @@ initPlayerLifecycle();
 // No-op outside Tauri. Failures must not block app startup.
 initDownloadManager().catch(error =>
   getLogger().error(`[Downloads] Init failed: ${String(error)}`),
+);
+
+// One-off per launch: drop album/artist rows that lost their last track
+// before the deletion cascade existed. Failures must not block startup.
+sweepOrphanedEntities().catch(error =>
+  getLogger().error(`[LibraryGC] Sweep failed: ${String(error)}`),
 );
 
 // Re-apply the persisted zoom; previously it only kicked in once the user

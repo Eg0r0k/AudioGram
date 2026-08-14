@@ -31,6 +31,7 @@ import { unique, unwrapResult } from "./shared";
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
+import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 
 const PAGE_SIZE = 50;
 
@@ -590,12 +591,17 @@ export async function deleteTrackAndSync(
   }
 
   await unwrapResult(trackRepository.delete(trackId));
+  // Cascade: the album dies with its last track, the artist with their last
+  // track and album. The list invalidations below pick the removals up.
+  await cleanupAfterTrackRemoval([currentTrack]);
   removeTracksFromCaches(queryClient, [trackId]);
   queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(trackId), exact: true });
   await removeSearchDocuments([`track:${trackId}`]);
 
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.albums.all() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.artists.all() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.page(currentTrack.albumId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.tracksPage(currentTrack.albumId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.totalDuration(currentTrack.albumId) }),
