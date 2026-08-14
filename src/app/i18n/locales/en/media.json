@@ -17,6 +17,5 @@
     "downloadAlbum": "Download album",
     "downloadPlaylist": "Download playlist"
   },
-  "downloadQueued": "Queued {count} tracks for download",
   "nothingToDownload": "Nothing to download"
 }

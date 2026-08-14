@@ -106,7 +106,6 @@ import type { YoutubeError, YtArtistRef, YtMusicTrack, YtPlayable } from "../../
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
-import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import YtCollectionHero from "./YtCollectionHero.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
 
@@ -179,12 +178,9 @@ function openYtMenu(index: number) {
 // settings' active-downloads row.
 async function startImport() {
   try {
+    // No "queued" toast: the header download indicator is the feedback.
     const batchId = await enqueueSourceTracksDownload(dtos.value);
-    if (batchId) {
-      const total = useDownloadsStore().batches[batchId]?.total ?? 0;
-      toast.success(t("media.downloadQueued", { count: total }));
-    }
-    else {
+    if (!batchId) {
       toast.info(t("media.nothingToDownload"));
     }
   }

@@ -179,7 +179,7 @@ export const useLibrary = () => {
     id: folder.id,
     type: "folder",
     title: folder.name,
-    subtitle: t("library.folder.itemCount", { count: folder.items.length }),
+    // The item count renders as a badge on the row, not in the subtitle.
     isPinned: false,
     addedAt: folder.addedAt,
     updatedAt: folder.updatedAt,

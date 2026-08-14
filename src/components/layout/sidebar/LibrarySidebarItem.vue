@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import type { LibraryItem } from "@/modules/library/types";
+import { Badge } from "@/components/ui/badge";
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import IconPinFilled from "~icons/tabler/pin-filled";
 import IconVolume from "~icons/tabler/volume";
@@ -201,6 +202,15 @@ const handleClick = () => {
                 class="size-5 shrink-0"
                 :class="isExactActive ? 'text-white' : 'text-primary'"
               />
+
+              <Badge
+                v-if="item.type === 'folder'"
+                variant="secondary"
+                size="sm"
+                class="shrink-0"
+              >
+                {{ item.folderItemCount ?? 0 }}
+              </Badge>
             </span>
           </ItemDescription>
         </ItemContent>

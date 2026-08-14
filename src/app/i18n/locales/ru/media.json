@@ -16,6 +16,5 @@
     "downloadAlbum": "Скачать альбом",
     "downloadPlaylist": "Скачать плейлист"
   },
-  "downloadQueued": "В очереди на скачивание: {count}",
   "nothingToDownload": "Нечего скачивать"
 }

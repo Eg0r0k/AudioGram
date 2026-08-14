@@ -85,7 +85,6 @@ import {
   enqueueNdAlbumDownload,
   enqueueNdPlaylistDownload,
 } from "@/modules/downloads/enqueue";
-import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { provideMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import MediaHeader from "./MediaHeader.vue";
 import MediaHeroImage from "./MediaHeroImage.vue";
@@ -138,11 +137,8 @@ async function startOfflineDownload(): Promise<void> {
         ? await enqueueNdPlaylistDownload(String(data.id).slice("nd:".length))
         : await enqueueLocalPlaylistDownload(data.id);
     }
-    if (batchId) {
-      const total = useDownloadsStore().batches[batchId]?.total ?? 0;
-      toast.success(t("media.downloadQueued", { count: total }));
-    }
-    else {
+    // No "queued" toast: the header download indicator is the feedback.
+    if (!batchId) {
       toast.info(t("media.nothingToDownload"));
     }
   }
