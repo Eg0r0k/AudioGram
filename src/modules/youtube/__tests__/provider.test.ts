@@ -1,5 +1,5 @@
 import { errAsync, okAsync } from "neverthrow";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { YoutubeError } from "../types";
 
 const apiMock = vi.hoisted(() => ({ downloadYoutube: vi.fn() }));
@@ -23,51 +23,32 @@ vi.mock("@/modules/youtube/api/youtubeApi", () => ({
 import { youtubeProvider } from "../provider";
 
 const networkError: YoutubeError = { kind: "NETWORK", message: "socket hang up" };
-const cancelledError: YoutubeError = { kind: "CANCELLED", message: "cancelled" };
 
-describe("youtubeProvider.download retries", () => {
+//
+// Retries live in the download manager (downloads/manager.ts, MAX_ATTEMPTS
+// with backoff) — the provider must run yt_download exactly once per call,
+// otherwise the layers multiply (3 manager attempts × N provider attempts).
+//
+describe("youtubeProvider.download", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     apiMock.downloadYoutube.mockReset();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("passes a success through untouched", async () => {
+    apiMock.downloadYoutube.mockReturnValue(okAsync({ path: "C:/cache/v1.m4a" }));
+
+    const result = await youtubeProvider.download("v1");
+
+    expect(result._unsafeUnwrap()).toEqual({ path: "C:/cache/v1.m4a" });
+    expect(apiMock.downloadYoutube).toHaveBeenCalledTimes(1);
   });
 
-  it("retries transient failures and succeeds within three attempts", async () => {
-    apiMock.downloadYoutube
-      .mockReturnValueOnce(errAsync(networkError))
-      .mockReturnValueOnce(errAsync(networkError))
-      .mockReturnValueOnce(okAsync({ path: "C:/cache/v1.m4a" }));
-
-    const pending = youtubeProvider.download("v1");
-    await vi.runAllTimersAsync();
-    const result = await pending;
-
-    expect(result.isOk()).toBe(true);
-    expect(apiMock.downloadYoutube).toHaveBeenCalledTimes(3);
-  });
-
-  it("gives up after three attempts", async () => {
+  it("runs yt_download exactly once even on a transient failure", async () => {
     apiMock.downloadYoutube.mockReturnValue(errAsync(networkError));
 
-    const pending = youtubeProvider.download("v1");
-    await vi.runAllTimersAsync();
-    const result = await pending;
+    const result = await youtubeProvider.download("v1");
 
-    expect(result.isErr()).toBe(true);
-    expect(apiMock.downloadYoutube).toHaveBeenCalledTimes(3);
-  });
-
-  it("never retries a cancellation", async () => {
-    apiMock.downloadYoutube.mockReturnValue(errAsync(cancelledError));
-
-    const pending = youtubeProvider.download("v1");
-    await vi.runAllTimersAsync();
-    const result = await pending;
-
-    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr()).toEqual(networkError);
     expect(apiMock.downloadYoutube).toHaveBeenCalledTimes(1);
   });
 });

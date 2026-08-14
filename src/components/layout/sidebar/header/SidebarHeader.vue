@@ -141,6 +141,7 @@
         <InputGroupInput
           ref="inputRef"
           v-model="query"
+          autocomplete="off"
           class="pl-1! text-base!"
           :placeholder="$t('common.search')"
           @keydown.stop
