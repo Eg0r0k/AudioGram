@@ -7,6 +7,7 @@
          stopped before it ever reaches the trigger. -->
     <div
       class="contents"
+      role="presentation"
       @contextmenu.capture="guardContextMenu"
     >
       <ContextMenuTrigger as-child>
