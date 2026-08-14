@@ -4,12 +4,7 @@ import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { musicLibraryEngine } from "@/services/importer.service";
 import { invalidateLibraryData } from "@/queries/library.queries";
-import {
-  addTracksToPlaylistAndSync,
-  createPlaylistAndSync,
-} from "@/queries/playlist.queries";
-import { getTracksByIds } from "@/queries/track.queries";
-import type { PlaylistId, TrackId } from "@/types/ids";
+import type { TrackId } from "@/types/ids";
 import { youtubeProvider } from "../provider";
 import { cleanupCacheFile } from "../lib/cache";
 import type { YtPlayable } from "../types";
@@ -30,8 +25,6 @@ export interface YtBatchItem {
 
 interface YtBatchState {
   status: YtBatchStatus;
-  playlistId: PlaylistId | null;
-  playlistName: string;
   items: YtBatchItem[];
   currentIndex: number;
 }
@@ -39,8 +32,6 @@ interface YtBatchState {
 // Module-level so progress survives navigation between pages.
 const state = ref<YtBatchState>({
   status: "idle",
-  playlistId: null,
-  playlistName: "",
   items: [],
   currentIndex: 0,
 });
@@ -48,11 +39,12 @@ const state = ref<YtBatchState>({
 let cancelRequested = false;
 
 /**
- * Batch "Import to library": creates a local playlist, downloads the selected
- * YouTube tracks one-by-one (progress per track), imports each file through
- * the library engine DIRECTLY (bypassing the global import sheet, which would
- * hijack the UI per track) and finally adds all imported tracks to the
- * playlist. Must be called from component setup (Vue Query context).
+ * Batch "Import to library": downloads the collection's tracks one-by-one
+ * (progress per track) and imports each file through the library engine
+ * DIRECTLY (bypassing the global import sheet, which would hijack the UI per
+ * track). No playlist is created — the imported tags group the tracks by
+ * album; playlists stay a user decision. Must be called from component setup
+ * (Vue Query context).
  */
 export function useYtBatchImport() {
   const queryClient = useQueryClient();
@@ -113,8 +105,7 @@ export function useYtBatchImport() {
         store.setDownload(item.videoId, { status: "done", percent: 100 });
       }
       else if (batch.skipped > 0) {
-        // Duplicate fingerprint — already in the library, but the engine does
-        // not return the existing TrackId, so it cannot join the playlist (v1).
+        // Duplicate fingerprint — the track is already in the library.
         item.status = "skipped";
         store.setDownload(item.videoId, { status: "done", percent: 100 });
       }
@@ -136,7 +127,7 @@ export function useYtBatchImport() {
     }
   }
 
-  async function start(playlistName: string, tracks: YtPlayable[]): Promise<void> {
+  async function start(tracks: YtPlayable[]): Promise<void> {
     if (isRunning.value) {
       toast.error(t("youtube.import.alreadyRunning"));
       return;
@@ -145,12 +136,8 @@ export function useYtBatchImport() {
 
     cancelRequested = false;
 
-    const playlist = await createPlaylistAndSync(queryClient, playlistName);
-
     state.value = {
       status: "running",
-      playlistId: playlist.id,
-      playlistName,
       items: tracks.map(track => ({
         videoId: track.id,
         title: track.title,
@@ -175,9 +162,9 @@ export function useYtBatchImport() {
       .map(item => item.trackId)
       .filter((id): id is TrackId => id !== undefined);
 
+    // No auto-playlist: imported files carry their tags, so the library
+    // groups them by album on its own — playlists stay a user decision.
     if (importedIds.length > 0) {
-      const importedTracks = await getTracksByIds(importedIds);
-      await addTracksToPlaylistAndSync(queryClient, playlist.id, importedTracks);
       await invalidateLibraryData(queryClient);
     }
 

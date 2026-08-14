@@ -39,7 +39,7 @@ import IconLoader from "~icons/tabler/loader-2";
 const { state, isRunning, finishedCount, cancel } = useYtBatchImport();
 
 const currentTitle = computed(
-  () => state.value.items[state.value.currentIndex]?.title ?? state.value.playlistName,
+  () => state.value.items[state.value.currentIndex]?.title ?? "",
 );
 
 const overallPercent = computed(() => {

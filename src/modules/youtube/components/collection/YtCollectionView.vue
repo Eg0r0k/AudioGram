@@ -41,14 +41,8 @@
             :has-tracks="tracks.length > 0"
             @play="playAll(0)"
             @shuffle="shuffleAll"
-            @import="isImportDialogOpen = true"
+            @import="startImport"
             @open-artist="id => router.push(routeLocation.ytArtist(id))"
-          />
-          <YtImportDialog
-            v-model:open="isImportDialogOpen"
-            :title="title"
-            :tracks="playables"
-            @confirm="startImport"
           />
         </template>
 
@@ -96,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
@@ -117,7 +111,6 @@ import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/Trac
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import YtCollectionHero from "./YtCollectionHero.vue";
 import YtDownloadButton from "../YtDownloadButton.vue";
-import YtImportDialog from "./YtImportDialog.vue";
 import YtImportProgressBar from "./YtImportProgressBar.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
 
@@ -145,8 +138,6 @@ const queue = useQueueStore();
 const playerStore = usePlayerStore();
 const ytStore = useYoutubeStore();
 const { start } = useYtBatchImport();
-
-const isImportDialogOpen = ref(false);
 
 const errorText = computed(() =>
   props.error ? youtubeErrorMessage(props.error, t) : null,
@@ -179,8 +170,10 @@ function openYtMenu(index: number) {
   if (playable) openMenu(ytEphemeralTrack(playable), index, { target: "yt" });
 }
 
-function startImport(name: string, tracks: YtPlayable[]) {
-  void start(name, tracks);
+// No dialog and no auto-playlist: the hero button imports every loaded
+// track; per-row download buttons cover partial imports.
+function startImport() {
+  void start(playables.value);
 }
 
 /**

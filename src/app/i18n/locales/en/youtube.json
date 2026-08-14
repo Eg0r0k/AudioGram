@@ -25,10 +25,6 @@
   "playAll": "Play all",
   "importToLibrary": "Import to library",
   "import": {
-    "dialogTitle": "Import to library",
-    "playlistName": "Playlist name",
-    "selectAll": "Select all",
-    "start": "Import",
     "cancel": "Cancel import",
     "progress": "{current} of {total}",
     "summary": "Imported {ok} tracks ({failed} failed, {skipped} skipped)",

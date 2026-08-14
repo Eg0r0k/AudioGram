@@ -25,10 +25,6 @@
   "playAll": "Играть всё",
   "importToLibrary": "Импортировать в библиотеку",
   "import": {
-    "dialogTitle": "Импорт в библиотеку",
-    "playlistName": "Название плейлиста",
-    "selectAll": "Выбрать все",
-    "start": "Импортировать",
     "cancel": "Отменить импорт",
     "progress": "{current} из {total}",
     "summary": "Импортировано треков: {ok} (ошибок: {failed}, пропущено: {skipped})",
