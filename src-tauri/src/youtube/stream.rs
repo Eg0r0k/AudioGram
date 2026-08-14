@@ -12,7 +12,7 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::stream::{forward_get, range_response, status_response};
 
-use super::{proxy_args, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
+use super::{kill_sidecar_tree, proxy_args, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
 
 /// A resolved googlevideo stream: the URL plus the User-Agent to fetch it
 /// with. yt-dlp URLs are served to a generic browser UA.
@@ -153,11 +153,10 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
     let (stdout, stderr, exit_code) = match collected {
         Ok(collected) => collected,
         Err(_) => {
-            // Killing the child frees the sidecar slot; leaving it running
-            // would keep a dead resolve holding a process and the network.
-            if let Err(e) = child.kill() {
-                log::warn!("yt_resolve {id}: killing the timed-out sidecar failed: {e}");
-            }
+            // The whole tree goes: a dead resolve must not keep a process
+            // and the network busy.
+            log::warn!("yt_resolve {id}: sidecar wedged, killing it");
+            kill_sidecar_tree(child);
             return Err(format!(
                 "yt-dlp resolve timed out after {}s",
                 RESOLVE_TIMEOUT.as_secs()

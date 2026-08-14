@@ -14,7 +14,8 @@ use lofty::prelude::*;
 use lofty::tag::{Tag, TagType};
 
 use super::{
-    http_client, is_allowed_image_host, proxy_args, validate_id, yt_client, YtError, SIDECAR_YTDLP,
+    http_client, is_allowed_image_host, kill_sidecar_tree, proxy_args, validate_id, yt_client,
+    YtError, SIDECAR_YTDLP,
 };
 
 /// Where downloaded originals land before the import pipeline copies them into managed storage.
@@ -81,9 +82,9 @@ impl YtDownloadRegistry {
         let Some(handle) = map.get_mut(id) else { return false };
         handle.cancelled = true;
         if let Some(child) = handle.child.take() {
-            if let Err(e) = child.kill() {
-                log::warn!("yt_download_cancel {id}: kill failed: {e}");
-            }
+            // Tree, not just the bootloader: otherwise the real yt-dlp keeps
+            // writing the .part file the cleanup below tries to remove.
+            kill_sidecar_tree(child);
         }
         true
     }

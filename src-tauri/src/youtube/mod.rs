@@ -153,6 +153,46 @@ pub async fn proxy_check(url: String) -> Result<u64, String> {
     Ok(started.elapsed().as_millis() as u64)
 }
 
+/// Kills a spawned sidecar *with its children*.
+///
+/// yt-dlp ships as a PyInstaller bundle: the process Tauri spawns is only a
+/// bootloader that re-executes the real extractor as a child. Terminating the
+/// bootloader alone (what `CommandChild::kill` does) leaves that child
+/// downloading in the background — an orphan holding the network and the
+/// output file until it finishes on its own.
+pub(super) fn kill_sidecar_tree(child: tauri_plugin_shell::process::CommandChild) {
+    let pid = child.pid();
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        /// Keeps taskkill from flashing a console window.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        if let Err(e) = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status()
+        {
+            log::warn!("taskkill for sidecar {pid} failed: {e}");
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        // Children first: killing the bootloader first would reparent them.
+        if let Err(e) = std::process::Command::new("pkill")
+            .args(["-KILL", "-P", &pid.to_string()])
+            .status()
+        {
+            log::warn!("pkill for sidecar children of {pid} failed: {e}");
+        }
+    }
+
+    // The bootloader itself: already gone on Windows (taskkill /T), still
+    // running on unix. Either way the error is not actionable.
+    let _ = child.kill();
+}
+
 /// Builds the yt-dlp `--proxy` args from the shared proxy state, or empty when unset.
 fn proxy_args<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     match app.state::<ProxyState>().get() {
