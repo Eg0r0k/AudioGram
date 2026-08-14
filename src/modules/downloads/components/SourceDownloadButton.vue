@@ -31,11 +31,10 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "@tanstack/vue-query";
-import { toast } from "vue-sonner";
 import { Button } from "@/components/ui/button";
 import type { SourceTrackDTO } from "@/modules/sources/types";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
-import { downloadSubject } from "../enqueue";
+import { downloadDtoWithFeedback } from "../downloadFeedback";
 import { useDownloadsStore } from "../store/downloads.store";
 import IconDownload from "~icons/tabler/download";
 import IconLoader from "~icons/tabler/loader-2";
@@ -70,11 +69,6 @@ const label = computed(() => {
 
 async function download(): Promise<void> {
   if (activeJob.value || hasCopy.value) return;
-  try {
-    await downloadSubject({ kind: "remote", dto: props.dto });
-  }
-  catch {
-    toast.error(t("track.downloadFailed"));
-  }
+  await downloadDtoWithFeedback(props.dto);
 }
 </script>

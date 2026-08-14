@@ -17,13 +17,11 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useI18n } from "vue-i18n";
-import { toast } from "vue-sonner";
 import PlayItems from "../items/PlayItems.vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import type { ContextActions } from "../type";
 import type { PlayerTrack } from "@/modules/player/types";
-import { downloadSubject } from "@/modules/downloads/enqueue";
+import { downloadDtoWithFeedback } from "@/modules/downloads/downloadFeedback";
 import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import IconDownload from "~icons/tabler/download";
 
@@ -33,18 +31,12 @@ const props = defineProps<{
   actions: ContextActions;
 }>();
 
-const { t } = useI18n();
 const ytPlayable = computed(() => ytPlayableFromEphemeral(props.track));
 
 // M5: YT downloads go through the shared manager (pin → job → offline copy).
 async function downloadYt() {
   if (!ytPlayable.value) return;
-  try {
-    await downloadSubject({ kind: "remote", dto: ytPlayableToDto(ytPlayable.value) });
-  }
-  catch {
-    toast.error(t("track.downloadFailed"));
-  }
+  await downloadDtoWithFeedback(ytPlayableToDto(ytPlayable.value));
 }
 
 const { Separator, Item } = useTrackMenuComponents();
