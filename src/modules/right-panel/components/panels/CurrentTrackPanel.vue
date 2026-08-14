@@ -158,8 +158,8 @@
                 size="icon"
                 class="shrink-0 rounded-full"
                 :disabled="isImportRunning"
-                :title="$t('import.toLibrary')"
-                :aria-label="$t('import.toLibrary')"
+                :title="$t('common.import.toLibrary')"
+                :aria-label="$t('common.import.toLibrary')"
                 @click="importCurrent"
               >
                 <IconFileImport class="size-6" />
@@ -229,8 +229,7 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
-import { ephemeralFilePath } from "@/modules/tracks/lib/trackPredicates";
-import { useImport } from "@/composables/useImport";
+import { useEphemeralImport } from "@/modules/tracks/composables/useEphemeralImport";
 import IconHeart from "~icons/tabler/heart";
 import IconHeartFilled from "~icons/tabler/heart-filled";
 import IconDots from "~icons/tabler/dots";
@@ -310,14 +309,9 @@ async function toggleLike(): Promise<void> {
   await toggleTrackLike(libraryTrack.value);
 }
 
-// "Open with" ephemeral track (M3): explicit CTA into the import pipeline.
-const { importFromPaths, isRunning: isImportRunning } = useImport();
-const importPath = computed(() => ephemeralFilePath(currentTrack.value));
-
-function importCurrent(): void {
-  const path = importPath.value;
-  if (path) void importFromPaths([path]);
-}
+// "Open with" ephemeral track (M3): CTA into the import pipeline; success
+// swaps the queue entry onto the library track without restarting playback.
+const { importPath, isRunning: isImportRunning, importCurrent } = useEphemeralImport(currentTrack);
 
 function goToArtist(index: number): void {
   const artistId = libraryTrack.value?.artistIds?.[index];

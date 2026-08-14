@@ -111,6 +111,86 @@ describe("queue.store", () => {
     });
   });
 
+  describe("swapEphemeralForLibrary", () => {
+    function createEphemeral(id: string, path: string) {
+      return {
+        kind: "ephemeral" as const,
+        id,
+        title: "Open-with file",
+        source: { type: "path" as const, path },
+      };
+    }
+
+    it("replaces every matching item's track in place, keeping item identity", () => {
+      const store = useQueueStore();
+      const library = createTrack("lib-1", "Imported");
+      const items = [
+        { id: "a" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 1 },
+        { id: "b" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: 2 },
+        { id: "c" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 3 },
+      ];
+      store.queue = items as any;
+      store.originalQueueOrder = ["a", "b", "c"] as any;
+
+      store.swapEphemeralForLibrary("eph-1", library);
+
+      expect(store.queue[0]).toMatchObject({ id: "a", addedAt: 1, track: library });
+      expect(store.queue[1].track).toStrictEqual(createTrack("2"));
+      expect(store.queue[2]).toMatchObject({ id: "c", addedAt: 3, track: library });
+    });
+
+    it("hands the library track to the player when the current item swaps, without restarting playback", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack");
+      const ephemeral = createEphemeral("eph-1", "C:/x.flac");
+      const library = createTrack("lib-1", "Imported");
+      store.queue = [
+        { id: "a" as any, track: ephemeral, source: { type: "manual" as const }, addedAt: 1 },
+      ] as any;
+      store.currentIndex = 0;
+      playerStore.currentTrack = ephemeral;
+
+      store.swapEphemeralForLibrary("eph-1", library);
+
+      expect(playerStore.currentTrack).toStrictEqual(library);
+      expect(playSpy).not.toHaveBeenCalled();
+    });
+
+    it("persists the swapped entry as a library track", () => {
+      const store = useQueueStore();
+      const library = createTrack("lib-1", "Imported");
+      store.queue = [
+        { id: "a" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 1 },
+      ] as any;
+      store.originalQueueOrder = ["a"] as any;
+      store.currentIndex = 0;
+
+      store.swapEphemeralForLibrary("eph-1", library);
+
+      expect(store.persistedSnapshot?.queue[0].track).toEqual({
+        kind: "library",
+        trackId: library.id,
+      });
+    });
+
+    it("does not touch the player when the current item is a different track", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const current = createTrack("2");
+      store.queue = [
+        { id: "a" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 1 },
+        { id: "b" as any, track: current, source: { type: "manual" as const }, addedAt: 2 },
+      ] as any;
+      store.currentIndex = 1;
+      playerStore.currentTrack = current;
+
+      store.swapEphemeralForLibrary("eph-1", createTrack("lib-1"));
+
+      expect(playerStore.currentTrack).toStrictEqual(current);
+    });
+  });
+
   describe("computed properties", () => {
     it("should compute currentItem correctly", () => {
       const store = useQueueStore();

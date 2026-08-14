@@ -131,10 +131,14 @@ export function useImport() {
     await activeImportPromise;
   }
 
-  async function importFromPaths(paths: string[]) {
-    if (paths.length === 0) return;
+  async function importFromPaths(paths: string[]): Promise<ImportBatchResult | null> {
+    if (paths.length === 0) return null;
 
     const importId = _startImport(paths.map(p => p.split(/[\\/]/).pop() ?? p));
+
+    // Callers (the "import to library" CTA) need the outcome to react to it;
+    // the shared sheet state alone can already belong to a newer import.
+    let batchResult: ImportBatchResult | null = null;
 
     activeImportPromise = (async () => {
       const result = await musicLibraryEngine.importFromPaths(
@@ -142,6 +146,7 @@ export function useImport() {
         (current, total) => _onProgress(importId, current, total),
         { waitIfPaused, isCancelled: () => isCancelRequested },
       );
+      batchResult = result;
 
       await _finishImport(importId, result);
     })().finally(() => {
@@ -151,6 +156,7 @@ export function useImport() {
     });
 
     await activeImportPromise;
+    return batchResult;
   }
 
   function _startImport(fileNames: string[]) {

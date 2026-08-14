@@ -81,7 +81,7 @@
       @click="importCurrent"
     >
       <IconFileImport class="size-5.5" />
-      {{ $t("import.toLibrary") }}
+      {{ $t("common.import.toLibrary") }}
     </component>
   </template>
 </template>
@@ -99,8 +99,8 @@ import OfflineItem from "../items/OfflineItem.vue";
 import SourceItems from "../items/SourceItems.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
-import { ephemeralFilePath, trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
-import { useImport } from "@/composables/useImport";
+import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
+import { useEphemeralImport } from "@/modules/tracks/composables/useEphemeralImport";
 import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { isLibraryTrack, type PlayerTrack } from "@/modules/player/types";
@@ -124,12 +124,9 @@ function downloadYt() {
   if (ytPlayable.value) void download(ytPlayable.value);
 }
 
-const { importFromPaths } = useImport();
-const importPath = computed(() => ephemeralFilePath(props.track));
-
-function importCurrent() {
-  if (importPath.value) void importFromPaths([importPath.value]);
-}
+// Import-to-library CTA: on success the queue entry swaps onto the
+// imported library track (like/history immediately available).
+const { importPath, importCurrent } = useEphemeralImport(() => props.track);
 
 const { Separator, Item } = useTrackMenuComponents();
 </script>

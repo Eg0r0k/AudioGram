@@ -137,6 +137,28 @@ export const useQueueStore = defineStore("queue", () => {
     syncPersistedSnapshot();
   }
 
+  /**
+   * Import-from-player (M3): every queue entry holding the ephemeral track
+   * becomes the freshly imported library track — item identity (id, source,
+   * addedAt) survives. If the current entry swaps, the player's track
+   * reference is updated directly; the audio element keeps playing the
+   * already-loaded file, so playback never restarts.
+   */
+  function swapEphemeralForLibrary(ephemeralTrackId: string, libraryTrack: PlayerTrack): void {
+    let swappedCurrent = false;
+
+    queue.value = queue.value.map((item, index) => {
+      if (!isEphemeralTrack(item.track) || item.track.id !== ephemeralTrackId) return item;
+      if (index === currentIndex.value) swappedCurrent = true;
+      return { ...item, track: libraryTrack };
+    });
+
+    if (swappedCurrent) {
+      playerStore.currentTrack = libraryTrack;
+    }
+    syncPersistedSnapshot();
+  }
+
   function removeOriginalQueueItems(ids: QueueItemId[]): void {
     const idSet = new Set(ids);
     originalQueueOrder.value = originalQueueOrder.value.filter(id => !idSet.has(id));
@@ -768,6 +790,7 @@ export const useQueueStore = defineStore("queue", () => {
     shuffle,
     unshuffle,
     syncTrackMetadata,
+    swapEphemeralForLibrary,
     toggleShuffle,
     clear,
   };
