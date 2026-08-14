@@ -6,6 +6,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { ArtistId, PlaylistId, QueueItemId, type TrackId } from "@/types/ids";
 import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
+import { getLogger } from "@/lib/logger";
 import { useI18n } from "vue-i18n";
 import type { Ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -98,7 +99,8 @@ export const useTrackContextActions = (
     try {
       return await ensurePinned(subject);
     }
-    catch {
+    catch (error) {
+      getLogger().error(`[Tracks] Pin failed for ${subject.dto.id}: ${String(error)}`);
       toast.error(t("track.pinFailed"));
       return null;
     }
@@ -270,7 +272,8 @@ export const useTrackContextActions = (
     try {
       await downloadSubject(subject);
     }
-    catch {
+    catch (error) {
+      getLogger().error(`[Downloads] Enqueue failed from the track menu: ${String(error)}`);
       toast.error(t("track.downloadFailed"));
     }
   };
@@ -287,7 +290,8 @@ export const useTrackContextActions = (
     try {
       await removeOfflineCopyFile(trackId);
     }
-    catch {
+    catch (error) {
+      getLogger().error(`[Downloads] Removing the offline copy of ${trackId} failed: ${String(error)}`);
       toast.error(t("track.removeDownloadFailed"));
     }
   };
@@ -306,7 +310,8 @@ export const useTrackContextActions = (
       await invalidateLibraryData(queryClient);
       toast.success(t("track.addedToLibrary"));
     }
-    catch {
+    catch (error) {
+      getLogger().error(`[Tracks] Add to library failed: ${String(error)}`);
       toast.error(t("track.pinFailed"));
     }
   };
@@ -319,7 +324,8 @@ export const useTrackContextActions = (
       await invalidateLibraryData(queryClient);
       toast.success(t("track.removedFromLibrary"));
     }
-    catch {
+    catch (error) {
+      getLogger().error(`[Tracks] Remove from library failed for ${current.id}: ${String(error)}`);
       toast.error(t("track.removeFromLibraryFailed"));
     }
   };

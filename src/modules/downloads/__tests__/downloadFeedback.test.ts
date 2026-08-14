@@ -17,6 +17,10 @@ vi.mock("@/app/i18n", () => ({
   i18n: { global: { t: (key: string) => key } },
 }));
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
+}));
+
 const dto: SourceTrackDTO = { id: TrackId("yt:abc123def45"), title: "T" };
 
 describe("downloadDtoWithFeedback", () => {

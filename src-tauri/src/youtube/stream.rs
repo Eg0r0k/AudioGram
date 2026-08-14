@@ -4,8 +4,10 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 use crate::stream::{forward_get, range_response, status_response};
@@ -89,6 +91,19 @@ impl YtAudioCache {
     }
 }
 
+/// A wedged yt-dlp (stalled network, hung challenge) must not pin the player
+/// on "loading" forever — the sidecar is killed and the call fails instead.
+const RESOLVE_TIMEOUT: Duration = Duration::from_secs(25);
+
+/// First http line of `--get-url` output; yt-dlp also prints warnings there.
+fn pick_stream_url(stdout: &str) -> Option<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("http"))
+        .map(str::to_owned)
+}
+
 /// Resolves the best audio stream URL via the yt-dlp sidecar and caches it
 /// for the `stream://` proxy.
 async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<StreamEntry, String> {
@@ -103,27 +118,59 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
     ];
     args.extend(proxy_args(app));
 
-    let output = app
+    let (mut rx, child) = app
         .shell()
         .sidecar(SIDECAR_YTDLP)
         .map_err(|e| e.to_string())?
         .args(args)
-        .output()
-        .await
+        .spawn()
         .map_err(|e| e.to_string())?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    let collected = tokio::time::timeout(RESOLVE_TIMEOUT, async {
+        let mut stdout = String::new();
+        let mut stderr = String::new();
+        let mut exit_code: Option<i32> = None;
+
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    stdout.push_str(&String::from_utf8_lossy(&bytes));
+                    stdout.push('\n');
+                }
+                CommandEvent::Stderr(bytes) => {
+                    stderr.push_str(&String::from_utf8_lossy(&bytes));
+                    stderr.push('\n');
+                }
+                CommandEvent::Terminated(payload) => exit_code = payload.code,
+                _ => {}
+            }
+        }
+
+        (stdout, stderr, exit_code)
+    })
+    .await;
+
+    let (stdout, stderr, exit_code) = match collected {
+        Ok(collected) => collected,
+        Err(_) => {
+            // Killing the child frees the sidecar slot; leaving it running
+            // would keep a dead resolve holding a process and the network.
+            if let Err(e) = child.kill() {
+                log::warn!("yt_resolve {id}: killing the timed-out sidecar failed: {e}");
+            }
+            return Err(format!(
+                "yt-dlp resolve timed out after {}s",
+                RESOLVE_TIMEOUT.as_secs()
+            ));
+        }
+    };
+
+    if exit_code != Some(0) {
         return Err(format!("yt-dlp resolve failed: {}", stderr.trim()));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stream_url = stdout
-        .lines()
-        .map(str::trim)
-        .find(|line| line.starts_with("http"))
-        .map(str::to_owned)
-        .ok_or_else(|| "no stream url returned".to_string())?;
+    let stream_url =
+        pick_stream_url(&stdout).ok_or_else(|| "no stream url returned".to_string())?;
 
     let entry = StreamEntry {
         url: stream_url,
@@ -257,6 +304,27 @@ async fn fetch_bytes(
     let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
 
     Ok((status, content_type, bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pick_stream_url;
+
+    #[test]
+    fn picks_the_url_past_yt_dlp_chatter() {
+        let stdout = "[youtube] Extracting URL\nWARNING: something\nhttps://rr3---sn.googlevideo.com/videoplayback?x=1\n";
+
+        assert_eq!(
+            pick_stream_url(stdout).as_deref(),
+            Some("https://rr3---sn.googlevideo.com/videoplayback?x=1"),
+        );
+    }
+
+    #[test]
+    fn reports_output_without_a_url() {
+        assert_eq!(pick_stream_url("ERROR: unable to extract\n"), None);
+        assert_eq!(pick_stream_url(""), None);
+    }
 }
 
 

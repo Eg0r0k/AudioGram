@@ -1,5 +1,6 @@
 import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
+import { getLogger } from "@/lib/logger";
 import type { SourceTrackDTO } from "@/modules/sources/types";
 import { downloadSubject } from "./enqueue";
 
@@ -14,7 +15,8 @@ export async function downloadDtoWithFeedback(dto: SourceTrackDTO): Promise<void
     const jobId = await downloadSubject({ kind: "remote", dto });
     if (jobId === null) toast.info(i18n.global.t("downloads.done"));
   }
-  catch {
+  catch (error) {
+    getLogger().error(`[Downloads] Enqueue failed for ${dto.id}: ${String(error)}`);
     toast.error(i18n.global.t("track.downloadFailed"));
   }
 }

@@ -1,6 +1,7 @@
 import { ref, watch } from "vue";
 import type { LibraryItem } from "@/modules/library/types";
 import { albumRepository, artistRepository, playlistRepository } from "@/db/repositories";
+import { getLogger } from "@/lib/logger";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 
@@ -67,7 +68,11 @@ export function useLibraryMenu() {
       (exists) => {
         if (exists) show(item);
       },
-      () => {},
+      (error: unknown) => {
+        // The menu stays closed — say why, otherwise a broken read looks
+        // exactly like "this row is a catalog row".
+        getLogger().error(`[Library] Menu lookup failed for ${item.type} ${item.id}: ${String(error)}`);
+      },
     );
   };
 

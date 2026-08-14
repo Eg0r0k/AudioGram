@@ -203,8 +203,6 @@ const handleClick = () => {
                 :class="isExactActive ? 'text-white' : 'text-primary'"
               />
 
-              <!-- Fixed box + leading-none: the xs line-height otherwise
-                   pushes the digits off the pill's optical center. -->
               <Badge
                 v-if="item.type === 'folder'"
                 variant="secondary"

@@ -2,6 +2,7 @@ import type { DownloadJobEntity } from "@/db/entities";
 import { offlineCopyRepository } from "@/db/repositories";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
+import { getLogger } from "@/lib/logger";
 import { queryClient } from "@/queries/client";
 import { queryKeys } from "@/queries/query-keys";
 import { unwrapResult } from "@/queries/shared";
@@ -52,7 +53,9 @@ export async function finalizeOfflineCopy(
     const { remove } = await import("@tauri-apps/plugin-fs");
     await remove(file.path);
   }
-  catch {
-    // Best-effort: a stray temp file is reclaimed by the startup sweep.
+  catch (error) {
+    // Best-effort: a stray temp file is reclaimed by the startup sweep, but
+    // repeated failures here explain a growing cache directory.
+    getLogger().warn(`[Downloads] Removing the temp file ${file.path} failed: ${String(error)}`);
   }
 }

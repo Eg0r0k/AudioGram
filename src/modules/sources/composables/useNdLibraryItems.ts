@@ -1,6 +1,7 @@
 import { computed, type MaybeRefOrGetter, toValue } from "vue";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import { routeLocation } from "@/app/router/route-locations";
+import { getLogger } from "@/lib/logger";
 import { PlaylistId } from "@/types/ids";
 import { sourceCoverUrl, THUMB_SIZE_ROW } from "../lib/display";
 import { useNdAlbumsInfinite, useNdArtists, useNdPlaylists } from "./useNdCatalog";
@@ -84,7 +85,11 @@ export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
   /** Pulls the next getAlbumList2 page when the list scroll nears the end. */
   function loadMoreAlbums() {
     if (!albumsQuery.hasNextPage.value || albumsQuery.isFetchingNextPage.value) return;
-    albumsQuery.fetchNextPage().catch(() => {});
+    // The query keeps its own error state for the UI; the log is what tells
+    // us WHY a scroll stopped loading more albums.
+    albumsQuery.fetchNextPage().catch((error: unknown) => {
+      getLogger().warn(`[ND] Loading the next album page failed: ${String(error)}`);
+    });
   }
 
   return { items, isLoading, loadMoreAlbums };
