@@ -5,7 +5,6 @@ import type {
   YoutubeErrorKind,
   YtAlbumDetail,
   YtArtistDetail,
-  YtArtistRef,
   YtDownloadEvent,
   YtDownloadResult,
   YtMusicEntity,
@@ -52,15 +51,6 @@ export const resolveYoutube = (
   ResultAsync.fromPromise(
     invoke<string>("yt_resolve", { id }),
     e => toYoutubeError(e, "DOWNLOAD_FAILED"),
-  );
-
-/** Author of a video — fallback for rows whose artist list came back empty. */
-export const fetchYoutubeTrackAuthor = (
-  videoId: string,
-): ResultAsync<YtArtistRef, YoutubeError> =>
-  ResultAsync.fromPromise(
-    invoke<YtArtistRef>("yt_track_author", { videoId }),
-    e => toYoutubeError(e, "SEARCH_FAILED"),
   );
 
 /** Downloads the whole audio into the backend prefetch cache (next-track warm-up). */

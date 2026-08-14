@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, toRef, watch } from "vue";
+import { computed, toRef } from "vue";
 import { useI18n } from "vue-i18n";
 import type { RouteLocationRaw } from "vue-router";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
@@ -73,8 +73,7 @@ import { useYtSearchList, type YtListChip } from "../../composables/useYtSearchQ
 import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import { youtubeErrorMessage } from "../../lib/errors";
 import { playableFromMusicTrack } from "../../lib/playable";
-import type { YoutubeError, YtArtistRef, YtMusicEntity, YtPlayable } from "../../types";
-import { fetchYoutubeTrackAuthor } from "../../api/youtubeApi";
+import type { YoutubeError, YtMusicEntity, YtPlayable } from "../../types";
 import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
 import { ytArtistRoutes, ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
 import IconLoader from "~icons/tabler/loader-2";
@@ -100,40 +99,17 @@ const entities = computed<YtMusicEntity[]>(() =>
   data.value?.pages.flatMap(page => page.items) ?? [],
 );
 
-// Some search rows come with an empty artist list (YT omits the runs); the
-// author is resolved lazily via video_details and cached for the session so
-// paging back and forth doesn't re-fetch.
-const resolvedAuthors = reactive(new Map<string, YtArtistRef>());
-const requestedAuthors = new Set<string>();
-
-watch(entities, (items) => {
-  for (const item of items) {
-    if (item.kind !== "track" || item.artists.length > 0) continue;
-    if (requestedAuthors.has(item.id)) continue;
-    requestedAuthors.add(item.id);
-    fetchYoutubeTrackAuthor(item.id).match(
-      author => resolvedAuthors.set(item.id, author),
-      () => {}, // best-effort: the row just stays artist-less
-    );
-  }
-}, { immediate: true });
-
 // Ephemeral display tracks are built once per result set so their ids stay
 // stable across re-renders (TrackRow/menu identity checks rely on that).
 const trackRowsById = computed(() => {
   const map = new Map<string, { playable: YtPlayable; track: Track; artistRoutes: (RouteLocationRaw | null)[] }>();
   for (const item of entities.value) {
     if (item.kind !== "track") continue;
-    const author = item.artists.length === 0 ? resolvedAuthors.get(item.id) : undefined;
-    const playable = playableFromMusicTrack(item, undefined, author?.name ?? null);
-    let artistRefs = item.artists;
-    if (artistRefs.length === 0 && author) {
-      artistRefs = [{ id: author.id ?? item.artistId, name: author.name }];
-    }
+    const playable = playableFromMusicTrack(item);
     map.set(item.id, {
       playable,
       track: ytEphemeralTrack(playable) as PlayerTrack as Track,
-      artistRoutes: ytArtistRoutes(artistRefs),
+      artistRoutes: ytArtistRoutes(item.artists),
     });
   }
   return map;

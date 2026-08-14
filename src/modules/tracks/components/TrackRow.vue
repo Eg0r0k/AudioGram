@@ -172,6 +172,7 @@ import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackL
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
 import { ytPlayableFromEphemeral } from "@/modules/youtube/lib/playable";
+import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
 import YtDownloadButton from "@/modules/youtube/components/YtDownloadButton.vue";
 import NdDownloadButton from "@/modules/downloads/components/NdDownloadButton.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -221,6 +222,7 @@ const emit = defineEmits<{
 
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
+const ytStore = useYoutubeStore();
 const route = useRouter();
 const { toggleTrackLike } = useToggleTrackLike();
 
@@ -239,8 +241,14 @@ const isCurrentTrack = computed(() => {
   return playerStore.currentTrack?.id === props.track.id;
 });
 const isPlaying = computed(() => playerStore.isPlaying);
-// The clicked row's stream is still resolving — spinner instead of play/pause.
-const isTrackLoading = computed(() => isCurrentTrack.value && playerStore.status === "loading");
+// Spinner instead of play/pause while the clicked row is on its way to the
+// player: a YT search row spends its wait in yt_resolve (store.resolvingId,
+// before it ever becomes the current track), a library row in the player's
+// own loading phase.
+const isTrackLoading = computed(() => {
+  if (ytPlayable.value && ytStore.resolvingId === ytPlayable.value.id) return true;
+  return isCurrentTrack.value && playerStore.status === "loading";
+});
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);
 

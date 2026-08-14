@@ -63,17 +63,12 @@ export function ytDisplayTrack(track: YtMusicTrack): Track {
 /**
  * `fallbackThumbnail` covers album/playlist track listings where YT omits
  * per-track covers — without it the player/queue show no artwork at all.
- * `fallbackArtist` covers search rows whose artist name list came back
- * empty (the author resolved lazily via `yt_track_author`) — it feeds the
- * display string AND the meta written into downloaded tags.
  */
 export function playableFromMusicTrack(
   track: YtMusicTrack,
   fallbackThumbnail?: string | null,
-  fallbackArtist?: string | null,
 ): YtPlayable {
-  const parsedNames = track.artists.map(a => a.name);
-  const artistNames = parsedNames.length === 0 && fallbackArtist ? [fallbackArtist] : parsedNames;
+  const artistNames = track.artists.map(a => a.name);
   const thumbnail = track.thumbnail ?? fallbackThumbnail ?? null;
   return {
     id: track.id,

@@ -21,8 +21,6 @@ export interface YtMusicTrack {
   id: string;
   title: string;
   artists: YtArtistRef[];
-  /** Primary artist channel id — can be present even with empty `artists`. */
-  artistId: string | null;
   album: YtAlbumRef | null;
   duration: number | null;
   thumbnail: string | null;
