@@ -1,4 +1,6 @@
 {
+  "done": "In library",
+  "downloading": "Downloading",
   "failed": "Download failed",
   "failedTitled": "Failed to download “{title}”",
   "active": "Active downloads",

@@ -63,12 +63,12 @@ const { data: offlineCopy } = useQuery(computed(() => offlineCopyQueries.detail(
 const hasCopy = computed(() => !!offlineCopy.value);
 
 const label = computed(() => {
-  if (hasCopy.value) return t("youtube.done");
+  if (hasCopy.value) return t("downloads.done");
   const job = activeJob.value;
   if (job) {
     return job.status === "running" && job.total
       ? `${Math.min(100, Math.round((job.downloaded / job.total) * 100))}%`
-      : t("youtube.downloading");
+      : t("downloads.downloading");
   }
   return t("track.contextMenu.download");
 });
