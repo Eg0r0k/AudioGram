@@ -5,6 +5,8 @@ export interface MediaContextActions {
   edit: () => void;
   delete: () => void;
   share: () => void;
+  /** See {@link MediaActions.canManage} — library row vs live catalog entity. */
+  canManage?: ComputedRef<boolean>;
   /** M4: ND album / any playlist — batch offline download. Absent = hidden. */
   canDownloadOffline?: ComputedRef<boolean>;
   downloadOffline?: () => void;

@@ -94,10 +94,17 @@ import MediaHeroActions from "./MediaHeroActions.vue";
 import type { QueueSource } from "@/modules/queue/types";
 import { isAlbum, isArtist, isLiked, isPlaylist, MediaData } from "../types";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   data: MediaData;
   hasTracks?: boolean;
-}>();
+  /**
+   * False on live catalog pages (ND browsing): the hero shows a server VM
+   * with no Dexie row, so editing/deleting it would write nowhere.
+   */
+  isLibraryEntity?: boolean;
+}>(), {
+  isLibraryEntity: true,
+});
 
 const emit = defineEmits<{
   edit: [];
@@ -114,6 +121,17 @@ const fallbackSrc = computed(() => {
   return isArtist(props.data)
     ? "/img/artist-fallback.svg"
     : "/img/fallback.svg";
+});
+
+/**
+ * Edit/delete need a Dexie row behind the hero. Live catalog pages (ND
+ * album/artist/playlist) render a VM built straight from the server, so the
+ * page tells us via `isLibraryEntity` — a downloaded yt/nd album DOES have a
+ * row and stays manageable.
+ */
+const canManage = computed(() => {
+  if (!props.isLibraryEntity) return false;
+  return isPlaylist(props.data) ? props.data.isOwner : true;
 });
 
 // M4: batch offline download — ND albums and playlists (a local playlist is
@@ -152,6 +170,7 @@ provideMediaContext({
   edit: () => emit("edit"),
   delete: () => emit("delete"),
   share: () => emit("share"),
+  canManage,
   canDownloadOffline,
   downloadOffline: () => {
     void startOfflineDownload();
@@ -191,7 +210,7 @@ const heroSource = computed<QueueSource>(() => {
 });
 
 const canEdit = computed(() =>
-  (isPlaylist(props.data) && props.data.isOwner) || isAlbum(props.data) || isArtist(props.data),
+  canManage.value && (isPlaylist(props.data) || isAlbum(props.data) || isArtist(props.data)),
 );
 
 const descriptionText = computed(() => {

@@ -37,6 +37,7 @@
             <MediaHero
               :data="playlistData"
               :has-tracks="tracks.length > 0"
+              :is-library-entity="!!playlist"
               @play="handlePlayAll"
               @shuffle="handleShuffle"
               @edit="showEditDialog = true"
@@ -45,7 +46,10 @@
               @share="handleShare"
             >
               <template #actions>
+                <!-- Writes into the playlist's Dexie row — hidden for a
+                     read-only ND playlist. -->
                 <Button
+                  v-if="playlist"
                   variant="ghost"
                   class="text-white"
                   @click="openAddTracksPanel"

@@ -32,6 +32,7 @@
             <MediaHero
               :data="artistData"
               :has-tracks="tracks.length > 0"
+              :is-library-entity="!!artist"
               @play="handlePlayAll"
               @shuffle="handleShuffle"
               @edit="showEditDialog = true"

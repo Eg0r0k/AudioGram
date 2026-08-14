@@ -40,6 +40,7 @@
               <MediaHero
                 :data="albumData"
                 :has-tracks="tracks.length > 0"
+                :is-library-entity="!!album"
                 @play="handlePlayAll"
                 @shuffle="handleShuffle"
                 @edit="showEditDialog = true"
@@ -47,7 +48,9 @@
                 @add-to-queue="handleAddToQueue"
               >
                 <template #actions>
+                  <!-- Writes into the album's Dexie row — hidden on ND browsing. -->
                   <Button
+                    v-if="album"
                     class="text-white"
                     variant="ghost"
                     @click="openAddTracksPanel"

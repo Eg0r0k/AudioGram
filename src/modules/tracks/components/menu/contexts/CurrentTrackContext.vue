@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <ShowLyricsItem @show="actions.showLyrics" />
 
   <!-- Library-only items: an ephemeral track (YouTube stream, radio) has no
@@ -12,7 +12,10 @@
       @toggle="actions.toggleLike"
     />
 
-    <ExportFileItem @export="actions.exportFile" />
+    <ExportFileItem
+      :caps="caps"
+      @export="actions.exportFile"
+    />
 
     <LyricsItem
       :has-lyrics="trackHasLyrics(libTrack)"

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <PlayItems
     @play="actions.play"
     @play-next="actions.playNext"
@@ -12,7 +12,10 @@
     @toggle="actions.toggleLike"
   />
 
-  <ExportFileItem @export="actions.exportFile" />
+  <ExportFileItem
+    :caps="caps"
+    @export="actions.exportFile"
+  />
 
   <LyricsItem
     :has-lyrics="trackHasLyrics(track)"

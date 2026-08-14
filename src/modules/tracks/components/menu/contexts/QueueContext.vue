@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <PlayItems
     @play="actions.play"
     @play-next="actions.playNext"
@@ -29,7 +29,10 @@
 
     <DetailsItem @show="actions.showDetails" />
 
-    <ExportFileItem @export="actions.exportFile" />
+    <ExportFileItem
+      :caps="caps"
+      @export="actions.exportFile"
+    />
 
     <LyricsItem
       :has-lyrics="trackHasLyrics(libTrack)"
