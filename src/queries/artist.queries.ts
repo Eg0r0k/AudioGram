@@ -1,10 +1,12 @@
 import type { ArtistEntity, TrackEntity } from "@/db/entities";
+import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
   coverRepository,
   trackRepository,
 } from "@/db/repositories";
+import { unitOfWork } from "@/db/unit-of-work";
 import { queryKeys } from "@/queries/query-keys";
 import {
   buildAlbumDocFromDb,
@@ -322,7 +324,7 @@ export async function deleteArtistAndSync(
   const remainingArtistNameById = new Map(remainingArtists.map(artist => [artist.id, artist.name]));
   const deletedAlbumIds = new Set(albums.map(album => album.id));
 
-  for (const track of affectedTracks) {
+  const trackUpdates = affectedTracks.map((track) => {
     const nextArtistIds = track.artistIds.filter(id => id !== artistEntity.id);
     const nextArtistName = nextArtistIds
       .map(id => remainingArtistNameById.get(id))
@@ -330,22 +332,38 @@ export async function deleteArtistAndSync(
       .join(", ") || undefined;
     const nextAlbumTitle = deletedAlbumIds.has(track.albumId) ? undefined : track.albumTitle;
 
-    await unwrapResult(trackRepository.update(track.id, {
-      artistIds: nextArtistIds,
-      artistName: nextArtistName,
-      albumTitle: nextAlbumTitle,
-    }));
-  }
+    return {
+      key: track.id,
+      changes: {
+        artistIds: nextArtistIds,
+        artistName: nextArtistName,
+        albumTitle: nextAlbumTitle,
+      },
+    };
+  });
+
+  const txResult = await unitOfWork.runScoped(
+    [db.tracks, db.albums, db.artists, db.covers],
+    async () => {
+      if (trackUpdates.length > 0) {
+        await unwrapResult(trackRepository.updateMany(trackUpdates));
+      }
+      for (const album of albums) {
+        await unwrapResult(coverRepository.deleteAlbumCover(album.id));
+      }
+      if (albums.length > 0) {
+        await unwrapResult(albumRepository.deleteMany(albums.map(album => album.id)));
+      }
+      await unwrapResult(coverRepository.deleteArtistCover(artistEntity.id));
+      await unwrapResult(artistRepository.delete(artistEntity.id));
+    },
+  );
+  if (txResult.isErr()) throw txResult.error;
 
   for (const album of albums) {
-    await unwrapResult(coverRepository.deleteAlbumCover(album.id));
-    await unwrapResult(albumRepository.delete(album.id));
     removeAlbumCaches(queryClient, album.id, artistEntity.id);
     queryClient.removeQueries({ queryKey: queryKeys.albums.cover(album.id), exact: true });
   }
-
-  await unwrapResult(coverRepository.deleteArtistCover(artistEntity.id));
-  await unwrapResult(artistRepository.delete(artistEntity.id));
   await removeSearchDocuments([
     `artist:${artistEntity.id}`,
     ...albums.map(album => `album:${album.id}`),

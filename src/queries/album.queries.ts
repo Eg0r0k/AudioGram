@@ -1,12 +1,15 @@
 import type { AlbumEntity, TrackEntity } from "@/db/entities";
+import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
   coverRepository,
+  offlineCopyRepository,
   playlistRepository,
   trackRepository,
 } from "@/db/repositories";
-import { removeOfflineCopy } from "@/modules/downloads/removeCopy";
+import { unitOfWork } from "@/db/unit-of-work";
+import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { queryKeys } from "@/queries/query-keys";
@@ -258,33 +261,9 @@ export async function updateAlbumAndSync(
  * Remote (shadow) album deletion cascade: the downloaded tracks, their
  * offline copies and files leave with the album; playlists drop the ids and
  * GC collects the orphaned artist. Local albums keep the ungroup semantics.
+ * Every row mutation of the cascade commits in one transaction; file
+ * deletion and cache/search sync run strictly after it.
  */
-async function deleteRemoteAlbumTracks(
-  queryClient: QueryClient,
-  rawTracks: TrackEntity[],
-): Promise<void> {
-  const trackIds = rawTracks.map(track => track.id);
-
-  const playlists = await unwrapResult(playlistRepository.findAll());
-  for (const playlist of playlists) {
-    const remaining = playlist.trackIds.filter(id => !trackIds.includes(id));
-    if (remaining.length === playlist.trackIds.length) continue;
-    for (const id of playlist.trackIds.filter(trackId => trackIds.includes(trackId))) {
-      await unwrapResult(playlistRepository.removeTrack(playlist.id, id));
-      syncPlaylistTrackRemoval(queryClient, playlist.id, id);
-    }
-    syncPlaylistCaches(queryClient, { ...playlist, trackIds: remaining, updatedAt: Date.now() });
-  }
-
-  for (const id of trackIds) {
-    await removeOfflineCopy(id);
-    await unwrapResult(trackRepository.delete(id));
-  }
-
-  removeTracksFromCaches(queryClient, trackIds);
-  await removeSearchDocuments(trackIds.map(id => `track:${id}`));
-}
-
 export async function deleteAlbumAndSync(
   queryClient: QueryClient,
   albumEntity: AlbumEntity | null,
@@ -295,28 +274,69 @@ export async function deleteAlbumAndSync(
 
   const rawTracks = await unwrapResult(trackRepository.findByAlbumId(albumEntity.id));
   const isRemote = sourceKindOf(albumEntity.id) !== "local";
+  const trackIds = rawTracks.map(track => track.id);
+  const trackIdSet = new Set(trackIds);
+  const now = Date.now();
 
+  const playlists = isRemote ? await unwrapResult(playlistRepository.findAll()) : [];
+  const affectedPlaylists = playlists
+    .filter(playlist => playlist.trackIds.some(id => trackIdSet.has(id)))
+    .map(playlist => ({
+      next: {
+        ...playlist,
+        trackIds: playlist.trackIds.filter(id => !trackIdSet.has(id)),
+        updatedAt: now,
+      },
+      removedIds: playlist.trackIds.filter(id => trackIdSet.has(id)),
+    }));
+  const nextPlaylists = affectedPlaylists.map(entry => entry.next);
+  const copies = isRemote && trackIds.length > 0
+    ? await unwrapResult(offlineCopyRepository.findByIds(trackIds))
+    : [];
+
+  const txResult = await unitOfWork.runScoped(
+    [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
+    async () => {
+      if (isRemote) {
+        if (nextPlaylists.length > 0) {
+          await unwrapResult(playlistRepository.upsertMany(nextPlaylists));
+        }
+        if (copies.length > 0) {
+          await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
+        }
+        await unwrapResult(trackRepository.deleteMany(trackIds));
+        // GC would also collect the album with its last track, but an empty
+        // shadow album (0 tracks) must not survive either — delete explicitly
+        // below, then let the artist cascade run.
+        await cleanupAfterTrackRemoval(rawTracks);
+      }
+      else if (rawTracks.length > 0) {
+        // Detach fully: a cleared title with a dangling albumId would keep
+        // pointing list queries at a row that no longer exists.
+        await unwrapResult(trackRepository.updateMany(rawTracks.map(track => ({
+          key: track.id,
+          changes: { albumTitle: undefined, albumId: createAlbumId("") },
+        }))));
+      }
+
+      await unwrapResult(coverRepository.deleteAlbumCover(albumEntity.id));
+      await unwrapResult(albumRepository.delete(albumEntity.id));
+    },
+  );
+  if (txResult.isErr()) throw txResult.error;
+
+  await cleanupOfflineCopyFiles(copies);
   if (isRemote) {
-    await deleteRemoteAlbumTracks(queryClient, rawTracks);
-    // GC would also collect the album with its last track, but an empty
-    // shadow album (0 tracks) must not survive either — delete explicitly
-    // below, then let the artist cascade run.
-    await cleanupAfterTrackRemoval(rawTracks);
-  }
-  else {
-    for (const track of rawTracks) {
-      // Detach fully: a cleared title with a dangling albumId would keep
-      // pointing list queries at a row that no longer exists.
-      await unwrapResult(trackRepository.update(track.id, {
-        albumTitle: undefined,
-        albumId: createAlbumId(""),
-      }));
+    for (const { next, removedIds } of affectedPlaylists) {
+      for (const id of removedIds) {
+        syncPlaylistTrackRemoval(queryClient, next.id, id);
+      }
+      syncPlaylistCaches(queryClient, next);
     }
+    removeTracksFromCaches(queryClient, trackIds);
   }
-
-  await unwrapResult(coverRepository.deleteAlbumCover(albumEntity.id));
-  await unwrapResult(albumRepository.delete(albumEntity.id));
   await removeSearchDocuments([
+    ...(isRemote ? trackIds.map(id => `track:${id}`) : []),
     `album:${albumEntity.id}`,
   ]);
   if (!isRemote) {

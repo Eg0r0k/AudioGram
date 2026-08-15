@@ -1,5 +1,7 @@
 import pLimit from "p-limit";
 import { ok, err, Result } from "neverthrow";
+import { db } from "@/db";
+import { unitOfWork } from "@/db/unit-of-work";
 import { storageService } from "@/db/storage";
 import {
   hasNativeSupport,
@@ -62,9 +64,15 @@ export class FolderSyncService {
     }
 
     if (removedTracks.length > 0) {
-      await trackRepository.deleteMany(removedTracks.map(t => t.id));
-      // Cascade: albums/artists that lost their last reference die with them.
-      await cleanupAfterTrackRemoval(removedTracks);
+      const txResult = await unitOfWork.runScoped(
+        [db.tracks, db.albums, db.artists, db.covers],
+        async () => {
+          await unwrapResult(trackRepository.deleteMany(removedTracks.map(t => t.id)));
+          // Cascade: albums/artists that lost their last reference die with them.
+          await cleanupAfterTrackRemoval(removedTracks);
+        },
+      );
+      if (txResult.isErr()) throw txResult.error;
       result.removed = removedTracks.length;
       advance(removedTracks.length);
     }

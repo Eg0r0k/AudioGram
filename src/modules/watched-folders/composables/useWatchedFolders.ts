@@ -7,6 +7,7 @@ import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 
 import { db } from "@/db";
+import { unitOfWork } from "@/db/unit-of-work";
 import { useWatchedFoldersStore } from "../store/watched-folders.store";
 import { startWatching, type StopWatchFn } from "../services/folder-watcher";
 import type { WatchedFolder } from "../types";
@@ -74,9 +75,15 @@ export function useWatchedFolders() {
       : tracksToRemove;
 
     if (filteredTracks.length > 0) {
-      await db.tracks.bulkDelete(filteredTracks.map(t => t.id));
-      // Cascade: albums/artists that lost their last reference die with them.
-      await cleanupAfterTrackRemoval(filteredTracks);
+      const txResult = await unitOfWork.runScoped(
+        [db.tracks, db.albums, db.artists, db.covers],
+        async () => {
+          await db.tracks.bulkDelete(filteredTracks.map(t => t.id));
+          // Cascade: albums/artists that lost their last reference die with them.
+          await cleanupAfterTrackRemoval(filteredTracks);
+        },
+      );
+      if (txResult.isErr()) throw txResult.error;
     }
 
     const removedPath = folder.path;

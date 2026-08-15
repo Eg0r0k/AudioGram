@@ -1,10 +1,13 @@
 import type { ArtistEntity, TrackEntity } from "@/db/entities";
+import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
+  offlineCopyRepository,
   playlistRepository,
   trackRepository,
 } from "@/db/repositories";
+import { unitOfWork } from "@/db/unit-of-work";
 import { buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
 import {
   removeSearchDocuments,
@@ -32,8 +35,7 @@ import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } 
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
-import { removeOfflineCopy } from "@/modules/downloads/removeCopy";
-import { sourceKindOf } from "@/modules/sources/lib/display";
+import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
 
 const PAGE_SIZE = 50;
 
@@ -577,29 +579,40 @@ export async function deleteTrackAndSync(
   }
 
   const playlists = await unwrapResult(playlistRepository.findAll());
-  const affectedPlaylists = playlists.filter(playlist => playlist.trackIds.includes(trackId));
-
-  for (const playlist of affectedPlaylists) {
-    await unwrapResult(playlistRepository.removeTrack(playlist.id, trackId));
-
-    const nextPlaylist = {
+  const now = Date.now();
+  const nextPlaylists = playlists
+    .filter(playlist => playlist.trackIds.includes(trackId))
+    .map(playlist => ({
       ...playlist,
       trackIds: playlist.trackIds.filter(id => id !== trackId),
-      updatedAt: Date.now(),
-    };
+      updatedAt: now,
+    }));
+  // A deleted remote row must not strand its offline copy on disk; a local
+  // row simply has no copy. Rows die inside the transaction, files after it.
+  const copies = await unwrapResult(offlineCopyRepository.findByIds([trackId]));
 
+  const txResult = await unitOfWork.runScoped(
+    [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
+    async () => {
+      if (nextPlaylists.length > 0) {
+        await unwrapResult(playlistRepository.upsertMany(nextPlaylists));
+      }
+      if (copies.length > 0) {
+        await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
+      }
+      await unwrapResult(trackRepository.delete(trackId));
+      // Cascade: the album dies with its last track, the artist with their
+      // last track and album. The list invalidations below pick the removals up.
+      await cleanupAfterTrackRemoval([currentTrack]);
+    },
+  );
+  if (txResult.isErr()) throw txResult.error;
+
+  await cleanupOfflineCopyFiles(copies);
+  for (const nextPlaylist of nextPlaylists) {
     syncPlaylistCaches(queryClient, nextPlaylist);
-    syncPlaylistTrackRemoval(queryClient, playlist.id, trackId);
+    syncPlaylistTrackRemoval(queryClient, nextPlaylist.id, trackId);
   }
-
-  // A deleted remote row must not strand its offline copy on disk.
-  if (sourceKindOf(trackId) !== "local") {
-    await removeOfflineCopy(trackId);
-  }
-  await unwrapResult(trackRepository.delete(trackId));
-  // Cascade: the album dies with its last track, the artist with their last
-  // track and album. The list invalidations below pick the removals up.
-  await cleanupAfterTrackRemoval([currentTrack]);
   removeTracksFromCaches(queryClient, [trackId]);
   queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(trackId), exact: true });
   await removeSearchDocuments([`track:${trackId}`]);
@@ -611,7 +624,7 @@ export async function deleteTrackAndSync(
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.page(currentTrack.albumId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.tracksPage(currentTrack.albumId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.albums.totalDuration(currentTrack.albumId) }),
-    ...affectedPlaylists.flatMap(playlist => [
+    ...nextPlaylists.flatMap(playlist => [
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlist.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlist.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlist.id) }),

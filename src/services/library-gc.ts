@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { unitOfWork } from "@/db/unit-of-work";
 import { getLogger } from "@/lib/logger";
 import type { AlbumId, ArtistId } from "@/types/ids";
 
@@ -71,24 +72,32 @@ export async function cleanupAfterTrackRemoval(removed: RemovedTrackRef[]): Prom
  * artists a user created by hand and never filled.
  */
 export async function sweepOrphanedEntities(): Promise<{ albums: number; artists: number }> {
-  const orphanAlbums: AlbumId[] = [];
-  for (const album of await db.albums.toArray()) {
-    if (await albumIsOrphan(album.id)) orphanAlbums.push(album.id);
-  }
-  await deleteAlbums(orphanAlbums);
+  // One transaction for the whole sweep: it runs at startup concurrently
+  // with the download-manager init and queue restore, and must neither see
+  // nor leave half-applied cascades.
+  const result = await unitOfWork.run(async () => {
+    const orphanAlbums: AlbumId[] = [];
+    for (const album of await db.albums.toArray()) {
+      if (await albumIsOrphan(album.id)) orphanAlbums.push(album.id);
+    }
+    await deleteAlbums(orphanAlbums);
 
-  const orphanArtists: ArtistId[] = [];
-  for (const artist of await db.artists.toArray()) {
-    if (await artistIsOrphan(artist.id)) orphanArtists.push(artist.id);
-  }
-  if (orphanArtists.length > 0) {
-    await db.artists.bulkDelete(orphanArtists);
-  }
+    const orphanArtists: ArtistId[] = [];
+    for (const artist of await db.artists.toArray()) {
+      if (await artistIsOrphan(artist.id)) orphanArtists.push(artist.id);
+    }
+    if (orphanArtists.length > 0) {
+      await db.artists.bulkDelete(orphanArtists);
+    }
 
-  if (orphanAlbums.length > 0 || orphanArtists.length > 0) {
+    return { albums: orphanAlbums.length, artists: orphanArtists.length };
+  });
+  if (result.isErr()) throw result.error;
+
+  if (result.value.albums > 0 || result.value.artists > 0) {
     getLogger().info(
-      `[LibraryGC] Swept ${orphanAlbums.length} orphan albums, ${orphanArtists.length} orphan artists`,
+      `[LibraryGC] Swept ${result.value.albums} orphan albums, ${result.value.artists} orphan artists`,
     );
   }
-  return { albums: orphanAlbums.length, artists: orphanArtists.length };
+  return result.value;
 }
