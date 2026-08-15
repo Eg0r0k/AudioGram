@@ -37,7 +37,7 @@
           :exit="{ opacity: 0, rotate: 60, scale: 0.7 }"
           :transition="headerTransition"
         >
-          <DropdownMenu>
+          <DropdownMenu v-model:open="isMenuOpen">
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
@@ -103,7 +103,10 @@
     >
       <InputGroup class="dark:bg-background!  bg-muted! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
-          <DropdownMenu v-if="isYoutubeAvailable || isNdSearchAvailable">
+          <DropdownMenu
+            v-if="isYoutubeAvailable || isNdSearchAvailable"
+            v-model:open="isSearchSourceOpen"
+          >
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
@@ -216,9 +219,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -262,6 +266,17 @@ const { t } = useI18n();
 const router = useRouter();
 const theme = useTheme();
 const prefersReduced = useReducedMotion();
+
+// Header dropdowns close themselves once the cursor wanders off — same
+// buffer-frame behavior as the track/library menus.
+const isMenuOpen = ref(false);
+const isSearchSourceOpen = ref(false);
+useMenuCursorAutoClose(isMenuOpen, () => {
+  isMenuOpen.value = false;
+}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
+useMenuCursorAutoClose(isSearchSourceOpen, () => {
+  isSearchSourceOpen.value = false;
+}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
 
 // One curve for every header motion (matches --ease-standard) so the icon
 // swap and the input stretch read as a single gesture.
