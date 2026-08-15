@@ -16,9 +16,11 @@ export const coverQueries = {
   detail: (
     ownerType: CoverOwnerType,
     ownerId: string,
+    enabled = true,
   ) =>
     queryOptions({
       queryKey: queryKeys.covers.detail(ownerType, ownerId),
       queryFn: () => getCoverBlob(ownerType, ownerId),
+      enabled,
     }),
 } as const;

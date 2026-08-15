@@ -36,7 +36,7 @@ export function sourceQueries(kind: SourceKind | null) {
 
     album: (id: AlbumId | null) =>
       queryOptions({
-        queryKey: queryKeys.source.album(kind, id ?? ("" as AlbumId)),
+        queryKey: queryKeys.source.album(kind, id),
         staleTime: SOURCE_STALE_TIME,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getAlbum(id))
@@ -45,7 +45,7 @@ export function sourceQueries(kind: SourceKind | null) {
 
     artist: (id: ArtistId | null) =>
       queryOptions({
-        queryKey: queryKeys.source.artist(kind, id ?? ("" as ArtistId)),
+        queryKey: queryKeys.source.artist(kind, id),
         staleTime: SOURCE_STALE_TIME,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getArtist(id))
@@ -63,7 +63,7 @@ export function sourceQueries(kind: SourceKind | null) {
 
     playlist: (id: string | null) =>
       queryOptions({
-        queryKey: queryKeys.source.playlist(kind, id ?? ""),
+        queryKey: queryKeys.source.playlist(kind, id),
         staleTime: SOURCE_STALE_TIME,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getPlaylist(id))

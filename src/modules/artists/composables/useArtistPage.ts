@@ -56,10 +56,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => ({
-    ...artistQueries.detail(artistId.value),
-    enabled: !isRemote.value,
-  }) as ReturnType<typeof artistQueries.detail> & { enabled: boolean }));
+  } = useQuery(computed(() => artistQueries.detail(artistId.value, !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
   const isArtistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value));

@@ -162,10 +162,11 @@ export const artistQueries = {
       queryKey: queryKeys.artists.all(),
       queryFn: getArtists,
     }),
-  detail: (artistId: ArtistId) =>
+  detail: (artistId: ArtistId, enabled = true) =>
     queryOptions({
       queryKey: queryKeys.artists.detail(artistId),
       queryFn: () => getArtistByIdOrThrow(artistId),
+      enabled,
     }),
   page: (artistId: ArtistId) =>
     queryOptions({

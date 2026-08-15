@@ -83,10 +83,12 @@ export const queryKeys = {
   source: {
     artists: (kind: SourceKind | null) => ["source", kind, "artists"] as const,
     albumsInf: (kind: SourceKind | null, sort: string) => ["source", kind, "albums", sort] as const,
-    album: (kind: SourceKind | null, id: AlbumId) => ["source", kind, "album", id] as const,
-    artist: (kind: SourceKind | null, id: ArtistId) => ["source", kind, "artist", id] as const,
+    // Null ids come from skipToken-parked options — the key keeps its slot
+    // without fabricating an empty branded id.
+    album: (kind: SourceKind | null, id: AlbumId | null) => ["source", kind, "album", id] as const,
+    artist: (kind: SourceKind | null, id: ArtistId | null) => ["source", kind, "artist", id] as const,
     playlists: (kind: SourceKind | null) => ["source", kind, "playlists"] as const,
-    playlist: (kind: SourceKind | null, id: string) => ["source", kind, "playlist", id] as const,
+    playlist: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id] as const,
     search: (kind: SourceKind | null, q: string) => ["source", kind, "search", q] as const,
   },
   youtube: {

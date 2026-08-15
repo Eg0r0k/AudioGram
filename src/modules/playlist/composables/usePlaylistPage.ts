@@ -47,10 +47,7 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => ({
-    ...playlistQueries.detail(playlistId.value),
-    enabled: !isRemote.value,
-  }) as ReturnType<typeof playlistQueries.detail> & { enabled: boolean }));
+  } = useQuery(computed(() => playlistQueries.detail(playlistId.value, !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
   const isPlaylistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalPlaylistLoading.value));
@@ -90,10 +87,7 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const { data: playlistTotalDurationSeconds } = useQuery(
-    computed(() => ({
-      ...playlistQueries.totalDuration(playlistId.value),
-      enabled: !isRemote.value,
-    }) as ReturnType<typeof playlistQueries.totalDuration> & { enabled: boolean }),
+    computed(() => playlistQueries.totalDuration(playlistId.value, !isRemote.value)),
   );
 
   const totalDuration = computed(() =>

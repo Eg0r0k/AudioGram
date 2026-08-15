@@ -47,10 +47,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => ({
-    ...albumQueries.detail(albumId.value),
-    enabled: !isRemote.value,
-  }) as ReturnType<typeof albumQueries.detail> & { enabled: boolean }));
+  } = useQuery(computed(() => albumQueries.detail(albumId.value, !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
   const isAlbumLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value));
@@ -90,10 +87,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const { data: albumTotalDurationSeconds } = useQuery(
-    computed(() => ({
-      ...albumQueries.totalDuration(albumId.value),
-      enabled: !isRemote.value,
-    }) as ReturnType<typeof albumQueries.totalDuration> & { enabled: boolean }),
+    computed(() => albumQueries.totalDuration(albumId.value, !isRemote.value)),
   );
 
   const totalDuration = computed(() =>
@@ -123,10 +117,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   const {
     data: coverBlob,
     isLoading: isCoverLoading,
-  } = useQuery(computed(() => ({
-    ...coverQueries.detail("album", albumId.value),
-    enabled: !isRemote.value,
-  }) as ReturnType<typeof coverQueries.detail> & { enabled: boolean }));
+  } = useQuery(computed(() => coverQueries.detail("album", albumId.value, !isRemote.value)));
 
   // Stable across remounts (unlike useObjectUrl) so the hero cover doesn't
   // replay its load animation on every navigation back to the page.

@@ -145,10 +145,11 @@ export const playlistQueries = {
       queryKey: queryKeys.playlists.all(),
       queryFn: getPlaylists,
     }),
-  detail: (playlistId: PlaylistId) =>
+  detail: (playlistId: PlaylistId, enabled = true) =>
     queryOptions({
       queryKey: queryKeys.playlists.detail(playlistId),
       queryFn: () => getPlaylistByIdOrThrow(playlistId),
+      enabled,
     }),
   page: (playlistId: PlaylistId) =>
     queryOptions({
@@ -160,10 +161,11 @@ export const playlistQueries = {
       queryKey: [...queryKeys.playlists.tracksPage(playlistId, sortKey), pageParam],
       queryFn: () => getPlaylistTracksPaginated(playlistId, pageParam, PAGE_SIZE, sortKey),
     }),
-  totalDuration: (playlistId: PlaylistId) =>
+  totalDuration: (playlistId: PlaylistId, enabled = true) =>
     queryOptions({
       queryKey: queryKeys.playlists.totalDuration(playlistId),
       queryFn: () => getPlaylistTotalDuration(playlistId),
+      enabled,
     }),
 } as const;
 

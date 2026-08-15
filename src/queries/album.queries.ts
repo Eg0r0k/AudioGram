@@ -150,10 +150,11 @@ export const albumQueries = {
       queryKey: queryKeys.albums.all(),
       queryFn: getAlbums,
     }),
-  detail: (albumId: AlbumId) =>
+  detail: (albumId: AlbumId, enabled = true) =>
     queryOptions({
       queryKey: queryKeys.albums.detail(albumId),
       queryFn: () => getAlbumByIdOrThrow(albumId),
+      enabled,
     }),
   page: (albumId: AlbumId) =>
     queryOptions({
@@ -165,10 +166,11 @@ export const albumQueries = {
       queryKey: [...queryKeys.albums.tracksPage(albumId, sortKey), pageParam],
       queryFn: () => getAlbumTracksPaginated(albumId, pageParam, PAGE_SIZE, sortKey),
     }),
-  totalDuration: (albumId: AlbumId) =>
+  totalDuration: (albumId: AlbumId, enabled = true) =>
     queryOptions({
       queryKey: queryKeys.albums.totalDuration(albumId),
       queryFn: () => getAlbumTotalDuration(albumId),
+      enabled,
     }),
 } as const;
 
