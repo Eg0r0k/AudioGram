@@ -112,6 +112,7 @@ import IconDisc from "~icons/tabler/disc";
 import IconPlaylist from "~icons/tabler/playlist";
 import type { CoverOwnerType } from "@/db/entities";
 import type { FolderLibraryItemType, LibraryFolderEntry, LibraryItem } from "@/modules/library/types";
+import { libraryItemKey, parseFolderEntryKey } from "@/modules/library/lib/folderEntryKey";
 import { useSelection } from "@/composables/useSelection";
 
 type MovableLibraryItem = LibraryItem & { type: FolderLibraryItemType };
@@ -129,20 +130,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-function libraryItemKey(item: Pick<LibraryItem, "type" | "id">): string {
-  return `${item.type}:${item.id}`;
-}
-
-function parseFolderEntryKey(key: string): LibraryFolderEntry[] {
-  const [type, id] = key.split(":");
-  if (!isFolderLibraryItemType(type) || !id) return [];
-  return [{ type, id }];
-}
-
-function isFolderLibraryItemType(type: string): type is FolderLibraryItemType {
-  return type === "artist" || type === "album" || type === "playlist";
-}
 
 function folderItemLabel(item: MovableLibraryItem): string {
   const typeLabel = t(`library.type.${item.type}`);
