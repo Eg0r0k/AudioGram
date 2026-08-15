@@ -185,8 +185,24 @@
     </div>
 
     <!-- Library-pages source (local/nd) — a separate axis from the search
-         source switcher inside the input above. -->
-    <PageSourceDropdown v-if="!compact && !isSearchOpen" />
+         source switcher inside the input above. Opening the search collapses
+         it to zero width (the negative margin swallows the parent gap), so
+         the flex-1 input group stretches over the freed space every frame. -->
+    <AnimatePresence>
+      <Motion
+        v-if="!compact && !isSearchOpen"
+        key="page-source"
+        class="shrink-0 overflow-hidden"
+        :initial="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
+        :animate="{ width: 'auto', opacity: 1, marginLeft: '0rem' }"
+        :exit="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
+        :transition="prefersReduced
+          ? { duration: 0 }
+          : { duration: 0.3, ease: [0.23, 1, 0.32, 1] }"
+      >
+        <PageSourceDropdown />
+      </Motion>
+    </AnimatePresence>
   </div>
 </template>
 
@@ -208,6 +224,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { AnimatePresence, Motion, useReducedMotion } from "motion-v";
 import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useSearch, type SearchSource } from "@/modules/search/composables/useSearch";
 import IconMenu2 from "~icons/tabler/menu-2";
@@ -235,6 +252,7 @@ defineProps<{ compact?: boolean }>();
 const { t } = useI18n();
 const router = useRouter();
 const theme = useTheme();
+const prefersReduced = useReducedMotion();
 
 const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear } = useSearch();
 
