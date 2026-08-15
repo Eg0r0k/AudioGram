@@ -61,7 +61,7 @@ import SearchRecentQueries from "@/modules/search/components/SearchRecentQueries
 import SearchResults from "@/modules/search/components/SearchResults.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import type { Track } from "@/modules/player/types";
-import { useNdPlaylists, useNdSearch } from "../composables/useNdCatalog";
+import { useSourcePlaylists, useSourceSearch } from "../composables/useSourceCatalog";
 import { sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_ROW } from "../lib/display";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -84,7 +84,7 @@ const {
 const debouncedQuery = refDebounced(computed(() => query.value.trim()), SEARCH_DEBOUNCE_MS);
 const hasQuery = computed(() => debouncedQuery.value.length > 0);
 
-const searchQuery = useNdSearch(debouncedQuery);
+const searchQuery = useSourceSearch("nd", debouncedQuery);
 const isLoading = computed(() => hasQuery.value && searchQuery.isLoading.value);
 
 function coverFor(coverRef: string | undefined) {
@@ -131,7 +131,7 @@ const artistResults = computed<SearchResultItem[]>(() =>
 
 // search3 does not cover playlists — filter the (5-min-cached) playlist
 // list by name on the client instead.
-const playlistsQuery = useNdPlaylists();
+const playlistsQuery = useSourcePlaylists("nd");
 const playlistResults = computed<SearchResultItem[]>(() => {
   const q = debouncedQuery.value.toLowerCase();
   if (!q) return [];

@@ -4,18 +4,20 @@ import { mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { okAsync } from "neverthrow";
 
+const configState = vi.hoisted(() => ({ current: {} as object | null }));
 const providerMock = vi.hoisted(() => ({
   listArtists: vi.fn(),
   listAlbums: vi.fn(),
+  get isAvailable() {
+    return configState.current !== null;
+  },
 }));
-const configState = vi.hoisted(() => ({ current: {} as object | null }));
 
 // Mocking the registry module also covers the "@/modules/sources" barrel the
 // query options import from — both resolve to the same module id.
 vi.mock("../../registry", () => ({ sources: { get: () => providerMock } }));
-vi.mock("../../navidrome/config", () => ({ getNdConfig: () => configState.current }));
 
-import { useNdAlbumsInfinite, useNdArtists } from "../useNdCatalog";
+import { useSourceAlbumsInfinite, useSourceArtists } from "../useSourceCatalog";
 
 function mountComposable<T>(setup: () => T): T {
   let result!: T;
@@ -37,7 +39,7 @@ async function flush() {
   await nextTick();
 }
 
-describe("useNdCatalog", () => {
+describe("useSourceCatalog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configState.current = {};
@@ -46,7 +48,7 @@ describe("useNdCatalog", () => {
   it("sits on skipToken while the source is unavailable", async () => {
     configState.current = null;
 
-    const query = mountComposable(() => useNdArtists());
+    const query = mountComposable(() => useSourceArtists("nd"));
     await flush();
 
     expect(query.data.value).toBeUndefined();
@@ -56,7 +58,7 @@ describe("useNdCatalog", () => {
   it("fetches artists when the source is configured", async () => {
     providerMock.listArtists.mockReturnValue(okAsync([{ id: "nd:ar1", name: "Artist" }]));
 
-    const query = mountComposable(() => useNdArtists());
+    const query = mountComposable(() => useSourceArtists("nd"));
     await flush();
 
     expect(query.data.value).toEqual([{ id: "nd:ar1", name: "Artist" }]);
@@ -66,7 +68,7 @@ describe("useNdCatalog", () => {
     const fullPage = Array.from({ length: 100 }, (_, index) => ({ id: `nd:al${index}`, title: `A${index}` }));
     providerMock.listAlbums.mockReturnValueOnce(okAsync(fullPage));
 
-    const query = mountComposable(() => useNdAlbumsInfinite("alpha"));
+    const query = mountComposable(() => useSourceAlbumsInfinite("nd", "alpha"));
     await flush();
 
     expect(providerMock.listAlbums).toHaveBeenCalledWith({ offset: 0, limit: 100, sort: "alpha" });

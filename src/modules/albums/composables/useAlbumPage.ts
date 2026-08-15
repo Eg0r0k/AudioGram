@@ -19,8 +19,8 @@ import { getArtistByIdOrThrow } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
-import { useNdAlbum } from "@/modules/sources/composables/useNdCatalog";
-import { sourceAlbumToAlbumData, sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { remoteCatalogKindOf, useSourceAlbum } from "@/modules/sources/composables/useSourceCatalog";
+import { sourceAlbumToAlbumData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { AlbumChanges } from "@/queries/album.queries";
 
@@ -32,11 +32,14 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   const albumId = computed(() => AlbumId(route.params.id as string));
 
-  // Data path picks by id prefix: nd: albums come live from the source,
-  // everything below the VMs stays shared (no template branching).
-  const isNd = computed(() => sourceKindOf(albumId.value) === "nd");
+  // Data path picks by id prefix: remote-catalog albums come live from
+  // their source provider, everything below the VMs stays shared (no
+  // template branching). Local ids — and remote sources without album
+  // browsing — take the Dexie path.
+  const remoteKind = computed(() => remoteCatalogKindOf(albumId.value, "browseAlbums"));
+  const isRemote = computed(() => remoteKind.value !== null);
 
-  const ndQuery = useNdAlbum(computed(() => (isNd.value ? albumId.value : null)));
+  const remoteQuery = useSourceAlbum(remoteKind, computed(() => (isRemote.value ? albumId.value : null)));
 
   const {
     data: albumData,
@@ -46,11 +49,11 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     refetch,
   } = useQuery(computed(() => ({
     ...albumQueries.detail(albumId.value),
-    enabled: !isNd.value,
+    enabled: !isRemote.value,
   }) as ReturnType<typeof albumQueries.detail> & { enabled: boolean }));
 
-  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
-  const isAlbumLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalAlbumLoading.value));
+  const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
+  const isAlbumLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value));
 
   const album = computed(() => albumData.value ?? null);
 
@@ -66,37 +69,37 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !isNd.value && !!album.value),
+    enabled: computed(() => !isRemote.value && !!album.value),
   });
 
-  const ndTracks = computed(() => {
-    const mapped = (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
+  const remoteTracks = computed(() => {
+    const mapped = (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
     return sortKey.value ? sortDisplayTracks(mapped, sortKey.value) : mapped;
   });
 
   const tracks = computed(() =>
-    isNd.value
-      ? ndTracks.value
+    isRemote.value
+      ? remoteTracks.value
       : infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
   const trackCount = computed(() =>
-    isNd.value
-      ? ndTracks.value.length
+    isRemote.value
+      ? remoteTracks.value.length
       : infiniteData.value?.pages[0]?.total ?? 0,
   );
 
   const { data: albumTotalDurationSeconds } = useQuery(
     computed(() => ({
       ...albumQueries.totalDuration(albumId.value),
-      enabled: !isNd.value,
+      enabled: !isRemote.value,
     }) as ReturnType<typeof albumQueries.totalDuration> & { enabled: boolean }),
   );
 
   const totalDuration = computed(() =>
     formatTotalDuration(
-      isNd.value
-        ? ndTracks.value.reduce((sum, track) => sum + track.duration, 0)
+      isRemote.value
+        ? remoteTracks.value.reduce((sum, track) => sum + track.duration, 0)
         : albumTotalDurationSeconds.value ?? 0,
       t,
     ),
@@ -122,7 +125,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     isLoading: isCoverLoading,
   } = useQuery(computed(() => ({
     ...coverQueries.detail("album", albumId.value),
-    enabled: !isNd.value,
+    enabled: !isRemote.value,
   }) as ReturnType<typeof coverQueries.detail> & { enabled: boolean }));
 
   // Stable across remounts (unlike useObjectUrl) so the hero cover doesn't
@@ -138,9 +141,9 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const albumDataMapped = computed<AlbumData | null>(() => {
-    if (isNd.value) {
-      const ndAlbum = ndQuery.data.value?.album;
-      return ndAlbum ? sourceAlbumToAlbumData(ndAlbum, totalDuration.value) : null;
+    if (isRemote.value) {
+      const remoteAlbum = remoteQuery.data.value?.album;
+      return remoteAlbum ? sourceAlbumToAlbumData(remoteAlbum, totalDuration.value) : null;
     }
     if (!album.value) return null;
 

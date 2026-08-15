@@ -4,7 +4,7 @@ import { routeLocation } from "@/app/router/route-locations";
 import { getLogger } from "@/lib/logger";
 import { PlaylistId } from "@/types/ids";
 import { sourceCoverUrl, THUMB_SIZE_ROW } from "../lib/display";
-import { useNdAlbumsInfinite, useNdArtists, useNdPlaylists } from "./useNdCatalog";
+import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylists } from "./useSourceCatalog";
 
 //
 // ND catalog as sidebar LibraryItem VMs — the same list component renders
@@ -14,9 +14,9 @@ import { useNdAlbumsInfinite, useNdArtists, useNdPlaylists } from "./useNdCatalo
 //
 
 export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
-  const artistsQuery = useNdArtists();
-  const playlistsQuery = useNdPlaylists();
-  const albumsQuery = useNdAlbumsInfinite("alpha");
+  const artistsQuery = useSourceArtists("nd");
+  const playlistsQuery = useSourcePlaylists("nd");
+  const albumsQuery = useSourceAlbumsInfinite("nd", "alpha");
 
   const items = computed<LibraryItem[]>(() => {
     const active = toValue(filter);

@@ -15,15 +15,15 @@ import {
 } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
-import { useNdArtist } from "@/modules/sources/composables/useNdCatalog";
-import { sourceArtistToArtistData, sourceCoverUrl, sourceKindOf } from "@/modules/sources/lib/display";
+import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
+import { sourceArtistToArtistData, sourceCoverUrl } from "@/modules/sources/lib/display";
 import { THUMB_SIZE_CARD } from "@/modules/youtube/lib/thumbnail";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
 
 export type { ArtistChanges } from "@/queries/artist.queries";
 
-/** Entity-shaped view of an ND album so the page's album cards keep working. */
+/** Entity-shaped view of a remote album so the page's album cards keep working. */
 function sourceAlbumToLibraryAlbum(dto: SourceAlbumDTO): AlbumEntity {
   return {
     id: dto.id,
@@ -43,10 +43,12 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const artistId = computed(() => ArtistId(route.params.id as string));
 
-  // Data path picks by id prefix — nd: artists come live from the source.
-  const isNd = computed(() => sourceKindOf(artistId.value) === "nd");
+  // Data path picks by id prefix — remote-catalog artists come live from
+  // their source provider; local ids take the Dexie path.
+  const remoteKind = computed(() => remoteCatalogKindOf(artistId.value, "browseArtists"));
+  const isRemote = computed(() => remoteKind.value !== null);
 
-  const ndQuery = useNdArtist(computed(() => (isNd.value ? artistId.value : null)));
+  const remoteQuery = useSourceArtist(remoteKind, computed(() => (isRemote.value ? artistId.value : null)));
 
   const {
     data: artistData,
@@ -56,11 +58,11 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     refetch,
   } = useQuery(computed(() => ({
     ...artistQueries.detail(artistId.value),
-    enabled: !isNd.value,
+    enabled: !isRemote.value,
   }) as ReturnType<typeof artistQueries.detail> & { enabled: boolean }));
 
-  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
-  const isArtistLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalArtistLoading.value));
+  const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
+  const isArtistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value));
 
   const artist = computed(() => artistData.value ?? null);
 
@@ -76,11 +78,11 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !isNd.value && !!artist.value),
+    enabled: computed(() => !isRemote.value && !!artist.value),
   });
 
   const tracks = computed(() =>
-    isNd.value ? [] : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    isRemote.value ? [] : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
   const {
@@ -93,32 +95,36 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     queryFn: ({ pageParam = 0 }) => getArtistAlbumsPaginated(artistId.value, pageParam),
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
-    enabled: computed(() => !isNd.value && !!artist.value),
+    enabled: computed(() => !isRemote.value && !!artist.value),
   });
 
-  const ndAlbums = computed(() => ndQuery.data.value?.albums ?? []);
+  const remoteAlbums = computed(() => remoteQuery.data.value?.albums ?? []);
 
-  // Proxied cover URLs for the ND album cards — the entity-shaped album
-  // rows drop coverRef, and the Dexie cover query knows nothing about nd:.
+  // Proxied cover URLs for the remote album cards — the entity-shaped album
+  // rows drop coverRef, and the Dexie cover query knows nothing about the
+  // source prefix.
   const albumCovers = computed(() => new Map(
-    ndAlbums.value
+    remoteAlbums.value
       .filter(album => album.coverRef)
-      .map(album => [album.id, sourceCoverUrl("nd", album.coverRef, THUMB_SIZE_CARD)] as const),
+      .map(album => [
+        album.id,
+        sourceCoverUrl(remoteKind.value ?? "local", album.coverRef, THUMB_SIZE_CARD),
+      ] as const),
   ));
 
   const albums = computed(() =>
-    isNd.value
-      ? ndAlbums.value.map(sourceAlbumToLibraryAlbum)
+    isRemote.value
+      ? remoteAlbums.value.map(sourceAlbumToLibraryAlbum)
       : albumsInfiniteData.value?.pages.flatMap(page => page.albums) ?? [],
   );
 
   const trackCount = computed(
-    () => (isNd.value ? 0 : tracksInfiniteData.value?.pages[0]?.total ?? 0),
+    () => (isRemote.value ? 0 : tracksInfiniteData.value?.pages[0]?.total ?? 0),
   );
 
   const albumCount = computed(() =>
-    isNd.value
-      ? ndQuery.data.value?.artist.albumCount ?? ndAlbums.value.length
+    isRemote.value
+      ? remoteQuery.data.value?.artist.albumCount ?? remoteAlbums.value.length
       : albumsInfiniteData.value?.pages[0]?.total ?? 0,
   );
 
@@ -132,9 +138,9 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const artistDataMapped = computed<ArtistData | null>(() => {
-    if (isNd.value) {
-      const ndArtist = ndQuery.data.value?.artist;
-      return ndArtist ? sourceArtistToArtistData(ndArtist) : null;
+    if (isRemote.value) {
+      const remoteArtist = remoteQuery.data.value?.artist;
+      return remoteArtist ? sourceArtistToArtistData(remoteArtist) : null;
     }
     if (!artist.value) return null;
 

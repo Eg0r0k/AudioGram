@@ -18,8 +18,8 @@ import {
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
-import { useNdPlaylist } from "@/modules/sources/composables/useNdCatalog";
-import { sourceKindOf, sourcePlaylistToPlaylistData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { remoteCatalogKindOf, useSourcePlaylist } from "@/modules/sources/composables/useSourceCatalog";
+import { sourcePlaylistToPlaylistData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { PlaylistChanges } from "@/queries/playlist.queries";
 
@@ -31,11 +31,15 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const playlistId = computed(() => PlaylistId(route.params.id as string));
 
-  // ND playlists route as "nd:<serverId>" — read-only live pages.
-  const isNd = computed(() => sourceKindOf(playlistId.value) === "nd");
-  const ndPlaylistId = computed(() => (isNd.value ? playlistId.value.slice("nd:".length) : null));
+  // Remote playlists route as "<kind>:<serverId>" — read-only live pages.
+  const remoteKind = computed(() => remoteCatalogKindOf(playlistId.value, "browsePlaylists"));
+  const isRemote = computed(() => remoteKind.value !== null);
+  const remotePlaylistId = computed(() => {
+    const kind = remoteKind.value;
+    return kind ? playlistId.value.slice(`${kind}:`.length) : null;
+  });
 
-  const ndQuery = useNdPlaylist(ndPlaylistId);
+  const remoteQuery = useSourcePlaylist(remoteKind, remotePlaylistId);
 
   const {
     data: playlistData,
@@ -45,11 +49,11 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     refetch,
   } = useQuery(computed(() => ({
     ...playlistQueries.detail(playlistId.value),
-    enabled: !isNd.value,
+    enabled: !isRemote.value,
   }) as ReturnType<typeof playlistQueries.detail> & { enabled: boolean }));
 
-  const isError = computed(() => (isNd.value ? ndQuery.isError.value : isLocalError.value));
-  const isPlaylistLoading = computed(() => (isNd.value ? ndQuery.isLoading.value : isLocalPlaylistLoading.value));
+  const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
+  const isPlaylistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalPlaylistLoading.value));
 
   const playlist = computed(() => playlistData.value ?? null);
 
@@ -65,37 +69,37 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,
-    enabled: computed(() => !isNd.value && !!playlist.value),
+    enabled: computed(() => !isRemote.value && !!playlist.value),
   });
 
-  const ndTracks = computed(() => {
-    const mapped = (ndQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
+  const remoteTracks = computed(() => {
+    const mapped = (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
     return sortKey.value ? sortDisplayTracks(mapped, sortKey.value) : mapped;
   });
 
   const tracks = computed(() =>
-    isNd.value
-      ? ndTracks.value
+    isRemote.value
+      ? remoteTracks.value
       : infiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
   const trackCount = computed(() =>
-    isNd.value
-      ? ndTracks.value.length
+    isRemote.value
+      ? remoteTracks.value.length
       : infiniteData.value?.pages[0]?.total ?? playlist.value?.trackIds.length ?? 0,
   );
 
   const { data: playlistTotalDurationSeconds } = useQuery(
     computed(() => ({
       ...playlistQueries.totalDuration(playlistId.value),
-      enabled: !isNd.value,
+      enabled: !isRemote.value,
     }) as ReturnType<typeof playlistQueries.totalDuration> & { enabled: boolean }),
   );
 
   const totalDuration = computed(() =>
     formatTotalDuration(
-      isNd.value
-        ? ndTracks.value.reduce((sum, track) => sum + track.duration, 0)
+      isRemote.value
+        ? remoteTracks.value.reduce((sum, track) => sum + track.duration, 0)
         : playlistTotalDurationSeconds.value ?? 0,
       t,
     ),
@@ -111,11 +115,11 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const playlistDetailData = computed<PlaylistData | null>(() => {
-    if (isNd.value) {
-      const ndPlaylist = ndQuery.data.value?.playlist;
-      if (!ndPlaylist) return null;
+    if (isRemote.value) {
+      const remotePlaylist = remoteQuery.data.value?.playlist;
+      if (!remotePlaylist) return null;
       return {
-        ...sourcePlaylistToPlaylistData(ndPlaylist, playlistId.value),
+        ...sourcePlaylistToPlaylistData(remotePlaylist, playlistId.value),
         trackCount: trackCount.value,
         duration: totalDuration.value,
       };

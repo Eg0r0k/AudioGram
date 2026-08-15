@@ -1,5 +1,6 @@
 import type { AlbumId, ArtistId, PlaylistId, TagId, TrackId } from "@/types/ids";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import type { SourceKind } from "@/types/track-ref";
 
 export const queryKeys = {
   library: {
@@ -79,14 +80,14 @@ export const queryKeys = {
       ["recommendations", "forTrack", trackId, cacheVersion, limit] as const,
     analysisProgress: () => ["recommendations", "analysisProgress"] as const,
   },
-  nd: {
-    artists: () => ["nd", "artists"] as const,
-    albumsInf: (sort: string) => ["nd", "albums", sort] as const,
-    album: (id: AlbumId) => ["nd", "album", id] as const,
-    artist: (id: ArtistId) => ["nd", "artist", id] as const,
-    playlists: () => ["nd", "playlists"] as const,
-    playlist: (id: string) => ["nd", "playlist", id] as const,
-    search: (q: string) => ["nd", "search", q] as const,
+  source: {
+    artists: (kind: SourceKind | null) => ["source", kind, "artists"] as const,
+    albumsInf: (kind: SourceKind | null, sort: string) => ["source", kind, "albums", sort] as const,
+    album: (kind: SourceKind | null, id: AlbumId) => ["source", kind, "album", id] as const,
+    artist: (kind: SourceKind | null, id: ArtistId) => ["source", kind, "artist", id] as const,
+    playlists: (kind: SourceKind | null) => ["source", kind, "playlists"] as const,
+    playlist: (kind: SourceKind | null, id: string) => ["source", kind, "playlist", id] as const,
+    search: (kind: SourceKind | null, q: string) => ["source", kind, "search", q] as const,
   },
   youtube: {
     searchAll: (query: string) => ["youtube", "search", "all", query] as const,
