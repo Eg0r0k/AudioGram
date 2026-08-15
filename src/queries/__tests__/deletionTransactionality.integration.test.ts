@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { err, okAsync } from "neverthrow";
+import { err, ok, okAsync } from "neverthrow";
 import { QueryClient } from "@tanstack/vue-query";
 import type { AlbumEntity, TrackEntity } from "@/db/entities";
 import { TrackSource, TrackState } from "@/db/entities";
@@ -45,7 +45,7 @@ vi.mock("@/services/library-gc", async (importOriginal) => {
 });
 
 import { db } from "@/db";
-import { artistRepository } from "@/db/repositories";
+import { artistRepository, offlineCopyRepository } from "@/db/repositories";
 import { removeSearchDocuments } from "@/modules/search/searchIndex";
 import { deleteAlbumAndSync } from "../album.queries";
 import { deleteArtistAndSync } from "../artist.queries";
@@ -192,6 +192,49 @@ describe("deletion transactionality (integration)", () => {
     expect(track?.albumTitle).toBe("Local Album");
     expect(await db.albums.get(albumId)).toBeDefined();
     expect(vi.mocked(removeSearchDocuments)).not.toHaveBeenCalled();
+  });
+
+  it("deleteTrackAndSync: a rename racing the cascade survives — the cascade owns only trackIds", async () => {
+    await seedRemoteAlbum();
+
+    // Deterministically land a concurrent metadata edit in the window
+    // between the pre-reads and the transaction: the offline-copy pre-read
+    // is the last await before the transaction opens.
+    const spy = vi.spyOn(offlineCopyRepository, "findByIds")
+      .mockImplementationOnce(async (ids) => {
+        await db.playlists.update(playlistId, { name: "Renamed mid-flight" });
+        return ok((await db.offlineCopies.bulkGet(ids)).filter(copy => copy !== undefined));
+      });
+    try {
+      await deleteTrackAndSync(queryClient, { id: ytTrackId("v1") } as unknown as Track);
+    }
+    finally {
+      spy.mockRestore();
+    }
+
+    const playlist = await db.playlists.get(playlistId);
+    expect(playlist?.name).toBe("Renamed mid-flight");
+    expect(playlist?.trackIds).toEqual([ytTrackId("v2")]);
+  });
+
+  it("deleteAlbumAndSync (remote): a rename racing the cascade survives", async () => {
+    const album = await seedRemoteAlbum();
+
+    const spy = vi.spyOn(offlineCopyRepository, "findByIds")
+      .mockImplementationOnce(async (ids) => {
+        await db.playlists.update(playlistId, { name: "Renamed mid-flight" });
+        return ok((await db.offlineCopies.bulkGet(ids)).filter(copy => copy !== undefined));
+      });
+    try {
+      await deleteAlbumAndSync(queryClient, album);
+    }
+    finally {
+      spy.mockRestore();
+    }
+
+    const playlist = await db.playlists.get(playlistId);
+    expect(playlist?.name).toBe("Renamed mid-flight");
+    expect(playlist?.trackIds).toEqual([]);
   });
 
   it("deleteArtistAndSync: the committed cascade removes albums and detaches tracks", async () => {

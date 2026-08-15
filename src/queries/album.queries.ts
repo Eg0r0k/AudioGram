@@ -273,18 +273,6 @@ export async function deleteAlbumAndSync(
   const trackIdSet = new Set(trackIds);
   const now = Date.now();
 
-  const playlists = isRemote ? await unwrapResult(playlistRepository.findAll()) : [];
-  const affectedPlaylists = playlists
-    .filter(playlist => playlist.trackIds.some(id => trackIdSet.has(id)))
-    .map(playlist => ({
-      next: {
-        ...playlist,
-        trackIds: playlist.trackIds.filter(id => !trackIdSet.has(id)),
-        updatedAt: now,
-      },
-      removedIds: playlist.trackIds.filter(id => trackIdSet.has(id)),
-    }));
-  const nextPlaylists = affectedPlaylists.map(entry => entry.next);
   const copies = isRemote && trackIds.length > 0
     ? await unwrapResult(offlineCopyRepository.findByIds(trackIds))
     : [];
@@ -292,9 +280,27 @@ export async function deleteAlbumAndSync(
   const txResult = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
     async () => {
+      // Playlists are read INSIDE the transaction and written back as
+      // partial updates — the cascade owns trackIds/updatedAt only, so a
+      // rename or description edit racing the delete survives.
+      const playlists = isRemote ? await unwrapResult(playlistRepository.findAll()) : [];
+      const affectedPlaylists = playlists
+        .filter(playlist => playlist.trackIds.some(id => trackIdSet.has(id)))
+        .map(playlist => ({
+          next: {
+            ...playlist,
+            trackIds: playlist.trackIds.filter(id => !trackIdSet.has(id)),
+            updatedAt: now,
+          },
+          removedIds: playlist.trackIds.filter(id => trackIdSet.has(id)),
+        }));
+
       if (isRemote) {
-        if (nextPlaylists.length > 0) {
-          await unwrapResult(playlistRepository.upsertMany(nextPlaylists));
+        if (affectedPlaylists.length > 0) {
+          await unwrapResult(playlistRepository.updateMany(affectedPlaylists.map(({ next }) => ({
+            key: next.id,
+            changes: { trackIds: next.trackIds, updatedAt: next.updatedAt },
+          }))));
         }
         if (copies.length > 0) {
           await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
@@ -316,9 +322,12 @@ export async function deleteAlbumAndSync(
 
       await unwrapResult(coverRepository.deleteAlbumCover(albumEntity.id));
       await unwrapResult(albumRepository.delete(albumEntity.id));
+
+      return affectedPlaylists;
     },
   );
   if (txResult.isErr()) throw txResult.error;
+  const affectedPlaylists = txResult.value;
 
   await cleanupOfflineCopyFiles(copies);
   if (isRemote) {

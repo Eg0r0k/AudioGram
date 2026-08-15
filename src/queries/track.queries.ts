@@ -551,15 +551,7 @@ export async function deleteTrackAndSync(
     throw new Error("Track not found");
   }
 
-  const playlists = await unwrapResult(playlistRepository.findAll());
   const now = Date.now();
-  const nextPlaylists = playlists
-    .filter(playlist => playlist.trackIds.includes(trackId))
-    .map(playlist => ({
-      ...playlist,
-      trackIds: playlist.trackIds.filter(id => id !== trackId),
-      updatedAt: now,
-    }));
   // A deleted remote row must not strand its offline copy on disk; a local
   // row simply has no copy. Rows die inside the transaction, files after it.
   const copies = await unwrapResult(offlineCopyRepository.findByIds([trackId]));
@@ -567,8 +559,22 @@ export async function deleteTrackAndSync(
   const txResult = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
     async () => {
+      // Playlists are read INSIDE the transaction and written back as
+      // partial updates — the cascade owns trackIds/updatedAt only, so a
+      // rename or description edit racing the delete survives.
+      const playlists = await unwrapResult(playlistRepository.findAll());
+      const nextPlaylists = playlists
+        .filter(playlist => playlist.trackIds.includes(trackId))
+        .map(playlist => ({
+          ...playlist,
+          trackIds: playlist.trackIds.filter(id => id !== trackId),
+          updatedAt: now,
+        }));
       if (nextPlaylists.length > 0) {
-        await unwrapResult(playlistRepository.upsertMany(nextPlaylists));
+        await unwrapResult(playlistRepository.updateMany(nextPlaylists.map(playlist => ({
+          key: playlist.id,
+          changes: { trackIds: playlist.trackIds, updatedAt: playlist.updatedAt },
+        }))));
       }
       if (copies.length > 0) {
         await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
@@ -577,9 +583,11 @@ export async function deleteTrackAndSync(
       // Cascade: the album dies with its last track, the artist with their
       // last track and album. The list invalidations below pick the removals up.
       await cleanupAfterTrackRemoval([currentTrack]);
+      return nextPlaylists;
     },
   );
   if (txResult.isErr()) throw txResult.error;
+  const nextPlaylists = txResult.value;
 
   await cleanupOfflineCopyFiles(copies);
   for (const nextPlaylist of nextPlaylists) {
