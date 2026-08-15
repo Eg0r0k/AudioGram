@@ -210,7 +210,7 @@ describe("ndSourceProvider", () => {
 
       invokeMock.mockRejectedValueOnce("cancelled");
       const cancelled = (await ndSourceProvider.downloadToFile(ndTrackId("s1")))._unsafeUnwrapErr();
-      expect(cancelled).toEqual({ kind: "UNKNOWN", message: "cancelled" });
+      expect(cancelled).toEqual({ kind: "CANCELLED", message: "cancelled" });
     });
 
     it("rejects foreign ids and missing config before any request", async () => {

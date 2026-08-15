@@ -31,16 +31,16 @@ describe("ytSourceProvider.downloadToFile", () => {
     expect(youtubeProvider.download).toHaveBeenCalledWith("dQw4w9WgXcQ", undefined);
   });
 
-  it("maps a cancelled download onto the 'cancelled' sentinel the manager expects", async () => {
+  it("maps a cancelled download onto the CANCELLED kind the manager expects", async () => {
     vi.mocked(youtubeProvider.download).mockReturnValue(
       errAsync({ kind: "CANCELLED", message: "download cancelled" }),
     );
 
     const result = await ytSourceProvider.downloadToFile(ytTrackId("dQw4w9WgXcQ"));
 
-    // sources/types.ts contract: a cancelled downloadToFile fails with the
-    // literal message "cancelled" — that is what manager.runJob matches on.
-    expect(result._unsafeUnwrapErr().message).toBe("cancelled");
+    // sources/types.ts contract: a cancelled downloadToFile fails with
+    // kind "CANCELLED" — that is what manager.runJob matches on.
+    expect(result._unsafeUnwrapErr().kind).toBe("CANCELLED");
   });
 
   it("rejects foreign ids before hitting the backend", async () => {

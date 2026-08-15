@@ -55,7 +55,6 @@ function runtimeOf(job: DownloadJobEntity): DownloadRuntime {
 }
 
 function isRetriable(error: SourceError): boolean {
-  if (error.message === "cancelled") return false;
   return error.kind === "NETWORK" || error.kind === "UNKNOWN";
 }
 
@@ -91,8 +90,9 @@ export async function enqueueTrackDownload(trackId: TrackId, batchId?: string): 
 
 /**
  * Cancel = "changed my mind": a queued job is removed outright; a running
- * one is flagged at the source — its downloadToFile fails with "cancelled"
- * and the failure handler removes the job (partial file dies in Rust).
+ * one is flagged at the source — its downloadToFile fails with kind
+ * "CANCELLED" and the failure handler removes the job (partial file dies
+ * in Rust).
  */
 export async function cancelTrackDownload(jobId: string): Promise<void> {
   const job = await unwrapResult(downloadJobRepository.findById(jobId));
@@ -206,7 +206,7 @@ async function runJob(jobId: string): Promise<void> {
 
   retryAt.delete(jobId);
   // A cancel that raced the claim: the source was never invoked, so the
-  // "cancelled" failure will not arrive — drop the job here.
+  // CANCELLED failure will not arrive — drop the job here.
   if (store.jobs[jobId]?.cancelling) {
     await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
@@ -239,7 +239,7 @@ async function runJob(jobId: string): Promise<void> {
     return;
   }
 
-  if (result.error.message === "cancelled") {
+  if (result.error.kind === "CANCELLED") {
     await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
     if (job.batchId) store.shrinkBatch(job.batchId);

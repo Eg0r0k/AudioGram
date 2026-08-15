@@ -38,11 +38,13 @@ const MAX_ALBUM_PAGE = 500;
 
 /**
  * `invoke("nd_download")` rejects with plain strings built on the Rust side
- * (never carrying upstream URLs). A manager-initiated cancel surfaces as
- * UNKNOWN with the literal message "cancelled".
+ * (never carrying upstream URLs). A manager-initiated cancel rejects with
+ * the literal string "cancelled" (nd.rs) — mapped onto kind "CANCELLED"
+ * here, at the only boundary that still sees the raw string.
  */
 function mapNdDownloadError(raw: unknown): SourceError {
   const message = raw instanceof Error ? raw.message : String(raw);
+  if (message === "cancelled") return { kind: "CANCELLED", message };
   if (/status 40[13]\b/.test(message)) return { kind: "AUTH", message };
   if (message.includes("not configured")) return { kind: "UNAVAILABLE", message };
   if (message.startsWith("request failed") || message.startsWith("download failed")) {

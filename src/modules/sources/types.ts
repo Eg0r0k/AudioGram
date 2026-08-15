@@ -61,6 +61,7 @@ export type SourceErrorKind
     | "NETWORK"
     | "NOT_FOUND"
     | "PARSE"
+    | "CANCELLED"
     | "UNKNOWN";
 
 export interface SourceError {
@@ -102,7 +103,7 @@ export interface SourceProvider {
   ResultAsync<{ path: string; format?: AudioFormat }, SourceError>;
   /**
    * Flags an in-flight downloadToFile as cancelled — that call then fails
-   * with message "cancelled". Optional: sources without cancellable
+   * with kind "CANCELLED". Optional: sources without cancellable
    * downloads simply omit it. // добавлен в M4: отмена активной загрузки
    */
   cancelDownload?(id: TrackId): ResultAsync<void, SourceError>;

@@ -186,7 +186,7 @@ describe("download manager", () => {
     const running = deferredDownload();
     providerMock.downloadToFile.mockImplementation(() => running.result);
     providerMock.cancelDownload.mockImplementation(() => {
-      running.reject({ kind: "UNKNOWN", message: "cancelled" });
+      running.reject({ kind: "CANCELLED", message: "cancelled" });
       return okAsync(undefined);
     });
     const manager = await freshManager();
