@@ -7,12 +7,12 @@
     />
 
     <Scrollable class="min-h-0 flex-1">
-      <p
+      <Empty
         v-if="jobs.length === 0"
-        class="px-6 py-12 text-center text-sm text-muted-foreground"
+        class="p-6 py-12 md:p-6 md:py-12"
       >
-        {{ t("downloads.empty") }}
-      </p>
+        <EmptyDescription>{{ t("downloads.empty") }}</EmptyDescription>
+      </Empty>
 
       <ul
         v-else
@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { useQuery } from "@tanstack/vue-query";
 import { Button } from "@/components/ui/button";
 import { Scrollable } from "@/components/ui/scrollable";

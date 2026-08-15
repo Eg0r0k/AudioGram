@@ -67,9 +67,9 @@
         </template>
 
         <template #empty>
-          <div class="px-4 py-8 text-center text-sm text-muted-foreground">
-            {{ emptyLabel }}
-          </div>
+          <Empty class="p-4 py-8 md:p-4 md:py-8">
+            <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
+          </Empty>
         </template>
       </VirtualScrollable>
       <AddFloatingButton
@@ -83,6 +83,7 @@
 
 <script setup lang="ts">
 import { refDebounced } from "@vueuse/core";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";

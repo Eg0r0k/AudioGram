@@ -109,9 +109,9 @@
           </template>
 
           <template #empty>
-            <div class="px-4 py-12 text-center text-sm text-muted-foreground sm:px-6">
-              {{ emptyLabel }}
-            </div>
+            <Empty class="p-4 py-12 sm:px-6 md:py-12">
+              <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
+            </Empty>
           </template>
         </VirtualScrollable>
       </div>
@@ -123,6 +123,7 @@
 
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import {
   InputGroup,
   InputGroupAddon,

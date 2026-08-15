@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import IconSearchOff from "~icons/tabler/search-off";
 
 defineProps<{
@@ -10,17 +11,20 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
-    <div class="size-12 rounded-full bg-muted flex items-center justify-center">
-      <IconSearchOff class="size-5 text-muted-foreground" />
-    </div>
-    <div>
-      <p class="font-medium mb-1">
+  <Empty class="p-6 py-16 md:p-6 md:py-16">
+    <EmptyHeader>
+      <EmptyMedia
+        variant="icon"
+        class="rounded-full text-muted-foreground"
+      >
+        <IconSearchOff class="size-5" />
+      </EmptyMedia>
+      <EmptyTitle class="text-base">
         {{ t("search.noResults.title", { query }) }}
-      </p>
-      <p class="text-sm text-muted-foreground">
+      </EmptyTitle>
+      <EmptyDescription>
         {{ t("search.noResults.hint") }}
-      </p>
-    </div>
-  </div>
+      </EmptyDescription>
+    </EmptyHeader>
+  </Empty>
 </template>

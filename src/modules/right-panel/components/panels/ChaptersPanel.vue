@@ -71,12 +71,12 @@
         v-else
         class="flex flex-col"
       >
-        <p
+        <Empty
           v-if="chapters.length === 0"
-          class="px-4 py-8 text-center text-sm text-muted-foreground"
+          class="p-4 py-8 md:p-4 md:py-8"
         >
-          {{ t("chapters.empty") }}
-        </p>
+          <EmptyDescription>{{ t("chapters.empty") }}</EmptyDescription>
+        </Empty>
 
         <Item
           v-for="(chapter, index) in chapters"
@@ -128,6 +128,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { useFileDialog } from "@vueuse/core";
 import { Button } from "@/components/ui/button";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
