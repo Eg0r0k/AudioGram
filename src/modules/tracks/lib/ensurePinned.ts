@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import { db } from "@/db";
 import type { PinnedFlag } from "@/db/entities";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
@@ -32,15 +33,21 @@ export async function ensurePinned(
   const requestedPinned = options.pinned ?? 1;
   const now = Date.now();
 
+  // A subject.dto reached through a page composable sits inside TanStack
+  // Query's deep-reactive data, so the DTO and its members are Vue proxies —
+  // and IndexedDB's structured clone rejects proxies (DataCloneError).
+  // Unwrap once at the write gate; every row below derives from this copy.
+  const sourceDto = toRaw(subject.dto);
+
   const result = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists],
     async () => {
       // A same-named local artist absorbs the remote track instead of a
       // shadow row — downloading never duplicates an artist the user has.
-      const allArtists = (subject.dto.artistIds ?? []).length > 0
+      const allArtists = (sourceDto.artistIds ?? []).length > 0
         ? await unwrapResult(artistRepository.findAll())
         : [];
-      const dto = substituteLocalArtists(subject.dto, allArtists);
+      const dto = substituteLocalArtists(sourceDto, allArtists);
 
       const artistIds = dto.artistIds ?? [];
       const [track, album, artists] = await Promise.all([
