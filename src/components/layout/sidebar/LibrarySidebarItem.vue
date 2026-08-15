@@ -121,10 +121,7 @@ const handleClick = () => {
         <div class="relative shrink-0">
           <ItemMedia
             class="size-[54px] relative z-1 overflow-hidden"
-            :class="[
-              item.rounded ? 'rounded-full' : 'rounded-md',
-              compact && isCurrentPlaybackSource ? 'ring-2 ring-primary' : '',
-            ]"
+            :class="item.rounded ? 'rounded-full' : 'rounded-md'"
           >
             <NuxtImage
               v-if="hasStaticImage"
@@ -150,6 +147,16 @@ const handleClick = () => {
                 ? 'size-full object-cover rounded-full'
                 : 'size-full object-cover rounded-md'"
             />
+
+            <!-- Compact rail has no title row to host the playing icon —
+                 overlay it on the cover instead (scrim keeps it legible on
+                 any artwork). -->
+            <div
+              v-if="compact && isCurrentPlaybackSource"
+              class="absolute inset-0 z-10 flex items-center justify-center bg-black/50"
+            >
+              <IconVolume class="size-6 text-white" />
+            </div>
           </ItemMedia>
           <span
             v-if="compact && item.isPinned"
