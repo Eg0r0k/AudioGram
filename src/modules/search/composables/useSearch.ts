@@ -14,6 +14,8 @@ import {
 } from "../searchIndex";
 
 const DEBOUNCE_MS = 150;
+/** YT search fans out to several network requests — pause a bit longer. */
+const YT_DEBOUNCE_MS = 400;
 const TOP_RESULTS_COUNT = 6;
 const MAX_HISTORY_ITEMS = 6;
 const SEARCH_HISTORY_KEY = "audiogram-search-history";
@@ -24,7 +26,11 @@ export type YtChip = "all" | "tracks" | "albums" | "artists" | "playlists" | "vi
 const query = ref("");
 const source = ref<SearchSource>("library");
 const ytChip = ref<YtChip>("all");
-/** YouTube searches run only on explicit commit (Enter / tab switch). */
+/**
+ * The query YT result components actually search for. Typing auto-commits
+ * it after a debounce pause; Enter / tab switch / history apply commit
+ * instantly (and, unlike auto-commits, record the query in history).
+ */
 const submittedYtQuery = ref("");
 const activeFilter = ref<SearchFilter>("all");
 const results = shallowRef<GroupedResults>(createEmptyResults());
@@ -79,6 +85,25 @@ watch([query, activeFilter], ([q, filter]) => {
 
   isSearching.value = true;
   debouncedSearch(trimmed, filter);
+});
+
+const debouncedYtCommit = useDebounceFn((trimmed: string) => {
+  // The source may have switched away during the pause — don't resurrect
+  // a YT search (and its stale query) behind the user's back.
+  if (source.value !== "youtube") return;
+  submittedYtQuery.value = trimmed;
+}, YT_DEBOUNCE_MS);
+
+watch(query, (q) => {
+  if (source.value !== "youtube") return;
+  const trimmed = q.trim();
+
+  if (!trimmed) {
+    submittedYtQuery.value = "";
+    return;
+  }
+
+  debouncedYtCommit(trimmed);
 });
 
 const availableFilters: { label: string; value: SearchFilter }[] = [
