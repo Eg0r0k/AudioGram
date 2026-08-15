@@ -64,8 +64,8 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
     }
   }
 
-  // Artist-page listing: shadow albums (pinned = 0) may reference a local
-  // artist after remote-artist substitution — they are not library content.
+  // Artist-page listing: shadow albums can reference a local artist via
+  // substitution — skip them.
   async countByArtistId(artistId: ArtistId): Promise<Result<number, Error>> {
     try {
       const count = await this.table

@@ -27,9 +27,8 @@ const query = ref("");
 const source = ref<SearchSource>("library");
 const ytChip = ref<YtChip>("all");
 /**
- * The query YT result components actually search for. Typing auto-commits
- * it after a debounce pause; Enter / tab switch / history apply commit
- * instantly (and, unlike auto-commits, record the query in history).
+ * The query YT results search for: typing auto-commits it after a pause,
+ * Enter commits instantly and (unlike auto-commits) writes history.
  */
 const submittedYtQuery = ref("");
 const activeFilter = ref<SearchFilter>("all");
@@ -88,8 +87,7 @@ watch([query, activeFilter], ([q, filter]) => {
 });
 
 const debouncedYtCommit = useDebounceFn((trimmed: string) => {
-  // The source may have switched away during the pause — don't resurrect
-  // a YT search (and its stale query) behind the user's back.
+  // The source may have switched away during the pause.
   if (source.value !== "youtube") return;
   submittedYtQuery.value = trimmed;
 }, YT_DEBOUNCE_MS);

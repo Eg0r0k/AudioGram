@@ -72,9 +72,8 @@ export async function cleanupAfterTrackRemoval(removed: RemovedTrackRef[]): Prom
  * artists a user created by hand and never filled.
  */
 export async function sweepOrphanedEntities(): Promise<{ albums: number; artists: number }> {
-  // One transaction for the whole sweep: it runs at startup concurrently
-  // with the download-manager init and queue restore, and must neither see
-  // nor leave half-applied cascades.
+  // One transaction: the sweep runs at startup concurrently with the
+  // download-manager init and queue restore.
   const result = await unitOfWork.run(async () => {
     const orphanAlbums: AlbumId[] = [];
     for (const album of await db.albums.toArray()) {

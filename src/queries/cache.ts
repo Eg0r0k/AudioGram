@@ -779,15 +779,9 @@ export function syncTrackMetadataCaches(
   );
 }
 
-//
 // ── Invalidation registry ─────────────────────────────────────────────────
-//
-// The mutation modules used to repeat these key lists inline (28 calls in
-// track.queries.ts alone), with the same predicates copy-pasted between
-// files. The table below names each affected-key group once; the
-// invalidateFor*Mutation functions compose exactly the sets the inline
-// lists produced — the registry is a relabeling, not a redesign.
-//
+// Each affected-key group is named once; invalidateFor*Mutation composes
+// them per mutation kind.
 
 type InvalidationFilter = Parameters<QueryClient["invalidateQueries"]>[0];
 
@@ -873,8 +867,7 @@ export function invalidateForTrackMutation(
 ): Promise<void> {
   switch (ctx.kind) {
     case "relations":
-      // Bulk membership/relation changes (add-to-album, add-to-artist,
-      // bulk favorite): every list may have moved.
+      // add-to-album / add-to-artist / bulk favorite: every list may move.
       return runInvalidations(queryClient, [
         ...affectedKeys.library.summary(),
         ...affectedKeys.tracks.all(),
@@ -914,8 +907,7 @@ export function invalidateForAlbumMutation(
 ): Promise<void> {
   switch (ctx.kind) {
     case "titleChange":
-      // Historical asymmetry kept as-is: only likedPage, not the infinite
-      // variant — the point-sync above already patched the rows.
+      // Intentionally only likedPage — the point-sync already patched the rows.
       return runInvalidations(queryClient, [
         ...affectedKeys.tracks.likedPage(),
         ...affectedKeys.tracks.indexPages(),
@@ -979,8 +971,7 @@ export function invalidateForPlaylistMutation(
     case "trackRemoval":
       return runInvalidations(queryClient, affectedKeys.playlists.pages([ctx.playlistId]));
     case "trackAddition":
-      // Historical asymmetry kept as-is: the single-track path never
-      // invalidated tracksPage — the point-sync patches the row in place.
+      // Intentionally skips tracksPage — the point-sync patches the row.
       return runInvalidations(
         queryClient,
         affectedKeys.playlists.pages([ctx.playlistId], { tracksPage: false }),

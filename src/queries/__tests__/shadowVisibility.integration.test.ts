@@ -5,13 +5,8 @@ import { ArtistId } from "@/types/ids";
 import { ndAlbumId, ndArtistId, ndTrackId } from "@/types/track-ref";
 import type { SourceTrackDTO } from "@/modules/sources/types";
 
-//
-// Shadow rows (pinned = 0) exist so history/stats/queue keep valid FKs after
-// playing something from ND/YT browsing. They must stay invisible to every
-// library surface: sidebar summary, "All music", search index, artist pages.
-// A full pin (download / add to library / like) flips the family to pinned = 1
-// and makes it visible everywhere.
-//
+// Shadow rows (pinned = 0) stay invisible to every library surface; a full
+// pin flips the family to pinned = 1 and makes it visible everywhere.
 
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),

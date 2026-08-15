@@ -267,8 +267,6 @@ const router = useRouter();
 const theme = useTheme();
 const prefersReduced = useReducedMotion();
 
-// Header dropdowns close themselves once the cursor wanders off — same
-// buffer-frame behavior as the track/library menus.
 const isMenuOpen = ref(false);
 const isSearchSourceOpen = ref(false);
 useMenuCursorAutoClose(isMenuOpen, () => {
@@ -278,8 +276,7 @@ useMenuCursorAutoClose(isSearchSourceOpen, () => {
   isSearchSourceOpen.value = false;
 }, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
 
-// One curve for every header motion (matches --ease-standard) so the icon
-// swap and the input stretch read as a single gesture.
+// One curve for every header motion (matches --ease-standard).
 const headerTransition = computed(() =>
   prefersReduced.value
     ? { duration: 0 }

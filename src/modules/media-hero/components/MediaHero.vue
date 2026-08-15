@@ -215,12 +215,8 @@ const canEdit = computed(() =>
   canManage.value && (isPlaylist(props.data) || isAlbum(props.data) || isArtist(props.data)),
 );
 
-/**
- * Mirrors what the context components actually render: a menu that would
- * come up empty (catalog artist — edit/delete only; album with neither
- * manage nor offline download) never opens at all, and the "⋯" trigger
- * hides with it. Playlist/liked contexts always carry "add to queue".
- */
+// Mirrors what the context components render: an empty menu (e.g. catalog
+// artist) never opens, and the "⋯" trigger hides with it.
 const hasMenuItems = computed(() => {
   switch (contextType.value) {
     case "artist-page": return canManage.value;

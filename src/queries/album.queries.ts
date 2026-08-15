@@ -241,8 +241,6 @@ export async function updateAlbumAndSync(
   }
 
   if (didUpdateAlbum) {
-    // Only library members live in the search index — upserting docs for
-    // shadow rows the rename touched would smuggle them into it.
     const searchDocuments = [
       await buildAlbumDocFromDb(nextAlbum),
       ...await Promise.all(
@@ -259,11 +257,9 @@ export async function updateAlbumAndSync(
 }
 
 /**
- * Remote (shadow) album deletion cascade: the downloaded tracks, their
- * offline copies and files leave with the album; playlists drop the ids and
- * GC collects the orphaned artist. Local albums keep the ungroup semantics.
- * Every row mutation of the cascade commits in one transaction; file
- * deletion and cache/search sync run strictly after it.
+ * Remote album deletion cascades tracks/copies/playlists in one transaction
+ * (local albums keep the ungroup semantics); file deletion and cache/search
+ * sync run strictly after it.
  */
 export async function deleteAlbumAndSync(
   queryClient: QueryClient,
@@ -286,9 +282,8 @@ export async function deleteAlbumAndSync(
   const txResult = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
     async () => {
-      // Playlists are read INSIDE the transaction and written back as
-      // partial updates — the cascade owns trackIds/updatedAt only, so a
-      // rename or description edit racing the delete survives.
+      // Playlists are read inside the tx and written back as partial updates,
+      // so a rename racing the delete survives.
       const playlists = isRemote ? await unwrapResult(playlistRepository.findAll()) : [];
       const affectedPlaylists = playlists
         .filter(playlist => playlist.trackIds.some(id => trackIdSet.has(id)))
@@ -312,14 +307,11 @@ export async function deleteAlbumAndSync(
           await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
         }
         await unwrapResult(trackRepository.deleteMany(trackIds));
-        // GC would also collect the album with its last track, but an empty
-        // shadow album (0 tracks) must not survive either — delete explicitly
-        // below, then let the artist cascade run.
+        // An empty shadow album (0 tracks) is deleted explicitly below.
         await cleanupAfterTrackRemoval(rawTracks);
       }
       else if (rawTracks.length > 0) {
-        // Detach fully: a cleared title with a dangling albumId would keep
-        // pointing list queries at a row that no longer exists.
+        // Detach fully — a dangling albumId would keep pointing at a dead row.
         await unwrapResult(trackRepository.updateMany(rawTracks.map(track => ({
           key: track.id,
           changes: { albumTitle: undefined, albumId: createAlbumId("") },

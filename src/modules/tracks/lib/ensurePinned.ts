@@ -13,15 +13,10 @@ import { mapTrack } from "./mappers";
 import { ensureShadowAlbumCover } from "./shadowAlbumCover";
 
 /**
- * Actions-layer utility (NOT a menu item): guarantees a Dexie row for the
- * subject and returns it as a Track. Library subjects pass through; remote
- * DTOs run the pin cascade (track + shadow album/artist rows, deterministic
- * prefixed ids) strictly inside a unitOfWork transaction. Idempotent put()
- * upserts — pinning twice is a snapshot refresh; a shadow request never
+ * Guarantees a Dexie row for the subject and returns it as a Track: library
+ * subjects pass through, remote DTOs run the pin cascade (track + shadow
+ * album/artist rows) in one unitOfWork. Idempotent; a shadow request never
  * downgrades an existing pinned = 1 row.
- *
- * Every action that needs a DB row (toggleLike, addToPlaylist, attachLyrics,
- * offline) calls this first, so "like from ND browsing" just works.
  */
 export async function ensurePinned(
   subject: TrackMenuSubject,
@@ -35,17 +30,14 @@ export async function ensurePinned(
   const requestedPinned = options.pinned ?? 1;
   const now = Date.now();
 
-  // A subject.dto reached through a page composable sits inside TanStack
-  // Query's deep-reactive data, so the DTO and its members are Vue proxies —
-  // and IndexedDB's structured clone rejects proxies (DataCloneError).
-  // Unwrap once at the write gate; every row below derives from this copy.
+  // DTOs from page composables are deep-reactive Vue proxies; IndexedDB's
+  // structured clone rejects proxies (DataCloneError). Unwrap once here.
   const sourceDto = toRaw(subject.dto);
 
   const result = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists],
     async () => {
-      // A same-named local artist absorbs the remote track instead of a
-      // shadow row — downloading never duplicates an artist the user has.
+      // A same-named local artist absorbs the remote track (no duplicates).
       const allArtists = (sourceDto.artistIds ?? []).length > 0
         ? await unwrapResult(artistRepository.findAll())
         : [];
@@ -75,15 +67,12 @@ export async function ensurePinned(
 
   if (result.isErr()) throw result.error;
 
-  // A pinned shadow album should look like a local one on library pages —
-  // fetch its artwork in the background (idempotent, best-effort).
+  // Fetch the shadow album's artwork in the background (best-effort).
   if (result.value.album && subject.dto.coverRef) {
     void ensureShadowAlbumCover(result.value.album.id, subject.dto.coverRef);
   }
 
-  // A full pin created library members — mirror them into the search index
-  // (library members only). Best-effort: a wedged search worker must not
-  // fail the like/playlist action that triggered the pin.
+  // Best-effort: search sync must not fail the action that triggered the pin.
   if (requestedPinned === 1) {
     void indexImportedTracks([result.value.track.id]).catch((error) => {
       getLogger().warn(`[Search] Indexing pinned ${result.value.track.id} failed: ${String(error)}`);

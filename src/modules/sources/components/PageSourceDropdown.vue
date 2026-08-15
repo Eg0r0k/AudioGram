@@ -65,8 +65,6 @@ import { useCurrentSourceStore } from "../store/currentSource.store";
 
 const store = useCurrentSourceStore();
 
-// Closes itself once the cursor wanders off — same buffer-frame behavior
-// as the rest of the header menus.
 const isOpen = ref(false);
 useMenuCursorAutoClose(isOpen, () => {
   isOpen.value = false;

@@ -32,10 +32,8 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   const albumId = computed(() => AlbumId(route.params.id as string));
 
-  // Data path picks by id prefix: remote-catalog albums come live from
-  // their source provider, everything below the VMs stays shared (no
-  // template branching). Local ids — and remote sources without album
-  // browsing — take the Dexie path.
+  // Data path picks by id prefix: remote-catalog albums come live from the
+  // source, local ids take the Dexie path.
   const remoteKind = computed(() => remoteCatalogKindOf(albumId.value, "browseAlbums"));
   const isRemote = computed(() => remoteKind.value !== null);
 

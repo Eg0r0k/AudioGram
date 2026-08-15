@@ -28,9 +28,7 @@ export async function ensureShadowAlbumCover(albumId: AlbumId, coverRef: string)
     if (blob.size === 0) return;
 
     await unwrapResult(coverRepository.upsertAlbumCover(albumId, blob));
-    // Point-sync the cover query: surfaces that mounted before this
-    // background fetch landed (current-track panel, footer player) hold a
-    // cached null and would otherwise never learn the cover exists.
+    // Surfaces mounted before the fetch landed hold a cached null.
     updateCoverCache(queryClient, "album", albumId, blob);
   }
   catch (error) {

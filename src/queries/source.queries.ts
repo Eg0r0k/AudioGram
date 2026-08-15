@@ -5,24 +5,13 @@ import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryKeys } from "./query-keys";
 import { unwrapSourceResult } from "./shared";
 
-//
-// Remote-source catalog queries — live requests against the provider's
-// server, nothing is written to Dexie. Remote data goes stale slowly, so
-// every option carries a 5-minute staleTime. Pass `enabled: false` intent by
-// giving a null kind / null ids / an unavailable source — the options fall
-// back to skipToken. Infinite configs live in the composables, not here.
-//
-// ND is the only catalog-capable source today; a third source reuses this
-// layer by kind instead of copying it.
-//
+// Remote-source catalog queries: live requests, nothing is written to Dexie.
+// Null kind / null id / unavailable source → skipToken. Infinite configs
+// live in the composables.
 
 export const SOURCE_STALE_TIME = 5 * 60_000;
 
-/**
- * Query-option factories for one source. `kind: null` means "no remote
- * source applies here" — every option parks on skipToken while its key
- * keeps a stable slot.
- */
+/** `kind: null` — no remote source applies; every option parks on skipToken. */
 export function sourceQueries(kind: SourceKind | null) {
   return {
     artists: (available: boolean) =>

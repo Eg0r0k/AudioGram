@@ -43,8 +43,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const artistId = computed(() => ArtistId(route.params.id as string));
 
-  // Data path picks by id prefix — remote-catalog artists come live from
-  // their source provider; local ids take the Dexie path.
+  // Data path picks by id prefix: catalog artists live, local ids via Dexie.
   const remoteKind = computed(() => remoteCatalogKindOf(artistId.value, "browseArtists"));
   const isRemote = computed(() => remoteKind.value !== null);
 
@@ -97,9 +96,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const remoteAlbums = computed(() => remoteQuery.data.value?.albums ?? []);
 
-  // Proxied cover URLs for the remote album cards — the entity-shaped album
-  // rows drop coverRef, and the Dexie cover query knows nothing about the
-  // source prefix.
+  // Entity-shaped album rows drop coverRef — proxy the URLs separately.
   const albumCovers = computed(() => new Map(
     remoteAlbums.value
       .filter(album => album.coverRef)

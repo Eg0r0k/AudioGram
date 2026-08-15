@@ -39,8 +39,7 @@
               @delete="openDeleteDialog"
             >
               <template #actions>
-                <!-- Writes into the artist's Dexie row — hidden for a
-                     catalog (ND) artist that has none. -->
+                <!-- Hidden for a catalog artist: no Dexie row to write into. -->
                 <Button
                   v-if="artist"
                   class="text-white"
@@ -265,9 +264,7 @@ async function handlePlayTrack(index: number) {
 async function handlePlayAlbum(item: LibraryItem) {
   const albumId = item.id as AlbumId;
 
-  // Catalog album card (ND artist page): no Dexie row behind it — fetch the
-  // tracks live from the source and queue them exactly like the album page
-  // would (playing shadow-pins the rows).
+  // Catalog card: no Dexie row behind it — fetch live and queue.
   if (item.isCatalog) {
     const kind = sourceKindOf(albumId);
     if (kind === "local") return;

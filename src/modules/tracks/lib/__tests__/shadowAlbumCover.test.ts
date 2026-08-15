@@ -37,9 +37,6 @@ describe("ensureShadowAlbumCover", () => {
   });
 
   it("syncs the freshly stored cover into the query cache", async () => {
-    // Panels watching covers.detail mounted BEFORE the background fetch
-    // landed have null cached — without the point sync they never learn
-    // the cover exists.
     const blob = new Blob(["img"], { type: "image/jpeg" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(blob, { status: 200 })));
 

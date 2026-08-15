@@ -62,10 +62,9 @@ useMenuCursorAutoClose(isOpen, () => {
   isOpen.value = false;
 }, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 
-// A disabled media menu must swallow the right-click entirely: with the
-// reka trigger inert the event would travel on to the surrounding
-// TrackContextMenu trigger — whose guard deliberately lets hero clicks
-// through — and an empty track menu would open instead.
+// A disabled menu must swallow the right-click entirely: with the reka
+// trigger inert, the event reaches the surrounding TrackContextMenu and an
+// empty track menu opens instead.
 const triggerGuardRef = useTemplateRef<HTMLElement>("triggerGuardRef");
 useEventListener(triggerGuardRef, "contextmenu", (event: MouseEvent) => {
   if (!props.disabled) return;

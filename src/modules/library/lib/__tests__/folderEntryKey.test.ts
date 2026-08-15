@@ -9,8 +9,6 @@ describe("folder entry keys", () => {
   });
 
   it("round-trips remote ids that carry colons themselves", () => {
-    // Downloaded nd/yt entities keep their prefixed ids — the id must not be
-    // truncated at the first colon, or the folder entry resolves to nothing.
     expect(parseFolderEntryKey("album:nd:MPREb1")).toEqual([{ type: "album", id: "nd:MPREb1" }]);
     expect(parseFolderEntryKey("artist:yt:UC123")).toEqual([{ type: "artist", id: "yt:UC123" }]);
     expect(parseFolderEntryKey("playlist:nd:pl9")).toEqual([{ type: "playlist", id: "nd:pl9" }]);

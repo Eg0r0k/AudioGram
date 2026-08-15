@@ -98,8 +98,7 @@ export const useTrackContextActions = (
     if (subject?.kind !== "remote") return null;
     try {
       const pinned = await ensurePinned(subject);
-      // The pin may have just promoted its album/artist into the visible
-      // library — the sidebar and lists must learn about them.
+      // The pin may have made its album/artist visible in the library.
       await invalidateLibraryData(queryClient);
       return pinned;
     }

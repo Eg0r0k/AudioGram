@@ -8,12 +8,9 @@ import { unwrapResult } from "@/queries/shared";
 import type { TrackId } from "@/types/ids";
 
 /**
- * Post-commit half of an offline-copy removal: the rows are already gone
- * from the database, so delete the files best-effort (a leftover file is
- * recoverable garbage, a dangling DB row is not) and sync the point caches.
- * Callers that batch row deletes into a wider Dexie transaction must call
- * this strictly after the commit — file IO inside the transaction would
- * commit it prematurely.
+ * Post-commit half of an offline-copy removal: best-effort file deletion +
+ * point cache sync. Must run strictly AFTER the Dexie transaction — file IO
+ * inside it would commit it prematurely.
  */
 export async function cleanupOfflineCopyFiles(copies: readonly OfflineCopyEntity[]): Promise<void> {
   for (const copy of copies) {
@@ -26,9 +23,8 @@ export async function cleanupOfflineCopyFiles(copies: readonly OfflineCopyEntity
 }
 
 /**
- * Deletes the offline copy — row first (a dangling DB row is worse than a
- * leftover file), then the file, then the point cache sync. The track row
- * itself is untouched: it keeps playing over the live stream.
+ * Deletes the offline copy: row first, then the file. The track row is
+ * untouched — it keeps playing over the live stream.
  */
 export async function removeOfflineCopy(trackId: TrackId): Promise<void> {
   const copy = await unwrapResult(offlineCopyRepository.findById(trackId));

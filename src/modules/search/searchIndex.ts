@@ -184,15 +184,11 @@ export function resetSearchIndex(): void {
   initPromise = null;
 }
 
-/**
- * Dev-only: after the full build the entire projection is in hand — verify
- * it against the tracks table. The check must never break search init.
- */
+/** Dev-only projection check; must never break search init. */
 async function assertProjectionInDev(documents: SearchDocument[]): Promise<void> {
   if (!import.meta.env.DEV) return;
   try {
-    // The projection covers library members only; shadow rows (pinned = 0)
-    // are deliberately absent from the index.
+    // The index carries library members only — compare against that count.
     const dbTrackCount = await db.tracks.where("pinned").equals(1).count();
     const drift = trackProjectionMismatch(dbTrackCount, countTrackDocuments(documents));
     if (drift) console.error(drift);
@@ -282,18 +278,14 @@ export async function removeSearchDocuments(ids: string[]): Promise<void> {
 }
 
 /**
- * Upserts freshly imported tracks (plus their artists and albums, which the
- * import may have just created) into the live index. The full build happens
- * once per session, so without this an import — file drop, watched folder,
- * YT download — stays invisible to local search until the app restarts.
+ * Upserts freshly imported/pinned tracks (with their artists and albums)
+ * into the live index — the full build happens only once per session.
  */
 export async function indexImportedTracks(trackIds: TrackId[]): Promise<void> {
   if (trackIds.length === 0) return;
 
   const tracksResult = await trackRepository.findByIds(trackIds);
   if (tracksResult.isErr()) throw tracksResult.error;
-  // Also serves pin-on-demand (promote/addToLibrary): index library members
-  // only, so a stray shadow id can never smuggle a doc into the index.
   const tracks = tracksResult.value.filter(track => track.pinned !== 0);
   if (tracks.length === 0) return;
 

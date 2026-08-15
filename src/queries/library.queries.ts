@@ -20,8 +20,7 @@ export async function getLibrarySummary(): Promise<LibrarySummaryData> {
     unwrapResult(trackRepository.findLiked()),
   ]);
 
-  // Shadow rows (pinned = 0) exist only as FK targets for history/stats/queue
-  // — merely playing something from ND/YT browsing must not grow the library.
+  // Playing from ND/YT browsing must not grow the library (shadow rows).
   const artists = allArtists.filter(artist => artist.pinned !== 0);
   const albums = allAlbums.filter(album => album.pinned !== 0);
 

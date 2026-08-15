@@ -40,8 +40,7 @@ const PAGE_SIZE = 50;
 
 async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey | null) {
   const allTracks = await unwrapResult(trackRepository.findByArtistId(artistId));
-  // A local artist can absorb remote tracks (artist substitution on pin), so
-  // its page must skip shadow rows the same way the library lists do.
+  // A local artist can absorb remote tracks via substitution — skip shadows.
   const artistTracks = allTracks.filter(track => track.pinned !== 0);
 
   if (!sortKey) {
@@ -277,8 +276,6 @@ export async function updateArtistAndSync(
       unwrapResult(trackRepository.findByArtistId(currentArtist.id)),
     ]);
 
-    // The rename touched every row above, but only library members live in
-    // the search index — upserting shadow docs would smuggle them into it.
     const searchDocuments = [
       buildArtistDoc(nextArtist),
       ...await Promise.all(albums.filter(a => a.pinned !== 0).map(album => buildAlbumDocFromDb(album))),

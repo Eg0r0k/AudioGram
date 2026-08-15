@@ -1,11 +1,7 @@
 import type { SearchDocument } from "./types";
 
-//
-// Dev-only invariant for the search projection: the index is synced by
-// explicit upsert/remove calls scattered across mutations, so a missed call
-// silently diverges it from the database. The full build is the one moment
-// the whole projection is in hand — compare it against the table then.
-//
+// Dev-only invariant: the index is synced by explicit upsert/remove calls,
+// so a missed call silently diverges it — verify on every full build.
 
 export function countTrackDocuments(documents: readonly SearchDocument[]): number {
   return documents.reduce((count, document) => (document.type === "track" ? count + 1 : count), 0);

@@ -13,13 +13,8 @@ import { EntityResolver } from "../entity-resolver";
 import { persistTracks } from "../import/track-persister";
 import { importQueue } from "../import/import-queue";
 
-//
-// The EntityResolver cache is per-instance, so two imports running at once
-// (watched-folder sync + drag&drop + open-with) each resolve the same artist
-// name to a fresh UUID and persist duplicate rows GC never merges. The
-// global import queue serializes the resolve+persist pipelines: the second
-// import's resolver must see the first one's rows.
-//
+// Concurrent imports would mint duplicate artist/album rows (per-instance
+// resolver cache) — the import queue serializes them.
 
 function trackToSave(id: string, artist: string): TrackToSave {
   return {

@@ -12,10 +12,8 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
   }
 
   /**
-   * Library-list scope: shadow rows (pinned = 0) exist only so history,
-   * stats and the persisted queue keep valid FKs — "All music" style
-   * listings and library counts must never surface them. Point lookups
-   * (findById/findByIds) and deletion cascades stay unscoped on purpose.
+   * Listings and counts skip shadow rows (pinned = 0); point lookups and
+   * deletion cascades stay unscoped on purpose.
    */
   private isLibraryMember(track: TrackEntity): boolean {
     return track.pinned !== 0;
@@ -230,8 +228,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       for (const id of artistIds) counts.set(id, 0);
       if (artistIds.length > 0) {
         const wanted = new Set<string>(artistIds);
-        // distinct(): the multi-entry index emits a row once per matching
-        // artistId — count each track once per artist via its own ids instead.
+        // distinct(): the multi-entry index emits a row once per matching id.
         await this.table
           .where("artistIds")
           .anyOf(artistIds)

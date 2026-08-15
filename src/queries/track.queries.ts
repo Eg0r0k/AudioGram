@@ -552,16 +552,14 @@ export async function deleteTrackAndSync(
   }
 
   const now = Date.now();
-  // A deleted remote row must not strand its offline copy on disk; a local
-  // row simply has no copy. Rows die inside the transaction, files after it.
+  // Rows die inside the transaction, the copy's file after it.
   const copies = await unwrapResult(offlineCopyRepository.findByIds([trackId]));
 
   const txResult = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
     async () => {
-      // Playlists are read INSIDE the transaction and written back as
-      // partial updates — the cascade owns trackIds/updatedAt only, so a
-      // rename or description edit racing the delete survives.
+      // Playlists are read inside the tx and written back as partial updates,
+      // so a rename racing the delete survives.
       const playlists = await unwrapResult(playlistRepository.findAll());
       const nextPlaylists = playlists
         .filter(playlist => playlist.trackIds.includes(trackId))
@@ -580,8 +578,7 @@ export async function deleteTrackAndSync(
         await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
       }
       await unwrapResult(trackRepository.delete(trackId));
-      // Cascade: the album dies with its last track, the artist with their
-      // last track and album. The list invalidations below pick the removals up.
+      // The album dies with its last track, the artist with their last album.
       await cleanupAfterTrackRemoval([currentTrack]);
       return nextPlaylists;
     },

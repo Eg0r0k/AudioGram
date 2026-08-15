@@ -82,8 +82,6 @@ export class MusicLibraryEngine {
 
     await storageService.warmup(["tracks", "lyrics"]);
 
-    // Every entity-creating entry point runs through the global import
-    // queue — see import-queue.ts for the EntityResolver race it prevents.
     return importQueue(() => this.pipeline.run(itemsFromPaths(paths), onProgress, control));
   }
 

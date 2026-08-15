@@ -7,13 +7,8 @@ import { TrackSource, TrackState } from "@/db/entities";
 import { AlbumId, ArtistId, PlaylistId, TrackId } from "@/types/ids";
 import { ytAlbumId, ytArtistId, ytTrackId } from "@/types/track-ref";
 
-//
-// Destructive multi-table operations are a single Dexie transaction: a crash
-// mid-cascade must leave every table untouched — no half-deleted playlists,
-// no track rows without their offline-copy rows, no orphaned albums. File
-// cleanup and search-index sync happen strictly after the commit, so a
-// rolled-back transaction must not touch either.
-//
+// Destructive multi-table cascades are one Dexie transaction; file cleanup
+// and search sync run strictly after the commit.
 
 const storageMock = vi.hoisted(() => ({
   deleteFile: vi.fn(),

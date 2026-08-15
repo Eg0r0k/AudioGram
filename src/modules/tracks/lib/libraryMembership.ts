@@ -9,9 +9,8 @@ import type { TrackId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 
 /**
- * Upgrades an existing (shadow) remote row to a full library member,
- * cascading pinned = 1 onto its shadow album/artist rows — the counterpart
- * of the pin cascade in ensurePinned, strictly inside one unitOfWork.
+ * Upgrades a shadow remote row to a full library member, cascading
+ * pinned = 1 onto its album/artist rows in one unitOfWork.
  */
 export async function promoteTrackToLibrary(trackId: TrackId): Promise<void> {
   const result = await unitOfWork.runScoped(
@@ -31,19 +30,15 @@ export async function promoteTrackToLibrary(trackId: TrackId): Promise<void> {
   );
   if (result.isErr()) throw result.error;
 
-  // The row family just became library members — mirror them into the search
-  // index (library members only). Best-effort: a wedged search worker must
-  // not fail the add-to-library action; the next full rebuild recovers.
+  // Best-effort: search sync must not fail the add-to-library action.
   void indexImportedTracks([trackId]).catch((error) => {
     getLogger().warn(`[Search] Indexing promoted ${trackId} failed: ${String(error)}`);
   });
 }
 
 /**
- * The remote counterpart of "Delete track": removes the track from every
- * playlist, clears the like, drops the offline copy row — all in one
- * unitOfWork — then deletes the copy's file. The track row itself degrades
- * to a shadow (pinned = 0), so history and stats stay intact.
+ * Remote counterpart of "Delete track": cascades playlists/like/offline copy
+ * in one unitOfWork; the row degrades to a shadow so history survives.
  */
 export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
   const copy = await unwrapResult(offlineCopyRepository.findById(trackId));
@@ -64,9 +59,8 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
       await unwrapResult(trackRepository.update(trackId, { pinned: 0, likedAt: undefined }));
       await unwrapResult(offlineCopyRepository.delete(trackId));
 
-      // Recalculate the shadow-album/artist pinned flags: without this the
-      // album would linger in the library after its last library track left
-      // (ghost albums). Local rows are never touched from here.
+      // Recalculate the album/artist pinned flags — no ghost albums after
+      // the last library track leaves. Local rows are never touched.
       const demotedDocIds: string[] = [];
       if (track?.albumId && parseTrackRef(track.albumId as unknown as TrackId).kind !== "local") {
         const stillPinned = await db.tracks
@@ -94,15 +88,11 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
   );
   if (result.isErr()) throw result.error;
 
-  // Shadows are invisible to search: the degraded track leaves the index,
-  // along with any album/artist the recalc just demoted. Best-effort, same
-  // as the promote mirror above.
   void removeSearchDocuments([`track:${trackId}`, ...result.value]).catch((error) => {
     getLogger().warn(`[Search] De-indexing removed ${trackId} failed: ${String(error)}`);
   });
 
-  // File deletion happens outside the DB transaction; a leftover file is
-  // recoverable garbage, a dangling DB row is not.
+  // File deletion happens strictly after the DB transaction.
   if (copy) {
     const deleted = await storageService.deleteFile(copy.storagePath);
     if (deleted.isErr()) {

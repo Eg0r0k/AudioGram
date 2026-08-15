@@ -14,14 +14,8 @@ vi.mock("@/modules/search/searchIndex", () => ({
 import { db } from "@/db";
 import { ensurePinned } from "../ensurePinned";
 
-//
-// DTOs arriving from page composables are nested in TanStack Query's deep-
-// reactive data, so subject.dto (and its artistIds/format members) are Vue
-// proxies. IndexedDB's structured clone cannot clone a Proxy — without
-// normalization every pin write dies with DataCloneError, which used to
-// break "Download" / "Add to library" / shadow-pin-on-play for every track
-// reached through ND browsing pages or search.
-//
+// DTOs from page composables are deep-reactive Vue proxies; IndexedDB's
+// structured clone rejects proxies — every pin write died with DataCloneError.
 
 function plainDto(): SourceTrackDTO {
   return {

@@ -9,11 +9,8 @@ vi.mock("../../searchIndex", () => ({
 
 import { useSearch } from "../useSearch";
 
-//
-// YouTube search auto-commits after a typing pause — Enter is a shortcut
-// for "commit now + save to history", not a requirement. Intermediate
-// debounced commits must NOT pollute the recent-queries history.
-//
+// YT search auto-commits after a typing pause; only explicit submits write
+// the recent-queries history.
 
 describe("useSearch — debounced YouTube auto-commit", () => {
   beforeEach(() => {

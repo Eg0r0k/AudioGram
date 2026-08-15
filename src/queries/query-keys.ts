@@ -83,8 +83,7 @@ export const queryKeys = {
   source: {
     artists: (kind: SourceKind | null) => ["source", kind, "artists"] as const,
     albumsInf: (kind: SourceKind | null, sort: string) => ["source", kind, "albums", sort] as const,
-    // Null ids come from skipToken-parked options — the key keeps its slot
-    // without fabricating an empty branded id.
+    // Null ids come from skipToken-parked options.
     album: (kind: SourceKind | null, id: AlbumId | null) => ["source", kind, "album", id] as const,
     artist: (kind: SourceKind | null, id: ArtistId | null) => ["source", kind, "artist", id] as const,
     playlists: (kind: SourceKind | null) => ["source", kind, "playlists"] as const,

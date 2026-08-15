@@ -92,9 +92,8 @@ export async function buildAllSearchDocuments(): Promise<SearchDocument[]> {
     db.playlists.toArray(),
   ]);
 
-  // Maps keep every row (a library track may denormalize through a shadow
-  // artist name), but only library members (pinned !== 0) become documents —
-  // shadow rows must stay invisible to local search.
+  // Maps keep every row (names may denormalize through shadow artists);
+  // only library members become documents.
   const artistMap = new Map(artists.map(a => [a.id, a]));
   const albumMap = new Map(albums.map(a => [a.id, a]));
   const tracks = allTracks.filter(t => t.pinned !== 0);

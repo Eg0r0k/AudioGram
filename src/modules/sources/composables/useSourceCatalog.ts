@@ -9,12 +9,8 @@ import { sourceKindOf } from "../lib/display";
 import { sources } from "../registry";
 import type { SourceCapabilities } from "../types";
 
-//
-// Remote-source catalog composables — the second data leg next to the
-// Dexie-backed queries, parameterized by source kind. Availability is
-// reactive over the source settings; while the source is off (or the kind
-// is null — "no remote source applies") every query sits on skipToken.
-//
+// Remote-source catalog composables, parameterized by source kind. While
+// the source is off (or the kind is null) every query sits on skipToken.
 
 export type SourceAlbumSort = "alpha" | "newest";
 
@@ -24,10 +20,8 @@ type KindInput = MaybeRefOrGetter<SourceKind | null>;
 const ALBUMS_PAGE_SIZE = 100;
 
 /**
- * The remote source behind an entity id when that source can serve the
- * given catalog area; null → the local Dexie path. Keeps page composables
- * source-agnostic: a yt: id without album browsing falls back to local
- * exactly like an unprefixed one.
+ * The remote source behind an entity id when it can serve the given catalog
+ * area; null → the local Dexie path.
  */
 export function remoteCatalogKindOf(
   id: string,
