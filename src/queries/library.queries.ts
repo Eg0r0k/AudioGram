@@ -12,13 +12,18 @@ import { unwrapResult } from "./shared";
 import type { LibrarySummaryData } from "./types";
 
 export async function getLibrarySummary(): Promise<LibrarySummaryData> {
-  const [artists, albums, playlists, folders, likedTracks] = await Promise.all([
+  const [allArtists, allAlbums, playlists, folders, likedTracks] = await Promise.all([
     unwrapResult(artistRepository.findAll()),
     unwrapResult(albumRepository.findAll()),
     unwrapResult(playlistRepository.findAll()),
     unwrapResult(folderRepository.findAll()),
     unwrapResult(trackRepository.findLiked()),
   ]);
+
+  // Shadow rows (pinned = 0) exist only as FK targets for history/stats/queue
+  // — merely playing something from ND/YT browsing must not grow the library.
+  const artists = allArtists.filter(artist => artist.pinned !== 0);
+  const albums = allAlbums.filter(album => album.pinned !== 0);
 
   const [albumTrackCounts, artistTrackCounts] = await Promise.all([
     unwrapResult(trackRepository.countByAlbumIds(albums.map(a => a.id))),

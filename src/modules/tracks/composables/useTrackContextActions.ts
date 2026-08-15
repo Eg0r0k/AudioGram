@@ -97,7 +97,11 @@ export const useTrackContextActions = (
     const subject = options.subject?.value;
     if (subject?.kind !== "remote") return null;
     try {
-      return await ensurePinned(subject);
+      const pinned = await ensurePinned(subject);
+      // The pin may have just promoted its album/artist into the visible
+      // library — the sidebar and lists must learn about them.
+      await invalidateLibraryData(queryClient);
+      return pinned;
     }
     catch (error) {
       getLogger().error(`[Tracks] Pin failed for ${subject.dto.id}: ${String(error)}`);

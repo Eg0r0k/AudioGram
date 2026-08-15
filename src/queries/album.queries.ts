@@ -42,7 +42,8 @@ export interface AlbumChanges {
 }
 
 export async function getAlbums() {
-  return unwrapResult(albumRepository.findAll());
+  const albums = await unwrapResult(albumRepository.findAll());
+  return albums.filter(album => album.pinned !== 0);
 }
 
 export async function getAlbumByIdOrThrow(albumId: AlbumId) {
@@ -60,10 +61,11 @@ export async function searchAlbums(query: string, limit = 8) {
 
   if (!normalizedQuery) {
     const albums = await unwrapResult(albumRepository.findAllSortedByTitle());
-    return albums.slice(0, limit);
+    return albums.filter(album => album.pinned !== 0).slice(0, limit);
   }
 
-  return unwrapResult(albumRepository.search(normalizedQuery, limit));
+  const found = await unwrapResult(albumRepository.search(normalizedQuery, limit));
+  return found.filter(album => album.pinned !== 0);
 }
 
 export async function getAlbumPageData(albumId: AlbumId, sortKey: TrackSortKey | null = null): Promise<AlbumPageData> {
@@ -239,9 +241,13 @@ export async function updateAlbumAndSync(
   }
 
   if (didUpdateAlbum) {
+    // Only library members live in the search index — upserting docs for
+    // shadow rows the rename touched would smuggle them into it.
     const searchDocuments = [
       await buildAlbumDocFromDb(nextAlbum),
-      ...await Promise.all(updatedTracks.map(track => buildTrackDocFromDb(track))),
+      ...await Promise.all(
+        updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),
+      ),
     ];
 
     await upsertSearchDocuments(searchDocuments);
@@ -345,7 +351,9 @@ export async function deleteAlbumAndSync(
   ]);
   if (!isRemote) {
     const updatedTracks = await unwrapResult(trackRepository.findByIds(rawTracks.map(track => track.id)));
-    await upsertSearchDocuments(await Promise.all(updatedTracks.map(track => buildTrackDocFromDb(track))));
+    await upsertSearchDocuments(await Promise.all(
+      updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),
+    ));
   }
 
   removeAlbumCaches(queryClient, albumEntity.id, albumEntity.artistId);

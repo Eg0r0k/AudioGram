@@ -2,13 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlbumId, ArtistId } from "@/types/ids";
 
 const table = vi.hoisted(() => {
-  const keysMock = vi.fn();
+  // each() feeds the rows set via eachRows to the callback, like Dexie does.
+  let eachRows: unknown[] = [];
+  const eachMock = vi.fn(async (cb: (row: unknown) => void) => {
+    for (const row of eachRows) cb(row);
+  });
   const toArrayMock = vi.fn();
   const equalsToArrayMock = vi.fn();
-  const anyOfMock = vi.fn(() => ({ keys: keysMock, toArray: toArrayMock }));
+  const anyOfMock = vi.fn(() => ({ each: eachMock, distinct: () => ({ each: eachMock }), toArray: toArrayMock }));
   const equalsMock = vi.fn(() => ({ toArray: equalsToArrayMock }));
   const whereMock = vi.fn(() => ({ anyOf: anyOfMock, equals: equalsMock }));
-  return { keysMock, toArrayMock, equalsToArrayMock, anyOfMock, equalsMock, whereMock };
+  return {
+    eachMock,
+    setEachRows: (rows: unknown[]) => { eachRows = rows; },
+    toArrayMock,
+    equalsToArrayMock,
+    anyOfMock,
+    equalsMock,
+    whereMock,
+  };
 });
 
 vi.mock("@/db", () => ({
@@ -26,20 +38,23 @@ describe("trackRepository count-by-ids", () => {
     vi.clearAllMocks();
   });
 
-  it("countByAlbumIds counts via index keys without materializing entities", async () => {
-    // album-a has 3 tracks, album-b has 0 → keys() yields one entry per matching track.
-    table.keysMock.mockResolvedValue(["album-a", "album-a", "album-a"]);
+  it("countByAlbumIds counts library tracks only, skipping shadow rows", async () => {
+    // album-a: 2 library tracks + 1 shadow (played from browsing), album-b: 0.
+    table.setEachRows([
+      { albumId: "album-a", pinned: 1 },
+      { albumId: "album-a", pinned: 1 },
+      { albumId: "album-a", pinned: 0 },
+    ]);
 
     const result = await trackRepository.countByAlbumIds(["album-a", "album-b"] as AlbumId[]);
 
     expect(result.isOk()).toBe(true);
     const counts = result._unsafeUnwrap();
-    expect(counts.get("album-a" as AlbumId)).toBe(3);
+    expect(counts.get("album-a" as AlbumId)).toBe(2);
     expect(counts.get("album-b" as AlbumId)).toBe(0);
 
     expect(table.whereMock).toHaveBeenCalledWith("albumId");
     expect(table.anyOfMock).toHaveBeenCalledWith(["album-a", "album-b"]);
-    expect(table.keysMock).toHaveBeenCalledOnce();
     expect(table.toArrayMock).not.toHaveBeenCalled();
   });
 
@@ -49,20 +64,25 @@ describe("trackRepository count-by-ids", () => {
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap().size).toBe(0);
     expect(table.whereMock).not.toHaveBeenCalled();
-    expect(table.keysMock).not.toHaveBeenCalled();
+    expect(table.eachMock).not.toHaveBeenCalled();
     expect(table.toArrayMock).not.toHaveBeenCalled();
   });
 
-  it("countByArtistIds counts multi-entry index keys without materializing entities", async () => {
-    // artist-1 appears on 2 tracks, artist-2 on 0 → keys() yields one artistId per index entry.
-    table.keysMock.mockResolvedValue(["artist-1", "artist-1"]);
+  it("countByArtistIds counts each library track once per requested artist", async () => {
+    // artist-1: one library track shared with an unrequested artist, one
+    // shadow track (skipped); artist-2: nothing.
+    table.setEachRows([
+      { artistIds: ["artist-1", "artist-x"], pinned: 1 },
+      { artistIds: ["artist-1"], pinned: 0 },
+    ]);
 
     const result = await trackRepository.countByArtistIds(["artist-1", "artist-2"] as ArtistId[]);
 
     expect(result.isOk()).toBe(true);
     const counts = result._unsafeUnwrap();
-    expect(counts.get("artist-1" as ArtistId)).toBe(2);
+    expect(counts.get("artist-1" as ArtistId)).toBe(1);
     expect(counts.get("artist-2" as ArtistId)).toBe(0);
+    expect(counts.has("artist-x" as ArtistId)).toBe(false);
 
     expect(table.whereMock).toHaveBeenCalledWith("artistIds");
     expect(table.toArrayMock).not.toHaveBeenCalled();

@@ -11,7 +11,21 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     super(db.tracks);
   }
 
+  /**
+   * Library-list scope: shadow rows (pinned = 0) exist only so history,
+   * stats and the persisted queue keep valid FKs — "All music" style
+   * listings and library counts must never surface them. Point lookups
+   * (findById/findByIds) and deletion cascades stay unscoped on purpose.
+   */
+  private isLibraryMember(track: TrackEntity): boolean {
+    return track.pinned !== 0;
+  }
+
   private getSortedCollection(sortKey: TrackSortKey): Collection<TrackEntity, TrackId, TrackEntity> {
+    return this.getSortedAllCollection(sortKey).filter(track => this.isLibraryMember(track));
+  }
+
+  private getSortedAllCollection(sortKey: TrackSortKey): Collection<TrackEntity, TrackId, TrackEntity> {
     switch (sortKey) {
       case "date_added_asc":
         return this.table.orderBy("addedAt");
@@ -177,17 +191,16 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async countByAlbumIds(albumIds: AlbumId[]): Promise<Result<Map<AlbumId, number>, Error>> {
     try {
-      const keys = albumIds.length === 0
-        ? []
-        : await this.table
-            .where("albumId")
-            .anyOf(albumIds)
-            .keys();
       const counts = new Map<AlbumId, number>();
       for (const albumId of albumIds) counts.set(albumId, 0);
-      for (const key of keys) {
-        const albumId = key as AlbumId;
-        counts.set(albumId, (counts.get(albumId) ?? 0) + 1);
+      if (albumIds.length > 0) {
+        await this.table
+          .where("albumId")
+          .anyOf(albumIds)
+          .each((track) => {
+            if (!this.isLibraryMember(track)) return;
+            counts.set(track.albumId, (counts.get(track.albumId) ?? 0) + 1);
+          });
       }
       return ok(counts);
     }
@@ -201,6 +214,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       const count = await this.table
         .where("artistIds")
         .equals(artistId)
+        .and(track => this.isLibraryMember(track))
         .count();
 
       return ok(count);
@@ -212,17 +226,23 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async countByArtistIds(artistIds: ArtistId[]): Promise<Result<Map<ArtistId, number>, Error>> {
     try {
-      const keys = artistIds.length === 0
-        ? []
-        : await this.table
-            .where("artistIds")
-            .anyOf(artistIds)
-            .keys();
       const counts = new Map<ArtistId, number>();
       for (const id of artistIds) counts.set(id, 0);
-      for (const key of keys) {
-        const id = key as ArtistId;
-        counts.set(id, (counts.get(id) ?? 0) + 1);
+      if (artistIds.length > 0) {
+        const wanted = new Set<string>(artistIds);
+        // distinct(): the multi-entry index emits a row once per matching
+        // artistId — count each track once per artist via its own ids instead.
+        await this.table
+          .where("artistIds")
+          .anyOf(artistIds)
+          .distinct()
+          .each((track) => {
+            if (!this.isLibraryMember(track)) return;
+            for (const id of track.artistIds) {
+              if (!wanted.has(id)) continue;
+              counts.set(id, (counts.get(id) ?? 0) + 1);
+            }
+          });
       }
       return ok(counts);
     }
@@ -296,6 +316,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       const tracks = await this.table
         .orderBy("addedAt")
         .reverse()
+        .filter(track => this.isLibraryMember(track))
         .offset(offset)
         .limit(limit)
         .toArray();
@@ -343,7 +364,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async countAll(): Promise<Result<number, Error>> {
     try {
-      const count = await this.table.count();
+      const count = await this.table.where("pinned").equals(1).count();
       return ok(count);
     }
     catch (error) {
@@ -354,7 +375,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
   async sumDurationAll(): Promise<Result<number, Error>> {
     try {
       let total = 0;
-      await this.table.each((track) => {
+      await this.table.where("pinned").equals(1).each((track) => {
         total += track.duration ?? 0;
       });
       return ok(total);
@@ -541,6 +562,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       const tracks = await this.table
         .where("artistIds")
         .equals(artistId)
+        .and(track => this.isLibraryMember(track))
         .offset(offset)
         .limit(limit)
         .toArray();

@@ -31,6 +31,12 @@ vi.mock("@/db/unit-of-work", () => ({ unitOfWork: uow }));
 vi.mock("@/db/storage", () => ({ storageService: storage }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }));
 
+const searchIndex = vi.hoisted(() => ({
+  indexImportedTracks: vi.fn(async () => {}),
+  removeSearchDocuments: vi.fn(async () => {}),
+}));
+vi.mock("@/modules/search/searchIndex", () => searchIndex);
+
 import { promoteTrackToLibrary, removeTrackFromLibrary } from "../libraryMembership";
 
 const TRACK_ID = ndTrackId("song1");
@@ -56,6 +62,12 @@ describe("promoteTrackToLibrary", () => {
     expect(repos.track.update).toHaveBeenCalledWith(TRACK_ID, { pinned: 1 });
     expect(dexie.albums.update).toHaveBeenCalledWith(ndAlbumId("album1"), { pinned: 1 });
     expect(dexie.artists.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("mirrors the promoted family into the search index", async () => {
+    await promoteTrackToLibrary(TRACK_ID);
+
+    expect(searchIndex.indexImportedTracks).toHaveBeenCalledWith([TRACK_ID]);
   });
 
   it("throws when the track does not exist", async () => {
@@ -117,6 +129,24 @@ describe("removeTrackFromLibrary", () => {
 
     expect(dexie.albums.update).not.toHaveBeenCalled();
     expect(dexie.artists.update).not.toHaveBeenCalled();
+  });
+
+  it("de-indexes the track and every demoted album/artist", async () => {
+    await removeTrackFromLibrary(TRACK_ID);
+
+    expect(searchIndex.removeSearchDocuments).toHaveBeenCalledWith([
+      `track:${TRACK_ID}`,
+      `album:${ndAlbumId("album1")}`,
+      `artist:${ndArtistId("artist1")}`,
+    ]);
+  });
+
+  it("de-indexes only the track while the album/artist stay pinned", async () => {
+    dexie.pinnedCount.mockResolvedValue(2);
+
+    await removeTrackFromLibrary(TRACK_ID);
+
+    expect(searchIndex.removeSearchDocuments).toHaveBeenCalledWith([`track:${TRACK_ID}`]);
   });
 
   it("skips file deletion when there is no offline copy", async () => {

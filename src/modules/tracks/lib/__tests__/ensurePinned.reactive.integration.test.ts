@@ -7,6 +7,9 @@ import { ArtistId, AlbumId, TrackId } from "@/types/ids";
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
+vi.mock("@/modules/search/searchIndex", () => ({
+  indexImportedTracks: vi.fn(async () => {}),
+}));
 
 import { db } from "@/db";
 import { ensurePinned } from "../ensurePinned";

@@ -64,11 +64,14 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
     }
   }
 
+  // Artist-page listing: shadow albums (pinned = 0) may reference a local
+  // artist after remote-artist substitution — they are not library content.
   async countByArtistId(artistId: ArtistId): Promise<Result<number, Error>> {
     try {
       const count = await this.table
         .where("artistId")
         .equals(artistId)
+        .and(album => album.pinned !== 0)
         .count();
       return ok(count);
     }
@@ -86,6 +89,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       const all = await this.table
         .where("artistId")
         .equals(artistId)
+        .and(album => album.pinned !== 0)
         .sortBy("year");
       all.reverse();
       return ok(all.slice(offset, offset + limit));

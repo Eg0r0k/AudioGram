@@ -3,6 +3,8 @@ import { db } from "@/db";
 import type { PinnedFlag } from "@/db/entities";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
+import { getLogger } from "@/lib/logger";
+import { indexImportedTracks } from "@/modules/search/searchIndex";
 import { buildRemoteShadowEntities, substituteLocalArtists, type RemotePinExisting } from "@/services/entity-resolver";
 import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
@@ -77,6 +79,15 @@ export async function ensurePinned(
   // fetch its artwork in the background (idempotent, best-effort).
   if (result.value.album && subject.dto.coverRef) {
     void ensureShadowAlbumCover(result.value.album.id, subject.dto.coverRef);
+  }
+
+  // A full pin created library members — mirror them into the search index
+  // (library members only). Best-effort: a wedged search worker must not
+  // fail the like/playlist action that triggered the pin.
+  if (requestedPinned === 1) {
+    void indexImportedTracks([result.value.track.id]).catch((error) => {
+      getLogger().warn(`[Search] Indexing pinned ${result.value.track.id} failed: ${String(error)}`);
+    });
   }
 
   return mapTrack(result.value.track, result.value.artists, result.value.album);

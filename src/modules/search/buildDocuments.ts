@@ -85,19 +85,23 @@ export async function buildAlbumDocFromDb(album: AlbumEntity): Promise<SearchDoc
 }
 
 export async function buildAllSearchDocuments(): Promise<SearchDocument[]> {
-  const [tracks, artists, albums, playlists] = await Promise.all([
+  const [allTracks, artists, albums, playlists] = await Promise.all([
     db.tracks.toArray(),
     db.artists.toArray(),
     db.albums.toArray(),
     db.playlists.toArray(),
   ]);
 
+  // Maps keep every row (a library track may denormalize through a shadow
+  // artist name), but only library members (pinned !== 0) become documents —
+  // shadow rows must stay invisible to local search.
   const artistMap = new Map(artists.map(a => [a.id, a]));
   const albumMap = new Map(albums.map(a => [a.id, a]));
+  const tracks = allTracks.filter(t => t.pinned !== 0);
 
   return [
-    ...artists.map(a => buildArtistDoc(a)),
-    ...albums.map(a => buildAlbumDoc(a, artistMap)),
+    ...artists.filter(a => a.pinned !== 0).map(a => buildArtistDoc(a)),
+    ...albums.filter(a => a.pinned !== 0).map(a => buildAlbumDoc(a, artistMap)),
     ...tracks.map(t => buildTrackDoc(t, artistMap, albumMap)),
     ...playlists.map(p => buildPlaylistDoc(p)),
   ];

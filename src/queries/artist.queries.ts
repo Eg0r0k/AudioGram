@@ -39,7 +39,10 @@ export interface ArtistChanges {
 const PAGE_SIZE = 50;
 
 async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey | null) {
-  const artistTracks = await unwrapResult(trackRepository.findByArtistId(artistId));
+  const allTracks = await unwrapResult(trackRepository.findByArtistId(artistId));
+  // A local artist can absorb remote tracks (artist substitution on pin), so
+  // its page must skip shadow rows the same way the library lists do.
+  const artistTracks = allTracks.filter(track => track.pinned !== 0);
 
   if (!sortKey) {
     return artistTracks;
@@ -49,7 +52,8 @@ async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey 
 }
 
 export async function getArtists() {
-  return unwrapResult(artistRepository.findAll());
+  const artists = await unwrapResult(artistRepository.findAll());
+  return artists.filter(artist => artist.pinned !== 0);
 }
 
 export async function getArtistByIdOrThrow(artistId: ArtistId) {
@@ -66,19 +70,21 @@ export async function searchArtists(query: string, limit = 8) {
   const normalizedQuery = query.trim();
 
   if (!normalizedQuery) {
-    const artists = await unwrapResult(artistRepository.findAll());
+    const artists = await getArtists();
     return artists.slice(0, limit);
   }
 
-  return unwrapResult(artistRepository.search(normalizedQuery, limit));
+  const found = await unwrapResult(artistRepository.search(normalizedQuery, limit));
+  return found.filter(artist => artist.pinned !== 0);
 }
 
 export async function getArtistPageData(artistId: ArtistId, sortKey: TrackSortKey | null = null): Promise<ArtistPageData> {
-  const [artist, albums, rawTracks] = await Promise.all([
+  const [artist, allAlbums, rawTracks] = await Promise.all([
     getArtistByIdOrThrow(artistId),
     unwrapResult(albumRepository.findByArtistId(artistId)),
     getArtistTrackEntities(artistId, sortKey),
   ]);
+  const albums = allAlbums.filter(album => album.pinned !== 0);
 
   const allArtistIds = unique(rawTracks.flatMap(t => t.artistIds));
   const allArtists = await unwrapResult(artistRepository.findByIds(allArtistIds));
@@ -271,10 +277,12 @@ export async function updateArtistAndSync(
       unwrapResult(trackRepository.findByArtistId(currentArtist.id)),
     ]);
 
+    // The rename touched every row above, but only library members live in
+    // the search index — upserting shadow docs would smuggle them into it.
     const searchDocuments = [
       buildArtistDoc(nextArtist),
-      ...await Promise.all(albums.map(album => buildAlbumDocFromDb(album))),
-      ...await Promise.all(tracks.map(track => buildTrackDocFromDb(track))),
+      ...await Promise.all(albums.filter(a => a.pinned !== 0).map(album => buildAlbumDocFromDb(album))),
+      ...await Promise.all(tracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track))),
     ];
 
     await upsertSearchDocuments(searchDocuments);
@@ -356,7 +364,9 @@ export async function deleteArtistAndSync(
     ...albums.map(album => `album:${album.id}`),
   ]);
   const updatedTracks = await unwrapResult(trackRepository.findByIds(affectedTracks.map(track => track.id)));
-  await upsertSearchDocuments(await Promise.all(updatedTracks.map(track => buildTrackDocFromDb(track))));
+  await upsertSearchDocuments(await Promise.all(
+    updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),
+  ));
 
   removeArtistCaches(queryClient, artistEntity.id);
   queryClient.removeQueries({ queryKey: queryKeys.covers.detail("artist", artistEntity.id), exact: true });

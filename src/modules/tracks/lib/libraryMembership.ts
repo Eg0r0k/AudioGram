@@ -4,6 +4,7 @@ import { unitOfWork } from "@/db/unit-of-work";
 import { storageService } from "@/db/storage";
 import { unwrapResult } from "@/queries/shared";
 import { getLogger } from "@/lib/logger";
+import { indexImportedTracks, removeSearchDocuments } from "@/modules/search/searchIndex";
 import type { TrackId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 
@@ -29,6 +30,13 @@ export async function promoteTrackToLibrary(trackId: TrackId): Promise<void> {
     },
   );
   if (result.isErr()) throw result.error;
+
+  // The row family just became library members — mirror them into the search
+  // index (library members only). Best-effort: a wedged search worker must
+  // not fail the add-to-library action; the next full rebuild recovers.
+  void indexImportedTracks([trackId]).catch((error) => {
+    getLogger().warn(`[Search] Indexing promoted ${trackId} failed: ${String(error)}`);
+  });
 }
 
 /**
@@ -59,12 +67,16 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
       // Recalculate the shadow-album/artist pinned flags: without this the
       // album would linger in the library after its last library track left
       // (ghost albums). Local rows are never touched from here.
+      const demotedDocIds: string[] = [];
       if (track?.albumId && parseTrackRef(track.albumId as unknown as TrackId).kind !== "local") {
         const stillPinned = await db.tracks
           .where("albumId").equals(track.albumId)
           .and(candidate => candidate.pinned === 1)
           .count();
-        if (stillPinned === 0) await db.albums.update(track.albumId, { pinned: 0 });
+        if (stillPinned === 0) {
+          await db.albums.update(track.albumId, { pinned: 0 });
+          demotedDocIds.push(`album:${track.albumId}`);
+        }
       }
       for (const artistId of track?.artistIds ?? []) {
         if (parseTrackRef(artistId as unknown as TrackId).kind === "local") continue;
@@ -72,11 +84,22 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
           .where("artistIds").equals(artistId)
           .and(candidate => candidate.pinned === 1)
           .count();
-        if (stillPinned === 0) await db.artists.update(artistId, { pinned: 0 });
+        if (stillPinned === 0) {
+          await db.artists.update(artistId, { pinned: 0 });
+          demotedDocIds.push(`artist:${artistId}`);
+        }
       }
+      return demotedDocIds;
     },
   );
   if (result.isErr()) throw result.error;
+
+  // Shadows are invisible to search: the degraded track leaves the index,
+  // along with any album/artist the recalc just demoted. Best-effort, same
+  // as the promote mirror above.
+  void removeSearchDocuments([`track:${trackId}`, ...result.value]).catch((error) => {
+    getLogger().warn(`[Search] De-indexing removed ${trackId} failed: ${String(error)}`);
+  });
 
   // File deletion happens outside the DB transaction; a leftover file is
   // recoverable garbage, a dangling DB row is not.

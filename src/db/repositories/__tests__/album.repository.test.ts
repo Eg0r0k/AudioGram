@@ -3,9 +3,10 @@ import type { ArtistId } from "@/types/ids";
 
 const table = vi.hoisted(() => {
   const sortByMock = vi.fn();
-  const equalsMock = vi.fn(() => ({ sortBy: sortByMock }));
+  const andMock = vi.fn(() => ({ sortBy: sortByMock }));
+  const equalsMock = vi.fn(() => ({ sortBy: sortByMock, and: andMock }));
   const whereMock = vi.fn(() => ({ equals: equalsMock }));
-  return { sortByMock, equalsMock, whereMock };
+  return { sortByMock, andMock, equalsMock, whereMock };
 });
 
 vi.mock("@/db", () => ({

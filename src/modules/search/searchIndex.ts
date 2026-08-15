@@ -191,7 +191,9 @@ export function resetSearchIndex(): void {
 async function assertProjectionInDev(documents: SearchDocument[]): Promise<void> {
   if (!import.meta.env.DEV) return;
   try {
-    const dbTrackCount = await db.tracks.count();
+    // The projection covers library members only; shadow rows (pinned = 0)
+    // are deliberately absent from the index.
+    const dbTrackCount = await db.tracks.where("pinned").equals(1).count();
     const drift = trackProjectionMismatch(dbTrackCount, countTrackDocuments(documents));
     if (drift) console.error(drift);
   }
@@ -290,7 +292,9 @@ export async function indexImportedTracks(trackIds: TrackId[]): Promise<void> {
 
   const tracksResult = await trackRepository.findByIds(trackIds);
   if (tracksResult.isErr()) throw tracksResult.error;
-  const tracks = tracksResult.value;
+  // Also serves pin-on-demand (promote/addToLibrary): index library members
+  // only, so a stray shadow id can never smuggle a doc into the index.
+  const tracks = tracksResult.value.filter(track => track.pinned !== 0);
   if (tracks.length === 0) return;
 
   const artistIds = [...new Set(tracks.flatMap(track => track.artistIds))];
@@ -307,8 +311,8 @@ export async function indexImportedTracks(trackIds: TrackId[]): Promise<void> {
   const albumMap = new Map(albumsResult.value.map(album => [album.id, album]));
 
   await upsertSearchDocuments([
-    ...artistsResult.value.map(artist => buildArtistDoc(artist)),
-    ...albumsResult.value.map(album => buildAlbumDoc(album, artistMap)),
+    ...artistsResult.value.filter(a => a.pinned !== 0).map(artist => buildArtistDoc(artist)),
+    ...albumsResult.value.filter(a => a.pinned !== 0).map(album => buildAlbumDoc(album, artistMap)),
     ...tracks.map(track => buildTrackDoc(track, artistMap, albumMap)),
   ]);
 }
