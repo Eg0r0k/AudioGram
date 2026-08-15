@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getLogger } from "@/lib/logger";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import type { PlayerTrack } from "@/modules/player/types";
 import { parseTrackRef } from "@/types/track-ref";
 import { getNdConfig } from "../navidrome/config";
@@ -16,7 +16,7 @@ const PREFETCH_TTL_MS = 30 * 60_000;
 const prefetchedAt = new Map<string, number>();
 
 export function prefetchNdStream(track: PlayerTrack | null | undefined): void {
-  if (!IS_TAURI || !track || track.kind !== "library") return;
+  if (!platformCaps.canProxyStream || !track || track.kind !== "library") return;
   if (getNdConfig() === null) return;
 
   const ref = parseTrackRef(track.id);

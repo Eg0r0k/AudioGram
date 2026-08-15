@@ -2,7 +2,7 @@ import { useTitle } from "@vueuse/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, watchEffect } from "vue";
 import { routeTitle } from "@/app/router/middleware/title.middleware";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 
 const UNKNOWN_ARTIST = "Unknown Artist";
@@ -26,7 +26,7 @@ export const useNowPlayingTitle = () => {
     const nextTitle = nowPlayingTitle.value;
     title.value = nextTitle;
 
-    if (!IS_TAURI) return;
+    if (!platformCaps.hasNativeWindow) return;
 
     getCurrentWindow().setTitle(nextTitle).catch(() => {
       // noop: title sync is non-critical

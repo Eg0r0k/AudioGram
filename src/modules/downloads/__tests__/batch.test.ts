@@ -16,7 +16,7 @@ const providerMock = vi.hoisted(() => ({
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true }));
+vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true, IS_MOBILE: false }));
 vi.mock("@/modules/sources", () => ({
   sources: { get: () => providerMock, forTrack: () => providerMock },
 }));

@@ -1,5 +1,5 @@
 import { type ResultAsync, errAsync } from "neverthrow";
-import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import type {
   YoutubeError,
   YtAlbumDetail,
@@ -101,5 +101,6 @@ const noopProvider: YoutubeProvider = {
   cancelDownload: () => unavailable<void>(),
 };
 
+// yt-dlp is a spawned helper process — desktop only.
 export const youtubeProvider: YoutubeProvider
-  = IS_TAURI && !IS_MOBILE ? desktopProvider : noopProvider;
+  = platformCaps.canShellSpawn ? desktopProvider : noopProvider;

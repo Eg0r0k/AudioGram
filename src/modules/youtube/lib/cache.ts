@@ -1,9 +1,9 @@
 import { remove } from "@tauri-apps/plugin-fs";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 
 /** Best-effort removal of a downloaded cache file after import. */
 export async function cleanupCacheFile(absolutePath: string): Promise<void> {
-  if (!IS_TAURI) return;
+  if (!platformCaps.hasFs) return;
   try {
     await remove(absolutePath);
   }

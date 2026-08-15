@@ -3,7 +3,7 @@ import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import type { DownloadJobEntity } from "@/db/entities";
 import { downloadJobRepository, offlineCopyRepository, trackRepository } from "@/db/repositories";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { getLogger } from "@/lib/logger";
 import { sources } from "@/modules/sources";
 import type { SourceError } from "@/modules/sources";
@@ -122,7 +122,8 @@ export async function cancelTrackDownload(jobId: string): Promise<void> {
  * download would eat its file), rehydrates the runtime store and pumps.
  */
 export async function initDownloadManager(): Promise<void> {
-  if (!IS_TAURI) return;
+  // Downloads land as files in native storage.
+  if (!platformCaps.hasFs) return;
 
   await unwrapResult(downloadJobRepository.requeueRunning());
   await sweepTmpOrphans();

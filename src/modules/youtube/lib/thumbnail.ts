@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 
 /**
  * googleusercontent/ggpht covers are served at the size encoded in the URL,
@@ -31,7 +31,7 @@ export const THUMB_SIZE_ROW = 226;
  */
 export function proxiedThumbnail(url: string, size: number = THUMB_SIZE_FULL): string {
   const sharp = upscaledThumbnail(url, size);
-  if (!IS_TAURI) return sharp;
+  if (!platformCaps.canProxyStream) return sharp;
   return convertFileSrc(sharp, "ytimg");
 }
 

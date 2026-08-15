@@ -13,7 +13,7 @@ import {
 } from "../types";
 import { TrackSource, TrackState } from "@/db/entities";
 import { StorageError } from "@/db/errors/storage.errors";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { storageService } from "@/db/storage";
 import { offlineCopyRepository } from "@/db/repositories";
 import { sources } from "@/modules/sources";
@@ -227,8 +227,8 @@ export const usePlayerStore = defineStore("player", () => {
       }
 
       case "path": {
-        if (!IS_TAURI) {
-          console.warn("[Player] path-based ephemeral tracks require Tauri");
+        if (!platformCaps.hasFs) {
+          console.warn("[Player] path-based ephemeral tracks require native FS");
           return null;
         }
         const result = await storageService.getAudioUrl(track.source.path);
@@ -250,8 +250,8 @@ export const usePlayerStore = defineStore("player", () => {
       || track.source === TrackSource.REMOTE_YT;
 
     if (!isRemote) {
-      if (track.source === TrackSource.LOCAL_EXTERNAL && !IS_TAURI) {
-        console.warn("[Player] LOCAL_EXTERNAL tracks require Tauri");
+      if (track.source === TrackSource.LOCAL_EXTERNAL && !platformCaps.hasFs) {
+        console.warn("[Player] LOCAL_EXTERNAL tracks require native FS");
         return null;
       }
       const result = await storageService.getAudioUrl(track.storagePath);

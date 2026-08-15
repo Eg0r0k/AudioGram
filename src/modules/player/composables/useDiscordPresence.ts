@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { onUnmounted, watch } from "vue";
-import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { usePlayerStore } from "../store/player.store";
 import {
   createDiscordActivityPayload,
@@ -11,7 +11,7 @@ const DISCORD_CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID?.trim() ?? "";
 const RETRY_DELAY_MS = 30_000;
 
 export const useDiscordPresence = () => {
-  if (!IS_TAURI || IS_MOBILE || !DISCORD_CLIENT_ID) return;
+  if (!platformCaps.hasDiscord || !DISCORD_CLIENT_ID) return;
 
   const player = usePlayerStore();
 

@@ -1,4 +1,4 @@
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { useSettingsStore } from "@/modules/settings/store";
 import { buildNdConfig } from "@/modules/settings/schema";
 import type { NdConfig } from "./api/subsonic";
@@ -9,7 +9,8 @@ import type { NdConfig } from "./api/subsonic";
  * Pinia context is not up yet).
  */
 export function getNdConfig(): NdConfig | null {
-  if (!IS_TAURI) return null;
+  // ND requests and streams go through the Rust proxy layer.
+  if (!platformCaps.canProxyStream) return null;
   try {
     return buildNdConfig(useSettingsStore().sources.nd);
   }
