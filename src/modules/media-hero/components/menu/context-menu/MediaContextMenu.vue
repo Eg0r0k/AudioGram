@@ -1,7 +1,10 @@
 <template>
   <ContextMenu v-model:open="isOpen">
     <ContextMenuCloseBridge :open="isOpen" />
-    <ContextMenuTrigger as-child>
+    <ContextMenuTrigger
+      as-child
+      :disabled="disabled"
+    >
       <slot />
     </ContextMenuTrigger>
     <ContextMenuContent class="w-60 bg-popover/50 backdrop-blur-[50px] ">
@@ -31,8 +34,11 @@ provideMenuComponents(contextMenuComponents);
 const props = withDefaults(defineProps<{
   context?: MediaContext;
   isPlaylistOwner?: boolean;
+  /** The context would render no items (e.g. a catalog artist) — don't open. */
+  disabled?: boolean;
 }>(), {
   context: "album",
+  disabled: false,
 });
 
 const contexts: Record<MediaContext, Component> = {

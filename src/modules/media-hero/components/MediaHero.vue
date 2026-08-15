@@ -2,6 +2,7 @@
   <MediaContextMenu
     :context="contextType"
     :is-playlist-owner="isPlaylist(data) ? data.isOwner : undefined"
+    :disabled="!hasMenuItems"
   >
     <div
       class="relative @container"
@@ -60,6 +61,7 @@
             :source="heroSource"
             :has-tracks="props.hasTracks"
             :is-playlist-owner="isPlaylist(data) ? data.isOwner : undefined"
+            :show-menu="hasMenuItems"
             @play="$emit('play')"
             @shuffle="$emit('shuffle')"
           >
@@ -212,6 +214,20 @@ const heroSource = computed<QueueSource>(() => {
 const canEdit = computed(() =>
   canManage.value && (isPlaylist(props.data) || isAlbum(props.data) || isArtist(props.data)),
 );
+
+/**
+ * Mirrors what the context components actually render: a menu that would
+ * come up empty (catalog artist — edit/delete only; album with neither
+ * manage nor offline download) never opens at all, and the "⋯" trigger
+ * hides with it. Playlist/liked contexts always carry "add to queue".
+ */
+const hasMenuItems = computed(() => {
+  switch (contextType.value) {
+    case "artist-page": return canManage.value;
+    case "album": return canManage.value || canDownloadOffline.value;
+    default: return true;
+  }
+});
 
 const descriptionText = computed(() => {
   if (isPlaylist(props.data)) {

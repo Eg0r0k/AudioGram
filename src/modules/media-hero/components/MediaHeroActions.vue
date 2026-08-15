@@ -27,6 +27,7 @@
       </Button>
 
       <MediaDropdown
+        v-if="props.showMenu !== false"
         :context="contextType"
         :is-playlist-owner="props.isPlaylistOwner"
       />
@@ -59,6 +60,8 @@ const props = defineProps<{
   source: QueueSource;
   hasTracks?: boolean;
   isPlaylistOwner?: boolean;
+  /** False hides the "⋯" dropdown — its context would render no items. */
+  showMenu?: boolean;
 }>();
 
 const emit = defineEmits<{

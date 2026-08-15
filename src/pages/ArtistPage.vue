@@ -39,7 +39,10 @@
               @delete="openDeleteDialog"
             >
               <template #actions>
+                <!-- Writes into the artist's Dexie row — hidden for a
+                     catalog (ND) artist that has none. -->
                 <Button
+                  v-if="artist"
                   class="text-white"
                   variant="ghost"
                   @click="openAddTracksPanel"

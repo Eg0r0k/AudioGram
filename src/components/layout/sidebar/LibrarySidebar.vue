@@ -57,10 +57,6 @@
           @move-to-folder="openMoveToFolderDialog"
           @remove-from-folder="removeItemFromActiveFolder"
         >
-          <!-- min-h-0 + overflow-hidden: the 20 fixed-height skeletons must
-               not outgrow the slide container — its children are
-               overflow-y:auto, and overflowing them flashes a native
-               scrollbar until the virtual list replaces the skeletons. -->
           <div
             v-if="listLoading"
             class="flex-1 gap-2 flex flex-col p-2 min-h-0 overflow-hidden"
