@@ -3,6 +3,8 @@ import { getLogger } from "@/lib/logger";
 import { sources } from "@/modules/sources";
 import type { AlbumId, TrackId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
+import { updateCoverCache } from "@/queries/cache";
+import { queryClient } from "@/queries/client";
 import { unwrapResult } from "@/queries/shared";
 
 /**
@@ -26,6 +28,10 @@ export async function ensureShadowAlbumCover(albumId: AlbumId, coverRef: string)
     if (blob.size === 0) return;
 
     await unwrapResult(coverRepository.upsertAlbumCover(albumId, blob));
+    // Point-sync the cover query: surfaces that mounted before this
+    // background fetch landed (current-track panel, footer player) hold a
+    // cached null and would otherwise never learn the cover exists.
+    updateCoverCache(queryClient, "album", albumId, blob);
   }
   catch (error) {
     getLogger().warn(`[Covers] Shadow album cover failed for ${albumId}: ${String(error)}`);

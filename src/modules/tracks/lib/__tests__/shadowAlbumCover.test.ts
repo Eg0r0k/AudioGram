@@ -1,6 +1,8 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
+import { queryClient } from "@/queries/client";
+import { queryKeys } from "@/queries/query-keys";
 import { ytAlbumId } from "@/types/track-ref";
 import { ensureShadowAlbumCover } from "../shadowAlbumCover";
 
@@ -19,6 +21,7 @@ describe("ensureShadowAlbumCover", () => {
   beforeEach(async () => {
     await db.open();
     await Promise.all(db.tables.map(table => table.clear()));
+    queryClient.clear();
     vi.restoreAllMocks();
   });
 
@@ -31,6 +34,19 @@ describe("ensureShadowAlbumCover", () => {
     expect(fetch).toHaveBeenCalledWith("proxied://https://i.ytimg.com/vi/x/hq.jpg");
     const cover = await db.covers.where("[ownerType+ownerId]").equals(["album", albumId]).first();
     expect(cover).toMatchObject({ ownerType: "album", ownerId: albumId });
+  });
+
+  it("syncs the freshly stored cover into the query cache", async () => {
+    // Panels watching covers.detail mounted BEFORE the background fetch
+    // landed have null cached — without the point sync they never learn
+    // the cover exists.
+    const blob = new Blob(["img"], { type: "image/jpeg" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(blob, { status: 200 })));
+
+    await ensureShadowAlbumCover(albumId, "ref");
+
+    const cached = queryClient.getQueryData<Blob>(queryKeys.covers.detail("album", albumId));
+    expect(cached).toBeInstanceOf(Blob);
   });
 
   it("does nothing when the album already has a cover", async () => {
