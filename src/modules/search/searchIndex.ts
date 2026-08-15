@@ -7,7 +7,9 @@ import type {
   WorkerRequest,
   WorkerResponse,
 } from "./types";
+import { db } from "@/db";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
+import { countTrackDocuments, trackProjectionMismatch } from "./projectionCheck";
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { Track } from "@/modules/player/types";
 import type { TrackId } from "@/types/ids";
@@ -182,11 +184,30 @@ export function resetSearchIndex(): void {
   initPromise = null;
 }
 
+/**
+ * Dev-only: after the full build the entire projection is in hand — verify
+ * it against the tracks table. The check must never break search init.
+ */
+async function assertProjectionInDev(documents: SearchDocument[]): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  try {
+    const dbTrackCount = await db.tracks.count();
+    const drift = trackProjectionMismatch(dbTrackCount, countTrackDocuments(documents));
+    if (drift) console.error(drift);
+  }
+  catch {
+    // Counting failed — nothing useful to report.
+  }
+}
+
 export function initSearchIndex(): Promise<void> {
   if (initPromise) return initPromise;
 
   initPromise = buildAllSearchDocuments()
-    .then(documents => getClient().build(documents))
+    .then(async (documents) => {
+      await getClient().build(documents);
+      await assertProjectionInDev(documents);
+    })
     .catch((err) => {
       initPromise = null;
       return Promise.reject(err);
