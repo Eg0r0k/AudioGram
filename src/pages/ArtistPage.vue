@@ -152,6 +152,9 @@ import { useLibrary } from "@/modules/library/composables/useLibrary";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
 import { getAlbumPageData } from "@/queries/album.queries";
 import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
+import { sources } from "@/modules/sources";
+import { sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { getLogger } from "@/lib/logger";
 import type { AlbumId } from "@/types/ids";
 import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
@@ -258,6 +261,25 @@ async function handlePlayTrack(index: number) {
 
 async function handlePlayAlbum(item: LibraryItem) {
   const albumId = item.id as AlbumId;
+
+  // Catalog album card (ND artist page): no Dexie row behind it — fetch the
+  // tracks live from the source and queue them exactly like the album page
+  // would (playing shadow-pins the rows).
+  if (item.isCatalog) {
+    const kind = sourceKindOf(albumId);
+    if (kind === "local") return;
+    const result = await sources.get(kind).getAlbum(albumId);
+    if (result.isErr()) {
+      getLogger().error(`[Artist] Queueing catalog album ${albumId} failed: ${result.error.message}`);
+      toast.error(t("queue.addFailed"));
+      return;
+    }
+    const tracks = result.value.tracks.map(sourceTrackToDisplay);
+    if (tracks.length === 0) return;
+    await queueStore.setQueue(tracks, 0, { type: "album", albumId });
+    return;
+  }
+
   const data = await getAlbumPageData(albumId);
   if (data.tracks.length === 0) return;
 
