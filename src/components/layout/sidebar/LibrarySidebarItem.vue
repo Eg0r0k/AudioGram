@@ -97,7 +97,7 @@ const handleClick = () => {
        entity type the collapsed row can't show. Content renders only in
        compact mode, so the expanded list never grows a tooltip. -->
   <TooltipProvider
-    :delay-duration="400"
+    :delay-duration="150"
     disable-hoverable-content
   >
     <Tooltip>
