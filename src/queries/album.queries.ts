@@ -21,6 +21,7 @@ import { AlbumId as createAlbumId } from "@/types/ids";
 import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
+  invalidateForAlbumMutation,
   removeAlbumCaches,
   removeTracksFromCaches,
   syncAlbumCaches,
@@ -243,15 +244,7 @@ export async function updateAlbumAndSync(
 
     await upsertSearchDocuments(searchDocuments);
 
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
-      queryClient.invalidateQueries({
-        predicate: query => query.queryKey[0] === "tracks" && query.queryKey[1] === "index",
-      }),
-      queryClient.invalidateQueries({
-        predicate: query => query.queryKey[0] === "playlists" && query.queryKey[2] === "page",
-      }),
-    ]);
+    await invalidateForAlbumMutation(queryClient, { kind: "titleChange" });
   }
 
   return nextAlbum;
@@ -348,22 +341,8 @@ export async function deleteAlbumAndSync(
 
   queryClient.removeQueries({ queryKey: queryKeys.albums.cover(albumEntity.id), exact: true });
 
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.all() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPage() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedPageInfinite() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.tracks.likedTotalDuration() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.artists.page(albumEntity.artistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.artists.albums(albumEntity.artistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.artists.tracksPage(albumEntity.artistId) }),
-    queryClient.invalidateQueries({
-      predicate: query =>
-        query.queryKey[0] === "tracks" && query.queryKey[1] === "index",
-    }),
-    queryClient.invalidateQueries({
-      predicate: query =>
-        query.queryKey[0] === "playlists" && query.queryKey[2] === "page",
-    }),
-  ]);
+  await invalidateForAlbumMutation(queryClient, {
+    kind: "removal",
+    artistId: albumEntity.artistId,
+  });
 }

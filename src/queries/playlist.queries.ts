@@ -16,6 +16,7 @@ import type { PlaylistId } from "@/types/ids";
 import { PlaylistId as createPlaylistId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
+  invalidateForPlaylistMutation,
   removePlaylistCaches,
   syncPlaylistCaches,
   syncPlaylistTrackAddition,
@@ -274,12 +275,7 @@ export async function removeTrackFromPlaylistAndSync(
 
   syncPlaylistCaches(queryClient, nextPlaylist);
   syncPlaylistTrackRemoval(queryClient, playlistId, trackId);
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
-  ]);
+  await invalidateForPlaylistMutation(queryClient, { kind: "trackRemoval", playlistId });
 
   return nextPlaylist;
 }
@@ -303,11 +299,7 @@ export async function addTrackToPlaylistAndSync(
 
   syncPlaylistCaches(queryClient, nextPlaylist);
   syncPlaylistTrackAddition(queryClient, playlistId, track);
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
-  ]);
+  await invalidateForPlaylistMutation(queryClient, { kind: "trackAddition", playlistId });
 
   return nextPlaylist;
 }
@@ -338,14 +330,7 @@ export async function addTracksToPlaylistAndSync(
 
   syncPlaylistCaches(queryClient, nextPlaylist);
 
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.all() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.detail(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.page(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.tracksPage(playlistId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.totalDuration(playlistId) }),
-  ]);
+  await invalidateForPlaylistMutation(queryClient, { kind: "bulkAddition", playlistId });
 
   return nextPlaylist;
 }

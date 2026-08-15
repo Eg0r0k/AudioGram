@@ -778,3 +778,218 @@ export function syncTrackMetadataCaches(
     }),
   );
 }
+
+//
+// ── Invalidation registry ─────────────────────────────────────────────────
+//
+// The mutation modules used to repeat these key lists inline (28 calls in
+// track.queries.ts alone), with the same predicates copy-pasted between
+// files. The table below names each affected-key group once; the
+// invalidateFor*Mutation functions compose exactly the sets the inline
+// lists produced — the registry is a relabeling, not a redesign.
+//
+
+type InvalidationFilter = Parameters<QueryClient["invalidateQueries"]>[0];
+
+/** Таблица «сущность → фабрики затронутых ключей». */
+const affectedKeys = {
+  library: {
+    summary: (): InvalidationFilter[] => [{ queryKey: queryKeys.library.summary() }],
+  },
+  tracks: {
+    all: (): InvalidationFilter[] => [{ queryKey: queryKeys.tracks.all() }],
+    /** Every page of the region-scoped tracks index (any sort / search). */
+    indexPages: (): InvalidationFilter[] => [{
+      predicate: query => query.queryKey[0] === "tracks" && query.queryKey[1] === "index",
+    }],
+    likedPage: (): InvalidationFilter[] => [{ queryKey: queryKeys.tracks.likedPage() }],
+    likedPages: (): InvalidationFilter[] => [
+      { queryKey: queryKeys.tracks.likedPage() },
+      { queryKey: queryKeys.tracks.likedPageInfinite() },
+    ],
+    likedTotalDuration: (): InvalidationFilter[] => [
+      { queryKey: queryKeys.tracks.likedTotalDuration() },
+    ],
+  },
+  albums: {
+    all: (): InvalidationFilter[] => [{ queryKey: queryKeys.albums.all() }],
+    pages: (
+      ids: readonly AlbumId[],
+      opts: { totalDuration?: boolean } = {},
+    ): InvalidationFilter[] =>
+      ids.flatMap(id => [
+        { queryKey: queryKeys.albums.page(id) },
+        { queryKey: queryKeys.albums.tracksPage(id) },
+        ...(opts.totalDuration ? [{ queryKey: queryKeys.albums.totalDuration(id) }] : []),
+      ]),
+    anyPage: (): InvalidationFilter[] => [{
+      predicate: query => query.queryKey[0] === "albums" && query.queryKey[2] === "page",
+    }],
+  },
+  artists: {
+    all: (): InvalidationFilter[] => [{ queryKey: queryKeys.artists.all() }],
+    pages: (ids: readonly ArtistId[]): InvalidationFilter[] =>
+      ids.flatMap(id => [
+        { queryKey: queryKeys.artists.page(id) },
+        { queryKey: queryKeys.artists.tracksPage(id) },
+      ]),
+    albumsOf: (id: ArtistId): InvalidationFilter[] => [{ queryKey: queryKeys.artists.albums(id) }],
+  },
+  playlists: {
+    all: (): InvalidationFilter[] => [{ queryKey: queryKeys.playlists.all() }],
+    pages: (
+      ids: readonly PlaylistId[],
+      opts: { tracksPage?: boolean } = { tracksPage: true },
+    ): InvalidationFilter[] =>
+      ids.flatMap(id => [
+        { queryKey: queryKeys.playlists.detail(id) },
+        { queryKey: queryKeys.playlists.page(id) },
+        ...(opts.tracksPage === false ? [] : [{ queryKey: queryKeys.playlists.tracksPage(id) }]),
+        { queryKey: queryKeys.playlists.totalDuration(id) },
+      ]),
+    anyPage: (): InvalidationFilter[] => [{
+      predicate: query => query.queryKey[0] === "playlists" && query.queryKey[2] === "page",
+    }],
+  },
+} as const;
+
+function runInvalidations(queryClient: QueryClient, filters: InvalidationFilter[]) {
+  return Promise.all(filters.map(filter => queryClient.invalidateQueries(filter))).then(() => {});
+}
+
+export type TrackMutationCtx
+  = | { kind: "relations" }
+    | { kind: "metadata"; artistIds: readonly ArtistId[]; albumIds: readonly AlbumId[] }
+    | {
+      kind: "removal";
+      albumId: AlbumId;
+      artistIds: readonly ArtistId[];
+      playlistIds: readonly PlaylistId[];
+    };
+
+export function invalidateForTrackMutation(
+  queryClient: QueryClient,
+  ctx: TrackMutationCtx,
+): Promise<void> {
+  switch (ctx.kind) {
+    case "relations":
+      // Bulk membership/relation changes (add-to-album, add-to-artist,
+      // bulk favorite): every list may have moved.
+      return runInvalidations(queryClient, [
+        ...affectedKeys.library.summary(),
+        ...affectedKeys.tracks.all(),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.albums.all(),
+        ...affectedKeys.artists.all(),
+        ...affectedKeys.playlists.all(),
+      ]);
+    case "metadata":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.artists.pages(ctx.artistIds),
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.albums.pages(ctx.albumIds, { totalDuration: true }),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.playlists.anyPage(),
+      ]);
+    case "removal":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.library.summary(),
+        ...affectedKeys.albums.all(),
+        ...affectedKeys.artists.all(),
+        ...affectedKeys.albums.pages([ctx.albumId], { totalDuration: true }),
+        ...affectedKeys.playlists.pages(ctx.playlistIds),
+        ...affectedKeys.artists.pages(ctx.artistIds),
+        ...affectedKeys.tracks.indexPages(),
+      ]);
+  }
+}
+
+export type AlbumMutationCtx
+  = | { kind: "titleChange" }
+    | { kind: "removal"; artistId: ArtistId };
+
+export function invalidateForAlbumMutation(
+  queryClient: QueryClient,
+  ctx: AlbumMutationCtx,
+): Promise<void> {
+  switch (ctx.kind) {
+    case "titleChange":
+      // Historical asymmetry kept as-is: only likedPage, not the infinite
+      // variant — the point-sync above already patched the rows.
+      return runInvalidations(queryClient, [
+        ...affectedKeys.tracks.likedPage(),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.playlists.anyPage(),
+      ]);
+    case "removal":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.library.summary(),
+        ...affectedKeys.tracks.all(),
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.tracks.likedTotalDuration(),
+        ...affectedKeys.artists.pages([ctx.artistId]),
+        ...affectedKeys.artists.albumsOf(ctx.artistId),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.playlists.anyPage(),
+      ]);
+  }
+}
+
+export type ArtistMutationCtx
+  = | { kind: "change"; artistId: ArtistId }
+    | { kind: "removal"; albumIds: readonly AlbumId[] };
+
+export function invalidateForArtistMutation(
+  queryClient: QueryClient,
+  ctx: ArtistMutationCtx,
+): Promise<void> {
+  switch (ctx.kind) {
+    case "change":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.artists.pages([ctx.artistId]),
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.tracks.likedTotalDuration(),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.albums.anyPage(),
+        ...affectedKeys.playlists.anyPage(),
+      ]);
+    case "removal":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.library.summary(),
+        ...affectedKeys.tracks.all(),
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.tracks.likedTotalDuration(),
+        ...affectedKeys.albums.pages(ctx.albumIds),
+        ...affectedKeys.tracks.indexPages(),
+        ...affectedKeys.playlists.anyPage(),
+      ]);
+  }
+}
+
+export type PlaylistMutationCtx
+  = | { kind: "trackRemoval"; playlistId: PlaylistId }
+    | { kind: "trackAddition"; playlistId: PlaylistId }
+    | { kind: "bulkAddition"; playlistId: PlaylistId };
+
+export function invalidateForPlaylistMutation(
+  queryClient: QueryClient,
+  ctx: PlaylistMutationCtx,
+): Promise<void> {
+  switch (ctx.kind) {
+    case "trackRemoval":
+      return runInvalidations(queryClient, affectedKeys.playlists.pages([ctx.playlistId]));
+    case "trackAddition":
+      // Historical asymmetry kept as-is: the single-track path never
+      // invalidated tracksPage — the point-sync patches the row in place.
+      return runInvalidations(
+        queryClient,
+        affectedKeys.playlists.pages([ctx.playlistId], { tracksPage: false }),
+      );
+    case "bulkAddition":
+      return runInvalidations(queryClient, [
+        ...affectedKeys.library.summary(),
+        ...affectedKeys.playlists.all(),
+        ...affectedKeys.playlists.pages([ctx.playlistId]),
+      ]);
+  }
+}
