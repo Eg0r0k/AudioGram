@@ -12,11 +12,12 @@ import type {
   GetPlaylistPayload,
   GetPlaylistsPayload,
   GetSongPayload,
+  GetTopSongsPayload,
   Search3Payload,
 } from "../navidrome/api/types";
 import { mapNdAlbum, mapNdArtist, mapNdPlaylist, mapNdSong } from "../navidrome/mappers";
 import { getNdConfig } from "../navidrome/config";
-import type { DownloadEvent, SourceError, SourceProvider } from "../types";
+import type { DownloadEvent, SourceError, SourceProvider, SourceTrackDTO } from "../types";
 
 const unavailable = <T>(): ResultAsync<T, SourceError> =>
   errAsync<T, SourceError>({ kind: "UNAVAILABLE", message: "Navidrome source is not configured" });
@@ -35,6 +36,9 @@ function ndIdOf(id: TrackId | AlbumId | ArtistId): string | null {
 
 /** getAlbumList2 caps size at 500 per the Subsonic contract. */
 const MAX_ALBUM_PAGE = 500;
+
+/** Top songs fetched for the artist page track list. */
+const TOP_SONGS_COUNT = 50;
 
 /**
  * `invoke("nd_download")` rejects with plain strings built on the Rust side
@@ -108,10 +112,20 @@ export const ndSourceProvider: SourceProvider = {
     return withConfig(config =>
       subsonicFetch<GetArtistPayload>(config, "getArtist", { id: artistId }).andThen((payload) => {
         if (!payload.artist) return errAsync<never, SourceError>({ kind: "PARSE", message: "getArtist returned no artist" });
-        return okAsync({
-          artist: mapNdArtist(payload.artist),
-          albums: (payload.artist.album ?? []).map(mapNdAlbum),
-        });
+        const artist = mapNdArtist(payload.artist);
+        const albums = (payload.artist.album ?? []).map(mapNdAlbum);
+
+        // Subsonic's getArtist carries albums only; getTopSongs (keyed by
+        // artist NAME per the API) is the canonical companion for the track
+        // list. Best-effort: a failing or empty lookup keeps the page
+        // albums-only instead of failing it.
+        return subsonicFetch<GetTopSongsPayload>(config, "getTopSongs", {
+          artist: payload.artist.name,
+          count: TOP_SONGS_COUNT,
+        })
+          .map(top => (top.topSongs?.song ?? []).map(mapNdSong))
+          .orElse(() => okAsync<SourceTrackDTO[], SourceError>([]))
+          .map(topTracks => ({ artist, albums, topTracks }));
       }),
     );
   },

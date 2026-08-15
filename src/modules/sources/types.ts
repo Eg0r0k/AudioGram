@@ -88,7 +88,16 @@ export interface SourceProvider {
   listAlbums(p: { offset: number; limit: number; sort: "alpha" | "newest" }):
   ResultAsync<SourceAlbumDTO[], SourceError>;
   getAlbum(id: AlbumId): ResultAsync<{ album: SourceAlbumDTO; tracks: SourceTrackDTO[] }, SourceError>;
-  getArtist(id: ArtistId): ResultAsync<{ artist: SourceArtistDTO; albums: SourceAlbumDTO[] }, SourceError>;
+  /**
+   * `topTracks` is best-effort: sources without a "top songs" notion (or a
+   * server that returns none) hand back undefined/empty — the artist page
+   * then stays albums-only.
+   */
+  getArtist(id: ArtistId): ResultAsync<{
+    artist: SourceArtistDTO;
+    albums: SourceAlbumDTO[];
+    topTracks?: SourceTrackDTO[];
+  }, SourceError>;
   listPlaylists(): ResultAsync<SourcePlaylistDTO[], SourceError>;
   getPlaylist(id: string): ResultAsync<{ playlist: SourcePlaylistDTO; tracks: SourceTrackDTO[] }, SourceError>;
   search(q: string, types: ("track" | "album" | "artist")[], p: { offset: number; limit: number }):

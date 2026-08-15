@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { okAsync } from "neverthrow";
+import { errAsync, okAsync } from "neverthrow";
 import { AlbumId, TrackId } from "@/types/ids";
-import { ndAlbumId, ndTrackId } from "@/types/track-ref";
+import { ndAlbumId, ndArtistId, ndTrackId } from "@/types/track-ref";
 
 const subsonicFetchMock = vi.hoisted(() => vi.fn());
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -131,6 +131,47 @@ describe("ndSourceProvider", () => {
       format: { codec: "flac", bitrate: 1024 },
     });
     expect(tracks[1]).toMatchObject({ id: "nd:s2", albumId: undefined, artistIds: undefined, format: undefined });
+  });
+
+  it("getArtist merges the canonical getTopSongs companion as topTracks", async () => {
+    subsonicFetchMock
+      .mockReturnValueOnce(okAsync({
+        artist: {
+          id: "ar1",
+          name: "The Beatles",
+          albumCount: 1,
+          album: [{ id: "al1", name: "Abbey Road", artistId: "ar1", year: 1969 }],
+        },
+      }))
+      .mockReturnValueOnce(okAsync({
+        topSongs: {
+          song: [{ id: "s1", title: "Come Together", albumId: "al1", artistId: "ar1", duration: 259 }],
+        },
+      }));
+
+    const result = await ndSourceProvider.getArtist(ndArtistId("ar1"));
+
+    const { artist, albums, topTracks } = result._unsafeUnwrap();
+    expect(artist).toMatchObject({ id: "nd:ar1", name: "The Beatles" });
+    expect(albums).toHaveLength(1);
+    expect(topTracks).toHaveLength(1);
+    expect(topTracks?.[0]).toMatchObject({ id: "nd:s1", title: "Come Together" });
+    expect(subsonicFetchMock).toHaveBeenLastCalledWith(configState.current, "getTopSongs", {
+      artist: "The Beatles",
+      count: 50,
+    });
+  });
+
+  it("getArtist survives a failing/empty getTopSongs with an empty list", async () => {
+    subsonicFetchMock
+      .mockReturnValueOnce(okAsync({ artist: { id: "ar1", name: "Zaz", album: [] } }))
+      .mockReturnValueOnce(errAsync({ kind: "NETWORK", message: "request failed" }));
+
+    const result = await ndSourceProvider.getArtist(ndArtistId("ar1"));
+
+    const { artist, topTracks } = result._unsafeUnwrap();
+    expect(artist).toMatchObject({ id: "nd:ar1", name: "Zaz" });
+    expect(topTracks).toEqual([]);
   });
 
   it("rejects foreign ids with PARSE before any request", async () => {

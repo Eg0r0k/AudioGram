@@ -81,3 +81,7 @@ export interface Search3Payload {
 export interface GetSongPayload {
   song?: SubsonicSong;
 }
+
+export interface GetTopSongsPayload {
+  topSongs?: { song?: SubsonicSong[] };
+}
