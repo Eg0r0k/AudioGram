@@ -11,6 +11,7 @@ import {
   ImportErrorCode,
 } from "./types";
 import { AUDIO_FILE_EXTENSIONS } from "./import/constants";
+import { importQueue } from "./import/import-queue";
 import { ImportItemIO, fileNameFromPath, itemsFromFiles, itemsFromPaths } from "./import/item-io";
 import { MetadataParser } from "./import/metadata-parser";
 import { ImportPipeline } from "./import/import-pipeline";
@@ -81,7 +82,9 @@ export class MusicLibraryEngine {
 
     await storageService.warmup(["tracks", "lyrics"]);
 
-    return this.pipeline.run(itemsFromPaths(paths), onProgress, control);
+    // Every entity-creating entry point runs through the global import
+    // queue — see import-queue.ts for the EntityResolver race it prevents.
+    return importQueue(() => this.pipeline.run(itemsFromPaths(paths), onProgress, control));
   }
 
   async importFiles(
@@ -89,7 +92,7 @@ export class MusicLibraryEngine {
     onProgress?: (current: number, total: number) => void,
     control?: ImportControl,
   ): Promise<ImportBatchResult> {
-    return this.pipeline.run(itemsFromFiles(files), onProgress, control);
+    return importQueue(() => this.pipeline.run(itemsFromFiles(files), onProgress, control));
   }
 
   async syncFolder(
@@ -97,11 +100,11 @@ export class MusicLibraryEngine {
     onProgress?: (current: number, total: number) => void,
     excludedPaths?: string[],
   ): Promise<SyncResult> {
-    return this.folderSync.syncFolder(folder, onProgress, excludedPaths);
+    return importQueue(() => this.folderSync.syncFolder(folder, onProgress, excludedPaths));
   }
 
   async importSingleExternalFile(file: ScannedFile): Promise<boolean> {
-    return this.folderSync.importSingleExternalFile(file);
+    return importQueue(() => this.folderSync.importSingleExternalFile(file));
   }
 
   async removeSingleFile(absolutePath: string): Promise<boolean> {
