@@ -132,11 +132,15 @@ const handleClick = () => {
                 class="size-[54px] relative z-1 overflow-hidden"
                 :class="item.rounded ? 'rounded-full' : 'rounded-md'"
               >
+                <!-- Blur-up: the tiny variant renders blurred until the full
+                     cover is decoded, then the filter animates away. -->
                 <NuxtImage
                   v-if="hasStaticImage"
                   :src="item.image"
+                  :placeholder="item.imageLow"
+                  placeholder-class="blur-md scale-110"
                   :alt="item.title"
-                  class="size-full object-cover"
+                  class="size-full object-cover transition-[filter,scale] duration-300"
                 />
 
                 <div

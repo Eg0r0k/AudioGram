@@ -16,6 +16,9 @@ import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO
 
 export { THUMB_SIZE_FULL, THUMB_SIZE_ROW };
 
+/** Blur-up placeholder size: big enough for colors, cheap to fetch. */
+export const THUMB_SIZE_LQ = 24;
+
 export function sourceCoverUrl(kind: SourceKind, coverRef: string | undefined, size?: number): string {
   if (!coverRef || kind === "local") return "";
   return sources.get(kind).coverUrl(coverRef, size);

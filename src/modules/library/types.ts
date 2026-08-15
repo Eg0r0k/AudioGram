@@ -29,6 +29,8 @@ export interface LibraryItem {
   title: string;
   subtitle?: string;
   image?: string;
+  /** Tiny variant of `image` shown blurred while the full one loads. */
+  imageLow?: string;
   isPinned: boolean;
   isSystem?: boolean;
   addedAt: number;
