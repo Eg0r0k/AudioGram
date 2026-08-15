@@ -16,8 +16,7 @@ import {
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
-import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay } from "@/modules/sources/lib/display";
-import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
+import { sourceArtistToArtistData, sourceCoverUrl } from "@/modules/sources/lib/display";
 import { THUMB_SIZE_CARD } from "@/modules/youtube/lib/thumbnail";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
@@ -79,17 +78,8 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     enabled: computed(() => !isRemote.value && !!artist.value),
   });
 
-  // Remote artists list the source's "top songs" (getTopSongs) — an empty
-  // answer degrades the page to albums-only, exactly as before.
-  const remoteTracks = computed(() => {
-    const mapped = (remoteQuery.data.value?.topTracks ?? []).map(sourceTrackToDisplay);
-    return sortKey.value ? sortDisplayTracks(mapped, sortKey.value) : mapped;
-  });
-
   const tracks = computed(() =>
-    isRemote.value
-      ? remoteTracks.value
-      : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    isRemote.value ? [] : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
   );
 
   const {
@@ -126,7 +116,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   );
 
   const trackCount = computed(
-    () => (isRemote.value ? remoteTracks.value.length : tracksInfiniteData.value?.pages[0]?.total ?? 0),
+    () => (isRemote.value ? 0 : tracksInfiniteData.value?.pages[0]?.total ?? 0),
   );
 
   const albumCount = computed(() =>

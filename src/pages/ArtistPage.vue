@@ -152,8 +152,7 @@ import { useLibrary } from "@/modules/library/composables/useLibrary";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
 import { getAlbumPageData } from "@/queries/album.queries";
 import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
-import { sourceKindOf } from "@/modules/sources/lib/display";
-import type { AlbumId, ArtistId } from "@/types/ids";
+import type { AlbumId } from "@/types/ids";
 import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useRoute } from "vue-router";
@@ -229,22 +228,7 @@ const errorMessage = computed(() => {
   return t("errors.loadFailed");
 });
 
-// Catalog artist: no Dexie rows, but tracks.value already holds the top
-// songs from the source — queue straight from them.
-const remoteQueueSource = computed(() => {
-  const vm = artistData.value;
-  return vm && sourceKindOf(vm.id) !== "local"
-    ? { type: "artist", artistId: vm.id as ArtistId } as const
-    : null;
-});
-
 function handlePlayAll() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
-    }
-    return;
-  }
   if (!artist.value) return;
 
   getArtistPageData(artist.value.id, sortKey.value).then((data) => {
@@ -255,6 +239,8 @@ function handlePlayAll() {
 }
 
 async function handlePlayTrack(index: number) {
+  if (!artist.value) return;
+
   const selectedTrack = tracks.value[index];
   if (!selectedTrack) return;
 
@@ -263,12 +249,6 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
-  if (remoteQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
-    return;
-  }
-
-  if (!artist.value) return;
   const data = await getArtistPageData(artist.value.id, sortKey.value);
   const fullIndex = data.tracks.findIndex(track => track.id === selectedTrack.id);
   if (fullIndex === -1) return;
@@ -285,10 +265,6 @@ async function handlePlayAlbum(item: LibraryItem) {
 }
 
 async function handleShuffle() {
-  if (remoteQueueSource.value) {
-    await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
-    return;
-  }
   if (!artist.value) return;
 
   const source = { type: "artist", artistId: artist.value.id } as const;
