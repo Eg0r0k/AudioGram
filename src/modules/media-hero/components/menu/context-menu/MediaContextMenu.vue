@@ -1,12 +1,17 @@
 <template>
   <ContextMenu v-model:open="isOpen">
     <ContextMenuCloseBridge :open="isOpen" />
-    <ContextMenuTrigger
-      as-child
-      :disabled="disabled"
+    <div
+      ref="triggerGuardRef"
+      class="contents"
     >
-      <slot />
-    </ContextMenuTrigger>
+      <ContextMenuTrigger
+        as-child
+        :disabled="disabled"
+      >
+        <slot />
+      </ContextMenuTrigger>
+    </div>
     <ContextMenuContent class="w-60 bg-popover/50 backdrop-blur-[50px] ">
       <component
         :is="contextComponent"
@@ -18,8 +23,9 @@
 
 <script setup lang="ts">
 import { ContextMenu, ContextMenuCloseBridge, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
+import { useEventListener } from "@vueuse/core";
 import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
-import { computed, shallowRef, type Component } from "vue";
+import { computed, shallowRef, useTemplateRef, type Component } from "vue";
 import { useMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import AlbumContext from "../contexts/AlbumContext.vue";
 import ArtistContext from "../contexts/ArtistContext.vue";
@@ -55,6 +61,17 @@ const isOpen = shallowRef(false);
 useMenuCursorAutoClose(isOpen, () => {
   isOpen.value = false;
 }, { contentSelector: "[data-slot=\"context-menu-content\"]" });
+
+// A disabled media menu must swallow the right-click entirely: with the
+// reka trigger inert the event would travel on to the surrounding
+// TrackContextMenu trigger — whose guard deliberately lets hero clicks
+// through — and an empty track menu would open instead.
+const triggerGuardRef = useTemplateRef<HTMLElement>("triggerGuardRef");
+useEventListener(triggerGuardRef, "contextmenu", (event: MouseEvent) => {
+  if (!props.disabled) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, { capture: true });
 
 const actions = useMediaContext();
 const contextComponent = computed(() => contexts[props.context]);
