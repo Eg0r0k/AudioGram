@@ -4,87 +4,98 @@
     class="flex items-center shrink-0 pb-4"
     :class="compact ? 'justify-center px-2' : 'gap-3 px-4'"
   >
-    <Transition
-      enter-active-class="transition-[opacity,transform] duration-200 ease-standard"
-      enter-from-class="opacity-0 scale-75 rotate-[-90deg]"
-      leave-active-class="transition-[opacity,transform] duration-150 ease-standard"
-      leave-to-class="opacity-0 scale-75 rotate-[90deg]"
-      mode="out-in"
-    >
-      <Button
-        v-if="isSearchOpen"
-        key="back"
-        variant="ghost"
-        size="icon-lg"
-        class="rounded-full shrink-0"
-        @click="handleClose"
-      >
-        <IconArrowLeft class="size-6" />
-      </Button>
-
-      <div
-        v-else
-        key="menu"
-        class="shrink-0"
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              class="rounded-full"
-              :aria-label="$t('nav.menu')"
-            >
-              <!-- An active download takes over the burger: the header is the
-                   always-visible hint that the queue is working. -->
-              <IconDownload
-                v-if="hasActiveDownloads"
-                class="size-6 animate-pulse text-primary"
-              />
-              <IconMenu2
-                v-else
-                class="size-6"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            class="w-52 bg-popover/50 backdrop-blur-[50px]"
-            align="start"
+    <!-- Back / burger swap: a simultaneous crossfade with a directional
+         turn (opening rotates one way, closing the other) inside a fixed
+         footprint — no sequential out-in gap, so nothing pops. -->
+    <div class="relative size-10 shrink-0">
+      <AnimatePresence>
+        <Motion
+          v-if="isSearchOpen"
+          key="back"
+          class="absolute inset-0"
+          :initial="{ opacity: 0, rotate: -60, scale: 0.7 }"
+          :animate="{ opacity: 1, rotate: 0, scale: 1 }"
+          :exit="{ opacity: 0, rotate: -60, scale: 0.7 }"
+          :transition="headerTransition"
+        >
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            class="rounded-full"
+            @click="handleClose"
           >
-            <DropdownMenuGroup>
-              <DropdownMenuItem @click="goFavorite">
-                <IconBookmark class="size-5.5" />
-                {{ t("nav.favorite") }}
-              </DropdownMenuItem>
+            <IconArrowLeft class="size-6" />
+          </Button>
+        </Motion>
 
-              <DropdownMenuItem @click="goSettings">
-                <IconSettings class="size-5.5" />
-                {{ t("nav.settings") }}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem @click="openDownloadsPanel">
-                <IconDownload class="size-5.5" />
-                {{ t("nav.downloads") }}
-                <span
+        <Motion
+          v-else
+          key="menu"
+          class="absolute inset-0"
+          :initial="{ opacity: 0, rotate: 60, scale: 0.7 }"
+          :animate="{ opacity: 1, rotate: 0, scale: 1 }"
+          :exit="{ opacity: 0, rotate: 60, scale: 0.7 }"
+          :transition="headerTransition"
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                class="rounded-full"
+                :aria-label="$t('nav.menu')"
+              >
+                <!-- An active download takes over the burger: the header is the
+                     always-visible hint that the queue is working. -->
+                <IconDownload
                   v-if="hasActiveDownloads"
-                  class="ml-auto text-xs text-primary"
-                >{{ activeDownloadsCount }}</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem @click="handleThemeToggle">
-                <component
-                  :is="themeIcon"
-                  class="size-5.5"
+                  class="size-6 animate-pulse text-primary"
                 />
-                {{ t("nav.changeTheme") }}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </Transition>
+                <IconMenu2
+                  v-else
+                  class="size-6"
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              class="w-52 bg-popover/50 backdrop-blur-[50px]"
+              align="start"
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuItem @click="goFavorite">
+                  <IconBookmark class="size-5.5" />
+                  {{ t("nav.favorite") }}
+                </DropdownMenuItem>
+  
+                <DropdownMenuItem @click="goSettings">
+                  <IconSettings class="size-5.5" />
+                  {{ t("nav.settings") }}
+                </DropdownMenuItem>
+  
+                <DropdownMenuItem @click="openDownloadsPanel">
+                  <IconDownload class="size-5.5" />
+                  {{ t("nav.downloads") }}
+                  <span
+                    v-if="hasActiveDownloads"
+                    class="ml-auto text-xs text-primary"
+                  >{{ activeDownloadsCount }}</span>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem @click="handleThemeToggle">
+                  <component
+                    :is="themeIcon"
+                    class="size-5.5"
+                  />
+                  {{ t("nav.changeTheme") }}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Motion>
+      </AnimatePresence>
+    </div>
     <div
       v-if="!compact"
       class="flex-1"
@@ -196,9 +207,7 @@
         :initial="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
         :animate="{ width: 'auto', opacity: 1, marginLeft: '0rem' }"
         :exit="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
-        :transition="prefersReduced
-          ? { duration: 0 }
-          : { duration: 0.3, ease: [0.23, 1, 0.32, 1] }"
+        :transition="headerTransition"
       >
         <PageSourceDropdown />
       </Motion>
@@ -253,6 +262,14 @@ const { t } = useI18n();
 const router = useRouter();
 const theme = useTheme();
 const prefersReduced = useReducedMotion();
+
+// One curve for every header motion (matches --ease-standard) so the icon
+// swap and the input stretch read as a single gesture.
+const headerTransition = computed(() =>
+  prefersReduced.value
+    ? { duration: 0 }
+    : { duration: 0.3, ease: [0.23, 1, 0.32, 1] as const },
+);
 
 const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear } = useSearch();
 
