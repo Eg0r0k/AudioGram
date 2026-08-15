@@ -24,7 +24,7 @@
           class="flex-1 bg-card mt-2"
         >
           <template #default="{ item, index }">
-            <div class="px-2">
+            <div class="px-4">
               <TrackRow
                 hide-index
                 menu-target="history"
