@@ -47,6 +47,11 @@ export interface StatsRecords {
   longestSessionSeconds: number;
 }
 
+export interface StreakInfo {
+  current: number;
+  best: number;
+}
+
 /** Ключ локального дня (не UTC): "2026-05-03". */
 function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -350,6 +355,42 @@ class StatsRepository {
       }
 
       return { busiestDay, mostRepeatedTrackId, mostRepeatedCount, longestSessionSeconds };
+    });
+  }
+
+  async streaks(now = Date.now()): Promise<Result<StreakInfo, Error>> {
+    return runSafe(async () => {
+      const DAYS = 365;
+      const since = now - DAYS * 86_400_000;
+      const events = await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray();
+
+      const activeDays = new Set<string>();
+      for (const e of events) {
+        if (e.secondsListened <= 0) continue;
+        activeDays.add(localDayKey(new Date(e.startedAt)));
+      }
+
+      let best = 0;
+      let run = 0;
+      for (let i = DAYS; i >= 0; i--) {
+        if (activeDays.has(localDayKey(new Date(now - i * 86_400_000)))) {
+          run++;
+          best = Math.max(best, run);
+        }
+        else {
+          run = 0;
+        }
+      }
+
+      // Текущая серия: сегодня без прослушиваний ещё не разрыв — день не кончился.
+      let current = 0;
+      const startOffset = activeDays.has(localDayKey(new Date(now))) ? 0 : 1;
+      for (let i = startOffset; i <= DAYS; i++) {
+        if (!activeDays.has(localDayKey(new Date(now - i * 86_400_000)))) break;
+        current++;
+      }
+
+      return { current, best };
     });
   }
 }

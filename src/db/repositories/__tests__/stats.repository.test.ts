@@ -128,3 +128,53 @@ describe("records", () => {
     expect(r.longestSessionSeconds).toBe(1800);
   });
 });
+
+describe("streaks", () => {
+  const NOW = new Date(2026, 4, 10, 15, 0, 0).getTime();
+  const dayAgo = (n: number, hour = 12) => {
+    const d = new Date(2026, 4, 10, hour, 0, 0);
+    d.setDate(d.getDate() - n);
+    return d.getTime();
+  };
+
+  it("returns zeros without events", async () => {
+    const s = (await statsRepository.streaks(NOW))._unsafeUnwrap();
+    expect(s).toEqual({ current: 0, best: 0 });
+  });
+
+  it("counts current streak including today", async () => {
+    await seed(
+      makeEvent({ startedAt: dayAgo(0) }),
+      makeEvent({ startedAt: dayAgo(1) }),
+      makeEvent({ startedAt: dayAgo(2) }),
+      // разрыв на day 3
+      makeEvent({ startedAt: dayAgo(4) }),
+    );
+    const s = (await statsRepository.streaks(NOW))._unsafeUnwrap();
+    expect(s.current).toBe(3);
+    expect(s.best).toBe(3);
+  });
+
+  it("today without listening does not break the streak", async () => {
+    await seed(
+      makeEvent({ startedAt: dayAgo(1) }),
+      makeEvent({ startedAt: dayAgo(2) }),
+    );
+    const s = (await statsRepository.streaks(NOW))._unsafeUnwrap();
+    expect(s.current).toBe(2);
+  });
+
+  it("best streak can be longer than current", async () => {
+    await seed(
+      makeEvent({ startedAt: dayAgo(0) }),
+      // разрыв
+      makeEvent({ startedAt: dayAgo(3) }),
+      makeEvent({ startedAt: dayAgo(4) }),
+      makeEvent({ startedAt: dayAgo(5) }),
+      makeEvent({ startedAt: dayAgo(6) }),
+    );
+    const s = (await statsRepository.streaks(NOW))._unsafeUnwrap();
+    expect(s.current).toBe(1);
+    expect(s.best).toBe(4);
+  });
+});
