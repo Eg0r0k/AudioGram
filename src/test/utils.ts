@@ -4,8 +4,7 @@ import { type Component } from "vue";
 import { createI18n } from "vue-i18n";
 import { createRouter, createWebHistory } from "vue-router";
 import { ROUTE_NAMES } from "@/app/router/route-names";
-import enChapters from "@/app/i18n/locales/en/chapters.json";
-import ruChapters from "@/app/i18n/locales/ru/chapters.json";
+import { messages } from "@/app/i18n/messages";
 
 function createTestRouter() {
   return createRouter({
@@ -21,10 +20,7 @@ function createTestI18n() {
   return createI18n({
     legacy: false,
     locale: "en",
-    messages: {
-      en: { chapters: enChapters },
-      ru: { chapters: ruChapters },
-    },
+    messages,
   });
 }
 
@@ -32,12 +28,13 @@ type BaseRenderOptions = RenderOptions<Record<string, unknown>>;
 
 interface CustomRenderOptions extends Omit<BaseRenderOptions, "global"> {
   initialRoute?: string;
+  stubs?: Record<string, unknown>;
 }
 export function renderWithPlugins(
   component: Component,
   options: CustomRenderOptions = {},
 ) {
-  const { initialRoute = "/", ...renderOptions } = options;
+  const { initialRoute = "/", stubs, ...renderOptions } = options;
 
   const router = createTestRouter();
   const pinia = createPinia();
@@ -50,6 +47,7 @@ export function renderWithPlugins(
       ...renderOptions,
       global: {
         plugins: [router, pinia, i18n],
+        ...(stubs ? { stubs } : {}),
       },
     }),
     router,
