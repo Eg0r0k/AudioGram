@@ -9,7 +9,6 @@
 
     <main
       class="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
-      :style="{ '--content-bottom-inset': playerStore.currentTrack ? '72px' : '0px' }"
     >
       <slot />
     </main>
