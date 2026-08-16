@@ -29,6 +29,22 @@ export interface SonicProfile {
   majorRatio: number;
 }
 
+export const SESSION_GAP_MS = 30 * 60 * 1000;
+
+export interface StatsSummary {
+  totalSeconds: number;
+  playsCount: number;
+  uniqueTracks: number;
+  uniqueArtists: number;
+  completedCount: number;
+  skippedCount: number;
+}
+
+/** Ключ локального дня (не UTC): "2026-05-03". */
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
   try {
     return ok(await fn());
@@ -155,6 +171,47 @@ class StatsRepository {
         ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
         : await db.listenEvents.toArray();
       return events.reduce((sum, e) => sum + e.secondsListened, 0);
+    });
+  }
+
+  async summary(since?: number): Promise<Result<StatsSummary, Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const tracks = new Set<string>();
+      const artists = new Set<string>();
+      const result: StatsSummary = {
+        totalSeconds: 0,
+        playsCount: 0,
+        uniqueTracks: 0,
+        uniqueArtists: 0,
+        completedCount: 0,
+        skippedCount: 0,
+      };
+
+      for (const e of events) {
+        result.totalSeconds += e.secondsListened;
+        if (e.skipped) {
+          result.skippedCount++;
+          continue;
+        }
+        result.playsCount++;
+        if (e.completed) result.completedCount++;
+        tracks.add(e.trackId);
+        artists.add(e.artistId);
+      }
+
+      result.uniqueTracks = tracks.size;
+      result.uniqueArtists = artists.size;
+      return result;
+    });
+  }
+
+  async deleteAllEvents(): Promise<Result<void, Error>> {
+    return runSafe(async () => {
+      await db.listenEvents.clear();
     });
   }
 
