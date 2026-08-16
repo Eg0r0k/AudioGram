@@ -8,7 +8,8 @@
     <DropOverlay :show="isDragging" />
 
     <main
-      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      class="mobile-main flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      :style="{ '--mini-player-inset': playerStore.currentTrack ? '64px' : '0px' }"
     >
       <slot />
     </main>
@@ -111,6 +112,18 @@ const { top, right, bottom, left } = useScreenSafeArea();
 </script>
 
 <style>
+/* The mini player floats over the content, so the page keeps rendering
+   behind it. Only the outermost scroll box of the page gets bottom room,
+   so the last rows and floating buttons can clear the player. Nested
+   scroll boxes are excluded, otherwise the inset would stack. */
+.mobile-main .scrollable-y:not(.scrollable-y *) {
+  padding-bottom: var(--mini-player-inset, 0px);
+}
+
+.mobile-main .absolute.bottom-4:not(.scrollable-y *) {
+  bottom: calc(1rem + var(--mini-player-inset, 0px));
+}
+
 @property --player-bg {
   syntax: '<color>';
   inherits: false;
