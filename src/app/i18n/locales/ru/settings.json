@@ -128,6 +128,8 @@
         "clearAllDialogTitle": "Удалить все данные?",
         "clearAllDialogDesc": "Это навсегда удалит все ваши треки, обложки альбомов и данные библиотеки. Это действие нельзя отменить.",
         "clearAllConfirm": "Удалить всё",
+        "clearAllConfirmCountdown": "Удалить всё ({seconds})",
+        "clearAllSummary": "{tracks} треков · {albums} альбомов · {artists} исполнителей · {size}",
         "folders": "Папки боковой панели",
         "foldersDesc": "Удалить пользовательскую структуру папок из боковой панели",
         "timings": "История и анализ",

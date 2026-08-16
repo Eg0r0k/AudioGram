@@ -17,7 +17,7 @@ const props = defineProps<ToasterProps>();
   <Sonner
     aria-live="polite"
     :class="cn('toaster group', props.class)"
-    :style="{ '--normal-bg': 'var(--popover)', '--normal-text': 'var(--popover-foreground)', '--normal-border': 'var(--border)', '--border-radius': 'var(--radius)', }"
+    :style="{ '--normal-text': 'var(--popover-foreground)', '--normal-border': 'var(--border)', '--border-radius': 'var(--radius)', }"
     v-bind="props"
   >
     <template #success-icon>
@@ -44,9 +44,16 @@ const props = defineProps<ToasterProps>();
 </template>
 
 <style>
+.toaster {
+  --normal-bg: color-mix(in oklch, var(--popover) 70%, transparent) !important;
+}
+
 [data-sonner-toast] {
   gap: 16px !important;
-  border: none !important;
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28) !important;
 }
 [data-sonner-toast] [data-button] {
   background: transparent !important;

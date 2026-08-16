@@ -215,7 +215,8 @@
           class="w-full h-14 justify-start  "
           variant="ghost-primary"
           size="xl"
-          @click="clearAllData"
+          :disabled="isClearing"
+          @click="isClearAllOpen = true"
         >
           <TrashIcon class=" size-6" />
           {{ $t('settings.storage.clearAll') }}
@@ -224,14 +225,26 @@
       <WatchedFoldersSection
         v-if="IS_TAURI"
       />
+      <ClearAllDataDialog
+        v-model:open="isClearAllOpen"
+        :stats="{
+          tracksCount: formatted.tracksCount,
+          albumsCount: formatted.albumsCount,
+          artistsCount: formatted.artistsCount,
+          totalUsed: formatted.totalUsed,
+        }"
+        :pending="isClearing"
+        @confirm="handleClearAllConfirm"
+      />
     </div>
   </Scrollable>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
+import ClearAllDataDialog from "@/pages/settings/components/ClearAllDataDialog.vue";
 
 import {
   Item,
@@ -278,6 +291,14 @@ const { t } = useI18n();
 const handleStoragePathCopied = () => {
   toast.success(t("settings.storage.locationCopied"));
 };
+
+const isClearAllOpen = ref(false);
+
+async function handleClearAllConfirm() {
+  await clearAllData();
+  isClearAllOpen.value = false;
+  toast.success(t("settings.storage.allDataCleared"));
+}
 
 onMounted(() => {
   refresh();
