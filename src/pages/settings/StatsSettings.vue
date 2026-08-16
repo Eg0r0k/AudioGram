@@ -15,10 +15,8 @@
         <StatsTopTracks :since="since" />
         <StatsTopArtists :since="since" />
 
-        <SettingsGroup class="mt-3">
-          <StatsCompletionRow :since="since" />
-          <StatsHourlyRow :since="since" />
-        </SettingsGroup>
+        <StatsCompletionRow :since="since" />
+        <StatsHourlyRow :since="since" />
 
         <StatsRecords :since="since" />
         <StatsTopGenres :since="since" />

@@ -1,35 +1,41 @@
 <template>
-  <Item v-if="peak">
-    <ItemContent>
-      <ItemTitle>{{ title }}</ItemTitle>
-      <ItemSubtitle>
-        <svg
-          :width="24 * BAR_PITCH"
-          :height="CHART_HEIGHT"
-          class="mt-1 block"
-          role="img"
-          :aria-label="title"
-        >
-          <rect
-            v-for="(seconds, hour) in hours"
-            :key="hour"
-            :x="hour * BAR_PITCH"
-            :y="CHART_HEIGHT - barHeight(seconds)"
-            :width="BAR_PITCH - 2"
-            :height="barHeight(seconds)"
-            rx="1"
-            :class="seconds > 0 ? 'fill-primary' : 'fill-border'"
-          />
-        </svg>
-      </ItemSubtitle>
-    </ItemContent>
-  </Item>
+  <SettingsGroup
+    v-if="peak"
+    class="mt-3"
+  >
+    <Item>
+      <ItemContent>
+        <ItemTitle>{{ title }}</ItemTitle>
+        <ItemSubtitle>
+          <svg
+            :width="24 * BAR_PITCH"
+            :height="CHART_HEIGHT"
+            class="mt-1 block"
+            role="img"
+            :aria-label="title"
+          >
+            <rect
+              v-for="(seconds, hour) in hours"
+              :key="hour"
+              :x="hour * BAR_PITCH"
+              :y="CHART_HEIGHT - barHeight(seconds)"
+              :width="BAR_PITCH - 2"
+              :height="barHeight(seconds)"
+              rx="1"
+              :class="seconds > 0 ? 'fill-primary' : 'fill-border'"
+            />
+          </svg>
+        </ItemSubtitle>
+      </ItemContent>
+    </Item>
+  </SettingsGroup>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Item, ItemContent, ItemSubtitle, ItemTitle } from "@/components/ui/item";
+import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import { useHourlyActivity } from "@/composables/useStatsQueries";
 
 const props = defineProps<{ since?: number }>();
