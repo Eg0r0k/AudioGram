@@ -2,13 +2,13 @@
   <div
     ref="dropZoneRef"
     class="relative flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
-    :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left, '--mini-player-h': playerStore.currentTrack ? '64px' : '0px' }"
+    :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left }"
   >
     <WindowToolbar class="toolbar" />
     <DropOverlay :show="isDragging" />
 
     <main
-      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-(--mini-player-h)"
+      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
     >
       <slot />
     </main>
