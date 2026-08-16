@@ -40,11 +40,6 @@ export interface StatsSummary {
   skippedCount: number;
 }
 
-/** Ключ локального дня (не UTC): "2026-05-03". */
-function localDayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
   try {
     return ok(await fn());
