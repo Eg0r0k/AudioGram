@@ -1,23 +1,28 @@
 <template>
   <div
     ref="dropZoneRef"
-    class="flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
-    :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left }"
+    class="relative flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
+    :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left, '--mini-player-h': playerStore.currentTrack ? '64px' : '0px' }"
   >
     <WindowToolbar class="toolbar" />
     <DropOverlay :show="isDragging" />
 
     <main
-      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-(--mini-player-h)"
     >
       <slot />
     </main>
 
-    <MiniPlayer
+    <div
       v-if="playerStore.currentTrack"
-      class="my-1"
-      @click="isFullPlayerOpen = true"
-    />
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-30"
+      :style="{ paddingBottom: bottom }"
+    >
+      <MiniPlayer
+        class="pointer-events-auto my-1"
+        @click="isFullPlayerOpen = true"
+      />
+    </div>
 
     <Transition name="full-player">
       <div
