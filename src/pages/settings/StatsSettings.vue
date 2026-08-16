@@ -11,7 +11,7 @@
           <StatsPeriodSwitcher v-model="period" />
         </SettingsGroup>
         <StatsSummary :since="since" />
-        <!-- Секции добавляются в следующих тасках -->
+        <StatsStreakSection />
       </template>
 
       <SettingsGroup v-else>
@@ -31,6 +31,7 @@ import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import StatsPeriodSwitcher from "./components/stats/StatsPeriodSwitcher.vue";
 import StatsSummary from "./components/stats/StatsSummary.vue";
+import StatsStreakSection from "./components/stats/StatsStreakSection.vue";
 import type { StatsPeriod } from "./components/stats/period";
 import { periodSince } from "./components/stats/period";
 import { statsQueries } from "@/queries/stats.queries";

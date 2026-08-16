@@ -6,7 +6,7 @@
         :height="height"
         class="block"
         role="img"
-        aria-label="Календарь активности прослушивания"
+        :aria-label="t('common.heatmapAria')"
       >
         <text
           v-for="m in monthLabels"
@@ -48,7 +48,7 @@
     </div>
 
     <div class="flex items-center justify-end gap-1.5 text-xs text-neutral-500">
-      <span>Меньше</span>
+      <span>{{ t("common.heatmapLess") }}</span>
       <span
         v-for="ratio in [0, 0.25, 0.5, 0.75, 1]"
         :key="ratio"
@@ -60,7 +60,7 @@
           opacity: ratio === 0 ? 1 : Math.max(ratio, 0.2),
         }"
       />
-      <span>Больше</span>
+      <span>{{ t("common.heatmapMore") }}</span>
     </div>
   </div>
 </template>

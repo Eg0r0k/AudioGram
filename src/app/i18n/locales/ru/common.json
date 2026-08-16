@@ -132,6 +132,9 @@
 
   "hoursShort": "{count} ч",
   "minutesShort": "{count} мин",
+  "heatmapLess": "Меньше",
+  "heatmapMore": "Больше",
+  "heatmapAria": "Календарь активности прослушивания",
   "progress": "Прогресс",
   "drop": {
     "here": "Перетащите файлы сюда",

@@ -134,6 +134,9 @@
 
   "hoursShort": "{count} hr",
   "minutesShort": "{count} min",
+  "heatmapLess": "Less",
+  "heatmapMore": "More",
+  "heatmapAria": "Listening activity calendar",
   "progress": "Progress",
   "drop": {
     "here": "Drop files here",
