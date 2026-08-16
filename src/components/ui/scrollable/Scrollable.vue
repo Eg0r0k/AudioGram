@@ -237,6 +237,9 @@ html.custom-scroll .scrollable::-webkit-scrollbar {
   overflow-y: overlay;
   scrollbar-width: none;
   overscroll-behavior-y: contain;
+  /* Content inset for overlays (mobile mini player): lets the last items
+     scroll above the overlay while content still flows underneath it. */
+  padding-bottom: var(--content-bottom-inset, 0px);
 }
 
 .scrollable-x {
