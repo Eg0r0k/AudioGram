@@ -11,9 +11,11 @@
       <ItemMedia>
         <IconCalendar class="size-6 mr-3" />
       </ItemMedia>
-      <ItemContent>
-        <ItemTitle>{{ $t("settings.stats.recordBusiestDay") }}</ItemTitle>
-        <ItemSubtitle>
+      <ItemContent class="min-w-0">
+        <ItemTitle class="truncate">
+          {{ $t("settings.stats.recordBusiestDay") }}
+        </ItemTitle>
+        <ItemSubtitle class="truncate">
           {{ busiestDayLabel }} · {{ formatTotalDuration(records.busiestDay.seconds, t) }}
         </ItemSubtitle>
       </ItemContent>
@@ -23,9 +25,11 @@
       <ItemMedia>
         <IconRepeat class="size-6 mr-3" />
       </ItemMedia>
-      <ItemContent>
-        <ItemTitle>{{ $t("settings.stats.recordOnRepeat") }}</ItemTitle>
-        <ItemSubtitle>
+      <ItemContent class="min-w-0">
+        <ItemTitle class="truncate">
+          {{ $t("settings.stats.recordOnRepeat") }}
+        </ItemTitle>
+        <ItemSubtitle class="truncate">
           {{ repeatTrack.title }} — {{ repeatTrack.artistName }}
           · {{ $t("settings.stats.playsCount", records.mostRepeatedCount) }}
         </ItemSubtitle>
@@ -36,9 +40,13 @@
       <ItemMedia>
         <IconClock class="size-6 mr-3" />
       </ItemMedia>
-      <ItemContent>
-        <ItemTitle>{{ $t("settings.stats.recordLongestSession") }}</ItemTitle>
-        <ItemSubtitle>{{ formatTotalDuration(records.longestSessionSeconds, t) }}</ItemSubtitle>
+      <ItemContent class="min-w-0">
+        <ItemTitle class="truncate">
+          {{ $t("settings.stats.recordLongestSession") }}
+        </ItemTitle>
+        <ItemSubtitle class="truncate">
+          {{ formatTotalDuration(records.longestSessionSeconds, t) }}
+        </ItemSubtitle>
       </ItemContent>
     </Item>
   </SettingsGroup>
