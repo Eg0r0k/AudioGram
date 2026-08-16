@@ -10,6 +10,7 @@
         <SettingsGroup>
           <StatsPeriodSwitcher v-model="period" />
         </SettingsGroup>
+        <StatsSummary :since="since" />
         <!-- Секции добавляются в следующих тасках -->
       </template>
 
@@ -29,10 +30,13 @@ import { Scrollable } from "@/components/ui/scrollable";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import StatsPeriodSwitcher from "./components/stats/StatsPeriodSwitcher.vue";
+import StatsSummary from "./components/stats/StatsSummary.vue";
 import type { StatsPeriod } from "./components/stats/period";
+import { periodSince } from "./components/stats/period";
 import { statsQueries } from "@/queries/stats.queries";
 
 const period = ref<StatsPeriod>("month");
+const since = computed(() => periodSince(period.value));
 
 // Есть ли история вообще (за всё время) — иначе показываем пустое состояние.
 const { data: allTime } = useQuery(statsQueries.summary(undefined));
