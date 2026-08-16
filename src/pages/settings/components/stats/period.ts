@@ -8,5 +8,7 @@ const PERIOD_DAYS: Record<Exclude<StatsPeriod, "all">, number> = {
 
 export function periodSince(period: StatsPeriod): number | undefined {
   if (period === "all") return undefined;
-  return Date.now() - PERIOD_DAYS[period] * 86_400_000;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return startOfToday.getTime() - PERIOD_DAYS[period] * 86_400_000;
 }
