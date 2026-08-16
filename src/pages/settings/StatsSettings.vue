@@ -12,6 +12,8 @@
         </SettingsGroup>
         <StatsSummary :since="since" />
         <StatsStreakSection />
+        <StatsTopTracks :since="since" />
+        <StatsTopArtists :since="since" />
       </template>
 
       <SettingsGroup v-else>
@@ -32,6 +34,8 @@ import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import StatsPeriodSwitcher from "./components/stats/StatsPeriodSwitcher.vue";
 import StatsSummary from "./components/stats/StatsSummary.vue";
 import StatsStreakSection from "./components/stats/StatsStreakSection.vue";
+import StatsTopTracks from "./components/stats/StatsTopTracks.vue";
+import StatsTopArtists from "./components/stats/StatsTopArtists.vue";
 import type { StatsPeriod } from "./components/stats/period";
 import { periodSince } from "./components/stats/period";
 import { statsQueries } from "@/queries/stats.queries";
