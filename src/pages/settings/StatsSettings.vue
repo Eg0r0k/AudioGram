@@ -19,6 +19,9 @@
           <StatsCompletionRow :since="since" />
           <StatsHourlyRow :since="since" />
         </SettingsGroup>
+
+        <StatsRecords :since="since" />
+        <StatsTopGenres :since="since" />
       </template>
 
       <SettingsGroup v-else>
@@ -43,6 +46,8 @@ import StatsTopTracks from "./components/stats/StatsTopTracks.vue";
 import StatsTopArtists from "./components/stats/StatsTopArtists.vue";
 import StatsCompletionRow from "./components/stats/StatsCompletionRow.vue";
 import StatsHourlyRow from "./components/stats/StatsHourlyRow.vue";
+import StatsRecords from "./components/stats/StatsRecords.vue";
+import StatsTopGenres from "./components/stats/StatsTopGenres.vue";
 import type { StatsPeriod } from "./components/stats/period";
 import { periodSince } from "./components/stats/period";
 import { statsQueries } from "@/queries/stats.queries";
