@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import type { ListenEventEntity } from "@/db/entities";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
@@ -126,6 +126,38 @@ describe("records", () => {
     expect(r.mostRepeatedTrackId).toBe("t1");
     expect(r.mostRepeatedCount).toBe(2);
     expect(r.longestSessionSeconds).toBe(1800);
+  });
+});
+
+describe("dailyActivity", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("buckets events by local calendar day, not UTC day", async () => {
+    // "Сейчас" фиксируем на 01:00 по местному времени — независимо от TZ,
+    // в которой реально запущен тест, а не только для смещения автора (UTC+3).
+    // Ожидаемый ключ считаем отдельной, независимой от продакшн-кода формулой
+    // (getFullYear/getMonth/getDate), а не через toISOString()/UTC —
+    // так тест доказывает локальное бакетирование честно в любом часовом поясе:
+    // если бы dailyActivity() бакетировал по UTC (как до фикса), при ненулевом
+    // смещении TZ событие попало бы в соседний UTC-день и точка с expectedKey
+    // осталась бы нулевой.
+    const now = new Date(2026, 4, 3, 1, 0, 0);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+
+    const expectedKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    await seed(makeEvent({ startedAt: now.getTime(), secondsListened: 42 }));
+
+    const points = (await statsRepository.dailyActivity(3))._unsafeUnwrap();
+    const point = points.find(p => p.date === expectedKey);
+    expect(point).toBeDefined();
+    expect(point?.seconds).toBe(42);
+
+    // Непрерывный ряд дат тоже должен быть локальным: последняя точка — "сегодня".
+    expect(points[points.length - 1]?.date).toBe(expectedKey);
   });
 });
 

@@ -234,13 +234,13 @@ class StatsRepository {
 
       const map = new Map<string, number>();
       for (const e of events) {
-        const day = new Date(e.startedAt).toISOString().slice(0, 10);
+        const day = localDayKey(new Date(e.startedAt));
         map.set(day, (map.get(day) ?? 0) + e.secondsListened);
       }
 
       const points: DailyActivityPoint[] = [];
       for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+        const date = localDayKey(new Date(Date.now() - i * 86_400_000));
         points.push({ date, seconds: map.get(date) ?? 0 });
       }
       return points;

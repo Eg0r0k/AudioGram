@@ -91,10 +91,11 @@ function opacityFor(seconds: number): number {
   return 0.2 + 0.8 * (seconds / maxSeconds.value);
 }
 
+// point.date — локальный ключ "YYYY-MM-DD"; T00:00:00 парсится как локальная полночь.
 const cells = computed<Cell[]>(() =>
   props.data.map(point => ({
     ...point,
-    dayOfWeek: (new Date(point.date).getDay() + 6) % 7,
+    dayOfWeek: (new Date(`${point.date}T00:00:00`).getDay() + 6) % 7,
   })),
 );
 
@@ -119,9 +120,10 @@ const monthLabels = computed(() => {
   weeks.value.forEach((week, weekIndex) => {
     const first = week[0];
     if (!first) return;
-    const month = new Date(first.date).getMonth();
+    const firstDate = new Date(`${first.date}T00:00:00`);
+    const month = firstDate.getMonth();
     if (month !== lastMonth) {
-      labels.push({ weekIndex, label: formatter.format(new Date(first.date)) });
+      labels.push({ weekIndex, label: formatter.format(firstDate) });
       lastMonth = month;
     }
   });
