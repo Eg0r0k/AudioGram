@@ -6,7 +6,7 @@
     @click="handleOpenFullPlayer"
   >
     <div
-      class="relative flex-1 rounded-lg overflow-hidden transition-colors duration-300 backdrop-blur-xl shadow-lg shadow-black/40"
+      class="relative flex-1 rounded-lg overflow-hidden transition-colors duration-300 shadow-lg shadow-black/40"
       :style="containerStyle"
     >
       <div class="flex items-center gap-2.5 px-2 h-14">
@@ -113,7 +113,7 @@ const artistName = computed(() => currentTrack.value?.artist);
 const { color: playerColor, coverUrl } = useMobilePlayerColor();
 
 const containerStyle = computed(() => ({
-  background: `color-mix(in srgb, ${playerColor.value.hsl} 10%, transparent)`,
+  background: `color-mix(in oklch, ${playerColor.value.hsl} 25%, black)`,
 }));
 
 const gradientColor = computed(() => playerColor.value.hsl);
