@@ -6,7 +6,7 @@
     @click="handleOpenFullPlayer"
   >
     <div
-      class="relative flex-1 rounded-lg overflow-hidden transition-colors duration-300 shadow-lg shadow-black/40"
+      class="relative flex-1 rounded-lg overflow-hidden transition-colors duration-300"
       :style="containerStyle"
     >
       <div class="flex items-center gap-2.5 px-2 h-14">
