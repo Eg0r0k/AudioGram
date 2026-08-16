@@ -112,5 +112,9 @@ export const queryKeys = {
     totalTime: (since?: number) => ["stats", "totalTime", since] as const,
     dailyActivity: (days: number) => ["stats", "dailyActivity", days] as const,
     recentHistory: (limit: number) => ["stats", "recentHistory", limit] as const,
+    summary: (since?: number) => ["stats", "summary", since] as const,
+    hourlyActivity: (since?: number) => ["stats", "hourlyActivity", since] as const,
+    records: (since?: number) => ["stats", "records", since] as const,
+    streaks: () => ["stats", "streaks"] as const,
   },
 } as const;

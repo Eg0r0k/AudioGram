@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/vue-query";
-import { computed } from "vue";
+import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { statsQueries } from "@/queries/stats.queries";
 import type { ArtistId, TrackId } from "@/types/ids";
 
-export function useTopTracks(limit = 10, since?: number) {
+type MaybeSince = MaybeRefOrGetter<number | undefined>;
+
+export function useTopTracks(limit: MaybeRefOrGetter<number> = 10, since: MaybeSince = undefined) {
   const { data: topEntries, isLoading: isEntriesLoading } = useQuery(
-    computed(() => statsQueries.topTracks(limit, since)),
+    computed(() => statsQueries.topTracks(toValue(limit), toValue(since))),
   );
 
   const trackIds = computed(() =>
@@ -40,9 +42,9 @@ export function useTopTracks(limit = 10, since?: number) {
   };
 }
 
-export function useTopArtists(limit = 5, since?: number) {
+export function useTopArtists(limit: MaybeRefOrGetter<number> = 5, since: MaybeSince = undefined) {
   const { data: topEntries, isLoading: isEntriesLoading } = useQuery(
-    computed(() => statsQueries.topArtists(limit, since)),
+    computed(() => statsQueries.topArtists(toValue(limit), toValue(since))),
   );
 
   const artistIds = computed(() =>
@@ -77,18 +79,34 @@ export function useTopArtists(limit = 5, since?: number) {
   };
 }
 
-export function useTotalListeningTime(since?: number) {
-  return useQuery(computed(() => statsQueries.totalTime(since)));
+export function useTotalListeningTime(since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.totalTime(toValue(since))));
 }
 
-export function useDailyActivity(days = 30) {
-  return useQuery(computed(() => statsQueries.dailyActivity(days)));
+export function useDailyActivity(days: MaybeRefOrGetter<number> = 30) {
+  return useQuery(computed(() => statsQueries.dailyActivity(toValue(days))));
 }
 
-export function useTopGenres(limit = 8, since?: number) {
-  return useQuery(computed(() => statsQueries.topGenres(limit, since)));
+export function useTopGenres(limit: MaybeRefOrGetter<number> = 8, since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.topGenres(toValue(limit), toValue(since))));
 }
 
-export function useSonicProfile(since?: number) {
-  return useQuery(computed(() => statsQueries.sonicProfile(since)));
+export function useSonicProfile(since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.sonicProfile(toValue(since))));
+}
+
+export function useStatsSummary(since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.summary(toValue(since))));
+}
+
+export function useHourlyActivity(since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.hourlyActivity(toValue(since))));
+}
+
+export function useStatsRecords(since: MaybeSince = undefined) {
+  return useQuery(computed(() => statsQueries.records(toValue(since))));
+}
+
+export function useStreaks() {
+  return useQuery(computed(() => statsQueries.streaks()));
 }

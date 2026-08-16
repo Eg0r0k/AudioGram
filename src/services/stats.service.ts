@@ -93,5 +93,11 @@ class StatsService {
     if (result.isErr()) throw result.error;
     await invalidateStatsQueries(queryClient);
   }
+
+  async clearHistory(): Promise<void> {
+    const result = await statsRepository.deleteAllEvents();
+    if (result.isErr()) throw result.error;
+    await invalidateStatsQueries(queryClient);
+  }
 }
 export const statsService = new StatsService();

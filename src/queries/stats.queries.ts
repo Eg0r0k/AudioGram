@@ -71,6 +71,30 @@ export const statsQueries = {
       queryFn: () => unwrapResult(statsRepository.dailyActivity(days)),
       staleTime: STATS_STALE_TIME,
     }),
+  summary: (since?: number) =>
+    queryOptions({
+      queryKey: queryKeys.stats.summary(since),
+      queryFn: () => unwrapResult(statsRepository.summary(since)),
+      staleTime: STATS_STALE_TIME,
+    }),
+  hourlyActivity: (since?: number) =>
+    queryOptions({
+      queryKey: queryKeys.stats.hourlyActivity(since),
+      queryFn: () => unwrapResult(statsRepository.hourlyActivity(since)),
+      staleTime: STATS_STALE_TIME,
+    }),
+  records: (since?: number) =>
+    queryOptions({
+      queryKey: queryKeys.stats.records(since),
+      queryFn: () => unwrapResult(statsRepository.records(since)),
+      staleTime: STATS_STALE_TIME,
+    }),
+  streaks: () =>
+    queryOptions({
+      queryKey: queryKeys.stats.streaks(),
+      queryFn: () => unwrapResult(statsRepository.streaks()),
+      staleTime: STATS_STALE_TIME,
+    }),
   recentHistory: (limit: number) =>
     queryOptions({
       queryKey: queryKeys.stats.recentHistory(limit),
