@@ -79,3 +79,52 @@ describe("deleteAllEvents", () => {
     expect(await db.listenEvents.count()).toBe(0);
   });
 });
+
+describe("hourlyActivity", () => {
+  it("buckets seconds by local hour", async () => {
+    const at = (h: number) => new Date(2026, 4, 3, h, 15, 0).getTime();
+    await seed(
+      makeEvent({ startedAt: at(9), secondsListened: 100 }),
+      makeEvent({ startedAt: at(9), secondsListened: 50 }),
+      makeEvent({ startedAt: at(22), secondsListened: 30 }),
+    );
+    const hours = (await statsRepository.hourlyActivity())._unsafeUnwrap();
+    expect(hours).toHaveLength(24);
+    expect(hours[9]).toBe(150);
+    expect(hours[22]).toBe(30);
+    expect(hours[0]).toBe(0);
+  });
+});
+
+describe("records", () => {
+  it("returns empty records for no events", async () => {
+    const r = (await statsRepository.records())._unsafeUnwrap();
+    expect(r).toEqual({
+      busiestDay: null,
+      mostRepeatedTrackId: null,
+      mostRepeatedCount: 0,
+      longestSessionSeconds: 0,
+    });
+  });
+
+  it("finds busiest local day, most repeated track and longest session", async () => {
+    const day1 = new Date(2026, 4, 3, 12, 0, 0).getTime();
+    const day2 = new Date(2026, 4, 4, 12, 0, 0).getTime();
+    const MIN = 60_000;
+    await seed(
+      // день 1: одна длинная сессия из трёх событий подряд (gap < 30 мин)
+      makeEvent({ trackId: "t1" as TrackId, startedAt: day1, secondsListened: 600 }),
+      makeEvent({ trackId: "t2" as TrackId, startedAt: day1 + 10 * MIN, secondsListened: 600 }),
+      makeEvent({ trackId: "t1" as TrackId, startedAt: day1 + 20 * MIN, secondsListened: 600 }),
+      // день 2: отдельная короткая сессия (gap > 30 мин от предыдущей)
+      makeEvent({ trackId: "t3" as TrackId, startedAt: day2, secondsListened: 300 }),
+      // пропущенное событие не считается ни в repeat, ни в сессии
+      makeEvent({ trackId: "t3" as TrackId, startedAt: day2 + MIN, secondsListened: 300, skipped: true }),
+    );
+    const r = (await statsRepository.records())._unsafeUnwrap();
+    expect(r.busiestDay).toEqual({ date: "2026-05-03", seconds: 1800 });
+    expect(r.mostRepeatedTrackId).toBe("t1");
+    expect(r.mostRepeatedCount).toBe(2);
+    expect(r.longestSessionSeconds).toBe(1800);
+  });
+});

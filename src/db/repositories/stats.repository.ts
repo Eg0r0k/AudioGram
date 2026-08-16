@@ -40,6 +40,18 @@ export interface StatsSummary {
   skippedCount: number;
 }
 
+export interface StatsRecords {
+  busiestDay: { date: string; seconds: number } | null;
+  mostRepeatedTrackId: TrackId | null;
+  mostRepeatedCount: number;
+  longestSessionSeconds: number;
+}
+
+/** Ключ локального дня (не UTC): "2026-05-03". */
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
   try {
     return ok(await fn());
@@ -275,6 +287,69 @@ class StatsRepository {
   async deleteEventsForTrack(trackId: TrackId): Promise<Result<void, Error>> {
     return runSafe(async () => {
       await db.listenEvents.where("trackId").equals(trackId).delete();
+    });
+  }
+
+  async hourlyActivity(since?: number): Promise<Result<number[], Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const hours = new Array<number>(24).fill(0);
+      for (const e of events) {
+        hours[new Date(e.startedAt).getHours()] += e.secondsListened;
+      }
+      return hours;
+    });
+  }
+
+  async records(since?: number): Promise<Result<StatsRecords, Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const byDay = new Map<string, number>();
+      for (const e of events) {
+        const key = localDayKey(new Date(e.startedAt));
+        byDay.set(key, (byDay.get(key) ?? 0) + e.secondsListened);
+      }
+      let busiestDay: StatsRecords["busiestDay"] = null;
+      for (const [date, seconds] of byDay) {
+        if (!busiestDay || seconds > busiestDay.seconds) busiestDay = { date, seconds };
+      }
+
+      const counts = new Map<TrackId, number>();
+      for (const e of events) {
+        if (e.skipped) continue;
+        counts.set(e.trackId, (counts.get(e.trackId) ?? 0) + 1);
+      }
+      let mostRepeatedTrackId: TrackId | null = null;
+      let mostRepeatedCount = 0;
+      for (const [id, count] of counts) {
+        if (count > mostRepeatedCount) {
+          mostRepeatedTrackId = id;
+          mostRepeatedCount = count;
+        }
+      }
+
+      const played = events
+        .filter(e => !e.skipped)
+        .sort((a, b) => a.startedAt - b.startedAt);
+      let longestSessionSeconds = 0;
+      let current = 0;
+      let prevStartedAt: number | null = null;
+      for (const e of played) {
+        if (prevStartedAt !== null && e.startedAt - prevStartedAt > SESSION_GAP_MS) {
+          current = 0;
+        }
+        current += e.secondsListened;
+        longestSessionSeconds = Math.max(longestSessionSeconds, current);
+        prevStartedAt = e.startedAt;
+      }
+
+      return { busiestDay, mostRepeatedTrackId, mostRepeatedCount, longestSessionSeconds };
     });
   }
 }
