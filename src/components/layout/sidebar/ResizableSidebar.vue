@@ -3,7 +3,7 @@
     v-if="sidebar.isOpen"
     class="sidebar-wrapper border-r dark:border-background border-border "
     :class="{ 'is-resizing': isResizing }"
-    :style="{ width: `${sidebar.width}px` }"
+    :style="{ width: `${displayWidth}px` }"
   >
     <div class="sidebar-content">
       <div class="sidebar-header" />
@@ -24,9 +24,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, ref, onUnmounted } from "vue";
+import { computed, provide, ref, watch, onUnmounted } from "vue";
 import { useEventListener } from "@vueuse/core";
+import { animate, useReducedMotion } from "motion-v";
 import { useSidebar } from "@/composables/useSidebar";
+import { useSearch } from "@/modules/search/composables/useSearch";
 import {
   SIDEBAR_COMPACT_KEY,
   SIDEBAR_COMPACT_WIDTH,
@@ -36,11 +38,35 @@ import {
 } from "@/components/layout/sidebar/sidebarCompact";
 
 const { leftSidebar: sidebar, setLeftSidebarWidth } = useSidebar();
+const { isSearchOpen } = useSearch();
+const prefersReduced = useReducedMotion();
 
 const isCompact = computed(() => sidebar.value.width < SIDEBAR_EXPANDED_MIN_WIDTH);
 provide(SIDEBAR_COMPACT_KEY, isCompact);
 
 const isResizing = ref(false);
+
+const displayWidth = ref(sidebar.value.width);
+let widthAnimation: ReturnType<typeof animate> | null = null;
+
+watch(() => sidebar.value.width, (target) => {
+  widthAnimation?.stop();
+  widthAnimation = null;
+
+  if (isResizing.value || prefersReduced.value) {
+    displayWidth.value = target;
+    return;
+  }
+
+  widthAnimation = animate(displayWidth.value, target, {
+    duration: 0.3,
+    ease: [0.23, 1, 0.32, 1],
+    onUpdate: (value) => {
+      displayWidth.value = value;
+    },
+  });
+});
+
 let startX = 0;
 let startWidth = 0;
 
@@ -89,9 +115,7 @@ function handleResizeTouch(e: TouchEvent) {
 function updateWidth(clientX: number) {
   const raw = startWidth + (clientX - startX);
 
-  // Drag past the snap threshold collapses to the icon-only compact width;
-  // otherwise clamp into the expanded range.
-  const newWidth = raw < SIDEBAR_SNAP_THRESHOLD
+  const newWidth = raw < SIDEBAR_SNAP_THRESHOLD && !isSearchOpen.value
     ? SIDEBAR_COMPACT_WIDTH
     : Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_EXPANDED_MIN_WIDTH, raw));
 
@@ -111,6 +135,7 @@ function stopResize() {
 
 onUnmounted(() => {
   stopResize();
+  widthAnimation?.stop();
 });
 </script>
 

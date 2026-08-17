@@ -1,5 +1,6 @@
 import { computed } from "vue";
 import { useLocalStorage } from "@vueuse/core";
+import { SIDEBAR_EXPANDED_MIN_WIDTH } from "@/components/layout/sidebar/sidebarCompact";
 
 interface SidebarState {
   isOpen: boolean;
@@ -42,6 +43,13 @@ export function useSidebar() {
     };
   }
 
+  function expandLeftSidebar() {
+    leftSidebarState.value = {
+      isOpen: true,
+      width: Math.max(leftSidebarState.value.width, SIDEBAR_EXPANDED_MIN_WIDTH),
+    };
+  }
+
   function setLeftSidebarWidth(width: number) {
     leftSidebarState.value = {
       ...leftSidebarState.value,
@@ -54,6 +62,7 @@ export function useSidebar() {
     toggleLeftSidebar,
     openLeftSidebar,
     closeLeftSidebar,
+    expandLeftSidebar,
     setLeftSidebarWidth,
   };
 }

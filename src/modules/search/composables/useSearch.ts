@@ -110,6 +110,9 @@ const availableFilters: { label: string; value: SearchFilter }[] = [
 ];
 
 const isSearchOpen = ref(false);
+// Открытие из compact-сайдбара: движение даёт анимация ширины панели,
+// собственный слайд поисковой панели на это время глушится (и на закрытии).
+const suppressPanelSlide = ref(false);
 
 export function useSearch() {
   const saveQueryToHistory = (rawQuery?: string) => {
@@ -130,7 +133,12 @@ export function useSearch() {
     query.value = value;
   };
 
-  const openSearch = () => {
+  const openSearch = (options?: { fromCompactExpand?: boolean }) => {
+    // Повторные вызовы на уже открытой панели (focusin, ввод текста) не
+    // трогают флаг — иначе фокус после Ctrl+F вернул бы слайд до закрытия.
+    if (!isSearchOpen.value) {
+      suppressPanelSlide.value = options?.fromCompactExpand ?? false;
+    }
     isSearchOpen.value = true;
   };
 
@@ -164,6 +172,7 @@ export function useSearch() {
     results,
     isSearching: readonly(isSearching),
     isSearchOpen: readonly(isSearchOpen),
+    suppressPanelSlide: readonly(suppressPanelSlide),
     hasQuery: computed(() => query.value.trim().length > 0),
     openSearch,
     closeSearch,
