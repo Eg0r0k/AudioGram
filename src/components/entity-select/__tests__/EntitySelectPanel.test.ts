@@ -21,6 +21,7 @@ const stubs = {
   VirtualScrollable: VirtualScrollableStub,
   AddFloatingButton: {
     props: ["count", "show"],
+    emits: ["click"],
     template: `<button v-if="show" data-testid="fab" @click="$emit('click')">{{ count }}</button>`,
   },
 };
