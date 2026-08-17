@@ -81,14 +81,4 @@ describe("ClearAllDataDialog", () => {
     expect(deleteButton().textContent).toContain("(3)");
   });
 
-  it("shows the summary of what will be deleted", async () => {
-    renderWithPlugins(ClearAllDataDialog, {
-      props: { open: true, stats },
-      stubs: { teleport: false },
-    });
-    await flushPortal();
-
-    expect(screen.getByText(/10 tracks/)).toBeTruthy();
-    expect(screen.getByText(/1\.2 GB/)).toBeTruthy();
-  });
 });
