@@ -8,7 +8,7 @@ import {
   trackRepository,
 } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
-import { buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
+import { buildAlbumDocFromDb, buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
 import {
   removeSearchDocuments,
   searchTracks as searchIndexedTracks,
@@ -25,6 +25,7 @@ import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForTrackMutation,
   removeTracksFromCaches,
+  syncAlbumCaches,
   syncPlaylistCaches,
   syncPlaylistTrackRemoval,
   syncArtistCaches,
@@ -46,9 +47,19 @@ export interface TrackMetadataChanges {
   artistNames: string[];
   albumId?: AlbumId;
   albumTitle?: string; // exactly one of albumId/albumTitle must be provided
-  trackNo?: number;
-  diskNo?: number;
+  // undefined = leave unchanged, null = clear the stored value, number = set it.
+  trackNo?: number | null;
+  diskNo?: number | null;
 }
+
+// undefined = leave unchanged (keep current), null = clear (store undefined), number = set.
+const resolveNullableNumber = (
+  next: number | null | undefined,
+  current: number | undefined,
+): number | undefined => {
+  if (next === undefined) return current;
+  return next === null ? undefined : next;
+};
 
 async function loadTrackRelations(tracks: TrackEntity[]): Promise<Track[]> {
   if (tracks.length === 0) {
@@ -479,6 +490,7 @@ export async function attachTrackLyricsAndSync(
 }
 
 const resolveAlbumForChanges = async (
+  queryClient: QueryClient,
   changes: TrackMetadataChanges,
   firstArtistId: ArtistId,
 ): Promise<AlbumEntity> => {
@@ -501,6 +513,10 @@ const resolveAlbumForChanges = async (
     updatedAt: now,
   };
   await unwrapResult(albumRepository.create(created));
+  // Mirror findOrCreateArtists: a brand-new row needs a point-sync into the
+  // list cache and a search document, or it stays invisible until reload.
+  syncAlbumCaches(queryClient, created);
+  await upsertSearchDocuments([await buildAlbumDocFromDb(created)]);
   return created;
 };
 
@@ -527,9 +543,11 @@ export async function updateTrackMetadataAndSync(
   }
 
   const artists = await findOrCreateArtists(queryClient, artistNames);
-  const album = await resolveAlbumForChanges(changes, artists[0].id);
+  const album = await resolveAlbumForChanges(queryClient, changes, artists[0].id);
   const nextArtistIds = artists.map(artist => artist.id);
   const nextArtistName = artists.map(artist => artist.name).join(", ");
+  const nextTrackNo = resolveNullableNumber(changes.trackNo, currentTrack.trackNo);
+  const nextDiskNo = resolveNullableNumber(changes.diskNo, currentTrack.diskNo);
 
   const nextTrackEntity: TrackEntity = {
     ...currentTrack,
@@ -538,8 +556,8 @@ export async function updateTrackMetadataAndSync(
     artistName: nextArtistName,
     albumId: album.id,
     albumTitle: album.title,
-    trackNo: changes.trackNo ?? currentTrack.trackNo,
-    diskNo: changes.diskNo ?? currentTrack.diskNo,
+    trackNo: nextTrackNo,
+    diskNo: nextDiskNo,
   };
 
   await unwrapResult(trackRepository.update(currentTrack.id, {
@@ -548,8 +566,8 @@ export async function updateTrackMetadataAndSync(
     artistName: nextArtistName,
     albumId: album.id,
     albumTitle: album.title,
-    trackNo: changes.trackNo ?? currentTrack.trackNo,
-    diskNo: changes.diskNo ?? currentTrack.diskNo,
+    trackNo: nextTrackNo,
+    diskNo: nextDiskNo,
   }));
 
   const nextTrack: Track = {

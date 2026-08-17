@@ -555,8 +555,8 @@ const onSubmit = handleSubmit(async (values) => {
     title: values.title,
     artistNames: values.artists,
     ...album,
-    trackNo: values.trackNo,
-    diskNo: values.diskNo,
+    trackNo: values.trackNo ?? null,
+    diskNo: values.diskNo ?? null,
   }).catch(() => null);
 
   if (!nextTrack) return;

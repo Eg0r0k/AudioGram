@@ -48,9 +48,17 @@ vi.mock("@/modules/search/buildDocuments", () => ({
     title: artist.name,
     entityId: artist.id,
   })),
+  buildAlbumDocFromDb: vi.fn(async (album: AlbumEntity) => ({
+    id: `album:${album.id}`,
+    type: "album",
+    title: album.title,
+    entityId: album.id,
+  })),
   buildTrackDocFromDb: vi.fn(async () => ({})),
 }));
 
+import { upsertSearchDocuments } from "@/modules/search/searchIndex";
+import { queryKeys } from "@/queries/query-keys";
 import {
   getTracksIndexPageData,
   getLikedTracksPageData,
@@ -396,6 +404,9 @@ describe("track.queries", () => {
     it("creates a new album row when no identity match exists", async () => {
       repositories.albumRepository.findByArtistId.mockResolvedValue(ok([existingAlbum]));
       repositories.albumRepository.create.mockResolvedValue(ok("new-album" as AlbumId));
+      // Seed the albums list cache like a previously-visited Albums page would,
+      // so the point-sync has something to patch.
+      queryClient.setQueryData(queryKeys.albums.all(), [existingAlbum]);
 
       const next = await updateTrackMetadataAndSync(queryClient, track, {
         title: track.title,
@@ -412,6 +423,33 @@ describe("track.queries", () => {
       );
       const created = repositories.albumRepository.create.mock.calls[0][0] as AlbumEntity;
       expect(next.albumId).toBe(created.id);
+
+      // The new album must be immediately visible in the Albums list cache,
+      // not only reachable after a reload.
+      expect(queryClient.getQueryData(queryKeys.albums.all())).toEqual([existingAlbum, created]);
+
+      // And it must be searchable without waiting for a full reindex.
+      expect(upsertSearchDocuments).toHaveBeenCalledWith([{
+        id: `album:${created.id}`,
+        type: "album",
+        title: "Brand New Album",
+        entityId: created.id,
+      }]);
+    });
+
+    it("does not upsert an album search document or list cache when reusing an existing album", async () => {
+      repositories.albumRepository.findByArtistId.mockResolvedValue(ok([existingAlbum]));
+      queryClient.setQueryData(queryKeys.albums.all(), [existingAlbum]);
+
+      await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumTitle: "GREATEST HITS",
+      });
+
+      expect(repositories.albumRepository.create).not.toHaveBeenCalled();
+      expect(upsertSearchDocuments).not.toHaveBeenCalledWith([expect.objectContaining({ type: "album" })]);
+      expect(queryClient.getQueryData(queryKeys.albums.all())).toEqual([existingAlbum]);
     });
 
     it("persists trackNo and diskNo", async () => {
@@ -431,6 +469,54 @@ describe("track.queries", () => {
       );
       expect(result.trackNo).toBe(7);
       expect(result.diskNo).toBe(2);
+    });
+
+    it("clears trackNo and diskNo when explicitly sent null", async () => {
+      const trackWithNumbers: TrackEntity = {
+        ...currentTrackEntity,
+        trackNo: 3,
+        diskNo: 1,
+      };
+      repositories.trackRepository.findById.mockResolvedValue(ok(trackWithNumbers));
+      repositories.albumRepository.findById.mockResolvedValue(ok(existingAlbum));
+
+      const result = await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumId: existingAlbum.id,
+        trackNo: null,
+        diskNo: null,
+      });
+
+      expect(repositories.trackRepository.update).toHaveBeenCalledWith(
+        currentTrackEntity.id,
+        expect.objectContaining({ trackNo: undefined, diskNo: undefined }),
+      );
+      expect(result.trackNo).toBeUndefined();
+      expect(result.diskNo).toBeUndefined();
+    });
+
+    it("leaves trackNo and diskNo unchanged when omitted (undefined)", async () => {
+      const trackWithNumbers: TrackEntity = {
+        ...currentTrackEntity,
+        trackNo: 3,
+        diskNo: 1,
+      };
+      repositories.trackRepository.findById.mockResolvedValue(ok(trackWithNumbers));
+      repositories.albumRepository.findById.mockResolvedValue(ok(existingAlbum));
+
+      const result = await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumId: existingAlbum.id,
+      });
+
+      expect(repositories.trackRepository.update).toHaveBeenCalledWith(
+        currentTrackEntity.id,
+        expect.objectContaining({ trackNo: 3, diskNo: 1 }),
+      );
+      expect(result.trackNo).toBe(3);
+      expect(result.diskNo).toBe(1);
     });
   });
 });
