@@ -54,9 +54,7 @@
   "loading": "Loading",
   "unknown": "Unknown",
   "add": "Add",
-  "search": {
-    "placeholder": "Search"
-  },
+  "search": "Search",
   "entitySelect": {
     "create": "Create \"{name}\""
   },

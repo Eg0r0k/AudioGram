@@ -54,9 +54,7 @@
   "loading": "Загрузка",
   "unknown": "Неизвестен",
   "add": "Add",
-  "search": {
-    "placeholder": "Поиск"
-  },
+  "search": "Поиск",
   "entitySelect": {
     "create": "Создать «{name}»"
   },
