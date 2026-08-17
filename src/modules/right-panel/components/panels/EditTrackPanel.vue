@@ -1,4 +1,3 @@
-<!-- eslint-disable vuejs-accessibility/label-has-for -->
 <template>
   <div class="relative flex h-full w-full flex-col overflow-hidden! bg-card">
     <RightPanelHeader
@@ -6,19 +5,19 @@
       :description="track?.title"
       show-back
       @back="handleBack"
-      @close="rightPanel.close()"
+      @close="handleClose"
     />
 
-    <Scrollable class="min-h-0 flex-1 ">
+    <Scrollable class="min-h-0 flex-1">
       <form
         v-if="track"
-        class="grid gap-5 px-5 pb-8 pt-2"
+        class="grid gap-5 px-5 pb-24 pt-2"
         @submit.prevent="onSubmit"
       >
-        <div class="space-y-2 bg-card">
+        <div class="space-y-2">
           <Input
             id="track-title"
-            v-model="title"
+            v-model="titleInput"
             surface="card"
             :label="$t('track.edit.placeholders.title')"
             :disabled="isPending"
@@ -33,98 +32,42 @@
             {{ errors.title }}
           </p>
         </div>
-        <TagsInput
-          v-model="artists"
-          surface="card"
-          :label="$t('track.edit.fields.artists')"
-        >
-          <TagsInputItem
-            v-for="item in artists"
-            :key="item"
-            :value="item"
-          >
-            <TagsInputItemText />
-            <TagsInputItemDelete>
-              +
-            </TagsInputItemDelete>
-          </TagsInputItem>
-          <TagsInputInput />
-        </TagsInput>
-        <!-- <div class="space-y-2">
-          <Label
-            for="track-artists"
-            :class="{ 'text-destructive': errors.artists }"
-          >
-            {{ $t('track.edit.fields.artists') }}
-          </Label>
 
-          <div class="relative">
-            <div
-              :class="[
-                'flex min-h-11 flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2 transition-colors focus-within:ring-ring/50 focus-within:ring-[3px]',
-                errors.artists ? 'border-destructive focus-within:ring-destructive/30' : 'border-input',
-                isPending && 'opacity-50',
-              ]"
+        <div class="space-y-2 rounded-lg border border-border p-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium">{{ $t('track.edit.fields.artists') }}</span>
+
+            <Button
+              type="button"
+              variant="ghost-primary"
+              size="sm"
+              :aria-label="changeArtistsLabel"
+              :disabled="isPending"
+              @click="openArtistPicker"
             >
-              <Badge
-                v-for="artistName in selectedArtists"
-                :key="artistName"
-                variant="secondary"
-                class="gap-1 pr-1"
-              >
-                {{ artistName }}
-                <button
-                  type="button"
-                  class="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-                  :disabled="isPending"
-                  @click="removeArtist(artistName)"
-                >
-                  <IconX class="size-3" />
-                </button>
-              </Badge>
-
-              <input
-                id="track-artists"
-                v-model="artistSearch"
-                type="text"
-                class="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
-                :placeholder="selectedArtists.length === 0 ? $t('track.edit.placeholders.artists') : $t('track.edit.placeholders.addArtist')"
-                :disabled="isPending"
-                @focus="isArtistSearchOpen = true"
-                @blur="handleArtistSearchBlur"
-                @keydown.enter.prevent="addArtistFromSearch"
-                @keydown.backspace="handleArtistBackspace"
-              >
-            </div>
-
-            <div
-              v-if="isArtistSearchOpen && (artistSuggestions.length > 0 || canCreateArtist)"
-              class="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-md border border-border bg-popover p-1 shadow-lg"
-            >
-              <button
-                v-for="artist in artistSuggestions"
-                :key="artist.id"
-                type="button"
-                class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-accent"
-                @mousedown.prevent="addArtist(artist.name)"
-              >
-                <span class="truncate">{{ artist.name }}</span>
-              </button>
-
-              <button
-                v-if="canCreateArtist"
-                type="button"
-                class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                @mousedown.prevent="addArtistFromSearch"
-              >
-                <IconPlus class="size-4" />
-                <span class="truncate">{{ $t('track.edit.createArtist', { name: normalizedArtistSearch }) }}</span>
-              </button>
-            </div>
+              {{ $t('common.change') }}
+            </Button>
           </div>
 
-          <p class="text-xs text-muted-foreground">
-            {{ $t('track.edit.artistsHelp') }}
+          <div
+            v-if="artistChips.length > 0"
+            class="flex flex-wrap gap-1.5"
+          >
+            <Badge
+              v-for="name in artistChips"
+              :key="name"
+              variant="secondary"
+              class="max-w-full"
+            >
+              <span class="min-w-0 truncate">{{ name }}</span>
+            </Badge>
+          </div>
+
+          <p
+            v-else
+            class="text-sm text-muted-foreground"
+          >
+            {{ $t('track.edit.noArtists') }}
           </p>
 
           <p
@@ -133,66 +76,119 @@
           >
             {{ errors.artists }}
           </p>
-        </div> -->
+        </div>
 
-        <div class="space-y-2">
-          <div class="relative">
-            <Input
-              id="track-album"
-              v-model="albumSearch"
-              surface="card"
-              :label="$t('track.edit.fields.album')"
+        <div class="space-y-2 rounded-lg border border-border p-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium">{{ $t('track.edit.fields.album') }}</span>
+
+            <Button
+              type="button"
+              variant="ghost-primary"
+              size="sm"
+              :aria-label="changeAlbumLabel"
               :disabled="isPending"
-              :class="{ 'border-destructive focus-visible:ring-destructive': errors.albumId }"
-              @focus="isAlbumSearchOpen = true"
-              @blur="handleAlbumSearchBlur"
-            />
-
-            <p
-              v-if="selectedAlbumName"
-              class="mt-2 flex items-center gap-2 text-xs text-muted-foreground"
+              @click="openAlbumPicker"
             >
-              <IconDisc class="size-4" />
-              <span class="truncate">{{ $t('track.edit.selectedAlbum', { title: selectedAlbumName }) }}</span>
-            </p>
+              {{ $t('common.change') }}
+            </Button>
+          </div>
 
-            <div
-              v-if="isAlbumSearchOpen && albumSuggestions.length > 0"
-              class="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-md border border-border bg-popover p-1 shadow-lg"
+          <div class="flex min-w-0 items-center gap-2 text-sm">
+            <IconDisc class="size-4 shrink-0 text-muted-foreground" />
+
+            <span
+              v-if="albumLabel"
+              class="min-w-0 truncate"
             >
-              <button
-                v-for="album in albumSuggestions"
-                :key="album.id"
-                type="button"
-                class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-accent"
-                @mousedown.prevent="selectAlbum(album.id, album.title)"
-              >
-                <IconDisc class="size-4 text-muted-foreground" />
-                <span class="truncate">{{ album.title }}</span>
-              </button>
-            </div>
+              {{ albumLabel }}
+            </span>
+
+            <span
+              v-else
+              class="text-muted-foreground"
+            >
+              {{ $t('track.edit.noAlbum') }}
+            </span>
           </div>
 
           <p
-            v-if="errors.albumId"
+            v-if="newAlbumTitle"
+            class="text-xs text-muted-foreground"
+          >
+            {{ $t('track.edit.newAlbumHint') }}
+          </p>
+
+          <p
+            v-if="errors.albumLabel"
             class="text-sm text-destructive"
           >
-            {{ errors.albumId }}
+            {{ errors.albumLabel }}
           </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Input
+              id="track-number"
+              v-model="trackNoInput"
+              type="number"
+              inputmode="numeric"
+              surface="card"
+              :label="$t('track.edit.fields.trackNo')"
+              :disabled="isPending"
+              :class="{ 'border-destructive focus-visible:ring-destructive': errors.trackNo }"
+            />
+
+            <p
+              v-if="errors.trackNo"
+              class="text-sm text-destructive"
+            >
+              {{ errors.trackNo }}
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Input
+              id="disk-number"
+              v-model="diskNoInput"
+              type="number"
+              inputmode="numeric"
+              surface="card"
+              :label="$t('track.edit.fields.diskNo')"
+              :disabled="isPending"
+              :class="{ 'border-destructive focus-visible:ring-destructive': errors.diskNo }"
+            />
+
+            <p
+              v-if="errors.diskNo"
+              class="text-sm text-destructive"
+            >
+              {{ errors.diskNo }}
+            </p>
+          </div>
         </div>
       </form>
 
-      <p
+      <Empty
         v-else
-        class="px-5 py-8 text-center text-sm text-muted-foreground"
+        class="p-6 py-12 md:p-6 md:py-12"
       >
-        {{ $t('track.edit.libraryOnly') }}
-      </p>
+        <EmptyHeader>
+          <EmptyMedia
+            variant="icon"
+            class="rounded-full text-muted-foreground"
+          >
+            <IconPencilOff class="size-5" />
+          </EmptyMedia>
+          <EmptyDescription>{{ $t('track.edit.libraryOnly') }}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     </Scrollable>
-    <FloatingActionButton
-      :show="hasChanges"
-    >
+
+    <FloatingActionButton :show="hasChanges">
       <Button
+        type="button"
         class="size-12 rounded-full shadow-lg"
         :disabled="!track || isPending || !meta.valid || !hasChanges"
         @click="onSubmit"
@@ -200,37 +196,44 @@
         <IconSave class="size-6" />
       </Button>
     </FloatingActionButton>
+
+    <UnsavedChangesDialog
+      v-model:open="isUnsavedDialogOpen"
+      @discard="confirmLeave"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useForm } from "vee-validate";
 import { toTypedSchema } from "@vee-validate/valibot";
-import { array, maxLength, minLength, object, pipe, string } from "valibot";
+import { array, integer, maxLength, minLength, minValue, number, object, optional, pipe, string } from "valibot";
 import type { InferOutput } from "valibot";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Scrollable } from "@/components/ui/scrollable";
+import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { RightPanelEditTrackPayload } from "@/modules/right-panel/types";
-import { searchAlbums } from "@/queries/album.queries";
-import { queryKeys } from "@/queries/query-keys";
-import { updateTrackMetadataAndSync } from "@/queries/track.queries";
+import UnsavedChangesDialog from "@/modules/tracks/components/edit/UnsavedChangesDialog.vue";
+import { useTrackEditDraft, type TrackEditDraft } from "@/modules/tracks/composables/useTrackEditDraft";
+import { updateTrackMetadataAndSync, type TrackMetadataChanges } from "@/queries/track.queries";
 import type { AlbumId } from "@/types/ids";
 import RightPanelHeader from "../RightPanelHeader.vue";
 import IconDisc from "~icons/tabler/disc";
+import IconPencilOff from "~icons/tabler/pencil-off";
 import IconSave from "~icons/tabler/device-floppy";
-import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
-import { TagsInput, TagsInputInput, TagsInputItem, TagsInputItemDelete, TagsInputItemText } from "@/components/ui/tags-input";
 
 const MAX_TITLE_LENGTH = 120;
-const MAX_ARTISTS_LENGTH = 240;
+const MAX_ARTIST_NAME_LENGTH = 120;
 
 const props = defineProps<{
   payload: RightPanelEditTrackPayload;
@@ -240,118 +243,72 @@ const { t } = useI18n();
 const queryClient = useQueryClient();
 const queueStore = useQueueStore();
 const rightPanel = useRightPanelStore();
+const { readDraft, setDraft, patchDraft, clearDraft } = useTrackEditDraft();
 
-const trackFormSchema = object({
-  title: pipe(
-    string(),
-    minLength(1, t("track.edit.validation.titleRequired")),
-    maxLength(MAX_TITLE_LENGTH, t("track.edit.validation.titleMaxLength", { max: MAX_TITLE_LENGTH })),
-  ),
-  artists: pipe(
-    array(pipe(
+const buildTrackFormSchema = () => {
+  const numberMessage = t("track.edit.validation.numberMin");
+  const positiveInteger = () => optional(pipe(
+    number(numberMessage),
+    integer(numberMessage),
+    minValue(1, numberMessage),
+  ));
+
+  return object({
+    title: pipe(
       string(),
-      maxLength(MAX_ARTISTS_LENGTH, t("track.edit.validation.artistMaxLength", { max: MAX_ARTISTS_LENGTH })),
-    )),
-    minLength(1, t("track.edit.validation.artistsRequired")),
-  ),
-  albumId: pipe(
-    string(),
-    minLength(1, t("track.edit.validation.albumRequired")),
-  ),
-});
-type TrackFormValues = InferOutput<typeof trackFormSchema>;
+      minLength(1, t("track.edit.validation.titleRequired")),
+      maxLength(MAX_TITLE_LENGTH, t("track.edit.validation.titleMaxLength", { max: MAX_TITLE_LENGTH })),
+    ),
+    artists: pipe(
+      array(pipe(
+        string(),
+        maxLength(MAX_ARTIST_NAME_LENGTH, t("track.edit.validation.artistMaxLength", { max: MAX_ARTIST_NAME_LENGTH })),
+      )),
+      minLength(1, t("track.edit.validation.artistsRequired")),
+    ),
+    albumLabel: pipe(
+      string(),
+      minLength(1, t("track.edit.validation.albumRequired")),
+    ),
+    trackNo: positiveInteger(),
+    diskNo: positiveInteger(),
+  });
+};
+
+type TrackFormValues = InferOutput<ReturnType<typeof buildTrackFormSchema>>;
+
+const validationSchema = computed(() => toTypedSchema(buildTrackFormSchema()));
 
 const { errors, meta, defineField, handleSubmit, resetForm, setValues } = useForm<TrackFormValues>({
-  validationSchema: toTypedSchema(trackFormSchema),
+  validationSchema,
   initialValues: {
     title: "",
     artists: [],
-    albumId: "",
+    albumLabel: "",
+    trackNo: undefined,
+    diskNo: undefined,
   },
 });
 
 const [title] = defineField("title");
 const [artists] = defineField("artists");
-const [albumId] = defineField("albumId");
+const [albumLabel] = defineField("albumLabel");
+const [trackNo] = defineField("trackNo");
+const [diskNo] = defineField("diskNo");
+
+const albumId = ref<string | null>(null);
+const newAlbumTitle = ref<string | null>(null);
+const pendingLeave = ref<(() => void) | null>(null);
+
 const track = computed<Track | null>(() => {
   return isLibraryTrack(props.payload.track) ? props.payload.track : null;
 });
 
-const artistSearch = ref("");
-const albumSearch = ref("");
-const selectedAlbumName = ref("");
-const isAlbumSearchOpen = ref(false);
-const selectedArtists = computed(() => artists.value ?? []);
-const normalizedAlbumSearch = computed(() => albumSearch.value.trim().replace(/\s+/g, " "));
+const artistChips = computed(() => artists.value ?? []);
+const changeArtistsLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.artists")}`);
+const changeAlbumLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.album")}`);
 
-const { data: albumSearchResults } = useQuery({
-  queryKey: computed(() => queryKeys.albums.search(normalizedAlbumSearch.value)),
-  queryFn: computed(() => isAlbumSearchOpen.value
-    ? () => searchAlbums(normalizedAlbumSearch.value)
-    : skipToken),
-});
-
-const albumSuggestions = computed(() => {
-  return (albumSearchResults.value ?? [])
-    .filter(album => album.id !== albumId.value)
-    .slice(0, 6);
-});
-
-const hasChanges = computed(() => {
-  if (!track.value) return false;
-
-  return (title.value?.trim() ?? "") !== track.value.title
-    || selectedArtists.value.join("\n") !== parseArtists(track.value.artist).join("\n")
-    || albumId.value !== track.value.albumId;
-});
-
-const { mutateAsync: updateTrack, isPending } = useMutation({
-  mutationFn: (values: TrackFormValues) => {
-    if (!track.value) {
-      throw new Error("Track is not editable");
-    }
-
-    return updateTrackMetadataAndSync(queryClient, track.value, {
-      title: values.title,
-      artistNames: values.artists,
-      albumId: values.albumId as AlbumId,
-    });
-  },
-  onError: () => {
-    toast.error(t("track.edit.saveFailed"));
-  },
-});
-
-watch(
-  track,
-  (nextTrack) => {
-    if (!nextTrack) {
-      resetForm();
-      return;
-    }
-
-    setValues({
-      title: nextTrack.title,
-      artists: parseArtists(nextTrack.artist),
-      albumId: nextTrack.albumId,
-    });
-    artistSearch.value = "";
-    albumSearch.value = nextTrack.albumName;
-    selectedAlbumName.value = nextTrack.albumName;
-  },
-  { immediate: true },
-);
-
-const onSubmit = handleSubmit(async (values) => {
-  if (!track.value || !hasChanges.value) return;
-
-  const nextTrack = await updateTrack(values);
-  queueStore.syncTrackMetadata(nextTrack);
-  toast.success(t("track.edit.saved"));
-  rightPanel.openTrackInfo({ track: nextTrack }, { depth: 1 });
-});
-
-function parseArtists(value: string): string[] {
+const parseArtists = (value: string): string[] => {
   const seen = new Set<string>();
   const result: string[] = [];
 
@@ -366,23 +323,239 @@ function parseArtists(value: string): string[] {
   }
 
   return result;
-}
+};
 
-function selectAlbum(nextAlbumId: AlbumId, title: string): void {
-  albumId.value = nextAlbumId;
-  albumSearch.value = title;
-  selectedAlbumName.value = title;
-  isAlbumSearchOpen.value = false;
-}
+const toOptionalNumber = (value: string | number): number | undefined => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
 
-function handleAlbumSearchBlur(): void {
-  window.setTimeout(() => {
-    isAlbumSearchOpen.value = false;
-    albumSearch.value = selectedAlbumName.value;
-  }, 100);
-}
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
 
-function handleBack(): void {
-  rightPanel.openTrackInfo({ track: props.payload.track }, { depth: 1 });
-}
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const titleInput = computed<string | number>({
+  get: () => title.value ?? "",
+  set: (value) => {
+    title.value = String(value);
+  },
+});
+
+const trackNoInput = computed<string | number>({
+  get: () => trackNo.value ?? "",
+  set: (value) => {
+    trackNo.value = toOptionalNumber(value);
+  },
+});
+
+const diskNoInput = computed<string | number>({
+  get: () => diskNo.value ?? "",
+  set: (value) => {
+    diskNo.value = toOptionalNumber(value);
+  },
+});
+
+const draftFromTrack = (source: Track): TrackEditDraft => ({
+  trackId: source.id,
+  title: source.title,
+  artists: parseArtists(source.artist),
+  albumId: source.albumId,
+  albumLabel: source.albumName,
+  newAlbumTitle: null,
+  trackNo: source.trackNo ?? null,
+  diskNo: source.diskNo ?? null,
+});
+
+const applyDraft = (source: TrackEditDraft): void => {
+  setValues({
+    title: source.title,
+    artists: [...source.artists],
+    albumLabel: source.albumLabel,
+    trackNo: source.trackNo ?? undefined,
+    diskNo: source.diskNo ?? undefined,
+  }, false);
+
+  albumId.value = source.albumId;
+  newAlbumTitle.value = source.newAlbumTitle;
+};
+
+const draftValues = computed(() => ({
+  title: title.value ?? "",
+  artists: [...(artists.value ?? [])],
+  albumId: albumId.value,
+  albumLabel: albumLabel.value ?? "",
+  newAlbumTitle: newAlbumTitle.value,
+  trackNo: trackNo.value ?? null,
+  diskNo: diskNo.value ?? null,
+}));
+
+const syncDraft = (): void => {
+  if (!track.value) return;
+  patchDraft(track.value.id, draftValues.value);
+};
+
+watch(
+  track,
+  (nextTrack) => {
+    if (!nextTrack) {
+      resetForm();
+      return;
+    }
+
+    const stored = readDraft(nextTrack.id);
+    const next = stored ?? draftFromTrack(nextTrack);
+
+    if (!stored) setDraft(next);
+    applyDraft(next);
+  },
+  { immediate: true },
+);
+
+watch(draftValues, () => {
+  syncDraft();
+});
+
+const hasChanges = computed(() => {
+  const source = track.value;
+  if (!source) return false;
+
+  return (title.value?.trim() ?? "") !== source.title
+    || artistChips.value.join("\n") !== parseArtists(source.artist).join("\n")
+    || albumId.value !== source.albumId
+    || newAlbumTitle.value !== null
+    || (trackNo.value ?? null) !== (source.trackNo ?? null)
+    || (diskNo.value ?? null) !== (source.diskNo ?? null);
+});
+
+const albumChange = computed<Pick<TrackMetadataChanges, "albumId" | "albumTitle"> | null>(() => {
+  if (newAlbumTitle.value) return { albumTitle: newAlbumTitle.value };
+  if (albumId.value) return { albumId: albumId.value as AlbumId };
+
+  return null;
+});
+
+const isUnsavedDialogOpen = computed<boolean>({
+  get: () => pendingLeave.value !== null,
+  set: (value) => {
+    if (!value) pendingLeave.value = null;
+  },
+});
+
+const requestLeave = (leave: () => void): void => {
+  if (!hasChanges.value) {
+    clearDraft();
+    leave();
+    return;
+  }
+
+  pendingLeave.value = leave;
+};
+
+const confirmLeave = (): void => {
+  const leave = pendingLeave.value;
+
+  pendingLeave.value = null;
+  clearDraft();
+  leave?.();
+};
+
+const handleBack = (): void => {
+  requestLeave(() => rightPanel.openTrackInfo({ track: props.payload.track }, { depth: 1 }));
+};
+
+const handleClose = (): void => {
+  requestLeave(() => rightPanel.close());
+};
+
+const openArtistPicker = (): void => {
+  const source = track.value;
+  if (!source) return;
+
+  syncDraft();
+
+  const trackId = source.id;
+  const editTrack = props.payload.track;
+
+  rightPanel.openEntitySelect({
+    kind: "artists",
+    selectedNames: [...artistChips.value],
+    onConfirm: ({ names }) => {
+      if (!names) return;
+      patchDraft(trackId, { artists: [...names] });
+    },
+    onDone: () => rightPanel.openEditTrack({ track: editTrack }, { depth: 2 }),
+  });
+};
+
+const openAlbumPicker = (): void => {
+  const source = track.value;
+  if (!source) return;
+
+  syncDraft();
+
+  const trackId = source.id;
+  const editTrack = props.payload.track;
+
+  rightPanel.openEntitySelect({
+    kind: "album",
+    selectedAlbumId: albumId.value ?? undefined,
+    onConfirm: ({ albumId: nextAlbumId, albumTitle }) => {
+      if (nextAlbumId) {
+        patchDraft(trackId, {
+          albumId: nextAlbumId,
+          albumLabel: albumTitle ?? "",
+          newAlbumTitle: null,
+        });
+        return;
+      }
+
+      if (!albumTitle) return;
+
+      patchDraft(trackId, {
+        albumId: null,
+        albumLabel: albumTitle,
+        newAlbumTitle: albumTitle,
+      });
+    },
+    onDone: () => rightPanel.openEditTrack({ track: editTrack }, { depth: 2 }),
+  });
+};
+
+const { mutateAsync: updateTrack, isPending } = useMutation({
+  mutationFn: (changes: TrackMetadataChanges) => {
+    const source = track.value;
+
+    if (!source) {
+      throw new Error("Track is not editable");
+    }
+
+    return updateTrackMetadataAndSync(queryClient, source, changes);
+  },
+  onError: () => {
+    toast.error(t("track.edit.saveFailed"));
+  },
+});
+
+const onSubmit = handleSubmit(async (values) => {
+  if (!track.value || !hasChanges.value) return;
+
+  const album = albumChange.value;
+  if (!album) return;
+
+  const nextTrack = await updateTrack({
+    title: values.title,
+    artistNames: values.artists,
+    ...album,
+    trackNo: values.trackNo,
+    diskNo: values.diskNo,
+  }).catch(() => null);
+
+  if (!nextTrack) return;
+
+  clearDraft();
+  queueStore.syncTrackMetadata(nextTrack);
+  toast.success(t("track.edit.saved"));
+  rightPanel.openTrackInfo({ track: nextTrack }, { depth: 1 });
+});
 </script>

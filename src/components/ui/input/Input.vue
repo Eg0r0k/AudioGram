@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<{
 
   name?: string;
   autocomplete?: string;
+  disabled?: boolean;
   spellcheck?: boolean | "true" | "false";
 
   inputmode?:
@@ -78,6 +79,7 @@ const isActive = computed(() => {
       :type="type"
       :name="name"
       :autocomplete="autocomplete"
+      :disabled="disabled"
       :spellcheck="spellcheck"
       :inputmode="inputmode"
       :placeholder="placeholder"
