@@ -103,6 +103,8 @@
     "artistsHelp": "Pick an artist from the list or press Enter to add a new one.",
     "createArtist": "Create “{name}”",
     "selectedAlbum": "Selected: {title}",
+    "selectArtists": "Select artists",
+    "selectAlbum": "Select album",
     "libraryOnly": "Only library tracks can be edited.",
     "saved": "Track info saved",
     "saveFailed": "Failed to save track info",
