@@ -71,10 +71,10 @@
           </p>
 
           <p
-            v-if="errors.artists"
+            v-if="artistsError"
             class="text-sm text-destructive"
           >
-            {{ errors.artists }}
+            {{ artistsError }}
           </p>
         </div>
 
@@ -305,6 +305,14 @@ const track = computed<Track | null>(() => {
 });
 
 const artistChips = computed(() => artists.value ?? []);
+
+const artistsError = computed<string | undefined>(() => {
+  const fieldErrors = errors.value as Record<string, string | undefined>;
+  if (fieldErrors.artists) return fieldErrors.artists;
+
+  return Object.entries(fieldErrors).find(([key]) => key.startsWith("artists["))?.[1];
+});
+
 const changeArtistsLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.artists")}`);
 const changeAlbumLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.album")}`);
 

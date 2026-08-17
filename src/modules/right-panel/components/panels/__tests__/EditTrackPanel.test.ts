@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/vue";
+import { fireEvent, render, screen } from "@testing-library/vue";
 import userEvent from "@testing-library/user-event";
+import { nextTick } from "vue";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "@/app/i18n";
@@ -95,6 +96,43 @@ describe("EditTrackPanel", () => {
 
     expect(screen.getByText("Fresh Album")).toBeInTheDocument();
     expect(screen.getByText("A new album will be created")).toBeInTheDocument();
+  });
+
+  it("drops the draft when the whole panel is closed from the picker", async () => {
+    const track = libraryTrack();
+    const first = renderPanel(track);
+    const rightPanel = useRightPanelStore();
+
+    await userEvent.click(screen.getByRole("button", { name: /Artists/ }));
+    const payload = rightPanel.payload as RightPanelEntitySelectPayload;
+    payload.onConfirm({ names: ["Alpha", "Beta"] });
+
+    rightPanel.close();
+    await nextTick();
+
+    first.unmount();
+    renderPanel(track);
+
+    expect(screen.queryByText("Alpha")).toBeNull();
+    expect(screen.getByText("Artist")).toBeInTheDocument();
+  });
+
+  it("surfaces per-artist validation errors coming back under artists[n]", async () => {
+    const track = libraryTrack();
+    const first = renderPanel(track);
+    const rightPanel = useRightPanelStore();
+
+    await userEvent.click(screen.getByRole("button", { name: /Artists/ }));
+    const payload = rightPanel.payload as RightPanelEntitySelectPayload;
+    payload.onConfirm({ names: ["A".repeat(121)] });
+    payload.onDone?.();
+
+    first.unmount();
+    const { container } = renderPanel(track);
+
+    await fireEvent.submit(container.querySelector("form") as HTMLFormElement);
+
+    expect(await screen.findByText("Artist name must be at most 120 characters")).toBeInTheDocument();
   });
 
   it("guards back navigation while the form is dirty", async () => {
