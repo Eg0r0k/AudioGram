@@ -559,6 +559,8 @@ export async function updateTrackMetadataAndSync(
     artistIds: nextArtistIds,
     albumId: album.id,
     albumName: album.title,
+    trackNo: nextTrackEntity.trackNo,
+    diskNo: nextTrackEntity.diskNo,
   };
 
   syncTrackMetadataCaches(queryClient, nextTrackEntity, nextTrack);

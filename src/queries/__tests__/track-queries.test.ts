@@ -417,7 +417,7 @@ describe("track.queries", () => {
     it("persists trackNo and diskNo", async () => {
       repositories.albumRepository.findById.mockResolvedValue(ok(existingAlbum));
 
-      await updateTrackMetadataAndSync(queryClient, track, {
+      const result = await updateTrackMetadataAndSync(queryClient, track, {
         title: track.title,
         artistNames: ["A"],
         albumId: existingAlbum.id,
@@ -429,6 +429,8 @@ describe("track.queries", () => {
         currentTrackEntity.id,
         expect.objectContaining({ trackNo: 7, diskNo: 2 }),
       );
+      expect(result.trackNo).toBe(7);
+      expect(result.diskNo).toBe(2);
     });
   });
 });
