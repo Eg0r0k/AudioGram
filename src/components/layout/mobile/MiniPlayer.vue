@@ -1,7 +1,7 @@
 <template>
   <button
     ref="rootRef"
-    class="relative flex shrink-0 w-full h-14 px-2 cursor-pointer text-left [-webkit-tap-highlight-color:transparent]"
+    class="relative flex shrink-0  w-full h-14 px-2 cursor-pointer text-left [-webkit-tap-highlight-color:transparent]"
     :aria-label="$t('player.nowPlaying')"
     @click="handleOpenFullPlayer"
   >

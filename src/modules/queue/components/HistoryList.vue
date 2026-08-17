@@ -1,13 +1,13 @@
 <template>
   <div class="flex h-full min-h-0 flex-col bg-background">
-    <!-- <template v-if="isLoading">
+    <template v-if="isLoading">
       <TrackRowLoading
-        :rows="6"
-        class="px-2"
+        :rows="8"
+        class="mt-2 bg-card px-2"
       />
-    </template> -->
+    </template>
 
-    <template v-if="isEmpty">
+    <template v-else-if="isEmpty">
       <HistoryEmpty />
     </template>
 
@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
+import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import HistoryEmpty from "./HistoryEmpty.vue";
@@ -54,7 +55,7 @@ import type { RecentHistoryEntry } from "@/queries/stats.queries";
 const ITEM_HEIGHT = 64;
 
 const queueStore = useQueueStore();
-const { entries, isEmpty } = useHistoryList();
+const { entries, isEmpty, isLoading } = useHistoryList();
 
 function getItemKey(index: number): string | number {
   return entries.value[index]?.eventId ?? index;

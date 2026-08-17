@@ -1,11 +1,19 @@
 <template>
   <div class="flex flex-col flex-1 min-h-0">
-    <p
+    <Empty
       v-if="!isAvailable"
-      class="py-12 px-6 text-center text-sm text-muted-foreground"
+      class="p-6 py-12 md:p-6 md:py-12"
     >
-      {{ $t("youtube.unavailable") }}
-    </p>
+      <EmptyHeader>
+        <EmptyMedia
+          variant="icon"
+          class="rounded-full text-muted-foreground"
+        >
+          <IconCloudOff class="size-5" />
+        </EmptyMedia>
+        <EmptyDescription>{{ $t("youtube.unavailable") }}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
 
     <template v-else>
       <YtSearchChips
@@ -50,6 +58,8 @@
 <script setup lang="ts">
 import { useSearch } from "@/modules/search/composables/useSearch";
 import { Scrollable } from "@/components/ui/scrollable";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import IconCloudOff from "~icons/tabler/cloud-off";
 import SearchEmptyPlaceholder from "@/modules/search/components/SearchEmptyPlaceholder.vue";
 import SearchRecentQueries from "@/modules/search/components/SearchRecentQueries.vue";
 import { youtubeProvider } from "../../provider";

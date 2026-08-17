@@ -110,7 +110,18 @@
 
           <template #empty>
             <Empty class="p-4 py-12 sm:px-6 md:py-12">
-              <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
+              <EmptyHeader>
+                <EmptyMedia
+                  variant="icon"
+                  class="rounded-full text-muted-foreground"
+                >
+                  <component
+                    :is="emptyIcon"
+                    class="size-5"
+                  />
+                </EmptyMedia>
+                <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
+              </EmptyHeader>
             </Empty>
           </template>
         </VirtualScrollable>
@@ -123,7 +134,9 @@
 
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import IconMusicOff from "~icons/tabler/music-off";
+import IconSearchOff from "~icons/tabler/search-off";
 import {
   InputGroup,
   InputGroupAddon,
@@ -178,6 +191,10 @@ const emptyLabel = computed(() =>
   normalizedSearchQuery.value
     ? t("library.allMusic.noTracksFound", { query: normalizedSearchQuery.value })
     : t("library.allMusic.empty"),
+);
+
+const emptyIcon = computed(() =>
+  normalizedSearchQuery.value ? IconSearchOff : IconMusicOff,
 );
 
 const errorMessage = computed(() =>

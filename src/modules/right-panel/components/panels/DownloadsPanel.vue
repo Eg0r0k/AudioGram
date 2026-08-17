@@ -14,29 +14,31 @@
         <EmptyDescription>{{ t("downloads.empty") }}</EmptyDescription>
       </Empty>
 
-      <ul
+      <ItemGroup
         v-else
-        class="flex flex-col gap-1 px-3 pb-4"
+        class="gap-1 px-3 pb-4"
       >
-        <li
+        <Item
           v-for="job in jobs"
           :key="job.jobId"
-          class="flex items-center gap-3 rounded-lg px-2 py-2"
+          class="gap-3 rounded-lg px-2 py-2"
         >
-          <IconLoader
-            v-if="job.status === 'running'"
-            class="size-5 shrink-0 animate-spin text-primary"
-          />
-          <IconClock
-            v-else
-            class="size-5 shrink-0 text-muted-foreground"
-          />
+          <ItemMedia>
+            <IconLoader
+              v-if="job.status === 'running'"
+              class="size-5 animate-spin text-primary"
+            />
+            <IconClock
+              v-else
+              class="size-5 text-muted-foreground"
+            />
+          </ItemMedia>
 
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm">
-              {{ titleOf(job.trackId) }}
-            </p>
-            <p class="text-xs text-muted-foreground">
+          <ItemContent class="min-w-0">
+            <ItemTitle class="w-full text-sm font-normal">
+              <span class="min-w-0 truncate">{{ titleOf(job.trackId) }}</span>
+            </ItemTitle>
+            <ItemSubtitle class="text-xs">
               <template v-if="job.cancelling">
                 {{ t("downloads.cancelling") }}
               </template>
@@ -49,21 +51,23 @@
               <template v-else>
                 {{ t("downloads.queued") }}
               </template>
-            </p>
-          </div>
+            </ItemSubtitle>
+          </ItemContent>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-            :disabled="job.cancelling"
-            :aria-label="t('common.cancel')"
-            @click="cancelTrackDownload(job.jobId)"
-          >
-            <IconX class="size-4.5" />
-          </Button>
-        </li>
-      </ul>
+          <ItemActions class="pointer-events-auto">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+              :disabled="job.cancelling"
+              :aria-label="t('common.cancel')"
+              @click="cancelTrackDownload(job.jobId)"
+            >
+              <IconX class="size-4.5" />
+            </Button>
+          </ItemActions>
+        </Item>
+      </ItemGroup>
     </Scrollable>
   </div>
 </template>
@@ -72,6 +76,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemSubtitle, ItemTitle } from "@/components/ui/item";
 import { useQuery } from "@tanstack/vue-query";
 import { Button } from "@/components/ui/button";
 import { Scrollable } from "@/components/ui/scrollable";

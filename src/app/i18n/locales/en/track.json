@@ -81,6 +81,8 @@
       "localInternal": "Local internal file",
       "localExternal": "Local external file",
       "remoteHls": "Remote HLS stream",
+      "remoteYt": "YouTube",
+      "remoteNd": "Navidrome (server)",
       "ready": "Ready",
       "broken": "Broken"
     }

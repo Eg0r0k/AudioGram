@@ -205,12 +205,20 @@
           </div>
         </template>
 
-        <div
+        <Empty
           v-else
-          class=" p-2 text-center font-medium text-sm text-muted-foreground"
+          class="p-6 py-12 md:p-6 md:py-12"
         >
-          {{ $t('player.nothingPlaying') }}
-        </div>
+          <EmptyHeader>
+            <EmptyMedia
+              variant="icon"
+              class="rounded-full text-muted-foreground"
+            >
+              <IconMusicOff class="size-5" />
+            </EmptyMedia>
+            <EmptyDescription>{{ $t('player.nothingPlaying') }}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </div>
     </Scrollable>
   </div>
@@ -221,6 +229,8 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Scrollable } from "@/components/ui/scrollable";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import IconMusicOff from "~icons/tabler/music-off";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { usePlayerStore } from "@/modules/player/store/player.store";

@@ -84,6 +84,8 @@
       "localInternal": "Локальный файл приложения",
       "localExternal": "Внешний локальный файл",
       "remoteHls": "Удалённый HLS поток",
+      "remoteYt": "YouTube",
+      "remoteNd": "Navidrome (сервер)",
       "ready": "Готов",
       "broken": "Повреждён"
     }

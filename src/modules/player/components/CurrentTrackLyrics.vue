@@ -32,12 +32,20 @@
       </button>
     </div>
 
-    <p
+    <Empty
       v-else
-      class="pt-6 text-center text-lg text-muted-foreground sm:text-xl"
+      class="p-6 py-12 md:p-6 md:py-12"
     >
-      {{ placeholderText }}
-    </p>
+      <EmptyHeader>
+        <EmptyMedia
+          variant="icon"
+          class="rounded-full text-muted-foreground"
+        >
+          <IconMicrophoneOff class="size-5" />
+        </EmptyMedia>
+        <EmptyDescription>{{ placeholderText }}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
 
     <Transition name="lyrics-resume">
       <div
@@ -67,6 +75,8 @@ import { useI18n } from "vue-i18n";
 import { useEventListener } from "@vueuse/core";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import IconMicrophoneOff from "~icons/tabler/microphone-off";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useLyricsStore } from "@/modules/player/store/lyrics.store";
 import type { PlayerTrack } from "@/modules/player/types";

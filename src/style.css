@@ -228,7 +228,7 @@
   }
 
   .release-notes-markdown li::marker {
-    color: var(--primary);
+    color: var(--muted-foreground);
   }
 
   .release-notes-markdown strong {

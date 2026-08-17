@@ -8,7 +8,7 @@
       @close="closePanel"
     />
 
-    <div class=" bg-card px-4">
+    <div class=" bg-card px-4 pb-2">
       <div class="flex items-center gap-3">
         <InputGroup class="flex-1 bg-background! rounded-full">
           <InputGroupInput
@@ -46,7 +46,6 @@
         :item-height="64"
         :load-more-offset="160"
         :padding-bottom="8"
-        :padding-top="8"
         :loading="isInitialLoading"
         class="h-full"
         @load-more="handleLoadMore"

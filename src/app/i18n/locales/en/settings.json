@@ -36,8 +36,6 @@
         "streakBest": "Record: {count} day | Record: {count} days",
         "topTracks": "Top tracks",
         "topArtists": "Top artists",
-        "showAll": "Show all",
-        "showLess": "Show less",
         "emptyPeriod": "No data for this period",
         "completionTitle": "You finish {percent}% of tracks",
         "completionSubtitle": "{completed} finished · {skipped} skipped",
