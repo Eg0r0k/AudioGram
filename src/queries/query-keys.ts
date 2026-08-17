@@ -105,8 +105,8 @@ export const queryKeys = {
       ["stats", "topTracksMeta", ...ids] as const,
     topArtists: (limit: number, since?: number) =>
       ["stats", "topArtists", limit, since] as const,
-    topArtistsMeta: (ids: readonly string[]) =>
-      ["stats", "topArtistsMeta", ...ids] as const,
+    artistPlays: (artistId: string) =>
+      ["stats", "artistPlays", artistId] as const,
     topGenres: (limit: number, since?: number) => ["stats", "topGenres", limit, since] as const,
     sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     totalTime: (since?: number) => ["stats", "totalTime", since] as const,

@@ -4,28 +4,30 @@
     class="mt-3"
   >
     <Item>
-      <ItemContent>
+      <ItemContent class="min-w-0 flex-1">
         <ItemTitle>{{ title }}</ItemTitle>
-        <ItemSubtitle>
-          <svg
-            :width="24 * BAR_PITCH"
-            :height="CHART_HEIGHT"
-            class="mt-1 block"
-            role="img"
-            :aria-label="title"
-          >
-            <rect
-              v-for="(seconds, hour) in hours"
-              :key="hour"
-              :x="hour * BAR_PITCH"
-              :y="CHART_HEIGHT - barHeight(seconds)"
-              :width="BAR_PITCH - 2"
-              :height="barHeight(seconds)"
-              rx="1"
-              :class="seconds > 0 ? 'fill-primary' : 'fill-border'"
-            />
-          </svg>
-        </ItemSubtitle>
+
+        <div
+          class="mt-3 flex items-end gap-[3px]"
+          :style="{ height: `${CHART_HEIGHT}px` }"
+          role="img"
+          :aria-label="title"
+        >
+          <div
+            v-for="(seconds, hour) in hours"
+            :key="hour"
+            class="min-w-0 flex-1 rounded-sm"
+            :class="barClass(hour, seconds)"
+            :style="{ height: `${barHeight(seconds)}px` }"
+          />
+        </div>
+
+        <div class="mt-1.5 flex text-[10px] leading-none text-muted-foreground tabular-nums">
+          <span class="w-1/4">00</span>
+          <span class="w-1/4">06</span>
+          <span class="w-1/4">12</span>
+          <span class="w-1/4">18</span>
+        </div>
       </ItemContent>
     </Item>
   </SettingsGroup>
@@ -34,14 +36,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Item, ItemContent, ItemSubtitle, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemTitle } from "@/components/ui/item";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import { useHourlyActivity } from "@/composables/useStatsQueries";
 
 const props = defineProps<{ since?: number }>();
 
-const BAR_PITCH = 8;
-const CHART_HEIGHT = 24;
+const CHART_HEIGHT = 56;
 const WINDOW = 4;
 
 const { t } = useI18n();
@@ -52,7 +53,7 @@ const maxSeconds = computed(() => Math.max(1, ...hours.value));
 
 function barHeight(seconds: number): number {
   if (seconds <= 0) return 2;
-  return Math.max(3, Math.round((seconds / maxSeconds.value) * CHART_HEIGHT));
+  return Math.max(4, Math.round((seconds / maxSeconds.value) * CHART_HEIGHT));
 }
 
 // Лучшее окно из 4 подряд идущих часов (с переходом через полночь).
@@ -71,6 +72,16 @@ const peak = computed(() => {
   }
   return { start: bestStart, end: (bestStart + WINDOW) % 24 };
 });
+
+function isPeakHour(hour: number): boolean {
+  if (!peak.value) return false;
+  return (hour - peak.value.start + 24) % 24 < WINDOW;
+}
+
+function barClass(hour: number, seconds: number): string {
+  if (seconds <= 0) return "bg-border";
+  return isPeakHour(hour) ? "bg-primary" : "bg-primary/35";
+}
 
 function hourlyKey(start: number): "hourlyMorning" | "hourlyDay" | "hourlyEvening" | "hourlyNight" {
   if (start >= 5 && start < 11) return "hourlyMorning";

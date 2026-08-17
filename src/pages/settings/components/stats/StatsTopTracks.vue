@@ -16,72 +16,59 @@
     </p>
 
     <template v-else>
-      <Item
-        v-for="entry in topTracks"
-        :key="entry.id"
-      >
-        <ItemMedia>
-          <EntityCoverImage
-            owner-type="album"
-            :owner-id="entry.track!.albumId"
-            :alt="entry.track!.title"
-            image-class="size-10 rounded-md object-cover"
+      <TrackContextMenu>
+        <div class="track-list-grid px-2 pb-2">
+          <TrackExpanded
+            v-for="(entry, index) in topTracks"
+            :key="entry.id"
+            :track="entry.track"
+            :index="index + 1"
+            @play="handlePlayTrack(index)"
+            @contextmenu="handleContextMenu(entry.track, index)"
           />
-        </ItemMedia>
-        <ItemContent class="ml-3 min-w-0">
-          <ItemTitle class="truncate">
-            {{ entry.track!.title }}
-          </ItemTitle>
-          <ItemSubtitle class="truncate">
-            {{ entry.track!.artistName }}
-          </ItemSubtitle>
-          <div class="mt-1.5 h-1 w-full rounded-full bg-background">
-            <div
-              class="h-full rounded-full bg-primary"
-              :style="{ width: `${barPercent(entry.secondsListened)}%` }"
-            />
-          </div>
-        </ItemContent>
-        <ItemActions>
-          <span class="ml-3 shrink-0 text-sm text-muted-foreground tabular-nums">
-            {{ formatTotalDuration(entry.secondsListened, t) }}
-          </span>
-        </ItemActions>
-      </Item>
+        </div>
+      </TrackContextMenu>
 
-      <Button
-        v-if="expanded || topTracks.length >= COLLAPSED_LIMIT"
-        variant="ghost-primary"
-        class="w-full"
-        @click="expanded = !expanded"
-      >
-        {{ expanded ? $t("settings.stats.showLess") : $t("settings.stats.showAll") }}
-      </Button>
+      <TrackDropdown />
     </template>
   </SettingsGroup>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useI18n } from "vue-i18n";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
-import { Item, ItemActions, ItemContent, ItemMedia, ItemSubtitle, ItemTitle } from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
-import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
+import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
+import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
+import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { useTopTracks } from "@/composables/useStatsQueries";
-import { formatTotalDuration } from "@/lib/format/time";
+import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
+import { usePlayerStore } from "@/modules/player";
+import { useQueueStore } from "@/modules/queue/store/queue.store";
+import type { Track } from "@/modules/player/types";
 
 const props = defineProps<{ since?: number }>();
 
-const COLLAPSED_LIMIT = 5;
-const EXPANDED_LIMIT = 25;
+const TOP_LIMIT = 5;
 
-const { t } = useI18n();
-const expanded = ref(false);
-const limit = computed(() => (expanded.value ? EXPANDED_LIMIT : COLLAPSED_LIMIT));
+const { topTracks, isLoading } = useTopTracks(TOP_LIMIT, () => props.since);
 
-const { topTracks, isLoading } = useTopTracks(limit, () => props.since);
+const playerStore = usePlayerStore();
+const queueStore = useQueueStore();
+const { openMenu } = useTrackMenu();
 
-const maxSeconds = computed(() => topTracks.value[0]?.secondsListened ?? 1);
-const barPercent = (seconds: number) => Math.max(2, Math.round((seconds / maxSeconds.value) * 100));
+async function handlePlayTrack(index: number) {
+  const tracks = topTracks.value.map(entry => entry.track);
+  const selectedTrack = tracks[index];
+  if (!selectedTrack) return;
+
+  if (playerStore.currentTrack?.id === selectedTrack.id) {
+    playerStore.togglePlay();
+    return;
+  }
+
+  await queueStore.setQueue(tracks, index, { type: "manual" });
+}
+
+function handleContextMenu(track: Track, index: number) {
+  openMenu(track, index);
+}
 </script>

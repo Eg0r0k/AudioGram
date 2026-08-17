@@ -4,7 +4,10 @@
     class="flex-1"
   >
     <div class="pb-8">
-      <SettingsHeader :title="$t('settings.stats.title')" />
+      <SettingsHeader
+        class="bg-background"
+        :title="$t('settings.stats.title')"
+      />
 
       <template v-if="hasHistory">
         <SettingsGroup>

@@ -13,6 +13,7 @@ import {
   type ArtistChanges,
   updateArtistAndSync,
 } from "@/queries/artist.queries";
+import { statsQueries } from "@/queries/stats.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
@@ -127,6 +128,10 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     isLoading: isCoverLoading,
   } = useEntityCover("artist", artistId);
 
+  const { data: playsCount } = useQuery(
+    computed(() => statsQueries.artistPlays(artistId.value)),
+  );
+
   const isLoading = computed(
     () => isArtistLoading.value || isCoverLoading.value || isTracksLoading.value,
   );
@@ -143,7 +148,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
       id: artist.value.id,
       title: artist.value.name,
       image: coverUrl.value ?? "",
-      monthlyListeners: 0,
+      monthlyListeners: playsCount.value ?? 0,
       isFollowing: false,
       bio: artist.value.bio,
     };

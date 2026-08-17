@@ -11,15 +11,6 @@
         </DialogDescription>
       </DialogHeader>
 
-      <p class="text-sm text-muted-foreground">
-        {{ $t("settings.storage.clearAllSummary", {
-          tracks: stats.tracksCount,
-          albums: stats.albumsCount,
-          artists: stats.artistsCount,
-          size: stats.totalUsed,
-        }) }}
-      </p>
-
       <DialogFooter>
         <Button
           variant="ghost-primary"
@@ -28,7 +19,7 @@
           {{ $t("common.cancel") }}
         </Button>
         <Button
-          variant="destructive"
+          variant="destructive-link"
           :disabled="countdown > 0 || pending"
           @click="emit('confirm')"
         >

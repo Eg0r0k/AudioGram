@@ -31,6 +31,21 @@ beforeEach(async () => {
   await db.listenEvents.clear();
 });
 
+describe("artistPlaysCount", () => {
+  it("counts non-skipped events of the given artist only", async () => {
+    await seed(
+      makeEvent({ artistId: "a1" as ArtistId }),
+      makeEvent({ artistId: "a1" as ArtistId }),
+      makeEvent({ artistId: "a1" as ArtistId, skipped: true }),
+      makeEvent({ artistId: "a2" as ArtistId }),
+    );
+
+    expect((await statsRepository.artistPlaysCount("a1"))._unsafeUnwrap()).toBe(2);
+    expect((await statsRepository.artistPlaysCount("a2"))._unsafeUnwrap()).toBe(1);
+    expect((await statsRepository.artistPlaysCount("a3"))._unsafeUnwrap()).toBe(0);
+  });
+});
+
 describe("summary", () => {
   it("returns zeros when there are no events", async () => {
     const result = await statsRepository.summary();

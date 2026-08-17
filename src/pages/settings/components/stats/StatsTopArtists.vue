@@ -19,66 +19,51 @@
       <Item
         v-for="entry in topArtists"
         :key="entry.id"
+        as="button"
+        type="button"
+        class="w-full cursor-pointer text-left"
+        @click="goToArtist(entry.artist.id)"
       >
         <ItemMedia>
           <EntityCoverImage
             owner-type="artist"
-            :owner-id="entry.artist!.id"
-            :alt="entry.artist!.name"
+            :owner-id="entry.artist.id"
+            :alt="entry.artist.name"
             image-class="size-10 rounded-full object-cover"
           />
         </ItemMedia>
         <ItemContent class="ml-3 min-w-0">
           <ItemTitle class="truncate">
-            {{ entry.artist!.name }}
+            {{ entry.artist.name }}
           </ItemTitle>
-          <div class="mt-1.5 h-1 w-full rounded-full bg-background">
-            <div
-              class="h-full rounded-full bg-primary"
-              :style="{ width: `${barPercent(entry.secondsListened)}%` }"
-            />
-          </div>
-        </ItemContent>
-        <ItemActions>
-          <span class="ml-3 shrink-0 text-sm text-muted-foreground tabular-nums">
+          <ItemSubtitle class="truncate">
             {{ formatTotalDuration(entry.secondsListened, t) }}
-          </span>
-        </ItemActions>
+          </ItemSubtitle>
+        </ItemContent>
       </Item>
-
-      <Button
-        v-if="expanded || topArtists.length >= COLLAPSED_LIMIT"
-        variant="ghost-primary"
-        class="w-full"
-        @click="expanded = !expanded"
-      >
-        {{ expanded ? $t("settings.stats.showLess") : $t("settings.stats.showAll") }}
-      </Button>
     </template>
   </SettingsGroup>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
-import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
+import { Item, ItemContent, ItemMedia, ItemSubtitle, ItemTitle } from "@/components/ui/item";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import { useTopArtists } from "@/composables/useStatsQueries";
 import { formatTotalDuration } from "@/lib/format/time";
+import { routeLocation } from "@/app/router/route-locations";
 
 const props = defineProps<{ since?: number }>();
 
-const COLLAPSED_LIMIT = 5;
-const EXPANDED_LIMIT = 25;
+const TOP_LIMIT = 5;
 
 const { t } = useI18n();
-const expanded = ref(false);
-const limit = computed(() => (expanded.value ? EXPANDED_LIMIT : COLLAPSED_LIMIT));
+const router = useRouter();
+const { topArtists, isLoading } = useTopArtists(TOP_LIMIT, () => props.since);
 
-const { topArtists, isLoading } = useTopArtists(limit, () => props.since);
-
-const maxSeconds = computed(() => topArtists.value[0]?.secondsListened ?? 1);
-const barPercent = (seconds: number) => Math.max(2, Math.round((seconds / maxSeconds.value) * 100));
+function goToArtist(id: string) {
+  router.push(routeLocation.artist(id));
+}
 </script>

@@ -6,20 +6,20 @@
     />
     <div
       v-else
-      class="grid grid-cols-3 gap-2 px-2 py-4"
+      class="grid grid-cols-3 gap-2 px-2 py-2"
     >
-      <div class="flex flex-col items-center gap-1">
+      <Item class="flex-col items-center justify-center gap-1 p-3">
         <span class="text-lg font-semibold tabular-nums">{{ timeLabel }}</span>
-        <span class="text-xs text-muted-foreground">{{ $t("settings.stats.summaryTime") }}</span>
-      </div>
-      <div class="flex flex-col items-center gap-1">
+        <span class="text-xs text-muted-foreground font-medium">{{ $t("settings.stats.summaryTime") }}</span>
+      </Item>
+      <Item class="flex-col items-center justify-center gap-1 p-3">
         <span class="text-lg font-semibold tabular-nums">{{ summary?.playsCount ?? 0 }}</span>
-        <span class="text-xs text-muted-foreground">{{ $t("settings.stats.summaryPlays") }}</span>
-      </div>
-      <div class="flex flex-col items-center gap-1">
+        <span class="text-xs text-muted-foreground font-medium">{{ $t("settings.stats.summaryPlays") }}</span>
+      </Item>
+      <Item class="flex-col items-center justify-center gap-1 p-3">
         <span class="text-lg font-semibold tabular-nums">{{ summary?.uniqueArtists ?? 0 }}</span>
-        <span class="text-xs text-muted-foreground">{{ $t("settings.stats.summaryArtists") }}</span>
-      </div>
+        <span class="text-xs text-muted-foreground font-medium">{{ $t("settings.stats.summaryArtists") }}</span>
+      </Item>
     </div>
   </SettingsGroup>
 </template>
@@ -28,6 +28,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
+import { Item } from "@/components/ui/item";
 import { useStatsSummary } from "@/composables/useStatsQueries";
 import { formatTotalDuration } from "@/lib/format/time";
 

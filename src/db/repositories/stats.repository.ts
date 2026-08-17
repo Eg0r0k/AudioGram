@@ -142,6 +142,13 @@ class StatsRepository {
     });
   }
 
+  async artistPlaysCount(artistId: string): Promise<Result<number, Error>> {
+    return runSafe(async () => {
+      const events = await db.listenEvents.where("artistId").equals(artistId).toArray();
+      return events.filter(e => !e.skipped).length;
+    });
+  }
+
   async topGenres(limit = 8, since?: number): Promise<Result<TopGenreEntry[], Error>> {
     return runSafe(async () => {
       const events = since
