@@ -41,7 +41,17 @@ export interface RightPanelEntitySelectPayload {
   kind: "artists" | "album";
   selectedNames?: string[];
   selectedAlbumId?: string;
+  /**
+   * For `kind: "album"` an existing pick reports both `albumId` and `albumTitle`
+   * (the title is only a display label), while a created one reports `albumTitle` alone.
+   */
   onConfirm: (result: { names?: string[]; albumId?: string; albumTitle?: string }) => void;
+  /**
+   * Where to go when the picker is done (confirm, create or back). Defaults to
+   * `rightPanel.back()`, which closes the panel — openers that live in another
+   * view pass a callback that reopens themselves.
+   */
+  onDone?: () => void;
 }
 
 export interface OpenRightPanelOptions {

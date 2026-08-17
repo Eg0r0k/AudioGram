@@ -8,7 +8,7 @@
     :confirm-count="selectedNames.length"
     @confirm="handleConfirm"
     @create="handleCreate"
-    @back="rightPanel.back()"
+    @back="handleDone"
     @close="rightPanel.close()"
   >
     <template #row="{ item }">
@@ -92,8 +92,17 @@ const handleCreate = (name: string) => {
   search.value = "";
 };
 
+const handleDone = () => {
+  if (props.payload.onDone) {
+    props.payload.onDone();
+    return;
+  }
+
+  rightPanel.back();
+};
+
 const handleConfirm = () => {
   props.payload.onConfirm({ names: [...selectedNames.value] });
-  rightPanel.back();
+  handleDone();
 };
 </script>

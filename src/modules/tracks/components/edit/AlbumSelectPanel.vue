@@ -6,7 +6,7 @@
     :get-key="(album: AlbumEntity) => album.id"
     :can-create="canCreate"
     @create="handleCreate"
-    @back="rightPanel.back()"
+    @back="handleDone"
     @close="rightPanel.close()"
   >
     <template #row="{ item }">
@@ -76,13 +76,22 @@ const canCreate = computed(() =>
   && !suggestions.value.some(album => titleKey(album.title) === titleKey(normalizedSearch.value)),
 );
 
-const handleSelect = (album: AlbumEntity) => {
-  props.payload.onConfirm({ albumId: album.id });
+const handleDone = () => {
+  if (props.payload.onDone) {
+    props.payload.onDone();
+    return;
+  }
+
   rightPanel.back();
+};
+
+const handleSelect = (album: AlbumEntity) => {
+  props.payload.onConfirm({ albumId: album.id, albumTitle: album.title });
+  handleDone();
 };
 
 const handleCreate = (title: string) => {
   props.payload.onConfirm({ albumTitle: title });
-  rightPanel.back();
+  handleDone();
 };
 </script>
