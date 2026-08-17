@@ -54,7 +54,12 @@
   "loading": "Loading",
   "unknown": "Unknown",
   "add": "Add",
-  "search": "Search",
+  "search": {
+    "placeholder": "Search"
+  },
+  "entitySelect": {
+    "create": "Create \"{name}\""
+  },
   "connect": "Connect",
   "next": "Next",
   "back": "Back",
