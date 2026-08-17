@@ -2,15 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok } from "neverthrow";
 import type { AlbumEntity, ArtistEntity, TrackEntity } from "@/db/entities";
 import { TrackSource, TrackState } from "@/db/entities";
+import { QueryClient } from "@tanstack/vue-query";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { Track } from "@/modules/player/types";
 
 const repositories = vi.hoisted(() => ({
   albumRepository: {
     findAllSortedByTitle: vi.fn(),
     findByIds: vi.fn(),
+    findById: vi.fn(),
+    findByArtistId: vi.fn(),
+    create: vi.fn(),
   },
   artistRepository: {
     findByIds: vi.fn(),
+    findByName: vi.fn(),
+    create: vi.fn(),
   },
   trackRepository: {
     findByAlbumId: vi.fn(),
@@ -24,16 +31,32 @@ const repositories = vi.hoisted(() => ({
     findLikedPaginated: vi.fn(),
     countLiked: vi.fn(),
     sumDurationByLiked: vi.fn(),
+    findById: vi.fn(),
+    update: vi.fn(),
   },
 }));
 
 vi.mock("@/db/repositories", () => repositories);
 vi.mock("@/modules/search/searchIndex", () => ({
   searchTracks: vi.fn(),
-  upsertSearchDocuments: vi.fn(),
+  upsertSearchDocuments: vi.fn(async () => {}),
+}));
+vi.mock("@/modules/search/buildDocuments", () => ({
+  buildArtistDoc: vi.fn((artist: ArtistEntity) => ({
+    id: `artist:${artist.id}`,
+    type: "artist",
+    title: artist.name,
+    entityId: artist.id,
+  })),
+  buildTrackDocFromDb: vi.fn(async () => ({})),
 }));
 
-import { getTracksIndexPageData, getLikedTracksPageData, getLikedTracksPaginated } from "../track.queries";
+import {
+  getTracksIndexPageData,
+  getLikedTracksPageData,
+  getLikedTracksPaginated,
+  updateTrackMetadataAndSync,
+} from "../track.queries";
 
 describe("track.queries", () => {
   beforeEach(() => {
@@ -295,6 +318,117 @@ describe("track.queries", () => {
 
       expect(repositories.trackRepository.sumDurationAll).not.toHaveBeenCalled();
       expect(result.totalDuration).toBe(0);
+    });
+  });
+
+  describe("updateTrackMetadataAndSync album by title", () => {
+    const artist: ArtistEntity = {
+      id: "artist-1" as ArtistId,
+      name: "A",
+      pinned: 1,
+      addedAt: 1,
+      updatedAt: 1,
+    };
+
+    const existingAlbum: AlbumEntity = {
+      id: "album-1" as AlbumId,
+      title: "Greatest Hits",
+      artistId: artist.id,
+      pinned: 1,
+      addedAt: 1,
+      updatedAt: 1,
+    };
+
+    const currentTrackEntity: TrackEntity = {
+      id: "track-1" as TrackId,
+      title: "Song",
+      artistIds: [artist.id],
+      albumId: "album-old" as AlbumId,
+      albumTitle: "Old Album",
+      artistName: "A",
+      tagIds: [],
+      source: TrackSource.LOCAL_INTERNAL,
+      state: TrackState.READY,
+      storagePath: "t.mp3",
+      duration: 100,
+      format: {},
+      playCount: 0,
+      addedAt: 1,
+    };
+
+    const track: Track = {
+      kind: "library",
+      id: currentTrackEntity.id,
+      title: currentTrackEntity.title,
+      artist: "A",
+      artistIds: [artist.id],
+      albumId: currentTrackEntity.albumId,
+      albumName: "Old Album",
+      storagePath: "t.mp3",
+      source: TrackSource.LOCAL_INTERNAL,
+      state: TrackState.READY,
+      duration: 100,
+      isLiked: false,
+    };
+
+    let queryClient: QueryClient;
+
+    beforeEach(() => {
+      queryClient = new QueryClient();
+      repositories.trackRepository.findById.mockResolvedValue(ok(currentTrackEntity));
+      repositories.trackRepository.update.mockResolvedValue(ok(1));
+      repositories.artistRepository.findByName.mockResolvedValue(ok(artist));
+    });
+
+    it("reuses an existing album of the first artist matched case-insensitively", async () => {
+      repositories.albumRepository.findByArtistId.mockResolvedValue(ok([existingAlbum]));
+
+      const next = await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumTitle: "GREATEST HITS",
+      });
+
+      expect(next.albumId).toBe(existingAlbum.id);
+      expect(repositories.albumRepository.create).not.toHaveBeenCalled();
+    });
+
+    it("creates a new album row when no identity match exists", async () => {
+      repositories.albumRepository.findByArtistId.mockResolvedValue(ok([existingAlbum]));
+      repositories.albumRepository.create.mockResolvedValue(ok("new-album" as AlbumId));
+
+      const next = await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumTitle: "Brand New Album",
+      });
+
+      expect(repositories.albumRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Brand New Album",
+          artistId: artist.id,
+          pinned: 1,
+        }),
+      );
+      const created = repositories.albumRepository.create.mock.calls[0][0] as AlbumEntity;
+      expect(next.albumId).toBe(created.id);
+    });
+
+    it("persists trackNo and diskNo", async () => {
+      repositories.albumRepository.findById.mockResolvedValue(ok(existingAlbum));
+
+      await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+        albumId: existingAlbum.id,
+        trackNo: 7,
+        diskNo: 2,
+      });
+
+      expect(repositories.trackRepository.update).toHaveBeenCalledWith(
+        currentTrackEntity.id,
+        expect.objectContaining({ trackNo: 7, diskNo: 2 }),
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import type { ArtistEntity, TrackEntity } from "@/db/entities";
+import type { AlbumEntity, ArtistEntity, TrackEntity } from "@/db/entities";
 import { db } from "@/db";
 import {
   albumRepository,
@@ -19,7 +19,7 @@ import type { SearchDocument } from "@/modules/search/types";
 import { queryKeys } from "@/queries/query-keys";
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { Track } from "@/modules/player/types";
-import { ArtistId as createArtistId } from "@/types/ids";
+import { AlbumId as createAlbumId, ArtistId as createArtistId } from "@/types/ids";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
@@ -37,13 +37,17 @@ import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
+import { identityKey } from "@/services/entity-resolver";
 
 const PAGE_SIZE = 50;
 
 export interface TrackMetadataChanges {
   title: string;
   artistNames: string[];
-  albumId: AlbumId;
+  albumId?: AlbumId;
+  albumTitle?: string; // exactly one of albumId/albumTitle must be provided
+  trackNo?: number;
+  diskNo?: number;
 }
 
 async function loadTrackRelations(tracks: TrackEntity[]): Promise<Track[]> {
@@ -474,6 +478,32 @@ export async function attachTrackLyricsAndSync(
   return nextTrack;
 }
 
+const resolveAlbumForChanges = async (
+  changes: TrackMetadataChanges,
+  firstArtistId: ArtistId,
+): Promise<AlbumEntity> => {
+  if (changes.albumId) return getAlbumByIdOrThrow(changes.albumId);
+
+  const title = changes.albumTitle?.trim().replace(/\s+/g, " ");
+  if (!title) throw new Error("Album is required");
+
+  const artistAlbums = await unwrapResult(albumRepository.findByArtistId(firstArtistId));
+  const existing = artistAlbums.find(album => identityKey(album.title) === identityKey(title));
+  if (existing) return existing;
+
+  const now = Date.now();
+  const created: AlbumEntity = {
+    id: createAlbumId(crypto.randomUUID()),
+    title,
+    artistId: firstArtistId,
+    pinned: 1,
+    addedAt: now,
+    updatedAt: now,
+  };
+  await unwrapResult(albumRepository.create(created));
+  return created;
+};
+
 export async function updateTrackMetadataAndSync(
   queryClient: QueryClient,
   track: Track,
@@ -497,7 +527,7 @@ export async function updateTrackMetadataAndSync(
   }
 
   const artists = await findOrCreateArtists(queryClient, artistNames);
-  const album = await getAlbumByIdOrThrow(changes.albumId);
+  const album = await resolveAlbumForChanges(changes, artists[0].id);
   const nextArtistIds = artists.map(artist => artist.id);
   const nextArtistName = artists.map(artist => artist.name).join(", ");
 
@@ -508,6 +538,8 @@ export async function updateTrackMetadataAndSync(
     artistName: nextArtistName,
     albumId: album.id,
     albumTitle: album.title,
+    trackNo: changes.trackNo ?? currentTrack.trackNo,
+    diskNo: changes.diskNo ?? currentTrack.diskNo,
   };
 
   await unwrapResult(trackRepository.update(currentTrack.id, {
@@ -516,6 +548,8 @@ export async function updateTrackMetadataAndSync(
     artistName: nextArtistName,
     albumId: album.id,
     albumTitle: album.title,
+    trackNo: changes.trackNo ?? currentTrack.trackNo,
+    diskNo: changes.diskNo ?? currentTrack.diskNo,
   }));
 
   const nextTrack: Track = {

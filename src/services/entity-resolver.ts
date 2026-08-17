@@ -163,7 +163,7 @@ type AlbumCacheKey = `${ArtistId}::${string}`;
 // trip: uppercase tags erase İ/ı, ß→SS and ё→Е distinctions, so both sides
 // fold to one representative. Genuine accents (é, è…) stay significant.
 // Display keeps the first-seen (or already stored) spelling.
-function identityKey(name: string): string {
+export function identityKey(name: string): string {
   return name
     .normalize("NFKC")
     .toLowerCase()
