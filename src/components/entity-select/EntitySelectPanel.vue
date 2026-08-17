@@ -65,6 +65,10 @@
             </Empty>
           </slot>
         </template>
+
+        <template #loader>
+          <slot name="loader" />
+        </template>
       </VirtualScrollable>
 
       <div

@@ -27,6 +27,10 @@
         <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
       </Empty>
     </template>
+
+    <template #loader>
+      <TrackRowLoading />
+    </template>
   </EntitySelectPanel>
 </template>
 
@@ -39,6 +43,7 @@ import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { EntitySelectPanel } from "@/components/entity-select";
 import TrackSelectRow from "../TrackSelectRow.vue";
+import TrackRowLoading from "../TrackRowLoading.vue";
 import { addTracksToPlaylistAndSync } from "@/queries/playlist.queries";
 import { queryKeys } from "@/queries/query-keys";
 import {
