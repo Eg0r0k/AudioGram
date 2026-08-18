@@ -82,6 +82,7 @@
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, useTemplateRef, watch } from "vue";
 import { scrollableInjectionKey } from "./injection";
+import { isScrollLockedByOverlay } from "./scroll-lock";
 import useScrollable from "./useScrollable";
 
 interface Props {
@@ -171,6 +172,9 @@ const scrollable = useScrollable(containerRef, {
   onScrollOffset: props.loadMoreOffset,
   onScrolledTop: () => emit("scrolledTop"),
 });
+
+// A list must not scroll away under an anchored context menu / dropdown.
+watch(isScrollLockedByOverlay, locked => scrollable.setScrollLocked(locked));
 
 const virtualizer = useVirtualizer(computed(() => ({
   count: props.items.length,
