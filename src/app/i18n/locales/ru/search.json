@@ -21,5 +21,9 @@
     "nd": "Navidrome"
   },
   "ytHint": "Начните вводить запрос для поиска на YouTube",
+  "ytLinkDetected": "Ссылка с YouTube",
+  "ytLinkPlaylist": "Открыть плейлист",
+  "ytLinkAlbum": "Открыть альбом",
+  "ytLinkArtist": "Открыть канал",
   "showAll": "Показать все"
 }
