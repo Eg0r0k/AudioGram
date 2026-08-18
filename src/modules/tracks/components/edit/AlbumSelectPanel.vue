@@ -64,11 +64,18 @@ const search = ref("");
 const debouncedSearch = refDebounced(search, 200);
 const normalizedSearch = computed(() => debouncedSearch.value.trim().replace(/\s+/g, " "));
 
+// Дефолтный limit=8 у searchAlbums срезал бы почти всю библиотеку: yt:/nd:
+// строки идут последними в порядке первичного ключа и никогда не попадали
+// в выдачу. Пикер листает весь список виртуально — берём с запасом и сортируем.
+const PICKER_LIMIT = 1000;
+
 const { data } = useQuery({
   queryKey: computed(() => queryKeys.albums.search(normalizedSearch.value)),
-  queryFn: () => searchAlbums(normalizedSearch.value),
+  queryFn: () => searchAlbums(normalizedSearch.value, PICKER_LIMIT),
 });
-const suggestions = computed(() => data.value ?? []);
+const suggestions = computed(() =>
+  [...(data.value ?? [])].sort((a, b) => a.title.localeCompare(b.title)),
+);
 
 const titleKey = (title: string) => title.trim().replace(/\s+/g, " ").toLowerCase();
 const canCreate = computed(() =>

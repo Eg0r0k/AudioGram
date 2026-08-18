@@ -76,11 +76,18 @@ const toggleName = (name: string) => {
     : [...selectedNames.value, name];
 };
 
+// Limit=30 в порядке первичного ключа прятал yt:/nd: артистов: их id
+// сортируются после UUID и не влезали в срез. Пикер виртуализирован —
+// берём с запасом и сортируем по имени.
+const PICKER_LIMIT = 1000;
+
 const { data } = useQuery({
   queryKey: computed(() => queryKeys.artists.search(normalizedSearch.value)),
-  queryFn: () => searchArtists(normalizedSearch.value, 30),
+  queryFn: () => searchArtists(normalizedSearch.value, PICKER_LIMIT),
 });
-const suggestions = computed(() => data.value ?? []);
+const suggestions = computed(() =>
+  [...(data.value ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+);
 
 const canCreate = computed(() =>
   normalizedSearch.value.length > 0
