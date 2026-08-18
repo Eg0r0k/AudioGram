@@ -31,7 +31,7 @@
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from "vue";
-import { makeAutoScroll, makeDroppable } from "@vue-dnd-kit/core";
+import { makeAutoScroll, makeConstraintArea, makeDroppable } from "@vue-dnd-kit/core";
 import type { IDragEvent } from "@vue-dnd-kit/core";
 import { useQueueStore } from "../store/queue.store";
 import { resolveQueueReorder } from "../lib/queue-order";
@@ -77,6 +77,10 @@ makeDroppable(scrollContainer, {
 }, () => upcomingQueueItems.value);
 
 makeAutoScroll(scrollContainer, { threshold: 70 });
+
+// Vertical-only drag: the constraint area pins the preview's x to the
+// dragged row's own left edge, so the ghost slides strictly along the list.
+makeConstraintArea(scrollContainer, { axis: "y" });
 
 // The docs' reorder animation (TransitionGroup + .list-move) doesn't apply to
 // a virtual list: rows are absolutely positioned via translateY. Transitioning
