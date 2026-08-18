@@ -4,9 +4,6 @@
     class="flex items-center shrink-0 pb-4"
     :class="compact ? 'justify-center px-2' : 'gap-3 px-4'"
   >
-    <!-- Back / burger swap: a simultaneous crossfade with a directional
-         turn (opening rotates one way, closing the other) inside a fixed
-         footprint — no sequential out-in gap, so nothing pops. -->
     <div class="relative size-10 shrink-0">
       <AnimatePresence>
         <Motion
@@ -37,7 +34,7 @@
           :exit="{ opacity: 0, rotate: 60, scale: 0.7 }"
           :transition="headerTransition"
         >
-          <DropdownMenu v-model:open="isMenuOpen">
+          <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
@@ -45,8 +42,6 @@
                 class="rounded-full"
                 :aria-label="$t('nav.menu')"
               >
-                <!-- An active download takes over the burger: the header is the
-                     always-visible hint that the queue is working. -->
                 <IconDownload
                   v-if="hasActiveDownloads"
                   class="size-6 animate-pulse text-primary"
@@ -66,12 +61,12 @@
                   <IconBookmark class="size-5.5" />
                   {{ t("nav.favorite") }}
                 </DropdownMenuItem>
-  
+
                 <DropdownMenuItem @click="goSettings">
                   <IconSettings class="size-5.5" />
                   {{ t("nav.settings") }}
                 </DropdownMenuItem>
-  
+
                 <DropdownMenuItem @click="openDownloadsPanel">
                   <IconDownload class="size-5.5" />
                   {{ t("nav.downloads") }}
@@ -99,14 +94,11 @@
     <div
       v-if="!compact"
       class="flex-1"
-      @focusin="openSearch"
+      @focusin="openSearch()"
     >
       <InputGroup class="dark:bg-background!  bg-muted! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
-          <DropdownMenu
-            v-if="isYoutubeAvailable || isNdSearchAvailable"
-            v-model:open="isSearchSourceOpen"
-          >
+          <DropdownMenu v-if="isYoutubeAvailable || isNdSearchAvailable">
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
@@ -179,7 +171,7 @@
           @keydown.stop
           @keydown.escape="handleClose"
           @keydown.enter="handleEnter"
-          @update:model-value="openSearch"
+          @update:model-value="openSearch()"
         />
         <InputGroupAddon
           v-if="query.trim()"
@@ -198,10 +190,6 @@
       </InputGroup>
     </div>
 
-    <!-- Library-pages source (local/nd) — a separate axis from the search
-         source switcher inside the input above. Opening the search collapses
-         it to zero width (the negative margin swallows the parent gap), so
-         the flex-1 input group stretches over the freed space every frame. -->
     <AnimatePresence>
       <Motion
         v-if="!compact && !isSearchOpen"
@@ -219,10 +207,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -253,7 +240,7 @@ import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
 import { youtubeProvider } from "@/modules/youtube/provider";
-import IconBrandYoutube from "~icons/tabler/brand-youtube";
+import IconBrandYoutube from "~icons/tabler/brand-youtube-filled";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
 import IconServer from "~icons/tabler/server";
 import { getNdConfig } from "@/modules/sources/navidrome/config";
@@ -267,16 +254,6 @@ const router = useRouter();
 const theme = useTheme();
 const prefersReduced = useReducedMotion();
 
-const isMenuOpen = ref(false);
-const isSearchSourceOpen = ref(false);
-useMenuCursorAutoClose(isMenuOpen, () => {
-  isMenuOpen.value = false;
-}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
-useMenuCursorAutoClose(isSearchSourceOpen, () => {
-  isSearchSourceOpen.value = false;
-}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
-
-// One curve for every header motion (matches --ease-standard).
 const headerTransition = computed(() =>
   prefersReduced.value
     ? { duration: 0 }

@@ -1,17 +1,23 @@
 <template>
   <div class="flex flex-col">
-    <TrackRow
-      v-for="(track, index) in tracks"
-      :key="track.id"
-      :track="track"
-      :menu-target="menuTarget"
-      :hide-index="true"
-      :compact="compact"
-      :hide-cover="hideCover"
-      @play="emit('play', track, index)"
-    />
+    <TrackContextMenu :context="menuTarget">
+      <div
+        class="flex flex-col"
+        data-track-menu-scope
+      >
+        <TrackRow
+          v-for="(track, index) in tracks"
+          :key="track.id"
+          :track="track"
+          :menu-target="menuTarget"
+          :hide-index="true"
+          :compact="compact"
+          :hide-cover="hideCover"
+          @play="emit('play', track, index)"
+        />
+      </div>
+    </TrackContextMenu>
 
-    <TrackContextMenu :context="menuTarget" />
     <TrackDropdown :context="menuTarget" />
   </div>
 </template>

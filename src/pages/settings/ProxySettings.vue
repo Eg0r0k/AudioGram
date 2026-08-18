@@ -127,13 +127,13 @@
       >
         <p
           v-if="testState === 'ok'"
-          class="text-sm text-primary"
+          class="text-sm text-muted-foreground font-medium"
         >
           {{ testMessage }}
         </p>
         <p
           v-else
-          class="text-sm text-destructive break-words"
+          class="text-sm text-destructive wrap-break-word"
         >
           {{ testMessage }}
         </p>

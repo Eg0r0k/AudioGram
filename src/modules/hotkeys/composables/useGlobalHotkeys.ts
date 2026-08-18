@@ -1,11 +1,13 @@
 import { usePlayerStore } from "@/modules/player";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useActiveElement, useMagicKeys, whenever } from "@vueuse/core";
 import { SEEK_STEP, VOLUME_STEP } from "../constants";
 import { clamp } from "@/lib/math";
 import { useSearch } from "@/modules/search/composables/useSearch";
+import { useSidebar } from "@/composables/useSidebar";
+import { SIDEBAR_COMPACT_WIDTH, SIDEBAR_EXPANDED_MIN_WIDTH } from "@/components/layout/sidebar/sidebarCompact";
 
 const EDITABLE_TAGS = new Set(["INPUT", "SELECT", "TEXTAREA"]);
 const PREVENT_DEFAULT_KEYS = new Set([" ", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp", "f", "F"]);
@@ -15,7 +17,16 @@ export const useGlobalHotKeys = () => {
   const queue = useQueueStore();
   const rightPanel = useRightPanelStore();
   const isEnabled = ref(true);
-  const { openSearch } = useSearch();
+  const { openSearch, isSearchOpen } = useSearch();
+  const { leftSidebar, expandLeftSidebar, setLeftSidebarWidth } = useSidebar();
+
+  let restoreCompactOnClose = false;
+
+  watch(isSearchOpen, (open) => {
+    if (open || !restoreCompactOnClose) return;
+    restoreCompactOnClose = false;
+    setLeftSidebarWidth(SIDEBAR_COMPACT_WIDTH);
+  });
 
   const activeElement = useActiveElement();
 
@@ -104,7 +115,12 @@ export const useGlobalHotKeys = () => {
   whenever(
     () => (keys["ctrl+f"].value || keys["meta+f"].value) && canFire.value,
     () => {
-      openSearch();
+      const wasCompact = leftSidebar.value.width < SIDEBAR_EXPANDED_MIN_WIDTH;
+      if (wasCompact) {
+        restoreCompactOnClose = true;
+      }
+      expandLeftSidebar();
+      openSearch({ fromCompactExpand: wasCompact });
       requestAnimationFrame(() => {
         const searchInput = document.querySelector<HTMLInputElement>(
           "[data-sidebar-header] input",

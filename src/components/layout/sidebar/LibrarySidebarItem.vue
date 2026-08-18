@@ -93,9 +93,6 @@ const handleClick = () => {
 </script>
 
 <template>
-  <!-- The compact rail is covers-only — the tooltip carries the title and
-       entity type the collapsed row can't show. Content renders only in
-       compact mode, so the expanded list never grows a tooltip. -->
   <TooltipProvider
     :delay-duration="150"
     disable-hoverable-content
@@ -108,6 +105,7 @@ const handleClick = () => {
           data-library-item
           :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
           role="button"
+          :class="compact ? 'px-auto' : 'px-2'"
           tabindex="0"
           @click="handleClick"
           @keydown.enter="handleClick"
@@ -118,120 +116,118 @@ const handleClick = () => {
             :to="item.to"
             inactive
           >
-          <Item
-            class="min-w-0 py-2 transition-colors pointer-events-none"
-            :class="[
-              isExactActive && item.type !== 'folder'
-                ? 'bg-primary text-primary-foreground hover:bg-primary/95'
-                : 'hover:bg-accent/60',
-              compact ? 'justify-center gap-0 px-2' : 'gap-3 px-3',
-            ]"
-          >
-            <div class="relative shrink-0">
-              <ItemMedia
-                class="size-[54px] relative z-1 overflow-hidden"
-                :class="item.rounded ? 'rounded-full' : 'rounded-md'"
-              >
-                <!-- Blur-up: the tiny variant renders blurred until the full
-                     cover is decoded, then the filter animates away. -->
-                <NuxtImage
-                  v-if="hasStaticImage"
-                  :src="item.image"
-                  :placeholder="item.imageLow"
-                  placeholder-class="blur-md scale-110"
-                  :alt="item.title"
-                  class="size-full object-cover transition-[filter,scale] duration-300"
-                />
-
-                <div
-                  v-else-if="item.type === 'folder'"
-                  class="size-full rounded-md bg-[#3d3d3d] text-primary flex items-center justify-center"
-                >
-                  <IconFolder class="size-8" />
-                </div>
-
-                <EntityCoverImage
-                  v-else
-                  :owner-type="coverOwnerType"
-                  :owner-id="coverOwnerId"
-                  :alt="item.title"
-                  class="size-full object-cover"
-                  :image-class="item.rounded
-                    ? 'size-full object-cover rounded-full'
-                    : 'size-full object-cover rounded-md'"
-                />
-
-                <div
-                  v-if="compact && isCurrentPlaybackSource"
-                  class="absolute inset-0 z-10 flex items-center justify-center bg-black/50"
-                >
-                  <IconVolume class="size-6 text-white" />
-                </div>
-              </ItemMedia>
-              <span
-                v-if="compact && item.isPinned"
-                class="absolute -top-1 -right-1 z-10 flex size-5 items-center justify-center"
-              >
-                <IconPinFilled
-                  :class="isExactActive ? 'text-white' : 'text-primary'"
-                  class="size-5"
-                />
-              </span>
-            </div>
-
-            <ItemContent
-              v-if="!compact"
-              class="min-w-0 overflow-hidden"
+            <Item
+              class="min-w-0 py-2 transition-colors pointer-events-none"
+              :class="[
+                isExactActive && item.type !== 'folder'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/95'
+                  : 'hover:bg-accent/60',
+                compact ? 'justify-center gap-0 px-2' : 'gap-3 px-3',
+              ]"
             >
-              <ItemTitle
-                class="block min-w-0 w-full! overflow-hidden text-ellipsis whitespace-nowrap"
-                :class="isExactActive ? 'text-primary-foreground' : ''"
-              >
-                <span class="flex items-center min-w-0 gap-1">
-                  <span
-                    class="truncate"
-                    :title="item.title"
-                  >
-                    {{ item.title }}
-                  </span>
-
-                  <IconVolume
-                    v-if="isCurrentPlaybackSource"
-                    class="size-5 shrink-0"
-                    :class="isExactActive ? 'text-white' : 'text-primary'"
+              <div class="relative shrink-0">
+                <ItemMedia
+                  class="size-[54px] relative z-1 overflow-hidden"
+                  :class="item.rounded ? 'rounded-full' : 'rounded-md'"
+                >
+                  <NuxtImage
+                    v-if="hasStaticImage"
+                    :src="item.image"
+                    :placeholder="item.imageLow"
+                    placeholder-class="blur-md scale-110"
+                    :alt="item.title"
+                    class="size-full object-cover transition-[filter,scale] duration-300"
                   />
-                </span>
-              </ItemTitle>
 
-              <ItemDescription
-                class="block min-w-0"
-                :class="isExactActive ? 'text-primary-foreground' : ''"
-              >
-                <span class="flex items-center min-w-0 gap-1">
-                  <span
-                    class="min-w-0 flex-1 truncate"
-                    :title="subtitle"
+                  <div
+                    v-else-if="item.type === 'folder'"
+                    class="size-full rounded-md bg-[#3d3d3d] text-primary flex items-center justify-center"
                   >
-                    {{ subtitle }}
-                  </span>
+                    <IconFolder class="size-8" />
+                  </div>
 
+                  <EntityCoverImage
+                    v-else
+                    :owner-type="coverOwnerType"
+                    :owner-id="coverOwnerId"
+                    :alt="item.title"
+                    class="size-full object-cover"
+                    :image-class="item.rounded
+                      ? 'size-full object-cover rounded-full'
+                      : 'size-full object-cover rounded-md'"
+                  />
+
+                  <div
+                    v-if="compact && isCurrentPlaybackSource"
+                    class="absolute inset-0 z-10 flex items-center justify-center bg-black/50"
+                  >
+                    <IconVolume class="size-6 text-white" />
+                  </div>
+                </ItemMedia>
+                <span
+                  v-if="compact && item.isPinned"
+                  class="absolute -top-1 -right-1 z-10 flex size-5 items-center justify-center"
+                >
                   <IconPinFilled
-                    v-if="item.isPinned"
-                    class="size-5 shrink-0"
                     :class="isExactActive ? 'text-white' : 'text-primary'"
+                    class="size-5"
                   />
-
-                  <Badge
-                    v-if="item.type === 'folder'"
-                    variant="secondary"
-                    size="sm"
-                    class="shrink-0 font-bold h-5 min-w-5 px-1 py-0 leading-none tabular-nums"
-                  >{{ item.folderItemCount ?? 0 }}</Badge>
                 </span>
-              </ItemDescription>
-            </ItemContent>
-          </Item>
-        </Link>
+              </div>
+
+              <ItemContent
+                v-if="!compact"
+                class="min-w-0 overflow-hidden"
+              >
+                <ItemTitle
+                  class="block min-w-0 w-full! overflow-hidden text-ellipsis whitespace-nowrap"
+                  :class="isExactActive ? 'text-primary-foreground' : ''"
+                >
+                  <span class="flex items-center min-w-0 gap-1">
+                    <span
+                      class="truncate"
+                      :title="item.title"
+                    >
+                      {{ item.title }}
+                    </span>
+
+                    <IconVolume
+                      v-if="isCurrentPlaybackSource"
+                      class="size-5 shrink-0"
+                      :class="isExactActive ? 'text-white' : 'text-primary'"
+                    />
+                  </span>
+                </ItemTitle>
+
+                <ItemDescription
+                  class="block min-w-0"
+                  :class="isExactActive ? 'text-primary-foreground' : ''"
+                >
+                  <span class="flex items-center min-w-0 gap-1">
+                    <span
+                      class="min-w-0 flex-1 truncate"
+                      :title="subtitle"
+                    >
+                      {{ subtitle }}
+                    </span>
+
+                    <IconPinFilled
+                      v-if="item.isPinned"
+                      class="size-5 shrink-0"
+                      :class="isExactActive ? 'text-white' : 'text-primary'"
+                    />
+
+                    <Badge
+                      v-if="item.type === 'folder'"
+                      variant="secondary"
+                      size="sm"
+                      class="shrink-0 font-bold h-5 min-w-5 px-1 py-0 leading-none tabular-nums"
+                    >{{ item.folderItemCount ?? 0 }}</Badge>
+                  </span>
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+          </Link>
         </div>
       </TooltipTrigger>
 
@@ -240,8 +236,12 @@ const handleClick = () => {
         side="right"
         :side-offset="10"
       >
-        <p class="font-medium">{{ item.title }}</p>
-        <p class="text-muted-foreground">{{ subtitle }}</p>
+        <p class="font-medium">
+          {{ item.title }}
+        </p>
+        <p class="text-muted-foreground">
+          {{ subtitle }}
+        </p>
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>

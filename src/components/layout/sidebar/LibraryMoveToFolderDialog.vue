@@ -21,12 +21,20 @@
           {{ folder.name }}
         </Button>
 
-        <div
+        <Empty
           v-if="folders.length === 0"
-          class="px-2 py-6 text-sm text-muted-foreground text-center"
+          class="p-4 py-8 md:p-4 md:py-8"
         >
-          {{ $t("library.folder.noFolders") }}
-        </div>
+          <EmptyHeader>
+            <EmptyMedia
+              variant="icon"
+              class="rounded-full text-muted-foreground"
+            >
+              <IconFolderOff class="size-5" />
+            </EmptyMedia>
+            <EmptyDescription>{{ $t("library.folder.noFolders") }}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </div>
     </DialogContent>
   </Dialog>
@@ -36,9 +44,11 @@
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import type { SidebarFolderEntity } from "@/db/entities";
 import type { LibraryItem } from "@/modules/library/types";
 import IconFolder from "~icons/tabler/folder";
+import IconFolderOff from "~icons/tabler/folder-off";
 
 const props = defineProps<{
   open: boolean;

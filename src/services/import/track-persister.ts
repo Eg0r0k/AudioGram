@@ -4,7 +4,7 @@ import { AlbumEntity, ArtistEntity, TrackEntity, TrackState } from "@/db/entitie
 import { albumRepository, artistRepository, coverRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
 import { AlbumId, ArtistId } from "@/types/ids";
-import { unwrapResult } from "@/queries/shared";
+import { unwrapResult } from "@/lib/result";
 import { EntityResolver } from "../entity-resolver";
 import { ImportSuccess, TrackToSave } from "../types";
 

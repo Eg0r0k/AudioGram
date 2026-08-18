@@ -55,6 +55,10 @@ export class AppDatabase extends Dexie {
       downloadJobs: "&id, status, batchId",
     }).upgrade(upgradeToV10);
 
+    this.version(11).stores({}).upgrade(async (tx) => {
+      await tx.table("trackChapters").delete("");
+    });
+
     this.tracks = this.table("tracks");
     this.artists = this.table("artists");
     this.albums = this.table("albums");

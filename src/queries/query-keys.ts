@@ -105,12 +105,16 @@ export const queryKeys = {
       ["stats", "topTracksMeta", ...ids] as const,
     topArtists: (limit: number, since?: number) =>
       ["stats", "topArtists", limit, since] as const,
-    topArtistsMeta: (ids: readonly string[]) =>
-      ["stats", "topArtistsMeta", ...ids] as const,
+    artistPlays: (artistId: string) =>
+      ["stats", "artistPlays", artistId] as const,
     topGenres: (limit: number, since?: number) => ["stats", "topGenres", limit, since] as const,
     sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     totalTime: (since?: number) => ["stats", "totalTime", since] as const,
     dailyActivity: (days: number) => ["stats", "dailyActivity", days] as const,
     recentHistory: (limit: number) => ["stats", "recentHistory", limit] as const,
+    summary: (since?: number) => ["stats", "summary", since] as const,
+    hourlyActivity: (since?: number) => ["stats", "hourlyActivity", since] as const,
+    records: (since?: number) => ["stats", "records", since] as const,
+    streaks: () => ["stats", "streaks"] as const,
   },
 } as const;

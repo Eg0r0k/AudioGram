@@ -1,5 +1,5 @@
 <template>
-  <DropdownMenu :modal="false">
+  <DropdownMenu>
     <DropdownMenuTrigger as-child>
       <Button
         variant="ghost"

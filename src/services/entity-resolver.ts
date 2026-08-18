@@ -9,7 +9,7 @@ import {
 } from "@/db/entities";
 import { AlbumId, ArtistId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
-import type { SourceTrackDTO } from "@/modules/sources";
+import type { SourceTrackDTO } from "@/types/source-dto";
 import { BaseMetadata } from "@/workers/types";
 
 //
@@ -154,12 +154,31 @@ export function substituteLocalArtists(
 
 type AlbumCacheKey = `${ArtistId}::${string}`;
 
-// Identity is whitespace- AND case-insensitive: tags routinely carry stray
-// padding and inconsistent casing ("СЕРЕГА ПИРАТ" vs "Серега Пират"), and a
-// key that differs on either would split one artist/album into several.
+// Identity is whitespace-, case- AND unicode-form-insensitive: tags routinely
+// carry stray padding, inconsistent casing ("СЕРЕГА ПИРАТ" vs "Серега Пират"),
+// doubled/non-breaking spaces and NFD-decomposed accents (macOS), and a key
+// that differs on any of these would split one artist/album into several.
+// NFKC additionally folds the full-width/half-width forms common in Japanese
+// tags. The per-letter folds below cover casings toLowerCase() can't round-
+// trip: uppercase tags erase İ/ı, ß→SS and ё→Е distinctions, so both sides
+// fold to one representative. Genuine accents (é, è…) stay significant.
 // Display keeps the first-seen (or already stored) spelling.
-function identityKey(name: string): string {
-  return name.trim().toLowerCase();
+export function identityKey(name: string): string {
+  return name
+    .normalize("NFKC")
+    .toLowerCase()
+    // İ lowercases to "i" + combining dot above; fold to plain i.
+    .replace(/i̇/g, "i")
+    // Turkish dotless ı: caps tags lowercase I to i, losing the distinction.
+    .replace(/ı/g, "i")
+    // Greek final sigma ς == medial σ.
+    .replace(/ς/g, "σ")
+    // ß uppercases to SS, so caps tags come back as "ss".
+    .replace(/ß/g, "ss")
+    // Russian tags use ё and е interchangeably.
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function albumKey(artistId: ArtistId, albumTitle: string): AlbumCacheKey {
@@ -204,9 +223,6 @@ export class EntityResolver {
 
     if (uniqueKeys.length === 0) return;
 
-    // Name indexes are case-sensitive, so existing rows are matched via a
-    // full scan folded to the identity key — the artists table stays small
-    // enough for one read per import batch.
     const existing = await db.artists.toArray();
     const wanted = new Set(uniqueKeys);
     for (const artist of existing) {
@@ -239,8 +255,6 @@ export class EntityResolver {
       .anyOf(knownArtistIds)
       .toArray();
 
-    // albumKey trims, so stored titles with stray padding land on the same
-    // key a clean tag resolves to.
     for (const album of existing) {
       this.albums.set(
         albumKey(album.artistId, album.title),

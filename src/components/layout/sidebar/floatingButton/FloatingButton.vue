@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <FloatingActionButton
     :show="show"
     :inline="inline"
   >
-    <DropdownMenu :modal="false">
+    <DropdownMenu>
       <DropdownMenuTrigger as-child>
         <Button class="size-12 rounded-full shadow-lg">
           <IconPlus class="size-6" />
@@ -58,7 +58,7 @@ import IconUserPlus from "~icons/tabler/user-plus";
 import IconFolderPlus from "~icons/tabler/folder-plus";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import { useI18n } from "vue-i18n";
-import { useImport } from "@/composables/useImport";
+import { useImport } from "@/modules/library/composables/useImport";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 
 defineProps<{

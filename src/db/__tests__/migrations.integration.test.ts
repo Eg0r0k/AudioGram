@@ -46,13 +46,17 @@ describe("v9 → v10 upgrade (integration)", () => {
       likedAt: 42,
       addedAt: 1,
     });
+    // Chapters that leaked under the empty ephemeral-track key — the v11
+    // cleanup must drop this row and keep real ones.
+    await legacy.table("trackChapters").add({ trackId: "", chapters: [{ time: 1770 }], updatedAt: 1 });
+    await legacy.table("trackChapters").add({ trackId: "t1", chapters: [{ time: 10 }], updatedAt: 1 });
     legacy.close();
 
     // The production database class, opened over the seeded v9 data.
     const { db } = await import("@/db");
     await db.open();
 
-    expect(db.verno).toBe(10);
+    expect(db.verno).toBe(11);
 
     const track = await db.tracks.get("t1" as never);
     expect(track).toMatchObject({ id: "t1", pinned: 1, likedAt: 42, playCount: 3 });
@@ -62,6 +66,10 @@ describe("v9 → v10 upgrade (integration)", () => {
     // New tables exist and are empty.
     expect(await db.offlineCopies.count()).toBe(0);
     expect(await db.downloadJobs.count()).toBe(0);
+
+    // v11 removed the empty-key chapters row and left the real one.
+    expect(await db.trackChapters.get("" as never)).toBeUndefined();
+    expect(await db.trackChapters.get("t1" as never)).toMatchObject({ trackId: "t1" });
 
     // New indexes are queryable.
     expect(await db.tracks.where("pinned").equals(1).count()).toBe(1);

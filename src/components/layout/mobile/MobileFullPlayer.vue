@@ -168,7 +168,7 @@
       >
         <IconBookmarks class="size-6" />
       </Button>
-      <DropdownMenu :modal="false">
+      <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             size="icon"

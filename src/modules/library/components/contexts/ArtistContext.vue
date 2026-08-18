@@ -11,7 +11,10 @@
     {{ item.isPinned ? $t("artist.unpinArtist") : $t("artist.pinArtist") }}
   </ContextMenuItem>
 
-  <ContextMenuItem @select="props.onMoveToFolder">
+  <ContextMenuItem
+    v-if="props.onMoveToFolder"
+    @select="props.onMoveToFolder"
+  >
     <IconFolder class="size-5" />
     {{ $t("library.folder.moveToFolder") }}
   </ContextMenuItem>
@@ -46,7 +49,7 @@ import IconFolderMinus from "~icons/tabler/folder-minus";
 const props = defineProps<{
   item: LibraryItem;
   onTogglePin: () => void;
-  onMoveToFolder: () => void;
+  onMoveToFolder?: () => void;
   onRemoveFromFolder?: () => void;
   onDelete: () => void;
 }>();

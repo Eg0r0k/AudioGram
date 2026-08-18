@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlaybackQueue, clampQueueIndex, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
+import { buildPlaybackQueue, clampQueueIndex, getCurrentIndexAfterMove, getItemsByOrder, moveItem, resolveQueueReorder } from "../lib/queue-order";
 
 describe("queue-order helpers", () => {
   it("moves an item without mutating the original list", () => {
@@ -54,5 +54,40 @@ describe("queue-order helpers", () => {
     expect(getCurrentIndexAfterMove(0, 2, 0)).toBe(1);
     expect(getCurrentIndexAfterMove(1, 1, 3)).toBe(3);
     expect(getCurrentIndexAfterMove(1, 3, 4)).toBe(1);
+  });
+
+  it("maps a same-list sort suggestion to absolute queue indexes", () => {
+    const move = resolveQueueReorder(
+      { sameList: true, sourceIndexes: [0], targetIndex: 2 },
+      3,
+    );
+
+    expect(move).toEqual({ from: 3, to: 5 });
+  });
+
+  it("keeps slice indexes as-is when the current track is at the queue start", () => {
+    const move = resolveQueueReorder(
+      { sameList: true, sourceIndexes: [4], targetIndex: 1 },
+      0,
+    );
+
+    expect(move).toEqual({ from: 4, to: 1 });
+  });
+
+  it("ignores cross-list and no-op sort suggestions", () => {
+    expect(resolveQueueReorder(
+      { sameList: false, sourceIndexes: [0], targetIndex: 2 },
+      1,
+    )).toBeNull();
+
+    expect(resolveQueueReorder(
+      { sameList: true, sourceIndexes: [2], targetIndex: 2 },
+      1,
+    )).toBeNull();
+
+    expect(resolveQueueReorder(
+      { sameList: true, sourceIndexes: [], targetIndex: 0 },
+      1,
+    )).toBeNull();
   });
 });

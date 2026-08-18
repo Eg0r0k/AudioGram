@@ -9,7 +9,6 @@
     :class="[
       styles.root,
       rowStateClass, dimmed && 'opacity-50',
-      beingDragged && 'opacity-30',
     ]"
     @click="handleClick"
     @keypress="handleClick"
@@ -17,9 +16,9 @@
   >
     <button
       v-if="draggable"
+      data-drag-handle
       class="shrink-0 w-4 h-full cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none flex items-center justify-center"
       :aria-label="$t('queue.drag')"
-      @pointerdown.stop="$emit('dragStart', $event)"
       @click.stop
     >
       <IconGripVertical class="size-4.5" />
@@ -182,7 +181,6 @@ interface Props {
   draggable?: boolean;
   highlighted?: boolean;
   dimmed?: boolean;
-  beingDragged?: boolean;
   hideCover?: boolean;
   coverUrl?: string | null;
   hideIndex?: boolean;
@@ -202,7 +200,6 @@ const props = withDefaults(defineProps<Props>(), {
   draggable: false,
   highlighted: false,
   dimmed: false,
-  beingDragged: false,
   hideCover: false,
   coverUrl: undefined,
   hideIndex: false,
@@ -211,7 +208,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   play: [track: Track];
-  dragStart: [event: PointerEvent];
 }>();
 
 const playerStore = usePlayerStore();

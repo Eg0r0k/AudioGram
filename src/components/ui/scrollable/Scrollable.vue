@@ -29,11 +29,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, useTemplateRef } from "vue";
+import { computed, provide, useTemplateRef, watch } from "vue";
 import { scrollableInjectionKey } from "./injection";
+import { isScrollLockedByOverlay } from "./scroll-lock";
 import useScrollable from "./useScrollable";
-
-// TODO: Make overlay state to disable scroll (optional)
 
 interface Props {
   direction?: "vertical" | "horizontal";
@@ -63,6 +62,8 @@ const scrollable = useScrollable(containerRef, {
   onScrolledTop: () => emit("scrolledTop"),
   onScrolledBottom: () => emit("scrolledBottom"),
 });
+
+watch(isScrollLockedByOverlay, locked => scrollable.setScrollLocked(locked));
 
 function handleScrollEmit(e: Event) {
   emit("scroll", e);

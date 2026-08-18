@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::config::NdState;
-use crate::stream::{forward_get, range_response, status_response};
+use crate::stream::{forward_get, range_response, status_response, DEFAULT_RANGE_SPAN};
 
 /// Whole prefetched ND tracks, keyed by song id — the counterpart of the YT
 /// prefetch cache: `nd_prefetch` fills it for the next queue entry while the
@@ -37,12 +37,14 @@ impl NdAudioCache {
             .unwrap_or(false)
     }
 
-    fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) {
+    /// Returns false when the track is over the per-track cap and was NOT
+    /// cached — the command must surface that instead of reporting success.
+    fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) -> bool {
         if bytes.len() > MAX_PREFETCHED_ND_BYTES {
-            return;
+            return false;
         }
         let Ok(mut entries) = self.entries.lock() else {
-            return;
+            return false;
         };
         let (map, order) = &mut *entries;
         if map.insert(id.clone(), (content_type, Arc::new(bytes))).is_none() {
@@ -54,6 +56,7 @@ impl NdAudioCache {
             };
             map.remove(&oldest);
         }
+        true
     }
 }
 
@@ -72,20 +75,31 @@ pub async fn nd_prefetch<R: Runtime>(
     };
 
     let url = config.rest_url("stream.view", &song_id, "&format=raw");
-    let response = forward_get(&url, None, None, None).await?;
+    let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     let status = response.status().as_u16();
     if status != 200 {
         return Err(format!("prefetch failed: upstream status {status}"));
     }
 
+    // Refuse over-cap tracks BEFORE reading the body — a whole-file download
+    // that insert() then drops would waste the bandwidth every retry.
+    if let Some(len) = response.content_length() {
+        if len as usize > MAX_PREFETCHED_ND_BYTES {
+            return Err(format!("prefetch skipped: track is {len} bytes, over the cache cap"));
+        }
+    }
+
     let content_type = response
         .headers()
-        .get("Content-Type")
+        .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("audio/mpeg")
         .to_owned();
-    app.state::<NdAudioCache>()
-        .insert(song_id, content_type, response.body().clone());
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?.to_vec();
+
+    if !app.state::<NdAudioCache>().insert(song_id, content_type, bytes) {
+        return Err("prefetch skipped: track exceeds the cache cap".into());
+    }
     Ok(())
 }
 
@@ -106,10 +120,61 @@ pub(crate) async fn stream_song<R: Runtime>(
     };
 
     let url = config.rest_url("stream.view", song_id, "&format=raw");
-    let response = forward_get(&url, None, range, None).await?;
+    let response = forward_get(&url, &[], range, None, DEFAULT_RANGE_SPAN).await?;
     if response.status().as_u16() >= 400 {
         log::warn!("stream nd/song/{song_id}: upstream status {}", response.status());
         return Ok(status_response(502));
     }
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn filled(cache: &NdAudioCache, id: &str, len: usize) -> bool {
+        cache.insert(id.to_owned(), "audio/flac".into(), vec![0u8; len])
+    }
+
+    #[test]
+    fn insert_and_get_round_trip() {
+        let cache = NdAudioCache::default();
+        assert!(filled(&cache, "s1", 16));
+
+        let (content_type, bytes) = cache.get("s1").expect("cached entry");
+        assert_eq!(content_type, "audio/flac");
+        assert_eq!(bytes.len(), 16);
+        assert!(cache.contains("s1"));
+        assert!(!cache.contains("s2"));
+    }
+
+    #[test]
+    fn insert_rejects_tracks_over_the_per_track_cap() {
+        let cache = NdAudioCache::default();
+        assert!(!filled(&cache, "big", MAX_PREFETCHED_ND_BYTES + 1));
+        assert!(!cache.contains("big"));
+    }
+
+    #[test]
+    fn insert_evicts_the_oldest_entry_beyond_the_track_cap() {
+        let cache = NdAudioCache::default();
+        assert!(filled(&cache, "s1", 8));
+        assert!(filled(&cache, "s2", 8));
+        assert!(filled(&cache, "s3", 8));
+
+        assert!(!cache.contains("s1"));
+        assert!(cache.contains("s2"));
+        assert!(cache.contains("s3"));
+    }
+
+    #[test]
+    fn reinserting_an_id_does_not_evict_others() {
+        let cache = NdAudioCache::default();
+        assert!(filled(&cache, "s1", 8));
+        assert!(filled(&cache, "s2", 8));
+        assert!(filled(&cache, "s2", 24));
+
+        assert!(cache.contains("s1"));
+        assert_eq!(cache.get("s2").expect("updated entry").1.len(), 24);
+    }
 }

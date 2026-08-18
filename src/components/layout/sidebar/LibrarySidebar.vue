@@ -242,8 +242,6 @@ const isCompact = inject(SIDEBAR_COMPACT_KEY, computed(() => false));
 const scrollableRef = useTemplateRef("scrollableRef");
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 
-// Library-pages source axis: ND swaps the item source, the list component
-// and menus stay shared (remote items simply have no sidebar menu).
 const currentSourceStore = useCurrentSourceStore();
 const isNdSource = computed(() => currentSourceStore.currentSource === "nd");
 const ndLibrary = useNdLibraryItems(activeFilter);

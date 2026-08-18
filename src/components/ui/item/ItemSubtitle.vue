@@ -11,7 +11,7 @@ const props = defineProps<{
 <template>
   <div
     data-slot="item-subtitle"
-    :class="cn('flex w-fit items-center text-sm text-muted-foreground ', props.class)"
+    :class="cn('flex w-fit items-center text-sm text-muted-foreground font-medium', props.class)"
   >
     <slot />
   </div>

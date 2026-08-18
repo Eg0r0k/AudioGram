@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::config::NdState;
-use crate::stream::{forward_get, status_response};
+use crate::stream::{forward_get, status_response, DEFAULT_RANGE_SPAN};
 
 /// WebView2 does not put custom-scheme responses into its HTTP cache (same
 /// story as the `ytimg://` thumbnails), so every `<img>` remount would
@@ -80,7 +80,7 @@ pub(crate) async fn fetch_cover<R: Runtime>(
     };
 
     let url = config.rest_url("getCoverArt.view", cover_id, &size);
-    let response = forward_get(&url, None, None, None).await?;
+    let response = forward_get(&url, &[], None, None, DEFAULT_RANGE_SPAN).await?;
     if response.status().as_u16() >= 400 {
         log::warn!("stream nd/cover/{cover_id}: upstream status {}", response.status());
         return Ok(status_response(502));

@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <button
     ref="rootRef"
-    class="relative flex shrink-0 w-full h-14 px-2 cursor-pointer text-left [-webkit-tap-highlight-color:transparent]"
+    class="relative flex shrink-0  w-full h-14 px-2 cursor-pointer text-left [-webkit-tap-highlight-color:transparent]"
     :aria-label="$t('player.nowPlaying')"
     @click="handleOpenFullPlayer"
   >
@@ -88,7 +88,7 @@ import { computed, ref, useTemplateRef } from "vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
-import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 import { useSwipeControl } from "@/composables/useSwipeControl";
 import { usePlayerProgress } from "@/modules/tracks/composables/usePlayerProgress";
 import { Button } from "@/components/ui/button";

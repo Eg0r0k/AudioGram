@@ -549,3 +549,99 @@ describe("cache aggregate-key isolation (regression)", () => {
     expect(queryClient.getQueryData(queryKeys.tracks.indexTotalDuration(""))).toBe(12345);
   });
 });
+
+describe("stats caches on track sync", () => {
+  const trackEntity: TrackEntity = {
+    id: "track-1" as TrackId,
+    title: "Test Track",
+    artistIds: ["artist-1" as ArtistId],
+    albumId: "album-1" as AlbumId,
+    tagIds: [],
+    duration: 180,
+    source: TrackSource.LOCAL_INTERNAL,
+    storagePath: "path",
+    state: TrackState.READY,
+    format: {},
+    playCount: 0,
+    likedAt: Date.now(),
+    addedAt: 1,
+  };
+  const track: Track = {
+    id: trackEntity.id,
+    kind: "library",
+    title: trackEntity.title,
+    artist: "Artist",
+    artistIds: trackEntity.artistIds,
+    albumId: trackEntity.albumId,
+    albumName: "Album",
+    storagePath: "path",
+    source: trackEntity.source,
+    state: trackEntity.state,
+    duration: trackEntity.duration,
+    isLiked: true,
+  };
+
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = createMockQueryClient();
+    vi.clearAllMocks();
+  });
+
+  const findCallByKey = (queryKey: (string | number | undefined)[]) =>
+    setQueriesDataMock(queryClient).mock.calls.find((call: unknown[]) => {
+      const filters = call[0] as { predicate?: (query: { queryKey: unknown[] }) => boolean };
+      return filters?.predicate?.({ queryKey }) ?? false;
+    });
+
+  const syncs = [
+    ["syncTrackLikeCaches", syncTrackLikeCaches],
+    ["syncTrackMetadataCaches", syncTrackMetadataCaches],
+  ] as const;
+
+  it.each(syncs)("%s patches track VMs embedded in topTracks and recentHistory", (_name, sync) => {
+    sync(queryClient, trackEntity, track);
+
+    const topTracksCall = findCallByKey(["stats", "topTracks", 5, undefined]);
+    expect(topTracksCall).toBeDefined();
+    const historyCall = findCallByKey(["stats", "recentHistory", 20]);
+    expect(historyCall).toBeDefined();
+
+    const updater = topTracksCall![1] as (old: unknown) => unknown;
+    const stale = [
+      { id: "track-1", count: 7, secondsListened: 900, track: { ...track, isLiked: false } },
+      { id: "track-2", count: 3, secondsListened: 300, track: { ...track, id: "track-2" as TrackId, isLiked: false } },
+    ];
+    const updated = updater(stale) as typeof stale;
+
+    expect(updated[0].track.isLiked).toBe(true);
+    expect(updated[0].count).toBe(7);
+    expect(updated[1].track.isLiked).toBe(false);
+    expect(updater(undefined)).toBeUndefined();
+  });
+
+  it.each(syncs)("%s patches track entities embedded in topTracksMeta", (_name, sync) => {
+    sync(queryClient, trackEntity, track);
+
+    const metaCall = findCallByKey(["stats", "topTracksMeta", "track-1", "track-2"]);
+    expect(metaCall).toBeDefined();
+
+    const updater = metaCall![1] as (old: unknown) => unknown;
+    const stale = [
+      { ...trackEntity, likedAt: undefined },
+      { ...trackEntity, id: "track-2" as TrackId, likedAt: undefined },
+    ];
+    const updated = updater(stale) as TrackEntity[];
+
+    expect(updated[0].likedAt).toBe(trackEntity.likedAt);
+    expect(updated[1].likedAt).toBeUndefined();
+  });
+
+  it.each(syncs)("%s leaves aggregate-only stats keys alone", (_name, sync) => {
+    sync(queryClient, trackEntity, track);
+
+    expect(findCallByKey(["stats", "summary", undefined])).toBeUndefined();
+    expect(findCallByKey(["stats", "dailyActivity", 365])).toBeUndefined();
+    expect(findCallByKey(["stats", "streaks"])).toBeUndefined();
+  });
+});

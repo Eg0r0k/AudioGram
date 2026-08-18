@@ -1,14 +1,18 @@
-import { db } from "@/db";
+﻿import { db } from "@/db";
 import { trackRepository } from "@/db/repositories";
 import { statsRepository } from "@/db/repositories/stats.repository";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
-import { queryClient } from "@/queries/client";
-import { invalidateStatsQueries } from "@/queries/stats.queries";
+import { createEventHook } from "@vueuse/core";
 
 const MIN_LISTEN_SECONDS = 10;
 const COMPLETE_THRESHOLD = 0.8;
 
 class StatsService {
+  // Stats-query invalidation subscribes here (main.ts); the service itself
+  // must not touch the query cache.
+  private readonly _changed = createEventHook<void>();
+  readonly onChange = this._changed.on;
+
   private _pendingEvent: {
     eventId: string;
     trackId: TrackId;
@@ -44,7 +48,7 @@ class StatsService {
       }).catch(console.error);
     }
 
-    invalidateStatsQueries(queryClient).catch(console.error);
+    this._changed.trigger().catch(console.error);
   }
 
   startListening(
@@ -71,7 +75,7 @@ class StatsService {
       trackDuration,
       completed: false,
       skipped: false,
-    }).then(() => invalidateStatsQueries(queryClient)).catch(console.error);
+    }).then(() => this._changed.trigger()).catch(console.error);
 
     this._pendingEvent = {
       eventId,
@@ -91,7 +95,13 @@ class StatsService {
   async removeFromHistory(trackId: TrackId): Promise<void> {
     const result = await statsRepository.deleteEventsForTrack(trackId);
     if (result.isErr()) throw result.error;
-    await invalidateStatsQueries(queryClient);
+    await this._changed.trigger();
+  }
+
+  async clearHistory(): Promise<void> {
+    const result = await statsRepository.deleteAllEvents();
+    if (result.isErr()) throw result.error;
+    await this._changed.trigger();
   }
 }
 export const statsService = new StatsService();

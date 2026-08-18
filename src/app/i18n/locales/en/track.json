@@ -24,6 +24,7 @@
     "cancelDownload": "Cancel download",
     "removeDownload": "Remove download",
     "exportFile": "Save as…",
+    "more": "More",
     "addToLibrary": "Add to library",
     "removeFromLibrary": "Remove from library",
     "openExternal": "Open in browser",
@@ -81,6 +82,8 @@
       "localInternal": "Local internal file",
       "localExternal": "Local external file",
       "remoteHls": "Remote HLS stream",
+      "remoteYt": "YouTube",
+      "remoteNd": "Navidrome (server)",
       "ready": "Ready",
       "broken": "Broken"
     }
@@ -90,17 +93,21 @@
     "fields": {
       "title": "Title",
       "artists": "Artists",
-      "album": "Album"
+      "album": "Album",
+      "trackNo": "Track number",
+      "diskNo": "Disc number"
     },
     "placeholders": {
-      "title": "Title",
-      "artists": "Find or add an artist",
-      "addArtist": "Add artist",
-      "album": "Find album"
+      "title": "Title"
     },
-    "artistsHelp": "Pick an artist from the list or press Enter to add a new one.",
-    "createArtist": "Create “{name}”",
-    "selectedAlbum": "Selected: {title}",
+    "selectArtists": "Select artists",
+    "selectAlbum": "Select album",
+    "noArtists": "No artists selected",
+    "noAlbum": "No album selected",
+    "newAlbumHint": "A new album will be created",
+    "unsavedTitle": "Unsaved changes",
+    "unsavedDescription": "Your changes will be lost. Leave without saving?",
+    "discard": "Discard",
     "libraryOnly": "Only library tracks can be edited.",
     "saved": "Track info saved",
     "saveFailed": "Failed to save track info",
@@ -109,7 +116,8 @@
       "titleMaxLength": "Title must be at most {max} characters",
       "artistsRequired": "Enter at least one artist",
       "artistMaxLength": "Artist name must be at most {max} characters",
-      "albumRequired": "Select an album"
+      "albumRequired": "Select an album",
+      "numberMin": "Number must be a whole number greater than zero"
     }
   },
   "deleted": "Track deleted",

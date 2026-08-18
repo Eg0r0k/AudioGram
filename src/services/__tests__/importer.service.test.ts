@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MusicLibraryEngine } from "../importer.service";
 import type { ScannedFile } from "@/modules/watched-folders/types";
 import { ImportErrorCode } from "../types";
 import { AUDIO_FILE_EXTENSIONS } from "../import/constants";
 
-// ── Hoisted shared mocks + helper (available in vi.mock factories) ──
+// в”Ђв”Ђ Hoisted shared mocks + helper (available in vi.mock factories) в”Ђв”Ђ
 
 const {
   mockWorkerPoolParse,
@@ -37,7 +37,7 @@ function okResult<T>(val: T) {
   return { isOk: () => true, isErr: () => false, value: val, match: (ok: (v: T) => any, _: any) => ok(val) };
 }
 
-// ── Module mocks ────────────────────────────────────────────────
+// в”Ђв”Ђ Module mocks в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 vi.mock("../worker-pool", () => ({
   WorkerPool: MockWorkerPool,
@@ -108,16 +108,16 @@ vi.mock("@/db", () => {
   };
 });
 
-vi.mock("@/modules/watched-folders/services/folder-scanner", () => ({
+vi.mock("@/services/import/folder-scanner", () => ({
   scanFolder: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock("@/modules/watched-folders/services/file-fingerprint", () => ({
+vi.mock("@/services/import/file-fingerprint", () => ({
   computeFileFingerprint: vi.fn().mockResolvedValue("mock-fp-abc123"),
   computeFileFingerprintFromBlob: vi.fn().mockResolvedValue("mock-fp-blob"),
 }));
 
-// ── Helpers ─────────────────────────────────────────────────────
+// в”Ђв”Ђ Helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 function makeBaseMetadata(overrides: Record<string, unknown> = {}) {
   return {
@@ -153,7 +153,7 @@ function makeScannedFile(overrides: Partial<ScannedFile> = {}): ScannedFile {
   };
 }
 
-// ── Test suite ──────────────────────────────────────────────────
+// в”Ђв”Ђ Test suite в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 describe("MusicLibraryEngine", () => {
   let engine: MusicLibraryEngine;
@@ -180,7 +180,7 @@ describe("MusicLibraryEngine", () => {
     engine.dispose();
   });
 
-  // ── useImport: importFromPaths ────────────────────────────────
+  // в”Ђв”Ђ useImport: importFromPaths в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("pickFiles", () => {
     it("uses caller-provided dialog title", async () => {
@@ -243,7 +243,7 @@ describe("MusicLibraryEngine", () => {
     });
   });
 
-  // ── useImport: importFiles ────────────────────────────────────
+  // в”Ђв”Ђ useImport: importFiles в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("importFiles (web File, user-initiated)", () => {
     it("calls workerPool.parse with extractCover: true", async () => {
@@ -295,7 +295,7 @@ describe("MusicLibraryEngine", () => {
     });
   });
 
-  // ── useWatchedFolders: importSingleExternalFile ───────────────
+  // в”Ђв”Ђ useWatchedFolders: importSingleExternalFile в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("importSingleExternalFile (watched folders)", () => {
     it("calls workerPool.parse with extractCover: true", async () => {
@@ -339,11 +339,11 @@ describe("MusicLibraryEngine", () => {
     });
   });
 
-  // ── useWatchedFolders: syncFolder ─────────────────────────────
+  // в”Ђв”Ђ useWatchedFolders: syncFolder в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("syncFolder (watched folders full scan)", () => {
     it("reads up to file size when under LARGE_FILE_THRESHOLD", async () => {
-      const scanner = await import("@/modules/watched-folders/services/folder-scanner");
+      const scanner = await import("@/services/import/folder-scanner");
       vi.mocked(scanner.scanFolder).mockResolvedValue([makeScannedFile({ size: 1_000_000 })]);
 
       await engine.syncFolder({ id: "f1", path: "/music", name: "Music", status: "idle" });
@@ -352,7 +352,7 @@ describe("MusicLibraryEngine", () => {
     });
 
     it("reads up to MAX_METADATA_READ for large files", async () => {
-      const scanner = await import("@/modules/watched-folders/services/folder-scanner");
+      const scanner = await import("@/services/import/folder-scanner");
       vi.mocked(scanner.scanFolder).mockResolvedValue([makeScannedFile({ size: 100_000_000 })]);
 
       await engine.syncFolder({ id: "f1", path: "/music", name: "Music", status: "idle" });
@@ -372,7 +372,7 @@ describe("MusicLibraryEngine", () => {
     });
 
     it("normalizes a backslash folder path for scan and diff lookups", async () => {
-      const scanner = await import("@/modules/watched-folders/services/folder-scanner");
+      const scanner = await import("@/services/import/folder-scanner");
       const { trackRepository } = await import("@/db/repositories");
       vi.mocked(scanner.scanFolder).mockResolvedValue([]);
 
@@ -389,13 +389,13 @@ describe("MusicLibraryEngine", () => {
     });
   });
 
-  // ── Fingerprint dedup ─────────────────────────────────────────
+  // в”Ђв”Ђ Fingerprint dedup в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("fingerprint deduplication", () => {
     it("skips files with already-known fingerprint", async () => {
       mockGetAllFingerprints.mockResolvedValue(okResult(new Set(["1234:abcdef"])));
 
-      const computeFp = await import("@/modules/watched-folders/services/file-fingerprint");
+      const computeFp = await import("@/services/import/file-fingerprint");
       vi.mocked(computeFp.computeFileFingerprint).mockResolvedValue("1234:abcdef");
 
       await engine.importFromPaths(["/music/duplicate.mp3"]);
@@ -404,7 +404,7 @@ describe("MusicLibraryEngine", () => {
     });
 
     it("deduplicates within the same batch", async () => {
-      const computeFp = await import("@/modules/watched-folders/services/file-fingerprint");
+      const computeFp = await import("@/services/import/file-fingerprint");
       vi.mocked(computeFp.computeFileFingerprintFromBlob).mockResolvedValue("same-fp");
 
       const file1 = makeFile("same.mp3");
@@ -424,7 +424,7 @@ describe("MusicLibraryEngine", () => {
     });
   });
 
-  // ── Error handling ────────────────────────────────────────────
+  // в”Ђв”Ђ Error handling в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   describe("error handling", () => {
     it("does not throw when worker parse fails", async () => {

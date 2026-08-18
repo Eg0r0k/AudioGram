@@ -29,6 +29,34 @@ export interface SonicProfile {
   majorRatio: number;
 }
 
+export const SESSION_GAP_MS = 30 * 60 * 1000;
+
+export interface StatsSummary {
+  totalSeconds: number;
+  playsCount: number;
+  uniqueTracks: number;
+  uniqueArtists: number;
+  completedCount: number;
+  skippedCount: number;
+}
+
+export interface StatsRecords {
+  busiestDay: { date: string; seconds: number } | null;
+  mostRepeatedTrackId: TrackId | null;
+  mostRepeatedCount: number;
+  longestSessionSeconds: number;
+}
+
+export interface StreakInfo {
+  current: number;
+  best: number;
+}
+
+/** Ключ локального дня (не UTC): "2026-05-03". */
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
   try {
     return ok(await fn());
@@ -114,6 +142,13 @@ class StatsRepository {
     });
   }
 
+  async artistPlaysCount(artistId: string): Promise<Result<number, Error>> {
+    return runSafe(async () => {
+      const events = await db.listenEvents.where("artistId").equals(artistId).toArray();
+      return events.filter(e => !e.skipped).length;
+    });
+  }
+
   async topGenres(limit = 8, since?: number): Promise<Result<TopGenreEntry[], Error>> {
     return runSafe(async () => {
       const events = since
@@ -158,6 +193,47 @@ class StatsRepository {
     });
   }
 
+  async summary(since?: number): Promise<Result<StatsSummary, Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const tracks = new Set<string>();
+      const artists = new Set<string>();
+      const result: StatsSummary = {
+        totalSeconds: 0,
+        playsCount: 0,
+        uniqueTracks: 0,
+        uniqueArtists: 0,
+        completedCount: 0,
+        skippedCount: 0,
+      };
+
+      for (const e of events) {
+        result.totalSeconds += e.secondsListened;
+        if (e.skipped) {
+          result.skippedCount++;
+          continue;
+        }
+        result.playsCount++;
+        if (e.completed) result.completedCount++;
+        tracks.add(e.trackId);
+        artists.add(e.artistId);
+      }
+
+      result.uniqueTracks = tracks.size;
+      result.uniqueArtists = artists.size;
+      return result;
+    });
+  }
+
+  async deleteAllEvents(): Promise<Result<void, Error>> {
+    return runSafe(async () => {
+      await db.listenEvents.clear();
+    });
+  }
+
   async dailyActivity(days = 30): Promise<Result<DailyActivityPoint[], Error>> {
     return runSafe(async () => {
       const since = Date.now() - days * 86_400_000;
@@ -165,13 +241,13 @@ class StatsRepository {
 
       const map = new Map<string, number>();
       for (const e of events) {
-        const day = new Date(e.startedAt).toISOString().slice(0, 10);
+        const day = localDayKey(new Date(e.startedAt));
         map.set(day, (map.get(day) ?? 0) + e.secondsListened);
       }
 
       const points: DailyActivityPoint[] = [];
       for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+        const date = localDayKey(new Date(Date.now() - i * 86_400_000));
         points.push({ date, seconds: map.get(date) ?? 0 });
       }
       return points;
@@ -223,6 +299,105 @@ class StatsRepository {
   async deleteEventsForTrack(trackId: TrackId): Promise<Result<void, Error>> {
     return runSafe(async () => {
       await db.listenEvents.where("trackId").equals(trackId).delete();
+    });
+  }
+
+  async hourlyActivity(since?: number): Promise<Result<number[], Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const hours = new Array<number>(24).fill(0);
+      for (const e of events) {
+        hours[new Date(e.startedAt).getHours()] += e.secondsListened;
+      }
+      return hours;
+    });
+  }
+
+  async records(since?: number): Promise<Result<StatsRecords, Error>> {
+    return runSafe(async () => {
+      const events = since
+        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
+        : await db.listenEvents.toArray();
+
+      const byDay = new Map<string, number>();
+      for (const e of events) {
+        const key = localDayKey(new Date(e.startedAt));
+        byDay.set(key, (byDay.get(key) ?? 0) + e.secondsListened);
+      }
+      let busiestDay: StatsRecords["busiestDay"] = null;
+      for (const [date, seconds] of byDay) {
+        if (!busiestDay || seconds > busiestDay.seconds) busiestDay = { date, seconds };
+      }
+
+      const counts = new Map<TrackId, number>();
+      for (const e of events) {
+        if (e.skipped) continue;
+        counts.set(e.trackId, (counts.get(e.trackId) ?? 0) + 1);
+      }
+      let mostRepeatedTrackId: TrackId | null = null;
+      let mostRepeatedCount = 0;
+      for (const [id, count] of counts) {
+        if (count > mostRepeatedCount) {
+          mostRepeatedTrackId = id;
+          mostRepeatedCount = count;
+        }
+      }
+
+      const played = events
+        .filter(e => !e.skipped)
+        .sort((a, b) => a.startedAt - b.startedAt);
+      let longestSessionSeconds = 0;
+      let current = 0;
+      let prevStartedAt: number | null = null;
+      for (const e of played) {
+        if (prevStartedAt !== null && e.startedAt - prevStartedAt > SESSION_GAP_MS) {
+          current = 0;
+        }
+        current += e.secondsListened;
+        longestSessionSeconds = Math.max(longestSessionSeconds, current);
+        prevStartedAt = e.startedAt;
+      }
+
+      return { busiestDay, mostRepeatedTrackId, mostRepeatedCount, longestSessionSeconds };
+    });
+  }
+
+  async streaks(now = Date.now()): Promise<Result<StreakInfo, Error>> {
+    return runSafe(async () => {
+      const DAYS = 365;
+      const since = now - DAYS * 86_400_000;
+      const events = await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray();
+
+      const activeDays = new Set<string>();
+      for (const e of events) {
+        if (e.secondsListened <= 0) continue;
+        activeDays.add(localDayKey(new Date(e.startedAt)));
+      }
+
+      let best = 0;
+      let run = 0;
+      for (let i = DAYS; i >= 0; i--) {
+        if (activeDays.has(localDayKey(new Date(now - i * 86_400_000)))) {
+          run++;
+          best = Math.max(best, run);
+        }
+        else {
+          run = 0;
+        }
+      }
+
+      // Текущая серия: сегодня без прослушиваний ещё не разрыв — день не кончился.
+      let current = 0;
+      const startOffset = activeDays.has(localDayKey(new Date(now))) ? 0 : 1;
+      for (let i = startOffset; i <= DAYS; i++) {
+        if (!activeDays.has(localDayKey(new Date(now - i * 86_400_000)))) break;
+        current++;
+      }
+
+      return { current, best };
     });
   }
 }

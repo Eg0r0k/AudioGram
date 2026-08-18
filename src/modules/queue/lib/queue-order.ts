@@ -68,6 +68,29 @@ export function buildPlaybackQueue<T>(
   };
 }
 
+export interface QueueSortSuggestion {
+  sameList: boolean;
+  sourceIndexes: number[];
+  targetIndex: number;
+}
+
+/**
+ * Maps a vue-dnd-kit suggestSort result (indexes local to the "up next"
+ * slice) to absolute queue indexes for moveTrack. suggestSort's targetIndex
+ * is the insertion index after removal — the same semantics as moveItem.
+ */
+export const resolveQueueReorder = (
+  suggestion: QueueSortSuggestion,
+  sliceOffset: number,
+): { from: number; to: number } | null => {
+  if (!suggestion.sameList) return null;
+
+  const [from] = suggestion.sourceIndexes;
+  if (from === undefined || from === suggestion.targetIndex) return null;
+
+  return { from: from + sliceOffset, to: suggestion.targetIndex + sliceOffset };
+};
+
 export function getCurrentIndexAfterMove(
   currentIndex: number,
   fromIndex: number,

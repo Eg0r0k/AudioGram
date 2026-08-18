@@ -16,9 +16,6 @@
     {{ $t('track.contextMenu.removeFromQueue') }}
   </component>
 
-  <!-- Library-only items: an ephemeral track (YouTube stream, radio) has no
-       DB identity, so liking, playlists, download and navigation would all
-       act on undefined ids. -->
   <template v-if="libTrack">
     <component :is="Separator" />
 
@@ -28,16 +25,6 @@
     />
 
     <DetailsItem @show="actions.showDetails" />
-
-    <ExportFileItem
-      :caps="caps"
-      @export="actions.exportFile"
-    />
-
-    <LyricsItem
-      :has-lyrics="trackHasLyrics(libTrack)"
-      @attach="actions.attachLyrics"
-    />
 
     <AddToPlaylistSub @add="actions.addToPlaylist" />
 
@@ -49,8 +36,11 @@
       @remove-offline-copy="actions.removeOfflineCopy"
     />
 
-    <SourceItems
+    <MoreSub
       :caps="caps"
+      :has-lyrics="trackHasLyrics(libTrack)"
+      @export="actions.exportFile"
+      @attach-lyrics="actions.attachLyrics"
       @add-to-library="actions.addToLibrary"
       @remove-from-library="actions.removeFromLibrary"
       @open-external="actions.openExternal"
@@ -66,7 +56,6 @@
     />
   </template>
 
-  <!-- Ephemeral YouTube stream: allow saving it into the library. -->
   <template v-else-if="ytPlayable">
     <component :is="Separator" />
 
@@ -86,10 +75,8 @@ import LikeItem from "../items/LikeItem.vue";
 import AddToPlaylistSub from "../items/AddToPlaylistSub.vue";
 import DetailsItem from "../items/DetailsItem.vue";
 import NavigationItems from "../items/NavigationItems.vue";
-import LyricsItem from "../items/LyricsItem.vue";
-import ExportFileItem from "../items/ExportFileItem.vue";
+import MoreSub from "../items/MoreSub.vue";
 import OfflineItem from "../items/OfflineItem.vue";
-import SourceItems from "../items/SourceItems.vue";
 import { computed } from "vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";

@@ -75,7 +75,15 @@
           v-if="chapters.length === 0"
           class="p-4 py-8 md:p-4 md:py-8"
         >
-          <EmptyDescription>{{ t("chapters.empty") }}</EmptyDescription>
+          <EmptyHeader>
+            <EmptyMedia
+              variant="icon"
+              class="rounded-full text-muted-foreground"
+            >
+              <IconBookmarkOff class="size-5" />
+            </EmptyMedia>
+            <EmptyDescription>{{ t("chapters.empty") }}</EmptyDescription>
+          </EmptyHeader>
         </Empty>
 
         <Item
@@ -128,7 +136,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import { useFileDialog } from "@vueuse/core";
 import { Button } from "@/components/ui/button";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
@@ -139,6 +147,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
+import IconBookmarkOff from "~icons/tabler/bookmark-off";
 import IconCheck from "~icons/tabler/check";
 import IconPencil from "~icons/tabler/pencil";
 import IconUpload from "~icons/tabler/upload";

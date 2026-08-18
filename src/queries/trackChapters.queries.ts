@@ -10,6 +10,8 @@ export const trackChaptersQueries = {
     queryOptions({
       queryKey: queryKeys.trackChapters.detail(trackId),
       queryFn: async (): Promise<TrackChapterMark[]> => {
+        // Ephemeral tracks all map to the empty id never any chapters.
+        if (!trackId) return [];
         const entity = await unwrapResult(trackChaptersRepository.findById(trackId));
         return entity?.chapters ?? [];
       },

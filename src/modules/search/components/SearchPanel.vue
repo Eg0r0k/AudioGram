@@ -1,9 +1,10 @@
 <template>
   <Transition
-    enter-active-class="transition-transform duration-200 ease-standard"
-    enter-from-class="translate-x-full"
-    leave-active-class="transition-transform duration-200 ease-standard"
-    leave-to-class="translate-x-full"
+    :css="!suppressPanelSlide"
+    :enter-active-class="suppressPanelSlide ? '' : 'transition-transform duration-200 ease-standard'"
+    :enter-from-class="suppressPanelSlide ? '' : 'translate-x-full'"
+    :leave-active-class="suppressPanelSlide ? '' : 'transition-transform duration-200 ease-standard'"
+    :leave-to-class="suppressPanelSlide ? '' : 'translate-x-full'"
   >
     <div
       v-if="isSearchOpen"
@@ -22,5 +23,5 @@ import LibrarySearchPane from "@/modules/search/components/LibrarySearchPane.vue
 import NdSearchPane from "@/modules/sources/components/NdSearchPane.vue";
 import YtSearchPane from "@/modules/youtube/components/search/YtSearchPane.vue";
 
-const { isSearchOpen, source } = useSearch();
+const { isSearchOpen, source, suppressPanelSlide } = useSearch();
 </script>

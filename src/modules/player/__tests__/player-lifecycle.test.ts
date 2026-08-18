@@ -18,16 +18,21 @@ vi.mock("@/services/stats.service", () => ({
   },
 }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
+vi.mock("../lib/prefetch-next", () => ({ initNextTrackPrefetch: vi.fn(() => () => {}) }));
 
 import { useEventBus } from "@vueuse/core";
 import { initPlayerLifecycle } from "../player-lifecycle";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
+import { initNextTrackPrefetch } from "../lib/prefetch-next";
 import { statsService } from "@/services/stats.service";
 import type { PlayerTrack } from "../types";
 
 // The event bus registry is global: register the handlers once, or every
 // test would multiply the reactions.
 initPlayerLifecycle();
+
+// Captured before the per-test clearAllMocks wipes the call record.
+const prefetchInitCalls = vi.mocked(initNextTrackPrefetch).mock.calls.length;
 
 const trackChangedBus = useEventBus(trackChangedEvent);
 const trackEndedBus = useEventBus(trackEndedEvent);
@@ -46,6 +51,10 @@ describe("player lifecycle", () => {
     mockPlayer.currentTrack = null;
     mockPlayer.currentTime = 0;
     mockPlayer.sleepAfterCurrentTrack = false;
+  });
+
+  it("wires the next-track prefetch watcher exactly once at init", () => {
+    expect(prefetchInitCalls).toBe(1);
   });
 
   it("starts a stats session when a library track starts", () => {

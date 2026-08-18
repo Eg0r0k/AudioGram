@@ -55,6 +55,9 @@
   "unknown": "Неизвестен",
   "add": "Add",
   "search": "Поиск",
+  "entitySelect": {
+    "create": "Создать «{name}»"
+  },
   "connect": "Подключить",
   "next": "Далее",
   "back": "Назад",
@@ -132,6 +135,9 @@
 
   "hoursShort": "{count} ч",
   "minutesShort": "{count} мин",
+  "heatmapLess": "Меньше",
+  "heatmapMore": "Больше",
+  "heatmapAria": "Календарь активности прослушивания",
   "progress": "Прогресс",
   "drop": {
     "here": "Перетащите файлы сюда",

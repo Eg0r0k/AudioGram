@@ -1,8 +1,5 @@
 <template>
-  <DropdownMenu
-    v-if="store.availableSources.length > 1"
-    v-model:open="isOpen"
-  >
+  <DropdownMenu v-if="store.availableSources.length > 1">
     <DropdownMenuTrigger as-child>
       <Button
         variant="ghost"
@@ -11,12 +8,10 @@
         :aria-label="$t(`library.source.${store.currentSource}`)"
         :title="$t(`library.source.${store.currentSource}`)"
       >
-        <IconServer
-          v-if="store.currentSource === 'nd'"
-          class="size-6"
-        />
-        <IconDeviceLaptop
-          v-else
+        <MorphIcon
+          :icon="currentSourceIcon"
+          spring="snappy"
+          reduced-motion="user"
           class="size-6"
         />
       </Button>
@@ -56,17 +51,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ref } from "vue";
+import { computed } from "vue";
+import { MorphIcon } from "morphicons/vue";
+import { svgToIcon } from "morphicons/adapters";
 import IconCheck from "~icons/tabler/check";
 import IconDeviceLaptop from "~icons/tabler/device-laptop";
 import IconServer from "~icons/tabler/server";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
+import serverRaw from "~icons/tabler/server?raw";
+import laptopRaw from "~icons/tabler/device-laptop?raw";
 import { useCurrentSourceStore } from "../store/currentSource.store";
 
 const store = useCurrentSourceStore();
 
-const isOpen = ref(false);
-useMenuCursorAutoClose(isOpen, () => {
-  isOpen.value = false;
-}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
+const serverIcon = svgToIcon(serverRaw);
+const laptopIcon = svgToIcon(laptopRaw);
+const currentSourceIcon = computed(() =>
+  store.currentSource === "nd" ? serverIcon : laptopIcon,
+);
+
 </script>

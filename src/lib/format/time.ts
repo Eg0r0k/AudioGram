@@ -72,7 +72,9 @@ export const formatCalendarTooltip = (
   locale: string,
   t: (key: string, params?: Record<string, unknown>) => string,
 ): string => {
-  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(isoDate));
+  // isoDate — локальный ключ "YYYY-MM-DD"; T00:00:00 парсится как локальная полночь.
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" })
+    .format(new Date(`${isoDate}T00:00:00`));
   const minutes = Math.round(seconds / 60);
   return `${date}: ${t("common.minutesShort", { count: minutes })}`;
 };

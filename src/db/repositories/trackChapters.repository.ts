@@ -11,6 +11,9 @@ class TrackChaptersRepository extends BaseRepository<TrackChapterEntity, TrackId
 
   async setForTrack(trackId: TrackId, chapters: TrackChapterMark[]): Promise<Result<void, Error>> {
     try {
+      if (!trackId) {
+        return err(new Error("chapters require a library track id"));
+      }
       if (chapters.length === 0) {
         await this.table.delete(trackId);
         return ok(undefined);

@@ -55,6 +55,9 @@
   "unknown": "Unknown",
   "add": "Add",
   "search": "Search",
+  "entitySelect": {
+    "create": "Create \"{name}\""
+  },
   "connect": "Connect",
   "next": "Next",
   "back": "Back",
@@ -134,6 +137,9 @@
 
   "hoursShort": "{count} hr",
   "minutesShort": "{count} min",
+  "heatmapLess": "Less",
+  "heatmapMore": "More",
+  "heatmapAria": "Listening activity calendar",
   "progress": "Progress",
   "drop": {
     "here": "Drop files here",

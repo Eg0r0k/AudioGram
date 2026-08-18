@@ -1,11 +1,2 @@
-export type TrackSortKey
-  = | "date_added_desc"
-    | "date_added_asc"
-    | "title_asc"
-    | "title_desc"
-    | "artist_asc"
-    | "album_asc"
-    | "album_desc"
-    | "duration_asc"
-    | "duration_desc"
-    | "plays_desc";
+// Lives in @/types so the db layer can use it without importing this module.
+export type { TrackSortKey } from "@/types/track-sort";

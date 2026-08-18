@@ -1,8 +1,7 @@
 import { db } from "@/db";
 import { deduplicate } from "@/lib/math";
 import type { TrackId } from "@/types/ids";
-
-const SESSION_GAP_MS = 30 * 60 * 1000;
+import { SESSION_GAP_MS } from "@/db/repositories/stats.repository";
 const MIN_SESSION_LENGTH = 2;
 const MAX_HISTORY_DAYS = 90;
 

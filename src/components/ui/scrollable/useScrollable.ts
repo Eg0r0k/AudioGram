@@ -202,13 +202,16 @@ export default function useScrollable(
     }
   }
 
+  const isScrollLocked = ref(false);
+
   const setScrollLocked = (locked: boolean) => {
+    isScrollLocked.value = locked;
     if (!containerRef.value) return;
     containerRef.value.style.overflow = locked ? "hidden" : "";
   };
 
   function handleThumbMouseDown(e: MouseEvent) {
-    if (!USE_OWN_SCROLL || !containerRef.value) return;
+    if (!USE_OWN_SCROLL || !containerRef.value || isScrollLocked.value) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -258,6 +261,12 @@ export default function useScrollable(
 
   function handleWheel(e: WheelEvent) {
     if (direction !== "horizontal" || IS_TOUCH_SUPPORTED) return;
+
+    if (isScrollLocked.value) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
 
     const container = containerRef.value;
     if (!container) return;

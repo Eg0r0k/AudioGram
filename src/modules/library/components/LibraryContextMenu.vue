@@ -1,10 +1,7 @@
 <template>
   <ContextMenu v-model:open="isContextMenuOpen">
     <ContextMenuCloseBridge :open="isContextMenuOpen" />
-    <!-- Capture phase, declared in the template so it is guaranteed to bind:
-         the reka trigger below opens the shell on right-click no matter what
-         our row handlers do, so an event that cannot fill the menu has to be
-         stopped before it ever reaches the trigger. -->
+
     <div
       class="contents"
       role="presentation"
@@ -36,7 +33,6 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryItem } from "@/modules/library/types";
@@ -49,15 +45,14 @@ import { useLibraryContextActions } from "../composables/useLibraryContextAction
 
 const props = withDefaults(defineProps<{
   insideFolder?: boolean;
+  folderActions?: boolean;
 }>(), {
   insideFolder: false,
+  folderActions: true,
 });
 
 const { activeItem, menuFlavor, isContextMenuOpen } = useLibraryMenu();
 
-useMenuCursorAutoClose(isContextMenuOpen, () => {
-  isContextMenuOpen.value = false;
-}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 const { togglePin, createPlaylist } = useLibrary();
 const { addToQueue, addCatalogToQueue, downloadCatalog } = useLibraryContextActions();
 
@@ -95,7 +90,7 @@ const contextProps = computed(() => {
       return {
         item: activeItem.value,
         onTogglePin: handleTogglePin,
-        onMoveToFolder: handleMoveToFolder,
+        onMoveToFolder: props.folderActions ? handleMoveToFolder : undefined,
         onRemoveFromFolder: props.insideFolder ? handleRemoveFromFolder : undefined,
         onDelete: handleDelete,
       };
@@ -119,7 +114,7 @@ const contextProps = computed(() => {
         togglePin: handleTogglePin,
         addToQueue: handleAddToQueue,
         createPlaylist: handleCreatePlaylist,
-        moveToFolder: handleMoveToFolder,
+        moveToFolder: props.folderActions ? handleMoveToFolder : undefined,
         removeFromFolder: props.insideFolder ? handleRemoveFromFolder : undefined,
         deleteItem: handleDelete,
       };
@@ -129,11 +124,20 @@ const contextProps = computed(() => {
 function guardContextMenu(event: MouseEvent) {
   const target = event.target as HTMLElement;
   const row = target.closest("[data-library-item]");
-  // Off-row, or a row with nothing to show (a catalog artist).
-  if (!row || row.matches("[data-library-menu=\"none\"]")) {
-    event.preventDefault();
-    event.stopPropagation();
+  if (row) {
+    if (row.matches("[data-library-menu=\"none\"]")) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
   }
+
+  if (target.closest("[data-track-row]")?.closest("[data-track-menu-scope]")) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 const handleTogglePin = () => {

@@ -5,7 +5,7 @@ import { TimeProfiler } from "@/lib/profiler";
 import { TrackId } from "@/types/ids";
 import { trackRepository } from "@/db/repositories";
 import { TrackSource } from "@/db/entities";
-import { unwrapResult } from "@/queries/shared";
+import { unwrapResult } from "@/lib/result";
 import { EntityResolver } from "../entity-resolver";
 import {
   ImportBatchResult,

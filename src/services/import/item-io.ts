@@ -4,7 +4,7 @@ import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import {
   computeFileFingerprint,
   computeFileFingerprintFromBlob,
-} from "@/modules/watched-folders/services/file-fingerprint";
+} from "./file-fingerprint";
 import { StorageError } from "@/db/errors/storage.errors";
 import { extensionForAudioMimeType } from "@/lib/environment/mimeSupport";
 import { ResultAsync } from "neverthrow";

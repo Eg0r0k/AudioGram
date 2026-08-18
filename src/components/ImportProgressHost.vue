@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Teleport to="body">
     <Transition name="import-pill">
       <section
@@ -250,7 +250,7 @@
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { useImport, type ImportFileItem, type ImportFileStatus } from "@/composables/useImport";
+import { useImport, type ImportFileItem, type ImportFileStatus } from "@/modules/library/composables/useImport";
 import {
   Dialog,
   DialogContent,
@@ -354,7 +354,7 @@ const headerSubtitle = computed(() => {
   if (isRunning.value) {
     return processingName.value ?? t("common.import.status.running");
   }
-  // Expanded view already breaks counts down via the filter chips — don't repeat.
+  // Expanded view already breaks counts down via the filter chips вЂ” don't repeat.
   if (expanded.value && (errorCountLive.value > 0 || skippedCountLive.value > 0)) {
     return "";
   }
@@ -407,7 +407,7 @@ function secondaryLine(file: ImportFileItem): string {
     return t("common.import.errorReason.default");
   }
   if (file.status === "ok" && file.title) {
-    return file.artist ? `${file.title} — ${file.artist}` : file.title;
+    return file.artist ? `${file.title} вЂ” ${file.artist}` : file.title;
   }
   return "";
 }

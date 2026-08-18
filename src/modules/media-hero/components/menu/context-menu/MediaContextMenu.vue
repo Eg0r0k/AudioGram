@@ -1,6 +1,5 @@
 <template>
-  <ContextMenu v-model:open="isOpen">
-    <ContextMenuCloseBridge :open="isOpen" />
+  <ContextMenu>
     <div
       ref="triggerGuardRef"
       class="contents"
@@ -22,10 +21,9 @@
 </template>
 
 <script setup lang="ts">
-import { ContextMenu, ContextMenuCloseBridge, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent } from "@/components/ui/context-menu";
 import { useEventListener } from "@vueuse/core";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
-import { computed, shallowRef, useTemplateRef, type Component } from "vue";
+import { computed, useTemplateRef, type Component } from "vue";
 import { useMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import AlbumContext from "../contexts/AlbumContext.vue";
 import ArtistContext from "../contexts/ArtistContext.vue";
@@ -53,14 +51,6 @@ const contexts: Record<MediaContext, Component> = {
   "liked": LikedContext,
   "playlist": PlaylistContext,
 };
-
-// reka сам управляет открытием (v-model:open «только на чтение»);
-// локальное состояние нужно курсорному автозакрытию и мосту
-const isOpen = shallowRef(false);
-
-useMenuCursorAutoClose(isOpen, () => {
-  isOpen.value = false;
-}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 
 // A disabled menu must swallow the right-click entirely: with the reka
 // trigger inert, the event reaches the surrounding TrackContextMenu and an

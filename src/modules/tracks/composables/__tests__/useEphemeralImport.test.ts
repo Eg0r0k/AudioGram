@@ -1,4 +1,4 @@
-import { createPinia, setActivePinia } from "pinia";
+﻿import { createPinia, setActivePinia } from "pinia";
 import { ok } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TrackSource, TrackState, type TrackEntity } from "@/db/entities";
@@ -12,7 +12,7 @@ import { useEphemeralImport } from "../useEphemeralImport";
 const importFromPathsMock = vi.hoisted(() =>
   vi.fn<(paths: string[]) => Promise<ImportBatchResult | null>>());
 
-vi.mock("@/composables/useImport", async () => {
+vi.mock("@/modules/library/composables/useImport", async () => {
   const { ref } = await import("vue");
   return {
     useImport: () => ({ importFromPaths: importFromPathsMock, isRunning: ref(false) }),

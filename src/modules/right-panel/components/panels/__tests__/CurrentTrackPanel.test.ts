@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/vue";
+﻿import { render, screen } from "@testing-library/vue";
 import userEvent from "@testing-library/user-event";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,7 +28,7 @@ vi.mock("@/modules/covers/composables/useEntityCover", async () => {
   const { ref } = await import("vue");
   return { useEntityCover: () => ({ url: ref<string | null>(null) }) };
 });
-vi.mock("@/composables/useMobilePlayerColor", async () => {
+vi.mock("@/modules/player/composables/useMobilePlayerColor", async () => {
   const { ref } = await import("vue");
   return { useMobilePlayerColor: () => ({ color: ref({ hsl: "0 0% 0%" }) }) };
 });

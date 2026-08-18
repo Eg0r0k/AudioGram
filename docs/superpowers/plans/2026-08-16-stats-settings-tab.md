@@ -1872,9 +1872,9 @@ git commit -m "feat(stats): clear listening history with confirm dialog"
 - [ ] **Step 2:** `npm run lint` → без новых ошибок (при ошибках — `npm run lint:fix`, остальное руками).
 - [ ] **Step 3:** `npx vitest run` → все тесты проекта зелёные.
 - [ ] **Step 4: Ручной smoke** (`npm run dev`): открыть `/settings` → «Статистика»; проверить: переключение периодов меняет цифры; топы раскрываются «Показать все»; при пустой БД — пустое состояние; очистка истории с каунтдауном работает и статистика обнуляется; `/profile` не сломан.
-- [ ] **Step 5:** Итоговый коммит фиксов, если были:
+- [ ] **Step 5:** Итоговый коммит фиксов, если были. ВАЖНО: в рабочей копии есть чужие незакоммиченные правки (MiniPlayer.vue, SidebarHeader.vue, ItemSubtitle.vue, ProxySettings.vue, style.css) — НЕ использовать `git add -A`; добавлять только файлы, изменённые в рамках этой задачи:
 
 ```bash
-git add -A
+git add <только изменённые в этой задаче файлы>
 git commit -m "fix(stats): final polish after verification"
 ```

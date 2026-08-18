@@ -68,6 +68,9 @@ importers:
       '@vee-validate/valibot':
         specifier: ^4.15.1
         version: 4.15.1(valibot@1.3.1(typescript@5.6.3))(vue@3.5.25(typescript@5.6.3))
+      '@vue-dnd-kit/core':
+        specifier: ^2.4.7
+        version: 2.4.7(vue@3.5.25(typescript@5.6.3))
       '@vuelor/picker':
         specifier: ^1.2.0
         version: 1.2.0(reka-ui@2.6.1(typescript@5.6.3)(vue@3.5.25(typescript@5.6.3)))(vue@3.5.25(typescript@5.6.3))
@@ -2283,6 +2286,11 @@ packages:
 
   '@volar/typescript@2.4.15':
     resolution: {integrity: sha512-2aZ8i0cqPGjXb4BhkMsPYDkkuc2ZQ6yOpqwAuNwUoncELqoy5fRgOQtLR9gB0g902iS0NAkvpIzs27geVyVdPg==}
+
+  '@vue-dnd-kit/core@2.4.7':
+    resolution: {integrity: sha512-v477XFegqzoAPwkl5dcfds/ySyPdSdg0q5vlqXgAQdbUI5SmhN/pb4Sr8gBU23b+1qYB5KBF/B1JAvuVGUUQwA==}
+    peerDependencies:
+      vue: ^3.5.13
 
   '@vue/babel-helper-vue-transform-on@1.5.0':
     resolution: {integrity: sha512-0dAYkerNhhHutHZ34JtTl2czVQHUNWv6xEbkdF5W+Yrv5pCWsqjeORdOgbtW2I9gWlt+wBmVn+ttqN9ZxR5tzA==}
@@ -7865,6 +7873,10 @@ snapshots:
       '@volar/language-core': 2.4.15
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
+
+  '@vue-dnd-kit/core@2.4.7(vue@3.5.25(typescript@5.6.3))':
+    dependencies:
+      vue: 3.5.25(typescript@5.6.3)
 
   '@vue/babel-helper-vue-transform-on@1.5.0': {}
 

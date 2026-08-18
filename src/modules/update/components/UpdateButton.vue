@@ -1,74 +1,70 @@
 <template>
-  <AnimatePresence>
-    <Motion
-      v-if="isPending"
-      :initial="{ opacity: 0, scale: 0.9, y: 20 }"
-      :animate="{ opacity: 1, scale: 1, y: 0 }"
-      :exit="{ opacity: 0, scale: 0.9, y: 20 }"
-      :transition="prefersReduced ? { duration: 0.1 } : { type: 'spring', stiffness: 300, damping: 25 }"
-      class="pointer-events-auto min-w-0"
-      :class="compact ? 'shrink-0' : 'flex-1'"
+  <FloatingActionButton
+    :show="isPending"
+    inline
+    class="pointer-events-auto min-w-0"
+    :class="compact ? 'shrink-0' : 'flex-1'"
+  >
+    <Button
+      class="h-12 min-w-0 rounded-full shadow-lg"
+      :class="compact ? 'w-12 px-0' : 'w-full px-4'"
+      :disabled="isBusy"
+      :title="compact ? label : store.error?.message"
+      :aria-label="label"
+      @click="handleClick"
     >
-      <Button
-        class="h-12 min-w-0 rounded-full shadow-lg"
-        :class="compact ? 'w-12 px-0' : 'w-full px-4'"
-        :disabled="isBusy"
-        :title="compact ? label : store.error?.message"
-        :aria-label="label"
-        @click="handleClick"
-      >
-        <IconLoader2
-          v-if="isBusy"
-          class="size-5 animate-spin"
-        />
-        <IconRefreshAlert
-          v-else-if="isError"
-          class="size-5"
-        />
-        <IconDownload
-          v-else
-          class="size-5"
-        />
+      <MorphIcon
+        :icon="statusIcon"
+        spring="snappy"
+        reduced-motion="user"
+        class="size-5"
+        :class="{ 'animate-spin': isBusy }"
+      />
 
-        <span
-          v-if="!compact"
-          class="truncate"
-        >{{ label }}</span>
-      </Button>
-    </Motion>
-  </AnimatePresence>
+      <span
+        v-if="!compact"
+        class="truncate"
+      >{{ label }}</span>
+    </Button>
+  </FloatingActionButton>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { AnimatePresence, Motion, useReducedMotion } from "motion-v";
+import { MorphIcon } from "morphicons/vue";
+import { svgToIcon } from "morphicons/adapters";
 import { Button } from "@/components/ui/button";
+import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import { useUpdateStore } from "../store/update.store";
-import IconDownload from "~icons/tabler/download";
-import IconLoader2 from "~icons/tabler/loader-2";
-import IconRefreshAlert from "~icons/tabler/refresh-alert";
+import downloadRaw from "~icons/tabler/download?raw";
+import loaderRaw from "~icons/tabler/loader-2?raw";
+import refreshAlertRaw from "~icons/tabler/refresh-alert?raw";
 
 defineProps<{
-  /** Narrow sidebar: drops the label and matches the action button's square. */
   compact?: boolean;
 }>();
 
 const { t } = useI18n();
 const store = useUpdateStore();
-const prefersReduced = useReducedMotion();
 
 const isError = computed(() => store.status === "error");
 const isBusy = computed(() => store.isDownloading || store.isInstalling);
 
-/**
- * Stays put until the update is actually applied — a pending update is not
- * something the user should be able to lose track of. "checking" and
- * "up-to-date" deliberately do not show it.
- */
 const isPending = computed(
   () => store.isUpdateAvailable || isBusy.value || isError.value,
 );
+
+const statusIcons = {
+  busy: svgToIcon(loaderRaw),
+  error: svgToIcon(refreshAlertRaw),
+  idle: svgToIcon(downloadRaw),
+};
+const statusIcon = computed(() => {
+  if (isBusy.value) return statusIcons.busy;
+  if (isError.value) return statusIcons.error;
+  return statusIcons.idle;
+});
 
 const label = computed(() => {
   if (store.isInstalling) return t("update.installing");
@@ -85,7 +81,6 @@ const label = computed(() => {
 });
 
 function handleClick() {
-  // A failed attempt needs a fresh check before the install path reopens.
   if (isError.value) {
     store.check();
     return;

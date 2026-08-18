@@ -2,7 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import { TrackId } from "@/types/ids";
-import { ScannedFile, SyncResult, WatchedFolder } from "@/modules/watched-folders/types";
+import { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
 import { WorkerPool } from "./worker-pool";
 import {
   ImportBatchResult,

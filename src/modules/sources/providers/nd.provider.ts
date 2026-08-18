@@ -21,17 +21,15 @@ import type { DownloadEvent, SourceError, SourceProvider } from "../types";
 const unavailable = <T>(): ResultAsync<T, SourceError> =>
   errAsync<T, SourceError>({ kind: "UNAVAILABLE", message: "Navidrome source is not configured" });
 
-/** Runs `call` against the active config, or fails with UNAVAILABLE. */
-function withConfig<T>(call: (config: NdConfig) => ResultAsync<T, SourceError>): ResultAsync<T, SourceError> {
+const withConfig = <T>(call: (config: NdConfig) => ResultAsync<T, SourceError>): ResultAsync<T, SourceError> => {
   const config = getNdConfig();
   return config ? call(config) : unavailable<T>();
-}
+};
 
-/** Strips the nd: prefix, rejecting foreign ids before they hit the server. */
-function ndIdOf(id: TrackId | AlbumId | ArtistId): string | null {
+const ndIdOf = (id: TrackId | AlbumId | ArtistId): string | null => {
   const ref = parseTrackRef(id as TrackId);
   return ref.kind === "nd" ? ref.songId : null;
-}
+};
 
 /** getAlbumList2 caps size at 500 per the Subsonic contract. */
 const MAX_ALBUM_PAGE = 500;
@@ -71,8 +69,6 @@ export const ndSourceProvider: SourceProvider = {
   listArtists() {
     return withConfig(config =>
       subsonicFetch<GetArtistsPayload>(config, "getArtists").map(payload =>
-        // The server already groups and sorts the index honoring its
-        // ignoredArticles setting — flattening keeps that order.
         (payload.artists?.index ?? []).flatMap(group => group.artist ?? []).map(mapNdArtist),
       ),
     );
@@ -174,6 +170,16 @@ export const ndSourceProvider: SourceProvider = {
     if (!songId) return errAsync({ kind: "PARSE", message: `Not a Navidrome track id: ${id}` });
     if (!this.isAvailable) return unavailable<string>();
     return okAsync(ndSongStreamUrl(songId));
+  },
+
+  prefetch(id) {
+    const songId = ndIdOf(id);
+    if (!songId) return errAsync({ kind: "PARSE", message: `Not a Navidrome track id: ${id}` });
+    if (!this.isAvailable) return unavailable<void>();
+    return ResultAsync.fromPromise(
+      invoke<void>("nd_prefetch", { songId }),
+      mapNdDownloadError,
+    );
   },
 
   /**

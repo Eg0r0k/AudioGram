@@ -4,7 +4,6 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empt
 import IconSearch from "~icons/tabler/search";
 
 withDefaults(defineProps<{
-  /** Placeholder text; defaults to the library search hint. */
   text?: string;
 }>(), {
   text: undefined,

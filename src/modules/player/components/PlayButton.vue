@@ -10,19 +10,14 @@
       :aria-label="shouldShowPauseIcon ? $t('player.pause') : $t('player.play')"
       @click="toggle"
     >
-      <motion.svg
+      <MorphIcon
         tabindex="-1"
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        class="relative z-10"
-      >
-        <motion.path
-          tabindex="-1"
-          :d="morphedPath"
-          fill="currentColor"
-        />
-      </motion.svg>
+        :icon="shouldShowPauseIcon ? pausePath : playPath"
+        :size="32"
+        spring="snappy"
+        reduced-motion="user"
+        class="morph-icon relative z-10"
+      />
 
       <div
         v-if="playerStore.showLoadingIndicator"
@@ -33,12 +28,15 @@
 </template>
 
 <script setup lang="ts">
-import { Motion, motion, motionValue, useTransform, animate, useReducedMotion } from "motion-v";
-import { interpolate } from "flubber";
+import { Motion } from "motion-v";
+import { MorphIcon } from "morphicons/vue";
 import { Button } from "@/components/ui/button";
-import { computed, watch, type HTMLAttributes } from "vue";
+import { computed, type HTMLAttributes } from "vue";
 import { cn } from "@/lib/utils";
+import { svgPathData } from "@/lib/svg";
 import { usePlayerStore } from "@/modules/player/store/player.store";
+import playSvg from "@/assets/icons/play-rounded.svg?raw";
+import pauseSvg from "@/assets/icons/pause-rounded.svg?raw";
 
 interface Props {
   class?: HTMLAttributes["class"];
@@ -47,50 +45,25 @@ interface Props {
 const props = defineProps<Props>();
 const playerStore = usePlayerStore();
 
-const playPath
-  = "M21.409 9.353a2.998 2.998 0 0 1 0 5.294L8.597 21.614C6.534 22.737 4 21.277 4 18.968V5.033c0-2.31 2.534-3.769 4.597-2.648z";
-
-const pausePath
-  = "M2 6c0-1.886 0-2.828.586-3.414S4.114 2 6 2s2.828 0 3.414.586S10 4.114 10 6v12c0 1.886 0 2.828-.586 3.414S7.886 22 6 22s-2.828 0-3.414-.586S2 19.886 2 18zm12 0c0-1.886 0-2.828.586-3.414S16.114 2 18 2s2.828 0 3.414.586S22 4.114 22 6v12c0 1.886 0 2.828-.586 3.414S19.886 22 18 22s-2.828 0-3.414-.586S14 19.886 14 18z";
-
-const paths = [playPath, pausePath];
-
-const progress = motionValue(playerStore.isPlaying ? 1 : 0);
-
-function centerInterpolate(a: string, b: string) {
-  return interpolate(a, b, { maxSegmentLength: 2.5 });
-}
-
-const morphedPath = useTransform(progress, [0, 1], paths, {
-  mixer: centerInterpolate,
-});
+const playPath = svgPathData(playSvg);
+const pausePath = svgPathData(pauseSvg);
 
 const isLoading = computed(() => playerStore.isLoading);
 const shouldShowPauseIcon = computed(() => playerStore.isPlaying || isLoading.value);
-// Disable only once the delayed indicator is visible — a fast local load would
-// otherwise flash the disabled style; toggle() still guards clicks instantly.
 const canInteract = computed(() => !playerStore.showLoadingIndicator);
 
-const prefersReduced = useReducedMotion();
-
-watch(
-  shouldShowPauseIcon,
-  (showPauseIcon) => {
-    animate(progress, showPauseIcon ? 1 : 0, {
-      duration: prefersReduced.value ? 0 : 0.25,
-      ease: "anticipate",
-    });
-  },
-  { immediate: true },
-);
-
-function toggle() {
+const toggle = () => {
   if (isLoading.value) return;
   playerStore.togglePlay();
-}
+};
 </script>
 
 <style scoped>
+.morph-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .loader-ring {
   width: 40px;
   aspect-ratio: 1;

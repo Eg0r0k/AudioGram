@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import type { TrackEntity } from "@/db/entities";
-import type { TrackSortKey } from "@/modules/tracks/types";
+import type { TrackSortKey } from "@/types/track-sort";
 import type { AlbumId, ArtistId, TagId, TrackId } from "@/types/ids";
 import type { Collection } from "dexie";
 import { Result, ok, err } from "neverthrow";

@@ -32,7 +32,6 @@ import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(contextMenuTrackComponents);
@@ -74,10 +73,6 @@ useTrackMenuAutoClose(localOpen, {
   context: () => props.context,
   playlistId: () => props.playlistId,
 });
-
-useMenuCursorAutoClose(localOpen, () => {
-  localOpen.value = false;
-}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 
 const contextComponent = computed(() => trackContextComponents[props.context]);
 

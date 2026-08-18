@@ -445,12 +445,43 @@ export function removeTracksFromCaches(
   );
 }
 
+function patchStatsTrackCaches(
+  queryClient: QueryClient,
+  nextTrackEntity: TrackEntity,
+  nextTrack: Track,
+) {
+  setQueriesDataIfPresent<{ track: Track }[]>(
+    queryClient,
+    {
+      predicate: query =>
+        query.queryKey[0] === "stats"
+        && (query.queryKey[1] === "topTracks" || query.queryKey[1] === "recentHistory"),
+    },
+    entries => entries.map(entry =>
+      entry.track.id === nextTrack.id ? { ...entry, track: nextTrack } : entry,
+    ),
+  );
+
+  setQueriesDataIfPresent<TrackEntity[]>(
+    queryClient,
+    {
+      predicate: query =>
+        query.queryKey[0] === "stats" && query.queryKey[1] === "topTracksMeta",
+    },
+    tracks => tracks.map(track =>
+      track.id === nextTrackEntity.id ? nextTrackEntity : track,
+    ),
+  );
+}
+
 export function syncTrackLikeCaches(
   queryClient: QueryClient,
   nextTrackEntity: TrackEntity,
   nextTrack: Track,
 ) {
   const likedAt = nextTrackEntity.likedAt;
+
+  patchStatsTrackCaches(queryClient, nextTrackEntity, nextTrack);
 
   queryClient.setQueryData(queryKeys.tracks.detail(nextTrackEntity.id), nextTrackEntity);
   setQueryDataIfPresent<TrackEntity[]>(queryClient, queryKeys.tracks.all(), tracks =>
@@ -640,6 +671,8 @@ export function syncTrackMetadataCaches(
   nextTrack: Track,
 ) {
   queryClient.setQueryData(queryKeys.tracks.detail(nextTrackEntity.id), nextTrackEntity);
+
+  patchStatsTrackCaches(queryClient, nextTrackEntity, nextTrack);
 
   setQueryDataIfPresent<TrackEntity[]>(queryClient, queryKeys.tracks.all(), tracks =>
     tracks.map(track =>

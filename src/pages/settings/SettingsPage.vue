@@ -37,6 +37,11 @@
           :title="$t('settings.index.storage')"
         />
         <SettingsLink
+          :to="routeLocation.settingsStats()"
+          :icon="IconChartBar"
+          :title="$t('settings.index.stats')"
+        />
+        <SettingsLink
           v-if="isTauri"
           :to="routeLocation.settingsProxy()"
           :icon="IconWorld"
@@ -97,6 +102,7 @@ import IconPalette from "~icons/tabler/palette";
 import IconLanguage from "~icons/tabler/language";
 import IconHeadphones from "~icons/tabler/headphones";
 import IconDatabase from "~icons/tabler/database";
+import IconChartBar from "~icons/tabler/chart-bar";
 import IconServer from "~icons/tabler/server";
 import IconInfo from "~icons/tabler/info-circle";
 import IconWorld from "~icons/tabler/world";

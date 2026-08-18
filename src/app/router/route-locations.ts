@@ -16,6 +16,7 @@ export const routeLocation = {
   settingsSources: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_SOURCES }),
   settingsLanguage: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_LANGUAGE }),
   settingsNotifications: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_NOTIFICATIONS }),
+  settingsStats: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_STATS }),
   settingsAppearance: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_APPEARANCE }),
   settingsAbout: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_ABOUT }),
   settingsTerms: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_TERMS }),

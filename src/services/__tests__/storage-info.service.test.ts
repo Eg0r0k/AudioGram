@@ -37,9 +37,11 @@ vi.mock("@/db/storage", () => ({
   storageService: { listFiles, deleteFile: vi.fn() },
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), isTauri: () => false }));
-vi.mock("@/modules/search/searchIndex", () => ({ resetSearchIndex }));
 
-import { clearAllData } from "../storage-info.service";
+import { clearAllData, onAllDataCleared } from "../storage-info.service";
+
+// In the app main.ts wires the search-index reset through this hook.
+onAllDataCleared(resetSearchIndex);
 
 describe("clearAllData", () => {
   beforeEach(() => {

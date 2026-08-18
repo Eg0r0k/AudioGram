@@ -190,7 +190,18 @@ export const usePlayerStore = defineStore("player", () => {
       if (player.value === newPlayer) playbackRate.value = rate;
     });
     newPlayer.on("error", (err) => {
-      if (player.value === newPlayer) getLogger().error(`[Player] error: ${String(err)}`);
+      if (player.value !== newPlayer) return;
+      const detail = err instanceof Error
+        ? `${err.name}: ${err.message}`
+        : (() => {
+            try {
+              return JSON.stringify(err);
+            }
+            catch {
+              return String(err);
+            }
+          })();
+      getLogger().error(`[Player] error: ${detail}`);
     });
 
     return newPlayer;

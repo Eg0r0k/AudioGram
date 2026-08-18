@@ -28,11 +28,9 @@ vi.mock("@/modules/youtube/composables/useYoutube", () => ({
 const stubbedItems = {
   ShowLyricsItem: true,
   LikeItem: true,
-  ExportFileItem: true,
-  LyricsItem: true,
+  MoreSub: true,
   AddToPlaylistSub: true,
   OfflineItem: true,
-  SourceItems: true,
   NavigationItems: true,
   DetailsItem: true,
   PlayItems: true,

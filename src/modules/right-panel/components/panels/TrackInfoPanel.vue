@@ -93,7 +93,7 @@
             <DetailField
               v-if="isLibraryTrack(track)"
               :title="$t('track.details.fields.storagePath')"
-              :value="track.storagePath"
+              :value="storagePathValue"
               class="sm:col-span-2"
             >
               <template #icon>
@@ -109,7 +109,7 @@
           <div class="grid gap-3 sm:grid-cols-1">
             <DetailField
               :title="$t('track.details.fields.codec')"
-              :value="entity?.format.codec"
+              :value="effectiveFormat.codec"
             >
               <template #icon>
                 <IconFileMusic class="size-6" />
@@ -136,7 +136,7 @@
 
             <DetailField
               :title="$t('track.details.fields.channels')"
-              :value="entity?.format.channels"
+              :value="effectiveFormat.channels"
             >
               <template #icon>
                 <IconCirclesRelation class="size-6" />
@@ -227,6 +227,7 @@ import { Button } from "@/components/ui/button";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
 import { formatDuration } from "@/lib/format/time";
 import { deleteTrackAndSync, getTrackEntityById } from "@/queries/track.queries";
+import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -277,6 +278,21 @@ const { data: entity } = useQuery({
   }),
 });
 
+// У remote-треков (YT/ND) storagePath в строке трека пуст by design — путь
+// и формат скачанного файла живут в offlineCopies.
+const isRemoteLibraryTrack = computed(() => {
+  const source = libraryTrack.value?.source;
+  return source === TrackSource.REMOTE_YT || source === TrackSource.REMOTE_SUBSONIC;
+});
+
+const { data: offlineCopy } = useQuery(computed(() =>
+  offlineCopyQueries.detail(isRemoteLibraryTrack.value ? libraryTrack.value!.id : null),
+));
+
+const storagePathValue = computed(() =>
+  libraryTrack.value?.storagePath || offlineCopy.value?.storagePath || "—",
+);
+
 const { mutateAsync: deleteTrack, isPending: isDeleting } = useMutation({
   mutationFn: (currentTrack: Track) => deleteTrackAndSync(queryClient, currentTrack),
   onError: () => {
@@ -309,6 +325,10 @@ const sourceLabel = computed(() => {
       return t("track.details.values.localExternal");
     case TrackSource.REMOTE_HLS:
       return t("track.details.values.remoteHls");
+    case TrackSource.REMOTE_YT:
+      return t("track.details.values.remoteYt");
+    case TrackSource.REMOTE_SUBSONIC:
+      return t("track.details.values.remoteNd");
     default:
       return "—";
   }
@@ -327,20 +347,34 @@ const stateLabel = computed(() => {
   }
 });
 
+// Формат по строке трека, с фолбэком на скачанную копию (у YT/ND-строк
+// собственный format пуст, реальный лежит рядом с файлом в offlineCopies).
+const effectiveFormat = computed(() => {
+  const entityFormat = entity.value?.format;
+  const copyFormat = offlineCopy.value?.format;
+  return {
+    codec: entityFormat?.codec ?? copyFormat?.codec,
+    bitrate: entityFormat?.bitrate ?? copyFormat?.bitrate,
+    sampleRate: entityFormat?.sampleRate ?? copyFormat?.sampleRate,
+    channels: entityFormat?.channels ?? copyFormat?.channels,
+    lossless: entityFormat?.lossless ?? copyFormat?.lossless,
+  };
+});
+
 const formattedBitrate = computed(() => {
-  const bitrate = entity.value?.format.bitrate;
+  const bitrate = effectiveFormat.value.bitrate;
   if (!bitrate) return "—";
   return `${Math.round(bitrate / 1000)} kbps`;
 });
 
 const formattedSampleRate = computed(() => {
-  const sampleRate = entity.value?.format.sampleRate;
+  const sampleRate = effectiveFormat.value.sampleRate;
   if (!sampleRate) return "—";
   return `${(sampleRate / 1000).toFixed(1)} kHz`;
 });
 
 const losslessLabel = computed(() => {
-  const lossless = entity.value?.format.lossless;
+  const lossless = effectiveFormat.value.lossless;
   if (lossless === undefined) return "—";
   return lossless ? t("common.yes") : t("common.no");
 });
