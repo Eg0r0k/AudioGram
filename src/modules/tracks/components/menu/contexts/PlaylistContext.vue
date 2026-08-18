@@ -14,16 +14,6 @@
 
   <DetailsItem @show="actions.showDetails" />
 
-  <ExportFileItem
-    :caps="caps"
-    @export="actions.exportFile"
-  />
-
-  <LyricsItem
-    :has-lyrics="trackHasLyrics(track)"
-    @attach="actions.attachLyrics"
-  />
-
   <AddToPlaylistSub @add="actions.addToPlaylist" />
 
   <OfflineItem
@@ -34,8 +24,11 @@
     @remove-offline-copy="actions.removeOfflineCopy"
   />
 
-  <SourceItems
+  <MoreSub
     :caps="caps"
+    :has-lyrics="trackHasLyrics(track)"
+    @export="actions.exportFile"
+    @attach-lyrics="actions.attachLyrics"
     @add-to-library="actions.addToLibrary"
     @remove-from-library="actions.removeFromLibrary"
     @open-external="actions.openExternal"
@@ -69,10 +62,8 @@ import LikeItem from "../items/LikeItem.vue";
 import AddToPlaylistSub from "../items/AddToPlaylistSub.vue";
 import DetailsItem from "../items/DetailsItem.vue";
 import NavigationItems from "../items/NavigationItems.vue";
-import LyricsItem from "../items/LyricsItem.vue";
-import ExportFileItem from "../items/ExportFileItem.vue";
+import MoreSub from "../items/MoreSub.vue";
 import OfflineItem from "../items/OfflineItem.vue";
-import SourceItems from "../items/SourceItems.vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";

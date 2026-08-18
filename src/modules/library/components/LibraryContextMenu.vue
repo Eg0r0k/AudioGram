@@ -33,7 +33,6 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import { useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryItem } from "@/modules/library/types";
@@ -54,9 +53,6 @@ const props = withDefaults(defineProps<{
 
 const { activeItem, menuFlavor, isContextMenuOpen } = useLibraryMenu();
 
-useMenuCursorAutoClose(isContextMenuOpen, () => {
-  isContextMenuOpen.value = false;
-}, { contentSelector: "[data-slot=\"context-menu-content\"]" });
 const { togglePin, createPlaylist } = useLibrary();
 const { addToQueue, addCatalogToQueue, downloadCatalog } = useLibraryContextActions();
 

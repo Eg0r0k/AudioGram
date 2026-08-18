@@ -1,9 +1,6 @@
 <template>
   <Teleport to="body">
-    <DropdownMenu
-      v-model:open="localOpen"
-      :modal="false"
-    >
+    <DropdownMenu v-model:open="localOpen">
       <DropdownMenuTrigger as-child>
         <div
           class="pointer-events-none fixed"
@@ -37,7 +34,6 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
-import { useMenuCursorAutoClose } from "@/composables/useMenuCursorAutoClose";
 import {
   dropdownMenuTrackComponents,
   provideTrackMenuComponents,
@@ -90,10 +86,6 @@ useTrackMenuAutoClose(localOpen, {
   context: () => props.context,
   playlistId: () => props.playlistId,
 });
-
-useMenuCursorAutoClose(localOpen, () => {
-  localOpen.value = false;
-}, { contentSelector: "[data-slot=\"dropdown-menu-content\"]" });
 
 const anchorStyle = computed(() => ({
   left: `${dropdownAnchor.value.x}px`,
