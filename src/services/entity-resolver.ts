@@ -9,7 +9,7 @@ import {
 } from "@/db/entities";
 import { AlbumId, ArtistId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
-import type { SourceTrackDTO } from "@/modules/sources";
+import type { SourceTrackDTO } from "@/types/source-dto";
 import { BaseMetadata } from "@/workers/types";
 
 //
@@ -223,9 +223,6 @@ export class EntityResolver {
 
     if (uniqueKeys.length === 0) return;
 
-    // Name indexes are case-sensitive, so existing rows are matched via a
-    // full scan folded to the identity key — the artists table stays small
-    // enough for one read per import batch.
     const existing = await db.artists.toArray();
     const wanted = new Set(uniqueKeys);
     for (const artist of existing) {
@@ -258,8 +255,6 @@ export class EntityResolver {
       .anyOf(knownArtistIds)
       .toArray();
 
-    // albumKey trims, so stored titles with stray padding land on the same
-    // key a clean tag resolves to.
     for (const album of existing) {
       this.albums.set(
         albumKey(album.artistId, album.title),

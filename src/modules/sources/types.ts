@@ -1,8 +1,25 @@
 import type { ResultAsync } from "neverthrow";
 import type { AudioFormat } from "@/db/entities";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type {
+  SourceAlbumDTO,
+  SourceArtistDTO,
+  SourceError,
+  SourcePlaylistDTO,
+  SourceTrackDTO,
+} from "@/types/source-dto";
 
 import type { SourceKind } from "@/types/track-ref";
+
+// Live in @/types so services and queries can use them without importing this module.
+export type {
+  SourceAlbumDTO,
+  SourceArtistDTO,
+  SourceError,
+  SourceErrorKind,
+  SourcePlaylistDTO,
+  SourceTrackDTO,
+} from "@/types/source-dto";
 
 export interface SourceCapabilities {
   browseArtists: boolean;
@@ -11,62 +28,6 @@ export interface SourceCapabilities {
   search: boolean;
   /** Can hand over a file for an offline copy. */
   download: boolean;
-}
-
-//
-// Normalized DTOs. Ids are full branded ids with the source prefix baked in
-// ("nd:<id>" / "yt:<id>") — pages and pin flows never see raw remote ids.
-//
-export interface SourceTrackDTO {
-  id: TrackId;
-  title: string;
-  artistName?: string;
-  albumTitle?: string;
-  albumId?: AlbumId;
-  artistIds?: ArtistId[];
-  duration?: number;
-  trackNo?: number;
-  discNo?: number;
-  coverRef?: string;
-  format?: AudioFormat;
-}
-
-export interface SourceAlbumDTO {
-  id: AlbumId;
-  title: string;
-  artistId?: ArtistId;
-  artistName?: string;
-  year?: number;
-  coverRef?: string;
-  trackCount?: number;
-}
-
-export interface SourceArtistDTO {
-  id: ArtistId;
-  name: string;
-  albumCount?: number;
-  coverRef?: string;
-}
-
-export interface SourcePlaylistDTO {
-  id: string;
-  name: string;
-  trackCount: number;
-  coverRef?: string;
-}
-
-export type SourceErrorKind
-  = | "UNAVAILABLE"
-    | "AUTH"
-    | "NETWORK"
-    | "NOT_FOUND"
-    | "PARSE"
-    | "CANCELLED"
-    | "UNKNOWN";
-
-export interface SourceError {
-  kind: SourceErrorKind;
-  message: string;
 }
 
 /**
@@ -99,6 +60,12 @@ export interface SourceProvider {
   /** Synchronously builds the proxied cover URL for a DTO's coverRef. */
   coverUrl(coverRef: string, size?: number): string;
   resolveStreamUrl(id: TrackId): ResultAsync<string, SourceError>;
+  /**
+   * Warms the backend audio cache for an upcoming queue entry so the
+   * `stream://` proxy answers the next track's requests from memory.
+   * Optional: sources whose playback needs no warm-up simply omit it.
+   */
+  prefetch?(id: TrackId): ResultAsync<void, SourceError>;
   downloadToFile(id: TrackId, onProgress?: (e: DownloadEvent) => void):
   ResultAsync<{ path: string; format?: AudioFormat }, SourceError>;
   /**

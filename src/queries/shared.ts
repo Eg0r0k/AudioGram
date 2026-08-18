@@ -1,22 +1,11 @@
 import type { TrackEntity } from "@/db/entities";
 import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
-import type { SourceError, SourceErrorKind } from "@/modules/sources/types";
-import type { TrackSortKey } from "@/modules/tracks/types";
+import type { SourceError, SourceErrorKind } from "@/types/source-dto";
+import type { TrackSortKey } from "@/types/track-sort";
 import type { Result } from "neverthrow";
 
-export async function unwrapResult<T>(
-  promise: Promise<Result<T, Error>>,
-): Promise<T> {
-  const result = await promise;
-
-  if (result.isErr()) {
-    getLogger().error(`[DB] ${result.error.message}`);
-    throw result.error;
-  }
-
-  return result.value;
-}
+export { unwrapResult } from "@/lib/result";
 
 /** Typed SourceError carried across the TanStack Query boundary. */
 export class SourceQueryError extends Error {

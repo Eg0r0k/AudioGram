@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="flex h-full min-h-0 flex-col bg-card">
     <RightPanelHeader :title="$t('player.nowPlaying')">
       <template #trailing>
@@ -250,7 +250,7 @@ import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/Trac
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { routeLocation } from "@/app/router/route-locations";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
-import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 
 import {
   MorphingDialog,

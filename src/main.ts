@@ -15,6 +15,10 @@ import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
 import { initDownloadManager } from "@/modules/downloads/manager";
 import { sweepOrphanedEntities } from "@/services/library-gc";
 import { initZoom } from "@/modules/settings/composables/useZoom";
+import { statsService } from "@/services/stats.service";
+import { invalidateStatsQueries } from "@/queries/stats.queries";
+import { onAllDataCleared } from "@/services/storage-info.service";
+import { resetSearchIndex } from "@/modules/search/searchIndex";
 
 await initLogging();
 
@@ -37,6 +41,11 @@ app.use(VueQueryPlugin, { queryClient });
 // Cross-store reactions to track lifecycle events (stats, queue advance,
 // sleep-after-track) — registered once, ordered explicitly.
 initPlayerLifecycle();
+
+// Services stay below the query/search layers; their effects on those layers
+// are wired here.
+statsService.onChange(() => invalidateStatsQueries(queryClient));
+onAllDataCleared(resetSearchIndex);
 
 // Download queue: requeue interrupted jobs, sweep temp orphans, resume.
 // No-op outside Tauri. Failures must not block app startup.

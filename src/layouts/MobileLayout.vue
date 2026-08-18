@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     ref="dropZoneRef"
     class="flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
@@ -66,8 +66,8 @@ import { ref, watch } from "vue";
 import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
-import { useImport } from "@/composables/useImport";
-import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+import { useImport } from "@/modules/library/composables/useImport";
+import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 import DropOverlay from "@/components/DropOverlay.vue";
 import MiniPlayer from "@/components/layout/mobile/MiniPlayer.vue";
 import MobileFullPlayer from "@/components/layout/mobile/MobileFullPlayer.vue";

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="pip-root @container">
     <div class="pip-container">
       <div
@@ -105,7 +105,7 @@
           gradient-length="20px"
         >
           <span class="context-info__title">
-            {{ currentTrack?.title ?? "—" }}
+            {{ currentTrack?.title ?? "вЂ”" }}
           </span>
         </MarqueeBlock>
 
@@ -131,7 +131,7 @@ import { computed, ref, watch } from "vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
-import { useMobilePlayerColor } from "@/composables/useMobilePlayerColor";
+import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 import { Button } from "@/components/ui/button";
 import PlayButton from "@/modules/player/components/PlayButton.vue";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";

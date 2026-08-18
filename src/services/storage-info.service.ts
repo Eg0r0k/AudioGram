@@ -3,8 +3,12 @@ import { db } from "@/db";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { resetSearchIndex } from "@/modules/search/searchIndex";
-import { StorageInfo } from "@/modules/settings/schema/storage";
+import { StorageInfo } from "@/types/storage-info";
+import { createEventHook } from "@vueuse/core";
+
+// Fired after a full wipe; main.ts subscribes the search-index reset here.
+const allDataCleared = createEventHook<void>();
+export const onAllDataCleared = allDataCleared.on;
 
 async function calculateFolderSize(folder: string): Promise<number> {
   if (IS_TAURI) {
@@ -195,7 +199,7 @@ export async function clearAllData(): Promise<void> {
 
   // The search index is worker-memory, rebuilt lazily from the database.
   // Without a reset it keeps serving the entities deleted above until reload.
-  resetSearchIndex();
+  await allDataCleared.trigger();
 }
 
 export async function clearFoldersData(): Promise<void> {

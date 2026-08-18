@@ -1,16 +1,12 @@
 import type { ComputedRef, InjectionKey } from "vue";
 
-/** Width (px) of the icon-only compact sidebar. */
-export const SIDEBAR_COMPACT_WIDTH = 80;
-/** Minimum width (px) of the expanded sidebar. */
-export const SIDEBAR_EXPANDED_MIN_WIDTH = 280;
-/** Maximum width (px) of the expanded sidebar. */
-export const SIDEBAR_MAX_WIDTH = 400;
-/**
- * While dragging, a width below this snaps to the compact layout; at or above
- * it the sidebar clamps back into the expanded [min, max] range.
- */
-export const SIDEBAR_SNAP_THRESHOLD = 200;
+// Width constants live with the sidebar state owner in @/composables/useSidebar.
+export {
+  SIDEBAR_COMPACT_WIDTH,
+  SIDEBAR_EXPANDED_MIN_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_SNAP_THRESHOLD,
+} from "@/composables/useSidebar";
 
 /**
  * Provided by ResizableSidebar so the library sidebar and its children switch

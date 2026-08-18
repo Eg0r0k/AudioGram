@@ -10,10 +10,10 @@ import {
 import { trackRepository } from "@/db/repositories";
 import { TrackSource } from "@/db/entities";
 import { TrackId } from "@/types/ids";
-import { unwrapResult } from "@/queries/shared";
-import { ScannedFile, SyncResult, WatchedFolder } from "@/modules/watched-folders/types";
-import { computeFileFingerprint } from "@/modules/watched-folders/services/file-fingerprint";
-import { scanFolder } from "@/modules/watched-folders/services/folder-scanner";
+import { unwrapResult } from "@/lib/result";
+import { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
+import { computeFileFingerprint } from "./file-fingerprint";
+import { scanFolder } from "./folder-scanner";
 import { EntityResolver } from "../entity-resolver";
 import { cleanupAfterTrackRemoval } from "../library-gc";
 import { ImportError, TrackToSave } from "../types";
