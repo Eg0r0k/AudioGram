@@ -221,4 +221,31 @@ describe("ndSourceProvider", () => {
       expect(invokeMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("prefetch", () => {
+    it("invokes nd_prefetch with the raw song id", async () => {
+      invokeMock.mockResolvedValueOnce(undefined);
+
+      const result = await ndSourceProvider.prefetch!(ndTrackId("s1"));
+
+      expect(result.isOk()).toBe(true);
+      expect(invokeMock).toHaveBeenCalledWith("nd_prefetch", { songId: "s1" });
+    });
+
+    it("maps backend failures onto SourceError kinds", async () => {
+      invokeMock.mockRejectedValueOnce("prefetch failed: upstream status 401");
+      expect((await ndSourceProvider.prefetch!(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("AUTH");
+
+      invokeMock.mockRejectedValueOnce("prefetch skipped: track exceeds the cache cap");
+      expect((await ndSourceProvider.prefetch!(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("UNKNOWN");
+    });
+
+    it("rejects foreign ids and missing config before any request", async () => {
+      expect((await ndSourceProvider.prefetch!(TrackId("yt:x")))._unsafeUnwrapErr().kind).toBe("PARSE");
+
+      configState.current = null;
+      expect((await ndSourceProvider.prefetch!(ndTrackId("s1")))._unsafeUnwrapErr().kind).toBe("UNAVAILABLE");
+      expect(invokeMock).not.toHaveBeenCalled();
+    });
+  });
 });

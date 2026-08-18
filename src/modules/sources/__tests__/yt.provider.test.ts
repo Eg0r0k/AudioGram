@@ -12,6 +12,7 @@ vi.mock("@/modules/youtube/provider", () => ({
     cancelDownload: vi.fn(),
     resolve: vi.fn(),
     searchMusic: vi.fn(),
+    prefetch: vi.fn(),
   },
 }));
 
@@ -47,5 +48,36 @@ describe("ytSourceProvider.downloadToFile", () => {
     const result = await ytSourceProvider.downloadToFile(TrackId("nd:s1"));
     expect(result._unsafeUnwrapErr().kind).toBe("PARSE");
     expect(youtubeProvider.download).not.toHaveBeenCalled();
+  });
+});
+
+describe("ytSourceProvider.prefetch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("warms the backend cache with the raw video id", async () => {
+    vi.mocked(youtubeProvider.prefetch).mockReturnValue(okAsync(undefined));
+
+    const result = await ytSourceProvider.prefetch!(ytTrackId("dQw4w9WgXcQ"));
+
+    expect(result.isOk()).toBe(true);
+    expect(youtubeProvider.prefetch).toHaveBeenCalledWith("dQw4w9WgXcQ");
+  });
+
+  it("maps backend errors onto the generic source error kinds", async () => {
+    vi.mocked(youtubeProvider.prefetch).mockReturnValue(
+      errAsync({ kind: "NETWORK", message: "googlevideo timed out" }),
+    );
+
+    const result = await ytSourceProvider.prefetch!(ytTrackId("dQw4w9WgXcQ"));
+
+    expect(result._unsafeUnwrapErr().kind).toBe("NETWORK");
+  });
+
+  it("rejects foreign ids before hitting the backend", async () => {
+    const result = await ytSourceProvider.prefetch!(TrackId("nd:s1"));
+    expect(result._unsafeUnwrapErr().kind).toBe("PARSE");
+    expect(youtubeProvider.prefetch).not.toHaveBeenCalled();
   });
 });

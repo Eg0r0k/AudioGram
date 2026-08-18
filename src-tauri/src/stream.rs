@@ -23,15 +23,50 @@ pub fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
         .unwrap_or_default()
 }
 
-/// GET `url` forwarding an optional Range header, propagating status,
-/// Content-Type, Content-Range and Accept-Ranges back to the webview.
-/// Generic across sources; `user_agent`/`proxy` are per-source concerns.
+/// Default per-request range window for sources without their own limit
+/// (Navidrome). See [`cap_range_span`] for why ranges are capped at all.
+pub(crate) const DEFAULT_RANGE_SPAN: u64 = 8 * 1024 * 1024;
+
+/// Caps any range to `max_span` bytes: `bytes=X-` (the media element's probe
+/// and seek form) and over-long explicit ranges become `bytes=X-(X+span-1)`.
+///
+/// Two reasons. The proxy buffers bodies in memory before responding, so an
+/// uncapped range on a 2-hour track means ~150 MB of silence before the first
+/// byte reaches the webview. And googlevideo outright rejects large spans on
+/// URLs resolved without a PO token (measured 2026-08: ≤1 MiB → 206, 2 MiB →
+/// 403, larger/open → 302 bounce), so the YT side must stay under that.
+/// A capped 206 + Content-Range makes the element stream progressively.
+///
+/// Absent headers and malformed/suffix specs pass through untouched.
+fn cap_range_span(range: Option<String>, max_span: u64) -> Option<String> {
+    let raw = range?;
+    let capped = raw
+        .strip_prefix("bytes=")
+        .and_then(|spec| spec.split_once('-'))
+        .and_then(|(start, end)| {
+            let start: u64 = start.trim().parse().ok()?;
+            let capped_end = start.saturating_add(max_span - 1);
+            let end = match end.trim() {
+                "" => capped_end,
+                end => end.parse::<u64>().ok()?.min(capped_end),
+            };
+            Some(format!("bytes={start}-{end}"))
+        });
+    Some(capped.unwrap_or(raw))
+}
+
+/// GET `url` forwarding an optional Range header (capped to `max_range_span`
+/// — see [`cap_range_span`]), propagating status, Content-Type, Content-Range
+/// and Accept-Ranges back to the webview. Generic across sources; `headers`
+/// (upstream-required request headers) and `proxy` are per-source concerns.
 pub(crate) async fn forward_get(
     url: &str,
-    user_agent: Option<&str>,
+    headers: &[(String, String)],
     range: Option<String>,
     proxy: Option<String>,
+    max_range_span: u64,
 ) -> Result<tauri::http::Response<Vec<u8>>, String> {
+    let range = cap_range_span(range, max_range_span);
     let mut builder = reqwest::Client::builder();
     if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
         if let Ok(proxy) = reqwest::Proxy::all(url) {
@@ -41,8 +76,8 @@ pub(crate) async fn forward_get(
     let client = builder.build().map_err(|e| e.to_string())?;
 
     let mut req = client.get(url);
-    if let Some(agent) = user_agent {
-        req = req.header(reqwest::header::USER_AGENT, agent);
+    for (name, value) in headers {
+        req = req.header(name.as_str(), value.as_str());
     }
     if let Some(range) = &range {
         req = req.header(reqwest::header::RANGE, range);
@@ -181,4 +216,48 @@ async fn route<R: Runtime>(
         return crate::nd::fetch_cover(app, id, query).await;
     }
     Ok(status_response(404))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cap_range_span;
+
+    const SPAN: u64 = 1024;
+
+    #[test]
+    fn caps_the_open_probe_and_seek_ranges() {
+        assert_eq!(
+            cap_range_span(Some("bytes=0-".into()), SPAN).as_deref(),
+            Some("bytes=0-1023"),
+        );
+        assert_eq!(
+            cap_range_span(Some("bytes=5000-".into()), SPAN).as_deref(),
+            Some("bytes=5000-6023"),
+        );
+    }
+
+    #[test]
+    fn caps_explicit_ranges_longer_than_the_span() {
+        assert_eq!(
+            cap_range_span(Some("bytes=100-999999".into()), SPAN).as_deref(),
+            Some("bytes=100-1123"),
+        );
+    }
+
+    #[test]
+    fn keeps_explicit_ranges_within_the_span() {
+        assert_eq!(
+            cap_range_span(Some("bytes=100-200".into()), SPAN).as_deref(),
+            Some("bytes=100-200"),
+        );
+    }
+
+    #[test]
+    fn passes_through_absent_suffix_and_malformed_specs() {
+        assert_eq!(cap_range_span(None, SPAN), None);
+        // Suffix ranges ("last N bytes") have no start to cap from.
+        assert_eq!(cap_range_span(Some("bytes=-500".into()), SPAN).as_deref(), Some("bytes=-500"));
+        assert_eq!(cap_range_span(Some("items=0-".into()), SPAN).as_deref(), Some("items=0-"));
+        assert_eq!(cap_range_span(Some("bytes=abc-".into()), SPAN).as_deref(), Some("bytes=abc-"));
+    }
 }

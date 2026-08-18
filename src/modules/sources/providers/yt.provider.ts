@@ -32,13 +32,12 @@ const unsupported = <T>(what: string): ResultAsync<T, SourceError> =>
     message: `YouTube source does not support ${what}`,
   });
 
-/** Rejects ids from other sources before they hit the YouTube backend. */
-function videoIdOf(id: TrackId): string | null {
+const videoIdOf = (id: TrackId): string | null => {
   const ref = parseTrackRef(id);
   return ref.kind === "yt" ? ref.videoId : null;
-}
+};
 
-function mapMusicTrack(entity: YtMusicEntity & { kind: "track" }): SourceTrackDTO {
+const mapMusicTrack = (entity: YtMusicEntity & { kind: "track" }): SourceTrackDTO => {
   return {
     id: ytTrackId(entity.id),
     title: entity.title,
@@ -48,7 +47,7 @@ function mapMusicTrack(entity: YtMusicEntity & { kind: "track" }): SourceTrackDT
     trackNo: entity.trackNr ?? undefined,
     coverRef: entity.thumbnail ?? undefined,
   };
-}
+};
 
 /**
  * Adapter exposing the existing {@link youtubeProvider} through the generic
@@ -80,9 +79,6 @@ export const ytSourceProvider: SourceProvider = {
   getPlaylist: () => unsupported("playlist browsing"),
 
   search(q, types, p) {
-    // YT paginates with opaque continuation tokens, so offset pages beyond
-    // the first are unaddressable. That is exhaustion, not an error — an
-    // empty page lets infinite queries terminate naturally.
     if (p.offset > 0 || !types.includes("track")) {
       return okAsync({ tracks: [], albums: [], artists: [] });
     }
@@ -95,14 +91,11 @@ export const ytSourceProvider: SourceProvider = {
           .filter((e): e is YtMusicEntity & { kind: "track" } => e.kind === "track")
           .slice(0, p.limit)
           .map(mapMusicTrack),
-        // Album/artist results need the yt album/artist id spaces (M5).
         albums: [],
         artists: [],
       }));
   },
 
-  // The YT backend has no per-track metadata lookup; pin snapshots for YT
-  // arrive from search/browse DTOs instead (M5).
   getTrack: () => unsupported("track metadata lookup"),
 
   coverUrl(coverRef, size = THUMB_SIZE_FULL) {
@@ -116,6 +109,12 @@ export const ytSourceProvider: SourceProvider = {
       .resolve(videoId)
       .mapErr(mapError)
       .map(resolvedId => ytStreamUrl(resolvedId));
+  },
+
+  prefetch(id) {
+    const videoId = videoIdOf(id);
+    if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
+    return youtubeProvider.prefetch(videoId).mapErr(mapError);
   },
 
   downloadToFile(id, onProgress) {
