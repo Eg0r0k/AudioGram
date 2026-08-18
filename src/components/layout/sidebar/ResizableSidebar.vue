@@ -1,7 +1,7 @@
 <template>
   <aside
     v-if="sidebar.isOpen"
-    class="sidebar-wrapper border-r dark:border-background border-border "
+    class="sidebar-wrapper"
     :class="{ 'is-resizing': isResizing }"
     :style="{ width: `${displayWidth}px` }"
   >
@@ -148,6 +148,22 @@ onUnmounted(() => {
   display: flex;
   transition: none;
   will-change: width;
+}
+
+.sidebar-wrapper::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: 10;
+}
+
+:global(.dark) .sidebar-wrapper::after {
+  background: var(--background);
 }
 
 .sidebar-wrapper.is-resizing {
