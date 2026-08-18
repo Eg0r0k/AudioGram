@@ -1,9 +1,16 @@
 <template>
-  <div class="flex flex-col gap-3">
-    <div class="overflow-x-auto">
+  <div
+    ref="containerRef"
+    class="flex flex-col gap-2.5 pt-2"
+  >
+    <Scrollable
+      ref="scrollableRef"
+      :hide-thumb="true"
+      direction="horizontal"
+    >
       <svg
-        :width="width"
-        :height="height"
+        :width="svgWidth"
+        :height="svgHeight"
         class="block"
         role="img"
         :aria-label="t('common.heatmapAria')"
@@ -11,7 +18,7 @@
         <text
           v-for="m in monthLabels"
           :key="m.weekIndex"
-          :x="dayLabelWidth + m.weekIndex * cellPitch"
+          :x="dayLabelWidth + m.weekIndex * pitch"
           y="11"
           class="fill-muted-foreground capitalize text-[11px]"
         >{{ m.label }}</text>
@@ -20,7 +27,7 @@
           v-for="label in dayLabels"
           :key="label.text"
           x="0"
-          :y="monthLabelHeight + label.dayOfWeek * cellPitch + cellSize + 5"
+          :y="monthLabelHeight + label.dayOfWeek * pitch + cellSize / 2 + 4"
           class="fill-muted-foreground text-[11px]"
         >{{ label.text }}</text>
 
@@ -28,37 +35,37 @@
           <g
             v-for="(week, weekIndex) in weeks"
             :key="weekIndex"
-            :transform="`translate(${weekIndex * cellPitch}, 0)`"
+            :transform="`translate(${weekIndex * pitch}, 0)`"
           >
             <rect
               v-for="cell in week"
               :key="cell.date"
-              :y="cell.dayOfWeek * cellPitch"
+              class="heatmap-cell"
+              :y="cell.dayOfWeek * pitch"
               :width="cellSize"
               :height="cellSize"
               rx="3"
               :fill="cell.seconds > 0 ? 'var(--primary)' : 'var(--border)'"
-              :fill-opacity="cell.seconds > 0 ? opacityFor(cell.seconds) : 1"
+              :fill-opacity="cell.seconds > 0 ? levelFor(cell.seconds, maxSeconds) : 1"
             >
               <title>{{ formatTooltip(cell) }}</title>
             </rect>
           </g>
         </g>
       </svg>
-    </div>
+    </Scrollable>
 
-    <div class="flex items-center justify-end gap-1.5 text-xs text-neutral-500">
+    <div class="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
       <span>{{ t("common.heatmapLess") }}</span>
       <span
-        v-for="ratio in [0, 0.25, 0.5, 0.75, 1]"
-        :key="ratio"
-        class="inline-block rounded-xs"
-        :style="{
-          width: `${cellSize}px`,
-          height: `${cellSize}px`,
-          backgroundColor: ratio === 0 ? 'var(--border)' : 'var(--primary)',
-          opacity: ratio === 0 ? 1 : Math.max(ratio, 0.2),
-        }"
+        class="inline-block size-2.5 rounded-xs"
+        :style="{ backgroundColor: 'var(--border)' }"
+      />
+      <span
+        v-for="level in HEAT_LEVELS"
+        :key="level"
+        class="inline-block size-2.5 rounded-xs"
+        :style="{ backgroundColor: 'var(--primary)', opacity: level }"
       />
       <span>{{ t("common.heatmapMore") }}</span>
     </div>
@@ -66,52 +73,53 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import { useElementBounding } from "@vueuse/core";
+import { Scrollable } from "@/components/ui/scrollable";
 import type { DailyActivityPoint } from "@/db/repositories/stats.repository";
 import { formatCalendarTooltip } from "@/lib/format/time";
 import { useI18n } from "vue-i18n";
+import {
+  HEAT_LEVELS,
+  levelFor,
+  MAX_WEEKS,
+  MIN_WEEK_PITCH,
+  toCells,
+  visibleWeeks,
+  type HeatmapCell,
+} from "./calendar-heatmap";
 
 const { t, locale } = useI18n();
 
 const props = defineProps<{ data: DailyActivityPoint[] }>();
 
-const cellSize = 11;
-const gap = 2;
-const cellPitch = cellSize + gap;
 const monthLabelHeight = 20;
-const dayLabelWidth = 28;
+const dayLabelWidth = 30;
 
-interface Cell extends DailyActivityPoint {
-  dayOfWeek: number; // 0 = понедельник ... 6 = воскресенье
-}
+const scrollableRef = ref<InstanceType<typeof Scrollable> | null>(null);
+const containerRef = ref<HTMLElement | null>(null);
+const { width: containerWidth } = useElementBounding(containerRef);
 
-const maxSeconds = computed(() => Math.max(1, ...props.data.map(d => d.seconds)));
+const weeks = computed(() => visibleWeeks(toCells(props.data), MAX_WEEKS));
 
-function opacityFor(seconds: number): number {
-  return 0.2 + 0.8 * (seconds / maxSeconds.value);
-}
-
-// point.date — локальный ключ "YYYY-MM-DD"; T00:00:00 парсится как локальная полночь.
-const cells = computed<Cell[]>(() =>
-  props.data.map(point => ({
-    ...point,
-    dayOfWeek: (new Date(`${point.date}T00:00:00`).getDay() + 6) % 7,
-  })),
-);
-
-const weeks = computed<Cell[][]>(() => {
-  const result: Cell[][] = [];
-  let current: Cell[] = [];
-  for (const cell of cells.value) {
-    if (current.length > 0 && cell.dayOfWeek === 0) {
-      result.push(current);
-      current = [];
-    }
-    current.push(cell);
-  }
-  if (current.length > 0) result.push(current);
-  return result;
+const availableWidth = computed(() => {
+  const width = containerWidth.value > 0 ? containerWidth.value : 640;
+  return Math.max(0, width - dayLabelWidth);
 });
+const pitch = computed(() =>
+  Math.max(MIN_WEEK_PITCH, availableWidth.value / Math.max(1, weeks.value.length)),
+);
+const gap = computed(() => Math.min(4, Math.max(2, pitch.value * 0.18)));
+const cellSize = computed(() => pitch.value - gap.value);
+
+watch(weeks, async () => {
+  await nextTick();
+  scrollableRef.value?.scrollToEnd("auto");
+}, { immediate: true });
+
+const maxSeconds = computed(() =>
+  Math.max(1, ...props.data.map(point => point.seconds)),
+);
 
 const monthLabels = computed(() => {
   const labels: { weekIndex: number; label: string }[] = [];
@@ -136,10 +144,17 @@ const dayLabels = computed(() => [
   { dayOfWeek: 4, text: t("common.weekdayShort.fri") },
 ]);
 
-const width = computed(() => dayLabelWidth + weeks.value.length * cellPitch);
-const height = monthLabelHeight + 7 * cellPitch - gap;
+const svgWidth = computed(() => dayLabelWidth + weeks.value.length * pitch.value);
+const svgHeight = computed(() => monthLabelHeight + 7 * pitch.value - gap.value);
 
-function formatTooltip(cell: Cell): string {
-  return formatCalendarTooltip(cell.date, cell.seconds, locale.value, t);
-}
+const formatTooltip = (cell: HeatmapCell): string =>
+  formatCalendarTooltip(cell.date, cell.seconds, locale.value, t);
 </script>
+
+<style scoped>
+.heatmap-cell:hover {
+  stroke: var(--foreground);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+}
+</style>

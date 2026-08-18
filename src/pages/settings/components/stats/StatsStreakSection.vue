@@ -12,7 +12,7 @@
     <div class="px-4 pb-3">
       <div
         v-if="isDailyLoading"
-        class="h-28 animate-pulse rounded-lg bg-background"
+        class="h-40 animate-pulse rounded-lg bg-background"
       />
       <CalendarHeatmap
         v-else
