@@ -7,7 +7,7 @@
     :overscan="4"
     :padding-bottom="8"
     :get-item-key="getItemKey"
-    class="flex-1 bg-card"
+    class="queue-up-next-list flex-1 bg-card"
   >
     <template #default="{ item, index }">
       <QueueDraggableRow
@@ -77,4 +77,22 @@ makeDroppable(scrollContainer, {
 }, () => upcomingQueueItems.value);
 
 makeAutoScroll(scrollContainer, { threshold: 70 });
+
+// The docs' reorder animation (TransitionGroup + .list-move) doesn't apply to
+// a virtual list: rows are absolutely positioned via translateY. Transitioning
+// that transform gives the same slide — wrappers are keyed by queue item id,
+// so on reorder the same element receives a new offset. Scroll doesn't touch
+// these transforms (offsets are absolute), so nothing animates while scrolling.
 </script>
+
+<style>
+.queue-up-next-list [data-index] {
+  transition: transform 0.3s var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-up-next-list [data-index] {
+    transition: none;
+  }
+}
+</style>
