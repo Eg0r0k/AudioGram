@@ -32,13 +32,15 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-
 tokio = { version = "1", features = ["fs", "io-util", "rt", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
-rustypipe = { version = "0.11.4", default-features = false, features = ["rustls-tls-webpki-roots"] }
 lofty = "0.24.0"
 log = "0.4.33"
 percent-encoding = "2"
 tauri-plugin-http = "2.5.9"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# rquickjs (via rustypipe) ships no prebuilt bindings for mobile targets;
+# the youtube module that needs it is desktop-only anyway.
+rustypipe = { version = "0.11.4", default-features = false, features = ["rustls-tls-webpki-roots"] }
 discord-rich-presence = "1.1.0"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"

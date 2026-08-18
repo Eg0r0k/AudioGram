@@ -1,5 +1,6 @@
 import { watch } from "vue";
 import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 import { getLogger } from "@/lib/logger";
 import { useGeneralSettings } from "@/modules/settings/store/general";
 import { useUpdateStore } from "../store/update.store";
@@ -18,10 +19,14 @@ export const useAppUpdates = () => {
   const updateStore = useUpdateStore();
   const { checkUpdatesOnLaunch } = useGeneralSettings();
 
-  if (IS_TAURI) {
+  if (platformCaps.hasAppUpdater) {
     useUpdateScheduler({ enabled: checkUpdatesOnLaunch });
     return;
   }
+
+  // Mobile Tauri: no updater plugin and no service worker — updates ship as
+  // new APKs from the releases page.
+  if (IS_TAURI) return;
 
   const { applyPwaUpdate, checkPwaUpdate } = usePwaUpdate(
     () => updateStore.channel,

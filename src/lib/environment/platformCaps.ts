@@ -10,11 +10,13 @@ export const platformCaps = {
   /** Spawning helper processes (yt-dlp). */
   canShellSpawn: IS_TAURI && !IS_MOBILE,
   /** Proxying remote streams/covers through the Rust HTTP layer. */
-  canProxyStream: IS_TAURI,
+  canProxyStream: IS_TAURI && !IS_MOBILE,
   /** Discord Rich Presence over local IPC. */
   hasDiscord: IS_TAURI && !IS_MOBILE,
   /** Native window integration: title updates, tray. */
-  hasNativeWindow: IS_TAURI,
+  hasNativeWindow: IS_TAURI && !IS_MOBILE,
+  /** The desktop updater (check_update/install_update commands). */
+  hasAppUpdater: IS_TAURI && !IS_MOBILE,
 } as const;
 
 export type PlatformCaps = typeof platformCaps;

@@ -113,6 +113,93 @@ jobs:
           prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
           tauriScript: pnpm tauri
 
+  build-android:
+    # needs: build so the GitHub release already exists when the APK uploads.
+    needs: [meta, build]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        shell: bash
+        run: |
+          sdkmanager --install "ndk;28.2.13676358"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend deps
+        run: pnpm install
+
+      - name: Write signing keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            echo "No ANDROID_KEYSTORE_B64 secret - the APK will be debug-signed."
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > src-tauri/gen/android/keystore.jks
+          {
+            echo "storeFile=../keystore.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > src-tauri/gen/android/app/key.properties
+
+      - name: Build APK
+        env:
+          VITE_GITHUB_REPO: Eg0r0k/audiogram
+          VITE_UPDATE_CHANNEL: ${{ needs.meta.outputs.channel }}
+        run: pnpm tauri android build --target aarch64 --apk true
+
+      - name: Upload APK to release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" | head -n1)
+          if [ -z "$APK" ]; then
+            echo "No release APK produced."
+            exit 1
+          fi
+          NAME="Audiogram_${TAG#v}_aarch64.apk"
+          cp "$APK" "$NAME"
+          gh release upload "$TAG" "$NAME" --repo Eg0r0k/audiogram --clobber
+
   publish-manifest:
     needs: [meta, build]
     if: needs.meta.outputs.channel == 'stable'
