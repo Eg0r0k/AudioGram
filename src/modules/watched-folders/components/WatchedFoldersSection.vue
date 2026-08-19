@@ -30,13 +30,14 @@
     />
 
     <Button
+      v-if="canAddFolder"
       class="w-full h-14 justify-start"
       variant="ghost-primary"
       size="xl"
       @click="addFolder"
     >
       <IconFolderPlus class="size-6" />
-      {{ $t('watchedFolders.addFolder') }}
+      {{ $t(addFolderLabelKey) }}
     </Button>
 
     <Button
@@ -99,6 +100,7 @@ import {
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import WatchedFolderItem from "./WatchedFolderItem.vue";
 import { useWatchedFolders } from "../composables/useWatchedFolders";
+import { IS_MOBILE } from "@/lib/environment/userAgent";
 import type { WatchedFolder } from "../types";
 
 import IconFolderPlus from "~icons/tabler/folder-plus";
@@ -116,6 +118,13 @@ const {
 
 const isAnyScanning = computed(() =>
   folders.value.some(f => f.status === "scanning"),
+);
+
+// On Android the only bindable folder is the public Music directory, so the
+// add button binds it once and then disappears.
+const canAddFolder = computed(() => !IS_MOBILE || folders.value.length === 0);
+const addFolderLabelKey = computed(() =>
+  IS_MOBILE ? "watchedFolders.addMusicFolder" : "watchedFolders.addFolder",
 );
 
 const isRemoveDialogOpen = ref(false);

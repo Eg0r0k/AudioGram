@@ -14,9 +14,13 @@ import type { WatchedFolder } from "../types";
 import { musicLibraryEngine } from "@/services/importer.service";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { normalizePath } from "@/lib/files/filterFiles";
+import { IS_MOBILE } from "@/lib/environment/userAgent";
 import { invalidateLibraryData } from "@/queries/library.queries";
 
 const activeWatchers = new Map<string, StopWatchFn>();
+
+/** The public Android music directory — the only folder bindable on mobile. */
+const ANDROID_MUSIC_DIR = "/storage/emulated/0/Music";
 
 export function useWatchedFolders() {
   const store = useWatchedFoldersStore();
@@ -26,11 +30,16 @@ export function useWatchedFolders() {
   const { folders, autoScanOnStartup } = storeToRefs(store);
 
   async function addFolder() {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t("watchedFolders.selectFolder"),
-    });
+    // Android has no directory picker; the one bindable folder is the public
+    // Music directory, readable via direct paths once READ_MEDIA_AUDIO is
+    // granted (MainActivity requests it on launch).
+    const selected = IS_MOBILE
+      ? ANDROID_MUSIC_DIR
+      : await open({
+          directory: true,
+          multiple: false,
+          title: t("watchedFolders.selectFolder"),
+        });
 
     if (!selected || typeof selected !== "string") return;
 
@@ -144,6 +153,13 @@ export function useWatchedFolders() {
 
   async function startFolderWatcher(folder: WatchedFolder) {
     if (activeWatchers.has(folder.id)) return;
+
+    // Android storage emits no usable FS events (inotify is dead on FUSE);
+    // the launch rescan and manual rescans keep the folder in sync instead.
+    if (IS_MOBILE) {
+      store.updateFolderStatus(folder.id, "watching");
+      return;
+    }
 
     try {
       const excludedPaths = store.getNestedFolderPaths(folder.path);
