@@ -64,12 +64,50 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
     return fromPromise((async () => {
       const target = normalizePath(targetRelPath);
       await this.ensureDir(this.getFolder(target));
+
+      // Android SAF sources (content://) cannot be std::fs-copied by the fs
+      // plugin; stream them through open(), which resolves them to an FD.
+      if (sourceAbsPath.startsWith("content://")) {
+        await this.copyStreaming(sourceAbsPath, target);
+        return target;
+      }
+
       const appData = await this.getAppDataDir();
       const destPath = this.joinPath(appData, target);
 
       await copyFile(sourceAbsPath, destPath);
       return target;
     })(), e => StorageError.writeFailed(targetRelPath, e));
+  }
+
+  private async copyStreaming(source: string, targetRelPath: string): Promise<void> {
+    const src = await open(source, { read: true });
+    try {
+      const dest = await open(targetRelPath, {
+        write: true,
+        create: true,
+        truncate: true,
+        baseDir: this.baseDir,
+      });
+      try {
+        const buffer = new Uint8Array(1024 * 1024);
+        for (;;) {
+          const read = await src.read(buffer);
+          if (!read) break;
+          let chunk = buffer.subarray(0, read);
+          while (chunk.length > 0) {
+            const written = await dest.write(chunk);
+            chunk = chunk.subarray(written);
+          }
+        }
+      }
+      finally {
+        await dest.close();
+      }
+    }
+    finally {
+      await src.close();
+    }
   }
 
   readFile(absolutePath: string): ResultAsync<Uint8Array, StorageError> {
