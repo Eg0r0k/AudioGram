@@ -149,7 +149,7 @@ pub(crate) fn range_response(
 
 /// Parses `bytes=start-end?` (suffix ranges like `bytes=-500` are not used by
 /// media elements and fall back to a full response).
-fn parse_range_header(raw: &str) -> Option<(usize, Option<usize>)> {
+pub(crate) fn parse_range_header(raw: &str) -> Option<(usize, Option<usize>)> {
     let spec = raw.strip_prefix("bytes=")?;
     let (start, end) = spec.split_once('-')?;
     let start = start.trim().parse().ok()?;
@@ -212,6 +212,9 @@ async fn route<R: Runtime>(
     }
     if let Some(id) = path.strip_prefix("nd/song/") {
         return crate::nd::stream_song(app, id, range).await;
+    }
+    if let Some(file_path) = path.strip_prefix("local/") {
+        return crate::localfile::stream_local(file_path, range).await;
     }
     if let Some(id) = path.strip_prefix("nd/cover/") {
         return crate::nd::fetch_cover(app, id, query).await;

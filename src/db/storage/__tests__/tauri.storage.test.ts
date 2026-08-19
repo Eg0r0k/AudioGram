@@ -3,6 +3,7 @@ import { TauriStorage } from "../tauri.storage";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
 const mocks = vi.hoisted(() => ({
+  isAndroid: false,
   writeFile: vi.fn(),
   readFile: vi.fn(),
   copyFile: vi.fn(),
@@ -41,12 +42,19 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: mocks.convertFileSrc,
 }));
 
+vi.mock("@/lib/environment/userAgent", () => ({
+  get IS_ANDROID() {
+    return mocks.isAndroid;
+  },
+}));
+
 describe("TauriStorage", () => {
   let storage: TauriStorage;
   const APP_DATA_PATH = "/usr/appdata";
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isAndroid = false;
     storage = new TauriStorage();
 
     mocks.appDataDir.mockResolvedValue(APP_DATA_PATH);
@@ -247,6 +255,32 @@ describe("TauriStorage", () => {
 
       expect(result.isOk()).toBe(true);
       expect(mocks.convertFileSrc).toHaveBeenCalledWith("C:/music/x.mp3");
+    });
+
+    it("should route relative paths through the stream local proxy on android", async () => {
+      mocks.isAndroid = true;
+      mocks.convertFileSrc.mockReturnValue("http://stream.localhost/local%2F...");
+
+      const result = await storage.getAudioUrl("tracks/1.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.convertFileSrc).toHaveBeenCalledWith(
+        `local/${APP_DATA_PATH}/tracks/1.mp3`,
+        "stream",
+      );
+    });
+
+    it("should route absolute paths through the stream local proxy on android", async () => {
+      mocks.isAndroid = true;
+      mocks.convertFileSrc.mockReturnValue("http://stream.localhost/local%2F...");
+
+      const result = await storage.getAudioUrl("/storage/emulated/0/Music/x.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(mocks.convertFileSrc).toHaveBeenCalledWith(
+        "local//storage/emulated/0/Music/x.mp3",
+        "stream",
+      );
     });
   });
 

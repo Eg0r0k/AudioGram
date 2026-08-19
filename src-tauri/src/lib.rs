@@ -20,6 +20,8 @@ mod discord_utils;
 #[cfg(desktop)]
 mod youtube;
 
+mod localfile;
+
 mod nd;
 
 mod proxy;
