@@ -23,6 +23,8 @@ mod nd;
 #[cfg(desktop)]
 mod stream;
 
+mod proxy;
+
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
 
@@ -77,7 +79,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .manage(proxy::ProxyState::default());
 
     #[cfg(desktop)]
     let builder = builder
@@ -85,7 +88,6 @@ pub fn run() {
         .manage(youtube::YtStreamCache::default())
         .manage(youtube::YtImageCache::default())
         .manage(youtube::YtAudioCache::default())
-        .manage(youtube::ProxyState::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
         .manage(nd::NdState::default())
@@ -127,8 +129,8 @@ pub fn run() {
         youtube::yt_prefetch,
         youtube::yt_download,
         youtube::yt_download_cancel,
-        youtube::set_proxy,
-        youtube::proxy_check,
+        proxy::set_proxy,
+        proxy::proxy_check,
         nd::nd_set_config,
         nd::nd_prefetch,
         nd::nd_download,
@@ -136,7 +138,10 @@ pub fn run() {
     ]);
 
     #[cfg(mobile)]
-    let builder = builder.invoke_handler(tauri::generate_handler![]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        proxy::set_proxy,
+        proxy::proxy_check,
+    ]);
 
     builder
         .setup(|app| {
