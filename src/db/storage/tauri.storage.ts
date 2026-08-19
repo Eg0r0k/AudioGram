@@ -69,13 +69,11 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
       // plugin; stream them through open(), which resolves them to an FD.
       if (sourceAbsPath.startsWith("content://")) {
         await this.copyStreaming(sourceAbsPath, target);
-        return target;
       }
-
-      const appData = await this.getAppDataDir();
-      const destPath = this.joinPath(appData, target);
-
-      await copyFile(sourceAbsPath, destPath);
+      else {
+        const appData = await this.getAppDataDir();
+        await copyFile(sourceAbsPath, this.joinPath(appData, target));
+      }
       return target;
     })(), e => StorageError.writeFailed(targetRelPath, e));
   }
