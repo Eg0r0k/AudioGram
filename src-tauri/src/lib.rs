@@ -1,6 +1,9 @@
 use std::{fs, path::Path};
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
+
+#[cfg(desktop)]
+use tauri::Emitter;
 
 #[cfg(desktop)]
 mod updater;
@@ -17,10 +20,10 @@ mod discord_utils;
 #[cfg(desktop)]
 mod youtube;
 
-#[cfg(desktop)]
 mod nd;
 
-#[cfg(desktop)]
+mod proxy;
+
 mod stream;
 
 fn dir_size(path: &Path) -> u64 {
@@ -77,7 +80,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .manage(proxy::ProxyState::default())
+        .manage(nd::NdState::default())
+        .manage(nd::NdCoverCache::default())
+        .manage(nd::NdAudioCache::default())
+        .manage(nd::NdDownloadRegistry::default())
+        .register_asynchronous_uri_scheme_protocol("stream", stream::serve);
 
     #[cfg(desktop)]
     let builder = builder
@@ -85,14 +94,8 @@ pub fn run() {
         .manage(youtube::YtStreamCache::default())
         .manage(youtube::YtImageCache::default())
         .manage(youtube::YtAudioCache::default())
-        .manage(youtube::ProxyState::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
-        .manage(nd::NdState::default())
-        .manage(nd::NdCoverCache::default())
-        .manage(nd::NdAudioCache::default())
-        .manage(nd::NdDownloadRegistry::default())
-        .register_asynchronous_uri_scheme_protocol("stream", stream::serve)
         .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
@@ -127,8 +130,8 @@ pub fn run() {
         youtube::yt_prefetch,
         youtube::yt_download,
         youtube::yt_download_cancel,
-        youtube::set_proxy,
-        youtube::proxy_check,
+        proxy::set_proxy,
+        proxy::proxy_check,
         nd::nd_set_config,
         nd::nd_prefetch,
         nd::nd_download,
@@ -136,12 +139,21 @@ pub fn run() {
     ]);
 
     #[cfg(mobile)]
-    let builder = builder.invoke_handler(tauri::generate_handler![]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        app_data_folder_size,
+        proxy::set_proxy,
+        proxy::proxy_check,
+        nd::nd_set_config,
+        nd::nd_prefetch,
+        nd::nd_download,
+        nd::nd_download_cancel,
+    ]);
 
     builder
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(desktop)]
             {
+                let app = _app;
                 tray::setup_tray(app)?;
 
                 let files: Vec<String> = std::env::args().skip(1).collect();

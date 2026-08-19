@@ -125,6 +125,59 @@ describe("TauriStorage", () => {
         source,
         `${APP_DATA_PATH}/${target}`,
       );
+      expect(mocks.open).not.toHaveBeenCalled();
+    });
+
+    it("should stream content:// sources through open() instead of copyFile", async () => {
+      const chunks = [new Uint8Array([1, 2, 3])];
+      let readCall = 0;
+      const src = {
+        read: vi.fn(async (buffer: Uint8Array) => {
+          if (readCall >= chunks.length) return 0;
+          buffer.set(chunks[readCall]);
+          return chunks[readCall++].length;
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const dest = {
+        write: vi.fn(async (data: Uint8Array) => data.length),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      mocks.open.mockResolvedValueOnce(src).mockResolvedValueOnce(dest);
+
+      const result = await storage.importFile("content://media/audio/123", "tracks/x.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("tracks/x.mp3");
+      expect(mocks.copyFile).not.toHaveBeenCalled();
+      expect(mocks.open).toHaveBeenNthCalledWith(1, "content://media/audio/123", { read: true });
+      expect(mocks.open).toHaveBeenNthCalledWith(2, "tracks/x.mp3", expect.objectContaining({
+        write: true,
+        create: true,
+        baseDir: 1,
+      }));
+      expect(dest.write).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
+      expect(src.close).toHaveBeenCalled();
+      expect(dest.close).toHaveBeenCalled();
+    });
+
+    it("should close both handles and fail when the streamed read throws", async () => {
+      const src = {
+        read: vi.fn().mockRejectedValue(new Error("EACCES")),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const dest = {
+        write: vi.fn(),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      mocks.open.mockResolvedValueOnce(src).mockResolvedValueOnce(dest);
+
+      const result = await storage.importFile("content://media/audio/9", "tracks/y.mp3");
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe(StorageErrorCode.WRITE_FAILED);
+      expect(src.close).toHaveBeenCalled();
+      expect(dest.close).toHaveBeenCalled();
     });
   });
 

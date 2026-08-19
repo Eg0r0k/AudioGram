@@ -3,6 +3,7 @@
   "autoScan": "Auto scan",
   "autoScanDesc": "Automatically scan for new music when the app starts",
   "addFolder": "Add folder",
+  "addMusicFolder": "Add Music folder",
   "scanAll": "Scan all",
   "removeDialogTitle": "Remove folder?",
   "removeDialogDescription": "Are you sure you want to remove \"{name}\" from watched folders?",

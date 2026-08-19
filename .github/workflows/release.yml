@@ -201,8 +201,10 @@ jobs:
           gh release upload "$TAG" "$NAME" --repo Eg0r0k/audiogram --clobber
 
   publish-manifest:
-    needs: [meta, build]
-    if: needs.meta.outputs.channel == 'stable'
+    # Waits for the APK so latest.json can carry the android entry, but a
+    # failed android job must not block desktop updates.
+    needs: [meta, build, build-android]
+    if: always() && needs.meta.outputs.channel == 'stable' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -271,6 +273,8 @@ jobs:
           WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("x64-setup\\.exe\\.sig$")) | .url // empty' | head -n1)
           LINUX_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("\\.AppImage$")) | .url // empty' | head -n1)
           LINUX_SIG_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("\\.AppImage\\.sig$")) | .url // empty' | head -n1)
+          # Optional: the android job may be skipped, the manifest still ships.
+          ANDROID_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("aarch64\\.apk$")) | .url // empty' | head -n1)
 
           echo "Resolved asset URLs:"
           echo "WIN_URL=$WIN_URL"
@@ -300,14 +304,15 @@ jobs:
             --arg win_sig "$WIN_SIG" \
             --arg linux_url "$LINUX_URL" \
             --arg linux_sig "$LINUX_SIG" \
+            --arg android_url "$ANDROID_URL" \
             '{
               version: $version,
               notes: $notes,
               pub_date: $pub_date,
-              platforms: {
+              platforms: ({
                 "windows-x86_64": { url: $win_url, signature: $win_sig },
                 "linux-x86_64": { url: $linux_url, signature: $linux_sig }
-              }
+              } + (if $android_url != "" then { "android-aarch64": { url: $android_url, signature: "" } } else {} end))
             }' > "docs/manifests/${CHANNEL}/latest.json"
 
           echo "Generated docs/manifests/${CHANNEL}/latest.json:"

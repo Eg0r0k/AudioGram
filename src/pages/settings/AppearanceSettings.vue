@@ -50,7 +50,7 @@
         </div>
       </SettingsGroup>
 
-      <template v-if="isTauri">
+      <template v-if="platformCaps.hasZoom">
         <SettingsGroup class="mt-2">
           <Item>
             <ItemContent>
@@ -107,7 +107,7 @@ import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useAppearanceSettings } from "@/modules/settings/store/appearance";
 import { useZoom } from "@/modules/settings/composables/useZoom";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { platformCaps } from "@/lib/environment/platformCaps";
 
 const {
   theme, themes, setTheme,
@@ -119,5 +119,4 @@ const {
   zoom, zoomLevels, setZoom,
 } = useZoom();
 
-const isTauri = IS_TAURI;
 </script>

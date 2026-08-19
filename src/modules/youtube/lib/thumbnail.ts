@@ -31,7 +31,8 @@ export const THUMB_SIZE_ROW = 226;
  */
 export function proxiedThumbnail(url: string, size: number = THUMB_SIZE_FULL): string {
   const sharp = upscaledThumbnail(url, size);
-  if (!platformCaps.canProxyStream) return sharp;
+  // ytimg:// is registered by the desktop-only youtube module.
+  if (!platformCaps.canShellSpawn) return sharp;
   return convertFileSrc(sharp, "ytimg");
 }
 

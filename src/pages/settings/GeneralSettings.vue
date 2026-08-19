@@ -62,7 +62,7 @@
         </Button>
       </SettingsGroup>
 
-      <template v-if="isTauri">
+      <template v-if="platformCaps.hasNativeWindow">
         <SettingsGroup class="mt-2">
           <Item @click="setLaunchAtStartup(!launchAtStartup)">
             <ItemContent>
@@ -132,6 +132,7 @@ import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useGeneralSettings } from "@/modules/settings/store/general";
 import { useUpdateStore } from "@/modules/update/store/update.store";
+import { platformCaps } from "@/lib/environment/platformCaps";
 
 const {
   checkUpdatesOnLaunch,
@@ -139,7 +140,6 @@ const {
   closeToTray,
   launchAtStartup,
   launchMinimized,
-  isTauri,
   setCheckUpdatesOnLaunch,
   setAnalyzeTracks,
   setCloseToTray,
