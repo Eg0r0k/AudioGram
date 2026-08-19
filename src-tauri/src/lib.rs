@@ -71,6 +71,10 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
+                // Trace is the plugin default and on Android the jni crate
+                // traces every native call — thousands of lines per second of
+                // audio, drowning app messages and hammering the log file.
+                .level(log::LevelFilter::Info)
                 .max_file_size(5 * 1_024 * 1_024) // 5 MB per log file
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .build(),
