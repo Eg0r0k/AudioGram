@@ -27,6 +27,7 @@ import { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
 import { isCancelled, yieldToEventLoop } from "./shared";
 import { chunk } from "@/lib/math";
+import { sniffAudioExtension } from "@/lib/files/sniffAudioType";
 
 type FailedImport = { fileName: string; error: ImportError };
 
@@ -208,7 +209,12 @@ export class ImportPipeline {
   private validateItems(items: ImportItem[], outcome: BatchOutcome): ImportItem[] {
     const validated: ImportItem[] = [];
     for (const item of items) {
-      if (isValidImportItem(item.name, item.file?.type)) {
+      // Android MediaStore URIs expose no file name or extension; their
+      // container is sniffed from the actual bytes later, which is a stricter
+      // check than the name-based one.
+      const isOpaqueContentUri
+        = item.type === "native" && !item.ext && !!item.path?.startsWith("content://");
+      if (isOpaqueContentUri || isValidImportItem(item.name, item.file?.type)) {
         validated.push(item);
       }
       else {
@@ -277,18 +283,22 @@ export class ImportPipeline {
     control?: ImportControl,
   ): ResultAsync<TrackToSave, ImportError> {
     const trackId = TrackId(crypto.randomUUID());
-    const storagePath = `tracks/${trackId}.${item.ext}`;
+    // Resolved after the head bytes are read: Android content:// items carry
+    // no extension, so it may have to be sniffed from the container magic.
+    let storagePath = "";
 
     return ResultAsync.fromPromise(
       this.deps.itemIO.readHeadBytes(item),
       (e): ImportError => e instanceof ImportError ? e : ImportError.readFailed(item.name, e),
     )
-      .andThen(data =>
-        ResultAsync.fromPromise(
+      .andThen((data) => {
+        const ext = item.ext || sniffAudioExtension(data) || "mp3";
+        storagePath = `tracks/${trackId}.${ext}`;
+        return ResultAsync.fromPromise(
           this.deps.metadataParser.parse(item.name, data, item.file),
           (e): ImportError => e instanceof ImportError ? e : ImportError.parseFailed(item.name, e),
-        ),
-      )
+        );
+      })
       .andThen(meta =>
         ResultAsync.fromPromise(
           (async () => {

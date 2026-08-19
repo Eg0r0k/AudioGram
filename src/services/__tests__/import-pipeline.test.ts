@@ -230,6 +230,25 @@ describe("ImportPipeline", () => {
       );
     });
 
+    it("accepts an extension-less content:// item and sniffs its storage extension", async () => {
+      const item: ImportItem = {
+        type: "native",
+        name: "audio%3A42",
+        ext: "",
+        path: "content://media/external/audio/media/42",
+        fileSize: 0,
+      };
+      fakes.readHeadBytes.mockResolvedValue(new Uint8Array([0x66, 0x4C, 0x61, 0x43]));
+
+      const result = await makePipeline(fakes).run([item]);
+
+      expect(result.successful).toHaveLength(1);
+      expect(fakes.copyToStorage).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringMatching(/^tracks\/.+\.flac$/),
+      );
+    });
+
     it("keeps processing the supported files in a mixed batch", async () => {
       const result = await makePipeline(fakes).run(
         nativeItems("a.mp3", "readme.txt", "b.flac", "photo.png", "c.wav"),
