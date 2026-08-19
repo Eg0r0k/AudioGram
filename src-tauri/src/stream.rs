@@ -206,6 +206,7 @@ async fn route<R: Runtime>(
     query: Option<&str>,
     range: Option<String>,
 ) -> Result<tauri::http::Response<Vec<u8>>, String> {
+    #[cfg(desktop)]
     if let Some(id) = path.strip_prefix("yt/") {
         return crate::youtube::stream_yt(app, id, range).await;
     }

@@ -23,6 +23,15 @@ impl ProxyState {
     }
 }
 
+/// Plain reqwest client honoring the shared proxy state.
+pub(crate) fn http_client<R: Runtime>(app: &AppHandle<R>) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder();
+    if let Some(url) = app.state::<ProxyState>().get() {
+        builder = builder.proxy(reqwest::Proxy::all(&url).map_err(|e| e.to_string())?);
+    }
+    builder.build().map_err(|e| e.to_string())
+}
+
 /// Stores the proxy URL for later streaming use. An empty/blank URL clears it.
 #[tauri::command]
 pub async fn set_proxy<R: Runtime>(app: AppHandle<R>, url: Option<String>) {

@@ -75,7 +75,12 @@ pub async fn nd_prefetch<R: Runtime>(
     };
 
     let url = config.rest_url("stream.view", &song_id, "&format=raw");
-    let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    let response = crate::proxy::http_client(&app)?
+        .get(&url)
+        .send()
+        .await
+        // reqwest errors can embed the URL (auth token) — never propagate it.
+        .map_err(|e| format!("request failed: {}", e.without_url()))?;
     let status = response.status().as_u16();
     if status != 200 {
         return Err(format!("prefetch failed: upstream status {status}"));
@@ -120,7 +125,8 @@ pub(crate) async fn stream_song<R: Runtime>(
     };
 
     let url = config.rest_url("stream.view", song_id, "&format=raw");
-    let response = forward_get(&url, &[], range, None, DEFAULT_RANGE_SPAN).await?;
+    let proxy = app.state::<crate::proxy::ProxyState>().get();
+    let response = forward_get(&url, &[], range, proxy, DEFAULT_RANGE_SPAN).await?;
     if response.status().as_u16() >= 400 {
         log::warn!("stream nd/song/{song_id}: upstream status {}", response.status());
         return Ok(status_response(502));

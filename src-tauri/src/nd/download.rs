@@ -136,7 +136,7 @@ async fn download_to_tmp<R: Runtime>(
     cancelled: &AtomicBool,
 ) -> Result<NdDownloadResult, String> {
     let url = config.rest_url("stream.view", song_id, "&format=raw");
-    let client = reqwest::Client::new();
+    let client = crate::proxy::http_client(app)?;
     let mut resp = client.get(&url).send().await.map_err(|e| {
         // reqwest errors can embed the URL (auth token) — never propagate it.
         format!("request failed: {}", e.without_url())

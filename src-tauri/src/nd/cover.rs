@@ -80,7 +80,8 @@ pub(crate) async fn fetch_cover<R: Runtime>(
     };
 
     let url = config.rest_url("getCoverArt.view", cover_id, &size);
-    let response = forward_get(&url, &[], None, None, DEFAULT_RANGE_SPAN).await?;
+    let proxy = app.state::<crate::proxy::ProxyState>().get();
+    let response = forward_get(&url, &[], None, proxy, DEFAULT_RANGE_SPAN).await?;
     if response.status().as_u16() >= 400 {
         log::warn!("stream nd/cover/{cover_id}: upstream status {}", response.status());
         return Ok(status_response(502));
