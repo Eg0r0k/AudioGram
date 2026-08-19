@@ -1,18 +1,18 @@
 {
-  "version": "0.2.2",
-  "notes": "### New Features\n- **Navidrome on Android** - The Rust streaming layer now ships in the mobile build: the source switcher, playback, covers and offline downloads work on the phone, not just the connection check\n- **Music folder binding** - One tap in storage settings binds /Music: the library picks up everything in it on launch and on manual rescans, no per-file importing\n- **Android update check** - The app checks the release manifest on the phone too; installing opens the APK download and Android takes it from there\n\n### Improvements\n- Proxy settings work on Android and apply to Navidrome streaming and downloads on every platform\n- Settings no longer show desktop-only switches on the phone: autostart, close to tray and webview zoom are hidden where they can't work\n- Storage settings show real folder sizes on Android\n\n### Bug Fixes\n- Importing from the Android file picker saves files instead of failing on every track: SAF content:// sources are streamed into app storage rather than path-copied\n- Files picked without a name extension (Android media picker) get a real one sniffed from the audio container, so they play back properly",
-  "pub_date": "2026-08-19T16:07:29Z",
+  "version": "0.2.3",
+  "notes": "",
+  "pub_date": "2026-08-19T20:57:54Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.2/Audiogram_0.2.2_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc2RtVnJvbnNOU081UjhaRDJ2dHpnWk1jWmNWZU5EUzNzKzgvWlorbDNPaTZTN2dMVjFwZGVNQ3RVa3l2dVAvWlV1aWxhQ0ltWkpnSkNvZit4YkFYU1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTU2NDIxCWZpbGU6QXVkaW9ncmFtXzAuMi4yX3g2NC1zZXR1cC5leGUKVGZXcUxBZk4rcy96Y3VJQk5SenczaWhBRUR2alBaVExoRTdLTTU4cFVXT1dnQ3NFajRiUCtzYUlKVWYrMkdXS0JDbGs1RS9Sa3RmZDRxZ1FmMVc0Q1E9PQo="
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.3/Audiogram_0.2.3_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1J5SFpqWXZKNWNFQ0ZIWjlrZkNqNlRrYXpJR0RZQk81ZlJCY1Y2L1IxOXUwZkRsTStsNEZkWnZFK1FxUjFCNE85Sm1lMTJVdjZUWVA5elVzakpFTUFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTczMDc0CWZpbGU6QXVkaW9ncmFtXzAuMi4zX3g2NC1zZXR1cC5leGUKaytHNDF1V2ltUTBWMjV6K3ViOGxaTlZLbFhMdHB2bEltd2N4UGJwZG5TZDFsOEdqL0tCOWVFOHorcGsvcjhqTUI4dUFJOUtDdktGazBROFlrcDhJQUE9PQo="
     },
     "linux-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.2/Audiogram_0.2.2_amd64.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc2JybUVodC8xZ2s4OVE5TzdaZU1Ra0F5ZlgzU0ZGeTlvT3JUaWNpb0dsREJMK0RTNFc3aFJmbm1PYkQxc084RHFQdHNFZHdXTjZXRUZhdWEyYkx5MmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTYwMjA4CWZpbGU6QXVkaW9ncmFtXzAuMi4yX2FtZDY0LkFwcEltYWdlCllBSWRWSUFwem9tR01GbklhSHJNVFlHaWZHQXJBeWNacFJJK2ZEbG5SbmE2Y3E1TzlsWHBqSlNwL1NDQmxlcUg0VVllOExaenc1Rmx5Sm9uMm8vaURnPT0K"
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.3/Audiogram_0.2.3_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc2RxckU3clNTZ3BRaHpyRmdSWmowUjQ2L2ZZT284dTBId0VBdXhHTWRsWTd3bUlydTRIZktHU2JQTnhpaVdSS2tDSUFsWHhTc0dHZjE0OXROdE5hUFF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MTczMzAxCWZpbGU6QXVkaW9ncmFtXzAuMi4zX2FtZDY0LkFwcEltYWdlCkM5aG9MVVRsRDhrZDVDMzU1TEdjbkExUWlCSm10a3JVK0Z0cTZSRnZuSEg4MHl0aGFQbStpSVp1QlJLdXlIT1ZvZGhqSE1PVzRUQWZXYjU5Q3ZvL0JBPT0K"
     },
     "android-aarch64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.2/Audiogram_0.2.2_aarch64.apk",
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.3/Audiogram_0.2.3_aarch64.apk",
       "signature": ""
     }
   }
