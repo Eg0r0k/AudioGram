@@ -1,3 +1,11 @@
+// Without these the first session after registration is uncontrolled and
+// every /opfs/ URL falls through to the network (media error instead of
+// playback until the app is reloaded).
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (!url.pathname.startsWith("/opfs/")) return;
@@ -23,7 +31,19 @@ self.addEventListener("fetch", (event) => {
         const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
         if (match) {
           const start = parseInt(match[1], 10);
-          const end = match[2] ? parseInt(match[2], 10) : file.size - 1;
+          // An unclamped end declares a Content-Length larger than the body,
+          // which Chromium aborts as a length mismatch mid-playback.
+          const end = match[2]
+            ? Math.min(parseInt(match[2], 10), file.size - 1)
+            : file.size - 1;
+
+          if (start >= file.size || start > end) {
+            return new Response(null, {
+              status: 416,
+              headers: { "Content-Range": `bytes */${file.size}` },
+            });
+          }
+
           const chunk = file.slice(start, end + 1);
 
           return new Response(chunk, {

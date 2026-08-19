@@ -15,6 +15,8 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 import type { IFileStorageWithNativeSupport } from "./IFileStorage";
+import { IS_ANDROID } from "@/lib/environment/userAgent";
+import { localFileStreamUrl } from "@/lib/stream-url";
 import { StorageError } from "../errors/storage.errors";
 import { normalizePath } from "./pathUtils";
 
@@ -170,12 +172,18 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
       (async () => {
         const normalizedPath = path.replace(/\\/g, "/");
 
-        if (this.isAbsolutePath(normalizedPath)) {
-          return convertFileSrc(normalizedPath);
+        const absolutePath = this.isAbsolutePath(normalizedPath)
+          ? normalizedPath
+          : this.joinPath(await this.getAppDataDir(), normalizedPath);
+
+        // The Android WebView re-slices intercepted responses by the request's
+        // Range header, which breaks the asset protocol's pre-sliced chunks
+        // (playback dies after the first ~1MB) — see localfile.rs.
+        if (IS_ANDROID) {
+          return localFileStreamUrl(absolutePath);
         }
 
-        const appData = await this.getAppDataDir();
-        return convertFileSrc(this.joinPath(appData, normalizedPath));
+        return convertFileSrc(absolutePath);
       })(),
       error => StorageError.readFailed(path, error),
     );

@@ -39,6 +39,16 @@ export function ndSongStreamUrl(songId: string): string {
 }
 
 /**
+ * Builds the playable URL for a local file routed through the proxy. Android
+ * only: the WebView re-applies Range slicing to intercepted responses, which
+ * corrupts the asset protocol's pre-sliced 206 chunks (see localfile.rs), so
+ * local playback goes through `stream://…/local/` there instead.
+ */
+export const localFileStreamUrl = (absolutePath: string): string => {
+  return convertFileSrc(`local/${absolutePath}`, "stream");
+};
+
+/**
  * Builds the proxied Navidrome cover URL. The `?size=` query rides inside
  * the encoded path; the Rust dispatcher decodes it back out.
  */
