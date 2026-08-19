@@ -17,6 +17,8 @@ export const platformCaps = {
   hasNativeWindow: IS_TAURI && !IS_MOBILE,
   /** The desktop updater (check_update/install_update commands). */
   hasAppUpdater: IS_TAURI && !IS_MOBILE,
+  /** Webview zoom control (desktop webviews only). */
+  hasZoom: IS_TAURI && !IS_MOBILE,
 } as const;
 
 export type PlatformCaps = typeof platformCaps;
