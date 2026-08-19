@@ -5,7 +5,7 @@ import type { DownloadProgress, PwaUpdateHandlers, UpdateChannel, UpdateError, U
 import { checkUpdate, installUpdate } from "../api/updateApi";
 import { fetchReleaseNotes } from "../api/changelogApi";
 import { normalizeReleaseNotes } from "../lib/releaseNotes";
-import { IS_TAURI } from "@/lib/environment/userAgent";
+import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
 
 export const useUpdateStore = defineStore("update", () => {
   const status = ref<UpdateStatus>("idle");
@@ -107,6 +107,23 @@ export const useUpdateStore = defineStore("update", () => {
         message: "Native install is not available in PWA mode",
       };
       status.value = "error";
+      return;
+    }
+
+    // Android hands the APK URL to the browser/installer — there is no
+    // in-process download to track, so the flow ends right here.
+    if (IS_MOBILE) {
+      await stageChangelogForInstall();
+      const mobileResult = await installUpdate();
+      mobileResult.match(
+        () => {
+          status.value = "idle";
+        },
+        (e) => {
+          error.value = e;
+          status.value = "error";
+        },
+      );
       return;
     }
 
