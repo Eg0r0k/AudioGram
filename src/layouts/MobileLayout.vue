@@ -23,37 +23,12 @@
       <div
         v-if="isFullPlayerOpen"
         class="fixed z-40 top-(--toolbar-height) bottom-0 left-0 right-0 full-player-bg"
-        :style="{
-          '--player-bg': playerColor.hsl,
-          paddingBottom: bottom,
-        }"
+        :style="{ '--player-bg': playerColor.hsl }"
       >
-        <div class="flex h-full flex-col">
-          <div class="flex items-center justify-between px-4 pt-2 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="text-white"
-              :aria-label="$t('common.close')"
-              @click="isFullPlayerOpen = false"
-            >
-              <IconChevronDown class="size-5" />
-            </Button>
-
-            <div class="text-sm font-medium text-white">
-              {{ $t('player.nowPlaying') }}
-            </div>
-
-            <div class="w-8" />
-          </div>
-
-          <div class="min-h-0 flex-1">
-            <MobileFullPlayer
-              class="h-full"
-              @close="isFullPlayerOpen = false"
-            />
-          </div>
-        </div>
+        <MobileFullPlayer
+          class="h-full"
+          @close="isFullPlayerOpen = false"
+        />
       </div>
     </Transition>
 
@@ -66,14 +41,13 @@ import { ref, watch } from "vue";
 import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
+import { registerOverlayBackHandler, useOverlayBackButton } from "@/composables/useOverlayBackButton";
 import { useImport } from "@/modules/library/composables/useImport";
 import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 import DropOverlay from "@/components/DropOverlay.vue";
 import MiniPlayer from "@/components/layout/mobile/MiniPlayer.vue";
 import MobileFullPlayer from "@/components/layout/mobile/MobileFullPlayer.vue";
-import { Button } from "@/components/ui/button";
 import MobileRightPanel from "@/modules/right-panel/components/MobileRightPanel.vue";
-import IconChevronDown from "~icons/tabler/chevron-down";
 import WindowToolbar from "@/components/WindowToolbar.vue";
 
 const playerStore = usePlayerStore();
@@ -88,6 +62,13 @@ const openFullPlayer = () => {
   isFullPlayerOpen.value = true;
 };
 defineExpose({ open: openFullPlayer, close: closeFullPlayer });
+
+useOverlayBackButton();
+registerOverlayBackHandler({
+  isOpen: () => isFullPlayerOpen.value,
+  back: closeFullPlayer,
+  priority: 10,
+});
 
 watch(() => playerStore.currentTrack, (track) => {
   if (!track && isFullPlayerOpen.value) isFullPlayerOpen.value = false;

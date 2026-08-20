@@ -615,4 +615,12 @@ defineExpose({
 .range-selector__tooltip-time {
   opacity: 0.75;
 }
+
+/* No hover, no "grow on hover": touch devices get the hover height as the
+   resting height, so the touch target is never the thin idle track. */
+@media (hover: none) {
+  .range-selector {
+    --range-height: var(--range-height-hover);
+  }
+}
 </style>
