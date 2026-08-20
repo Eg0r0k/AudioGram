@@ -12,10 +12,8 @@ import {
   stat,
 } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/core";
 
 import type { IFileStorageWithNativeSupport } from "./IFileStorage";
-import { IS_ANDROID } from "@/lib/environment/userAgent";
 import { localFileStreamUrl } from "@/lib/stream-url";
 import { StorageError } from "../errors/storage.errors";
 import { normalizePath } from "./pathUtils";
@@ -176,14 +174,11 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
           ? normalizedPath
           : this.joinPath(await this.getAppDataDir(), normalizedPath);
 
-        // The Android WebView re-slices intercepted responses by the request's
-        // Range header, which breaks the asset protocol's pre-sliced chunks
-        // (playback dies after the first ~1MB) — see localfile.rs.
-        if (IS_ANDROID) {
-          return localFileStreamUrl(absolutePath);
-        }
-
-        return convertFileSrc(absolutePath);
+        // One transport on every platform: the loopback media server. The
+        // asset protocol cannot stream on Android (the WebView re-slices
+        // intercepted responses and wry buffers the full body — OOM on big
+        // files), and a single code path beats two per-platform ones.
+        return localFileStreamUrl(absolutePath);
       })(),
       error => StorageError.readFailed(path, error),
     );
