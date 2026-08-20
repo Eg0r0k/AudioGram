@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import type { YtMusicTrack } from "../types";
 
-// The row builder goes through Tauri's custom-scheme mapper for the stream
-// URL and the proxied cover; neither exists outside the webview.
+// The row builder needs the media-server base for the stream URL; the
+// proxied-cover path is gated off (IS_TAURI false → no ytimg scheme).
 vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: false, IS_MOBILE: false }));
-vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string, scheme: string) => `${scheme}://localhost/${path}`,
-}));
+import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import {
   playableFromMusicTrack,
   ytDownloadDto,
   ytEphemeralTrack,
   ytMusicTrackToDto,
 } from "../lib/playable";
+
+setMediaServerBaseForTests("http://127.0.0.1:4321/tok");
 
 //
 // Search rows stream as ephemeral tracks, but downloading one must still pin
