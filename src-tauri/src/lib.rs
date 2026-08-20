@@ -66,6 +66,78 @@ async fn app_data_folder_size(app: tauri::AppHandle, folder: String) -> Result<u
         .map_err(|e| e.to_string())
 }
 
+/// True when `rel` can be safely joined under app-data: relative, and made of
+/// plain components only (no `..`, no roots, no prefixes).
+fn is_safe_import_target(rel: &Path) -> bool {
+    !rel.as_os_str().is_empty()
+        && rel
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+}
+
+/// Native-side copy for track import. The JS fallback streams Android SAF
+/// sources (`content://`, unreachable by std::fs) through the WebView bridge
+/// in 1 MiB chunks — ~500 IPC crossings for a 250 MB file, which takes
+/// minutes on a phone. Here the SAF URI resolves to a raw fd once and the
+/// whole `io::copy` stays native.
+#[tauri::command]
+async fn import_local_file(
+    app: tauri::AppHandle,
+    source: String,
+    target_rel: String,
+) -> Result<u64, String> {
+    use std::str::FromStr;
+    use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
+
+    let rel = std::path::PathBuf::from(&target_rel);
+    if !is_safe_import_target(&rel) {
+        return Err("invalid target path".into());
+    }
+
+    let target = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(rel);
+    let source_path = FilePath::from_str(&source).map_err(|e| e.to_string())?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut options = OpenOptions::new();
+        options.read(true);
+        let mut src = app
+            .fs()
+            .open(source_path, options)
+            .map_err(|e| e.to_string())?;
+        let mut dst = std::fs::File::create(&target).map_err(|e| e.to_string())?;
+        std::io::copy(&mut src, &mut dst).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod import_target_tests {
+    use super::is_safe_import_target;
+    use std::path::Path;
+
+    #[test]
+    fn accepts_plain_relative_paths() {
+        assert!(is_safe_import_target(Path::new("tracks/a.flac")));
+        assert!(is_safe_import_target(Path::new("offline/nd/x.mp3")));
+    }
+
+    #[test]
+    fn rejects_traversal_roots_and_empty() {
+        assert!(!is_safe_import_target(Path::new("../x")));
+        assert!(!is_safe_import_target(Path::new("tracks/../../x")));
+        assert!(!is_safe_import_target(Path::new("/abs/path")));
+        assert!(!is_safe_import_target(Path::new("")));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Bound BEFORE any webview exists so the frontend can never observe a
@@ -95,7 +167,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(proxy::ProxyState::default())
         .manage(nd::NdState::default())
-        .manage(nd::NdCoverCache::default())
         .manage(nd::NdAudioCache::default())
         .manage(nd::NdDownloadRegistry::default())
         .manage(media_state);
@@ -126,6 +197,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         app_data_folder_size,
+        import_local_file,
         media_server::media_server_base,
         discord::discord_set_activity,
         discord::discord_clear_activity,
@@ -154,6 +226,7 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         app_data_folder_size,
+        import_local_file,
         media_server::media_server_base,
         proxy::set_proxy,
         proxy::proxy_check,

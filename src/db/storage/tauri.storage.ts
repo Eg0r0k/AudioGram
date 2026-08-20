@@ -12,6 +12,7 @@ import {
   stat,
 } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
 
 import type { IFileStorageWithNativeSupport } from "./IFileStorage";
 import { localFileStreamUrl } from "@/lib/stream-url";
@@ -66,9 +67,16 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
       await this.ensureDir(this.getFolder(target));
 
       // Android SAF sources (content://) cannot be std::fs-copied by the fs
-      // plugin; stream them through open(), which resolves them to an FD.
+      // plugin. The copy runs fully on the Rust side: the JS streaming
+      // fallback crosses the WebView IPC bridge once per MiB in each
+      // direction, which turns a 250 MB import into minutes on a phone.
       if (sourceAbsPath.startsWith("content://")) {
-        await this.copyStreaming(sourceAbsPath, target);
+        try {
+          await invoke("import_local_file", { source: sourceAbsPath, targetRel: target });
+        }
+        catch {
+          await this.copyStreaming(sourceAbsPath, target);
+        }
       }
       else {
         const appData = await this.getAppDataDir();

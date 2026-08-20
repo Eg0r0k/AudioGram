@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   stat: vi.fn(),
   appDataDir: vi.fn(),
   convertFileSrc: vi.fn(),
+  invoke: vi.fn(),
   fileHandle: {
     read: vi.fn(),
     close: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock("@tauri-apps/api/path", () => ({
 
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: mocks.convertFileSrc,
+  invoke: mocks.invoke,
 }));
 
 vi.mock("@/lib/environment/userAgent", () => ({
@@ -65,6 +67,7 @@ describe("TauriStorage", () => {
     mocks.remove.mockResolvedValue(undefined);
     mocks.copyFile.mockResolvedValue(undefined);
     mocks.mkdir.mockResolvedValue(undefined);
+    mocks.invoke.mockResolvedValue(0);
   });
 
   describe("warmup", () => {
@@ -137,7 +140,21 @@ describe("TauriStorage", () => {
       expect(mocks.open).not.toHaveBeenCalled();
     });
 
-    it("should stream content:// sources through open() instead of copyFile", async () => {
+    it("should copy content:// sources through the native import command", async () => {
+      const result = await storage.importFile("content://media/audio/42", "tracks/z.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("tracks/z.mp3");
+      expect(mocks.invoke).toHaveBeenCalledWith("import_local_file", {
+        source: "content://media/audio/42",
+        targetRel: "tracks/z.mp3",
+      });
+      expect(mocks.copyFile).not.toHaveBeenCalled();
+      expect(mocks.open).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to JS streaming when the native command fails", async () => {
+      mocks.invoke.mockRejectedValueOnce(new Error("command unavailable"));
       const chunks = [new Uint8Array([1, 2, 3])];
       let readCall = 0;
       const src = {
@@ -171,6 +188,7 @@ describe("TauriStorage", () => {
     });
 
     it("should close both handles and fail when the streamed read throws", async () => {
+      mocks.invoke.mockRejectedValueOnce(new Error("command unavailable"));
       const src = {
         read: vi.fn().mockRejectedValue(new Error("EACCES")),
         close: vi.fn().mockResolvedValue(undefined),
