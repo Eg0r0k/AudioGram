@@ -17,6 +17,8 @@
   "upNext": "Up next",
   "previousTrack": "Previous",
   "nextTrack": "Next",
+  "like": "Like",
+  "unlike": "Remove like",
   "lyrics": "Lyrics",
   "addLyrics": "Add LRC",
   "replaceLyrics": "Replace LRC",

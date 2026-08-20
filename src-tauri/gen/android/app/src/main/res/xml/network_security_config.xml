@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The loopback media server (Rust, 127.0.0.1:{random port}) is the app's
+  playback transport. Cleartext to loopback is blocked by default on
+  API 28..36 (the implicit localhost exemption only exists from Android 17 /
+  API 37), so it must be allowed explicitly here. Everything else keeps the
+  platform default: no cleartext.
+
+  NOTE: the presence of this file makes android:usesCleartextTraffic ignored
+  (API 24+). The debug source set ships a permissive override so
+  `tauri android dev` (devUrl over the LAN) keeps working.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

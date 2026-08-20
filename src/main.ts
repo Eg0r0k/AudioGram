@@ -11,6 +11,7 @@ import { IS_TAURI } from "./lib/environment/userAgent";
 import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
 import { getLogger, initLogging } from "./lib/logger";
+import { initMediaServerBase } from "./lib/stream-url";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
 import { initDownloadManager } from "@/modules/downloads/manager";
 import { sweepOrphanedEntities } from "@/services/library-gc";
@@ -21,6 +22,14 @@ import { onAllDataCleared } from "@/services/storage-info.service";
 import { resetSearchIndex } from "@/modules/search/searchIndex";
 
 await initLogging();
+
+// Media URL builders are synchronous over this cached base — it must exist
+// before any store resolves playback or covers (incl. queue restore).
+// No-op outside Tauri. The Rust server binds before the webview, so this
+// cannot race server readiness.
+await initMediaServerBase().catch(error =>
+  getLogger().error(`[MediaServer] base init failed: ${String(error)}`),
+);
 
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);

@@ -1,4 +1,5 @@
-//! Whole-track prefetch cache and the `stream://…/nd/song/…` route.
+//! Whole-track prefetch cache and the `/{token}/nd/song/…` route of the
+//! loopback media server.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -6,7 +7,6 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::config::NdState;
-use crate::stream::{forward_get, range_response, status_response, DEFAULT_RANGE_SPAN};
 
 /// Whole prefetched ND tracks, keyed by song id — the counterpart of the YT
 /// prefetch cache: `nd_prefetch` fills it for the next queue entry while the
@@ -39,7 +39,8 @@ impl NdAudioCache {
 
     /// Returns false when the track is over the per-track cap and was NOT
     /// cached — the command must surface that instead of reporting success.
-    fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) -> bool {
+    /// `pub(crate)`: the media-server tests seed the cache directly.
+    pub(crate) fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) -> bool {
         if bytes.len() > MAX_PREFETCHED_ND_BYTES {
             return false;
         }
@@ -108,38 +109,121 @@ pub async fn nd_prefetch<R: Runtime>(
     Ok(())
 }
 
-/// `stream://…/nd/song/<songId>` → `stream.view?format=raw` with Rust-built
-/// auth, served from the prefetch cache when warm. Upstream 4xx/5xx becomes
-/// 502; logs carry only the song id.
-pub(crate) async fn stream_song<R: Runtime>(
-    app: &AppHandle<R>,
+/// `/{token}/nd/song/<songId>` → `stream.view?format=raw` with Rust-built
+/// auth. Served from the prefetch cache when warm (even unconfigured — the
+/// bytes are already local), otherwise the upstream body streams through
+/// untouched. Upstream 4xx/5xx becomes 502; logs carry only the song id.
+pub(crate) async fn serve_song(
+    config: Option<super::config::NdConfig>,
+    cache: &NdAudioCache,
+    proxy: Option<String>,
     song_id: &str,
-    range: Option<String>,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
-    if let Some((content_type, bytes)) = app.state::<NdAudioCache>().get(song_id) {
-        return Ok(range_response(&content_type, &bytes, range.as_deref()));
+    range: Option<&str>,
+    origin: Option<&str>,
+) -> http::Response<crate::media_server::Body> {
+    use crate::media_server::{forward_stream, memory_range_response, status_response};
+
+    if let Some((content_type, bytes)) = cache.get(song_id) {
+        return memory_range_response(&content_type, &bytes, range, origin);
     }
 
-    let Some(config) = app.state::<NdState>().get() else {
-        return Ok(status_response(503));
+    let Some(config) = config else {
+        return status_response(503, origin);
     };
 
     let url = config.rest_url("stream.view", song_id, "&format=raw");
-    let proxy = app.state::<crate::proxy::ProxyState>().get();
-    let response = forward_get(&url, &[], range, proxy, DEFAULT_RANGE_SPAN).await?;
+    let response =
+        match forward_stream(&url, &[], range.map(str::to_owned), proxy, None, origin).await {
+            Ok(response) => response,
+            Err(e) => {
+                log::warn!("media nd/song/{song_id}: {e}");
+                return status_response(502, origin);
+            }
+        };
     if response.status().as_u16() >= 400 {
-        log::warn!("stream nd/song/{song_id}: upstream status {}", response.status());
-        return Ok(status_response(502));
+        log::warn!("media nd/song/{song_id}: upstream status {}", response.status());
+        return status_response(502, origin);
     }
-    Ok(response)
+    response
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::BodyExt;
 
     fn filled(cache: &NdAudioCache, id: &str, len: usize) -> bool {
         cache.insert(id.to_owned(), "audio/flac".into(), vec![0u8; len])
+    }
+
+    fn test_config(base_url: String) -> super::super::config::NdConfig {
+        super::super::config::NdConfig {
+            base_url,
+            username: "u".into(),
+            token: "t".into(),
+            salt: "s".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn serve_song_unconfigured_is_503() {
+        let cache = NdAudioCache::default();
+
+        let resp = serve_song(None, &cache, None, "s1", None, None).await;
+
+        assert_eq!(resp.status(), 503);
+    }
+
+    #[tokio::test]
+    async fn serve_song_answers_ranges_from_the_prefetch_cache_before_any_network() {
+        let cache = NdAudioCache::default();
+        assert!(cache.insert("s1".into(), "audio/flac".into(), b"0123456789".to_vec()));
+
+        // Config is None: a cache hit must never need the network.
+        let resp = serve_song(None, &cache, None, "s1", Some("bytes=4-"), None).await;
+
+        assert_eq!(resp.status(), 206);
+        assert_eq!(resp.headers()["Content-Type"], "audio/flac");
+        assert_eq!(resp.headers()["Content-Range"], "bytes 4-9/10");
+        let body = resp.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"456789");
+    }
+
+    #[tokio::test]
+    async fn serve_song_streams_the_upstream_body_through() {
+        let upstream = crate::media_server::test_support::spawn_upstream(|req| {
+            assert!(req.uri().path().starts_with("/rest/stream.view"));
+            http::Response::builder()
+                .status(200)
+                .header("Content-Type", "audio/flac")
+                .body(http_body_util::Full::new(bytes::Bytes::from_static(b"flacbody")))
+                .expect("upstream response")
+        })
+        .await;
+        let cache = NdAudioCache::default();
+
+        let resp = serve_song(Some(test_config(upstream)), &cache, None, "s1", None, None).await;
+
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["Content-Type"], "audio/flac");
+        let body = resp.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"flacbody");
+    }
+
+    #[tokio::test]
+    async fn serve_song_maps_upstream_errors_to_502() {
+        let upstream = crate::media_server::test_support::spawn_upstream(|_req| {
+            http::Response::builder()
+                .status(404)
+                .body(http_body_util::Full::new(bytes::Bytes::new()))
+                .expect("upstream response")
+        })
+        .await;
+        let cache = NdAudioCache::default();
+
+        let resp = serve_song(Some(test_config(upstream)), &cache, None, "s1", None, None).await;
+
+        assert_eq!(resp.status(), 502);
     }
 
     #[test]

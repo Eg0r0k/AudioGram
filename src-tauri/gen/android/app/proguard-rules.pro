@@ -12,6 +12,11 @@
 #   public *;
 #}
 
+# Media Session bridge is called reflectively from the WebView JS context.
+-keepclassmembers class com.eg.audiogram.MediaSessionBridge {
+  @android.webkit.JavascriptInterface <methods>;
+}
+
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable

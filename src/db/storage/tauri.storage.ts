@@ -12,10 +12,9 @@ import {
   stat,
 } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 
 import type { IFileStorageWithNativeSupport } from "./IFileStorage";
-import { IS_ANDROID } from "@/lib/environment/userAgent";
 import { localFileStreamUrl } from "@/lib/stream-url";
 import { StorageError } from "../errors/storage.errors";
 import { normalizePath } from "./pathUtils";
@@ -68,9 +67,16 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
       await this.ensureDir(this.getFolder(target));
 
       // Android SAF sources (content://) cannot be std::fs-copied by the fs
-      // plugin; stream them through open(), which resolves them to an FD.
+      // plugin. The copy runs fully on the Rust side: the JS streaming
+      // fallback crosses the WebView IPC bridge once per MiB in each
+      // direction, which turns a 250 MB import into minutes on a phone.
       if (sourceAbsPath.startsWith("content://")) {
-        await this.copyStreaming(sourceAbsPath, target);
+        try {
+          await invoke("import_local_file", { source: sourceAbsPath, targetRel: target });
+        }
+        catch {
+          await this.copyStreaming(sourceAbsPath, target);
+        }
       }
       else {
         const appData = await this.getAppDataDir();
@@ -176,14 +182,11 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
           ? normalizedPath
           : this.joinPath(await this.getAppDataDir(), normalizedPath);
 
-        // The Android WebView re-slices intercepted responses by the request's
-        // Range header, which breaks the asset protocol's pre-sliced chunks
-        // (playback dies after the first ~1MB) — see localfile.rs.
-        if (IS_ANDROID) {
-          return localFileStreamUrl(absolutePath);
-        }
-
-        return convertFileSrc(absolutePath);
+        // One transport on every platform: the loopback media server. The
+        // asset protocol cannot stream on Android (the WebView re-slices
+        // intercepted responses and wry buffers the full body — OOM on big
+        // files), and a single code path beats two per-platform ones.
+        return localFileStreamUrl(absolutePath);
       })(),
       error => StorageError.readFailed(path, error),
     );

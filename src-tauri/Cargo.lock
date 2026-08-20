@@ -264,10 +264,17 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "audiogram"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
+ "bytes",
  "discord-rich-presence",
  "futures-util",
+ "getrandom 0.3.4",
+ "hex",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "lofty",
  "log",
  "percent-encoding",
@@ -1977,6 +1984,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hyper"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1990,6 +2003,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",

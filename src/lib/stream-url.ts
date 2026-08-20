@@ -1,78 +1,153 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { IS_TAURI } from "@/lib/environment/userAgent";
 
 //
-// URL helpers for the generalized `stream://` audio proxy. Paths are
-// source-prefixed (`yt/<videoId>` today, `nd/…` with the Navidrome source);
-// convertFileSrc maps the scheme per platform:
-//   desktop (mac/linux):  stream://localhost/<encoded path>
-//   windows/android:      http(s)://stream.localhost/<encoded path>
+// URL helpers for the loopback media server — the transport for all audio
+// and proxied covers. The Rust side binds `127.0.0.1:{random port}` before
+// the webview exists and guards every route with a per-launch token:
+//
+//   http://127.0.0.1:{port}/{token}/yt/<videoId>
+//   http://127.0.0.1:{port}/{token}/nd/song/<songId>
+//   http://127.0.0.1:{port}/{token}/nd/cover/<coverId>?size=<px>
+//   http://127.0.0.1:{port}/{token}/local/<encoded absolute path>
+//
+// The base is fetched ONCE at bootstrap (top-level await in main.ts), so the
+// builders stay synchronous. Port and token change every launch — server
+// URLs must never be persisted as-is; `migrateProxyUrl` rebuilds any stored
+// proxy URL (current or legacy `stream://`-era forms) onto the live base.
 //
 
-/** Builds the playable URL for a YouTube track routed through the proxy. */
-export function ytStreamUrl(videoId: string): string {
-  return convertFileSrc(`yt/${videoId}`, "stream");
-}
+let serverBase: string | null = null;
 
 /**
- * Extracts the video id from a `stream://…/yt/…` URL in any platform form.
- * Returns null for anything else (local files, nd streams, arbitrary URLs).
+ * Fetches `http://127.0.0.1:{port}/{token}` from the backend. Must complete
+ * before anything builds a media URL — main.ts awaits it before mounting.
+ * No-op outside Tauri (the web build has no server and no sources that
+ * would need one).
  */
-export function ytVideoIdFromStreamUrl(url: string | null | undefined): string | null {
+export const initMediaServerBase = async (): Promise<void> => {
+  if (!IS_TAURI) return;
+  serverBase = await invoke<string>("media_server_base");
+};
+
+/** Test seam: the base is process-global, tests set it directly. */
+export const setMediaServerBaseForTests = (base: string | null): void => {
+  serverBase = base;
+};
+
+const requireBase = (): string => {
+  if (!serverBase) {
+    throw new Error("media server base is not initialized — initMediaServerBase must run at bootstrap");
+  }
+  return serverBase;
+};
+
+/** Builds the playable URL for a YouTube track routed through the server. */
+export const ytStreamUrl = (videoId: string): string => {
+  return `${requireBase()}/yt/${encodeURIComponent(videoId)}`;
+};
+
+/** Builds the playable URL for a Navidrome song routed through the server. */
+export const ndSongStreamUrl = (songId: string): string => {
+  return `${requireBase()}/nd/song/${encodeURIComponent(songId)}`;
+};
+
+/**
+ * Builds the playable URL for a local file. The whole absolute path rides as
+ * ONE encoded segment; the Rust side percent-decodes it back.
+ */
+export const localFileStreamUrl = (absolutePath: string): string => {
+  return `${requireBase()}/local/${encodeURIComponent(absolutePath)}`;
+};
+
+/** Builds the proxied Navidrome cover URL. */
+export const ndCoverUrl = (coverId: string, size?: number): string => {
+  const query = size ? `?size=${size}` : "";
+  return `${requireBase()}/nd/cover/${encodeURIComponent(coverId)}${query}`;
+};
+
+const KNOWN_ROUTES = /^(yt|nd\/song|nd\/cover|local)\//;
+
+/**
+ * Recognizes every current and historical proxy URL shape and returns the
+ * decoded route path (`yt/<id>`, `nd/song/<id>`, `nd/cover/<id>?size=<px>`,
+ * `local/<abs path>`), or null for anything that never was a proxy URL:
+ *
+ * - current/previous-session server: `http://127.0.0.1:{port}/{token}/…`
+ * - generalized scheme: `stream://localhost/<enc path>` and
+ *   `http(s)://stream.localhost/<enc path>` (windows/android form)
+ * - pre-generalization: `ytstream://localhost/<videoId>` and
+ *   `http(s)://ytstream.localhost/<videoId>`
+ */
+export const proxyPathFromUrl = (url: string | null | undefined): string | null => {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    const isStream = parsed.protocol === "stream:" || parsed.hostname === "stream.localhost";
-    if (!isStream) return null;
+    const isYtLegacy = parsed.protocol === "ytstream:" || parsed.hostname === "ytstream.localhost";
+    const isStreamLegacy = parsed.protocol === "stream:" || parsed.hostname === "stream.localhost";
+    const isServer = parsed.hostname === "127.0.0.1";
+    if (!isYtLegacy && !isStreamLegacy && !isServer) return null;
 
-    const path = decodeURIComponent(parsed.pathname).replace(/^\//, "");
-    if (!path.startsWith("yt/")) return null;
-    return path.slice("yt/".length) || null;
+    let path = decodeURIComponent(parsed.pathname).replace(/^\//, "");
+
+    if (isServer) {
+      // Strip the (session-specific) token segment.
+      const slash = path.indexOf("/");
+      if (slash === -1) return null;
+      path = path.slice(slash + 1);
+    }
+    if (isYtLegacy) {
+      return path ? `yt/${path}` : null;
+    }
+
+    const withQuery = `${path}${parsed.search}`;
+    return KNOWN_ROUTES.test(withQuery) ? withQuery : null;
   }
   catch {
     return null;
   }
-}
-
-/** Builds the playable URL for a Navidrome song routed through the proxy. */
-export function ndSongStreamUrl(songId: string): string {
-  return convertFileSrc(`nd/song/${songId}`, "stream");
-}
-
-/**
- * Builds the playable URL for a local file routed through the proxy. Android
- * only: the WebView re-applies Range slicing to intercepted responses, which
- * corrupts the asset protocol's pre-sliced 206 chunks (see localfile.rs), so
- * local playback goes through `stream://…/local/` there instead.
- */
-export const localFileStreamUrl = (absolutePath: string): string => {
-  return convertFileSrc(`local/${absolutePath}`, "stream");
 };
 
 /**
- * Builds the proxied Navidrome cover URL. The `?size=` query rides inside
- * the encoded path; the Rust dispatcher decodes it back out.
+ * Extracts the video id from any proxy-form YouTube URL (see
+ * {@link proxyPathFromUrl}). Returns null for anything else (local files,
+ * nd streams, arbitrary URLs).
  */
-export function ndCoverUrl(coverId: string, size?: number): string {
-  const path = size ? `nd/cover/${coverId}?size=${size}` : `nd/cover/${coverId}`;
-  return convertFileSrc(path, "stream");
-}
+export const ytVideoIdFromStreamUrl = (url: string | null | undefined): string | null => {
+  const path = proxyPathFromUrl(url);
+  if (!path) return null;
+  const match = /^yt\/([^?#]+)/.exec(path);
+  return match ? match[1] : null;
+};
 
 /**
- * One-time migration of queue snapshots persisted before the scheme was
- * generalized: `ytstream://localhost/<id>` (or `http://ytstream.localhost/<id>`
- * on windows/android) becomes the current platform's `stream://…/yt/<id>`.
- * Non-legacy URLs pass through untouched.
+ * Rebuilds any stored proxy URL onto the CURRENT session's base — the port
+ * and token change every launch, so persisted queue snapshots (and their
+ * cover fields) are re-pointed here on restore. Non-proxy URLs (radio, plain
+ * https) pass through untouched, as does everything when the base is not
+ * available (web build).
  */
-export function migrateLegacyYtStreamUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const isLegacy = parsed.protocol === "ytstream:" || parsed.hostname === "ytstream.localhost";
-    if (!isLegacy) return url;
+export const migrateProxyUrl = (url: string): string => {
+  if (!serverBase) return url;
+  const path = proxyPathFromUrl(url);
+  if (!path) return url;
 
-    const id = decodeURIComponent(parsed.pathname).replace(/^\//, "");
-    return id ? ytStreamUrl(id) : url;
+  const [route, query = ""] = path.split("?", 2);
+
+  const yt = route.startsWith("yt/") ? route.slice("yt/".length) : null;
+  if (yt) return ytStreamUrl(yt);
+
+  const ndSong = route.startsWith("nd/song/") ? route.slice("nd/song/".length) : null;
+  if (ndSong) return ndSongStreamUrl(ndSong);
+
+  const ndCover = route.startsWith("nd/cover/") ? route.slice("nd/cover/".length) : null;
+  if (ndCover) {
+    const size = /(?:^|&)size=(\d+)/.exec(query)?.[1];
+    return ndCoverUrl(ndCover, size ? Number(size) : undefined);
   }
-  catch {
-    return url;
-  }
-}
+
+  const local = route.startsWith("local/") ? route.slice("local/".length) : null;
+  if (local) return localFileStreamUrl(local);
+
+  return url;
+};

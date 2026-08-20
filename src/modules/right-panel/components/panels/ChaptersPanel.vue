@@ -116,7 +116,7 @@
             </div>
           </div>
 
-          <ItemActions class="opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+          <ItemActions class="opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity ml-2 shrink-0">
             <Button
               size="icon"
               variant="destructive-link"

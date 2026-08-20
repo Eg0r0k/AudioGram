@@ -167,8 +167,11 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_B64" ]; then
-            echo "No ANDROID_KEYSTORE_B64 secret - the APK will be debug-signed."
-            exit 0
+            # A debug-signed release is signed with the runner's throwaway
+            # keystore: every release gets a different signature and no
+            # installed copy can ever be updated. Fail loudly instead.
+            echo "::error::ANDROID_KEYSTORE_B64 secret is not set — refusing to publish a debug-signed APK."
+            exit 1
           fi
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > src-tauri/gen/android/keystore.jks
           {

@@ -58,6 +58,13 @@ export const usePlayerStore = defineStore("player", () => {
   let _activeFadeAbort: AbortController | null = null;
   let _activeBlobUrl: string | null = null;
 
+  // True from the optimistic "loading" of a track switch until that request
+  // reaches playback (or fails). While set, the engine's own load() chatter —
+  // it resets to "idle" and resolves through "ready" before play() lands —
+  // must not reach `status`: a single frame of "not playing" mid-skip
+  // visibly re-morphs the play/pause icon.
+  let _isSwitchingTrack = false;
+
   const isPlaying = computed(
     () => status.value === "playing" || status.value === "buffering",
   );
@@ -107,6 +114,7 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const clearCurrentTrack = () => {
+    _isSwitchingTrack = false;
     if (_activeBlobUrl) {
       URL.revokeObjectURL(_activeBlobUrl);
       _activeBlobUrl = null;
@@ -117,8 +125,8 @@ export const usePlayerStore = defineStore("player", () => {
     trackChangedBus.emit(null);
   };
 
-  const stopListeningAndSync = (completed = false) => {
-    statsService.stopListening(currentTime.value, completed)
+  const stopListeningAndSync = (options: { completed?: boolean; skipped?: boolean } = {}) => {
+    statsService.stopListening(currentTime.value, options)
       .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
 
@@ -160,7 +168,9 @@ export const usePlayerStore = defineStore("player", () => {
     // Guards keep a disposed-then-replaced instance (dispose(), load-error
     // recovery) from mutating state that now belongs to its successor.
     newPlayer.on("statechange", ({ to }) => {
-      if (player.value === newPlayer) status.value = to;
+      if (player.value !== newPlayer) return;
+      if (_isSwitchingTrack && (to === "idle" || to === "ready" || to === "paused")) return;
+      status.value = to;
     });
     newPlayer.on("ended", () => {
       if (player.value !== newPlayer) return;
@@ -440,6 +450,7 @@ export const usePlayerStore = defineStore("player", () => {
 
   const stop = () => {
     if (!player.value) return;
+    _isSwitchingTrack = false;
     cancelActiveFade();
 
     const audioSettings = useAudioSettingsStore();
@@ -473,8 +484,11 @@ export const usePlayerStore = defineStore("player", () => {
 
     const requestId = ++_playRequestId;
 
+    // A pending listen still open at this point means the previous track was
+    // cut short by this switch — on a natural end the trackEnded handler has
+    // already finalized it as completed and this is a no-op.
     if (isLibraryTrack(currentTrack.value)) {
-      stopListeningAndSync();
+      stopListeningAndSync({ skipped: true });
     }
 
     cancelActiveFade();
@@ -484,6 +498,7 @@ export const usePlayerStore = defineStore("player", () => {
     // leaving the previous track's status (and a false live-stream reading
     // from the zeroed duration) visible while the source URL resolves.
     status.value = "loading";
+    _isSwitchingTrack = true;
 
     const p = ensurePlayer();
     currentTrack.value = track;
@@ -493,6 +508,7 @@ export const usePlayerStore = defineStore("player", () => {
     // A newer play request took over while we resolved the source.
     if (requestId !== _playRequestId) return;
     if (!url) {
+      _isSwitchingTrack = false;
       status.value = "error";
       discardPlayer();
       clearCurrentTrack();
@@ -516,11 +532,13 @@ export const usePlayerStore = defineStore("player", () => {
       applyLoudnessMetadata(p, track);
       await play();
       useAudioSettingsStore().pushToGraph();
+      if (requestId === _playRequestId) _isSwitchingTrack = false;
     }
     catch (err) {
       // Errors from a superseded request belong to it alone — swallowing
       // them keeps queue.store from skipping to the next track.
       if (requestId !== _playRequestId) return;
+      _isSwitchingTrack = false;
       status.value = "error";
       discardPlayer();
       if (err instanceof StorageError) {

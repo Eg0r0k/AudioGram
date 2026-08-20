@@ -7,6 +7,7 @@ import { TrackSource, TrackState, type TrackEntity } from "@/db/entities";
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import type { Track } from "@/modules/player/types";
+import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import { useQueueStore } from "../store/queue.store";
 
 vi.mock("@/db/repositories", () => ({
@@ -1466,6 +1467,100 @@ describe("queue.store", () => {
 
       expect(store.queue).toHaveLength(1);
       expect(store.queue[0].track.id).toBe("eph-1");
+    });
+  });
+
+  describe("restorePersistedQueue proxy URL migration", () => {
+    // Port and token change every launch — restore must re-point any stored
+    // proxy URL (current or legacy form) at the live server base.
+    const LIVE_BASE = "http://127.0.0.1:4321/livetoken";
+
+    beforeEach(() => {
+      setMediaServerBaseForTests(LIVE_BASE);
+    });
+
+    function snapshotWithEphemeral(track: Record<string, unknown>, cover?: string | null) {
+      return {
+        version: 1 as const,
+        queue: [{
+          id: "item-1" as any,
+          track: {
+            kind: "ephemeral",
+            id: "eph-1",
+            title: "T",
+            source: { type: "url", url: "https://example.com/a.mp3" },
+            ...track,
+          } as any,
+          source: { type: "manual" as const },
+          addedAt: 100,
+          cover,
+        }],
+        originalQueueOrder: ["item-1" as any],
+        currentIndex: 0,
+        isShuffled: false,
+      };
+    }
+
+    it("rewrites legacy stream:// playback URLs onto the live base", async () => {
+      const store = useQueueStore();
+      store.persistedSnapshot = snapshotWithEphemeral({
+        source: { type: "url", url: "stream://localhost/yt%2FdQw4w9WgXcQ" },
+      });
+
+      await store.restorePersistedQueue();
+
+      expect((store.queue[0].track as any).source.url).toBe(`${LIVE_BASE}/yt/dQw4w9WgXcQ`);
+    });
+
+    it("rewrites previous-session server URLs with a stale port and token", async () => {
+      const store = useQueueStore();
+      store.persistedSnapshot = snapshotWithEphemeral({
+        source: { type: "url", url: "http://127.0.0.1:60123/staletoken/yt/dQw4w9WgXcQ" },
+      });
+
+      await store.restorePersistedQueue();
+
+      expect((store.queue[0].track as any).source.url).toBe(`${LIVE_BASE}/yt/dQw4w9WgXcQ`);
+    });
+
+    it("rewrites proxied cover fields and leaves foreign URLs untouched", async () => {
+      const store = useQueueStore();
+      store.persistedSnapshot = snapshotWithEphemeral(
+        {
+          source: { type: "url", url: "https://radio.example/stream.m3u8" },
+          cover: "http://stream.localhost/nd%2Fcover%2Fal-1%3Fsize%3D300",
+        },
+        "http://127.0.0.1:60123/staletoken/nd/cover/al-2",
+      );
+
+      await store.restorePersistedQueue();
+
+      const restored = store.queue[0];
+      expect((restored.track as any).source.url).toBe("https://radio.example/stream.m3u8");
+      expect((restored.track as any).cover).toBe(`${LIVE_BASE}/nd/cover/al-1?size=300`);
+      expect(restored.cover).toBe(`${LIVE_BASE}/nd/cover/al-2`);
+    });
+
+    it("rewrites item covers of library tracks too", async () => {
+      vi.mocked(trackRepository.findByIds).mockResolvedValue(ok([createTrackEntity("1")]));
+      const store = useQueueStore();
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [{
+          id: "item-1" as any,
+          track: { kind: "library", trackId: "1" as any },
+          source: { type: "manual" as const },
+          addedAt: 100,
+          cover: "stream://localhost/nd%2Fcover%2Fal-9",
+        }],
+        originalQueueOrder: ["item-1" as any],
+        currentIndex: 0,
+        isShuffled: false,
+      };
+
+      await store.restorePersistedQueue();
+
+      expect(store.queue[0].cover).toBe(`${LIVE_BASE}/nd/cover/al-9`);
     });
   });
 

@@ -47,6 +47,7 @@
           :key="String(virtualRow.key)"
           :ref="(el) => measureElement(el as Element | null)"
           :data-index="virtualRow.index"
+          :data-vkey="String(virtualRow.key)"
           :style="{
             position: 'absolute',
             top: 0,
@@ -98,6 +99,8 @@ interface Props {
   paddingTop?: number;
   paddingBottom?: number;
   stickyOffset?: string;
+  /** FLIP-slide rows to their new offsets when `items` reorders. */
+  animateReorder?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -112,6 +115,7 @@ const props = withDefaults(defineProps<Props>(), {
   paddingTop: 0,
   paddingBottom: 0,
   stickyOffset: "0px",
+  animateReorder: false,
 });
 
 const emit = defineEmits<{
@@ -298,10 +302,56 @@ watch(
   },
 );
 
+// ── FLIP reorder animation ──────────────────────────────────────────────────
+// A CSS transition on the row transform is not enough: when the order
+// changes, Vue MOVES the reordered node in the DOM (insertBefore), which
+// kills any running/starting transition — the moved row teleports while its
+// neighbours slide. FLIP survives the move: old tops are captured before the
+// re-render (pre-flush watch), and after it each surviving row plays a
+// WAAPI delta with `composite: "add"`, leaving the positioning transform
+// untouched.
+
+const FLIP_DURATION_MS = 300;
+const FLIP_EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
+let flipSnapshot: Map<string, number> | null = null;
+
+const captureFlipSnapshot = () => {
+  const container = containerRef.value;
+  const reducedMotion = typeof matchMedia !== "undefined"
+    && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!container || reducedMotion) {
+    flipSnapshot = null;
+    return;
+  }
+  flipSnapshot = new Map();
+  for (const el of container.querySelectorAll<HTMLElement>("[data-vkey]")) {
+    flipSnapshot.set(el.dataset.vkey ?? "", el.getBoundingClientRect().top);
+  }
+};
+
+const playFlip = () => {
+  const snapshot = flipSnapshot;
+  flipSnapshot = null;
+  const container = containerRef.value;
+  if (!snapshot || !container) return;
+  for (const el of container.querySelectorAll<HTMLElement>("[data-vkey]")) {
+    const previousTop = snapshot.get(el.dataset.vkey ?? "");
+    if (previousTop === undefined) continue;
+    const delta = previousTop - el.getBoundingClientRect().top;
+    if (Math.abs(delta) < 1) continue;
+    el.animate(
+      [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0px)" }],
+      { duration: FLIP_DURATION_MS, easing: FLIP_EASING, composite: "add" },
+    );
+  }
+};
+
 watch(() => props.items, () => {
+  if (props.animateReorder) captureFlipSnapshot();
   nextTick(() => {
     virtualizer.value.measure();
     scrollable.updateThumb();
+    if (props.animateReorder) playFlip();
   });
 }, { deep: false });
 

@@ -13,7 +13,7 @@
   <WhatsNewDialog />
   <ExternalLinkDialog />
   <ImportProgressHost />
-  <DeleteConfirmDialog />
+  <DialogSummonHost />
   <NetworkStatusToast />
   <Toaster
     :expand="true"
@@ -53,7 +53,7 @@ import { useProxySync } from "@/modules/settings/composables/useProxySync";
 import { useNdSourceSync } from "@/modules/settings/composables/useNdSourceSync";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { ephemeralFromPath } from "@/modules/player/types";
-import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import { DialogSummonHost } from "@/components/dialogs/summon";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useNowPlayingTitle } from "@/modules/player/composables/useNowPlayingTitle";
 import { useExternalLinkInterceptor } from "@/composables/useExternalLinkInterceptor";

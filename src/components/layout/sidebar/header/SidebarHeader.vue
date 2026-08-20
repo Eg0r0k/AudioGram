@@ -62,6 +62,11 @@
                   {{ t("nav.favorite") }}
                 </DropdownMenuItem>
 
+                <DropdownMenuItem @click="goStats">
+                  <IconChartBar class="size-5.5" />
+                  {{ t("nav.stats") }}
+                </DropdownMenuItem>
+
                 <DropdownMenuItem @click="goSettings">
                   <IconSettings class="size-5.5" />
                   {{ t("nav.settings") }}
@@ -231,6 +236,7 @@ import IconMenu2 from "~icons/tabler/menu-2";
 import IconDownload from "~icons/tabler/download";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconBookmark from "~icons/tabler/bookmark";
+import IconChartBar from "~icons/tabler/chart-bar";
 import IconSettings from "~icons/tabler/settings";
 import IconSearch from "~icons/tabler/search";
 import IconX from "~icons/tabler/x";
@@ -295,6 +301,10 @@ function goFavorite() {
 
 function goSettings() {
   router.push(routeLocation.settings());
+}
+
+function goStats() {
+  router.push(routeLocation.settingsStats());
 }
 
 function handleClose() {

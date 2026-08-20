@@ -69,8 +69,7 @@
 
               <LibraryContextMenu @delete="deleteLibraryItem">
                 <ScrollableSlider
-                  class="mt-3 -mx-4"
-                  content-class="px-4"
+                  class="mt-3"
                 >
                   <AlbumItem
                     v-for="albumItem in albumItems"
@@ -137,7 +136,8 @@ import { useArtistPage } from "@/modules/artists/composables/useArtistPage";
 import { getArtistPageData } from "@/queries/artist.queries";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
-import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
+import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import { summonDialog } from "@/components/dialogs/summon";
 import EditArtistDialog from "@/modules/artists/components/dialogs/EditArtistDialog.vue";
 import type { ArtistChanges } from "@/modules/artists/composables/useArtistPage";
 import type { TrackSortKey } from "@/modules/tracks/types";
@@ -167,7 +167,6 @@ const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const route = useRoute();
-const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
 const { isPinned, deleteItem: deleteLibraryItem } = useLibrary();
 const shuffleQueue = useQueueShuffle();
@@ -293,15 +292,18 @@ async function handleShuffle() {
   await shuffleQueue(source, async () => (await getArtistPageData(artist.value!.id, sortKey.value)).tracks);
 }
 
-function openDeleteDialog() {
+async function openDeleteDialog() {
   if (!artist.value) return;
 
-  openGlobalDeleteDialog({
-    type: "artist",
-    id: artist.value.id,
-    name: artist.value.name,
-    trackCount: trackCount.value,
-  }, handleDelete);
+  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+    data: {
+      type: "artist",
+      id: artist.value.id,
+      name: artist.value.name,
+      trackCount: trackCount.value,
+    },
+  }, { key: `delete:${artist.value.id}` });
+  if (confirmed) await handleDelete();
 }
 
 async function handleDelete() {

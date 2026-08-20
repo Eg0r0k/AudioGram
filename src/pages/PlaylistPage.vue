@@ -138,7 +138,8 @@ import { getPlaylistPageData } from "@/queries/playlist.queries";
 import EditPlaylistDialog from "@/modules/playlist/components/dialogs/EditPlaylistDialog.vue";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
-import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
+import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import { summonDialog } from "@/components/dialogs/summon";
 import IconPlus from "~icons/tabler/plus";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -152,7 +153,6 @@ const { t } = useI18n();
 const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
-const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
 const shuffleQueue = useQueueShuffle();
 const route = useRoute();
@@ -290,14 +290,17 @@ function handleShare() {
   toast.info(t("common.comingSoon"));
 }
 
-function openDeleteDialog() {
+async function openDeleteDialog() {
   if (!playlist.value) return;
-  openGlobalDeleteDialog({
-    type: "playlist",
-    id: playlist.value.id,
-    name: playlist.value.name,
-    trackCount: trackCount.value,
-  }, handleDelete);
+  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+    data: {
+      type: "playlist",
+      id: playlist.value.id,
+      name: playlist.value.name,
+      trackCount: trackCount.value,
+    },
+  }, { key: `delete:${playlist.value.id}` });
+  if (confirmed) await handleDelete();
 }
 
 async function handleDelete() {

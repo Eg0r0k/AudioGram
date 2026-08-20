@@ -1,7 +1,7 @@
 <template>
   <Dialog
-    :open="isOpen"
-    @update:open="handleOpenChange"
+    :open="open"
+    @update:open="value => emit('update:open', value)"
   >
     <DialogContent class="sm:max-w-sm">
       <DialogHeader>
@@ -11,10 +11,7 @@
         </DialogDescription>
       </DialogHeader>
 
-      <div
-        v-if="deleteData"
-        class="flex items-start gap-4 overflow-hidden"
-      >
+      <div class="flex items-start gap-4 overflow-hidden">
         <div
           class="size-16 shrink-0 overflow-hidden bg-muted"
           :class="coverShapeClass"
@@ -22,7 +19,7 @@
           <img
             v-if="coverUrl"
             :src="coverUrl"
-            :alt="deleteData.name"
+            :alt="data.name"
             class="size-full object-cover"
           >
           <div
@@ -38,10 +35,10 @@
 
         <div class="min-w-0 flex-1 overflow-hidden">
           <p class="w-full truncate font-medium">
-            {{ deleteData.name }}
+            {{ data.name }}
           </p>
           <p class="text-sm text-muted-foreground">
-            {{ $t("common.trackCount", deleteData.trackCount) }}
+            {{ $t("common.trackCount", data.trackCount) }}
           </p>
         </div>
       </div>
@@ -49,13 +46,13 @@
       <DialogFooter>
         <Button
           variant="ghost-primary"
-          @click="closeDeleteDialog"
+          @click="dismiss"
         >
           {{ $t("common.cancel") }}
         </Button>
         <Button
           variant="destructive-link"
-          @click="handleConfirm"
+          @click="resolve(true)"
         >
           {{ $t("common.delete") }}
         </Button>
@@ -76,28 +73,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
+import { useSummonedDialog } from "@/components/dialogs/summon";
+import type { DeleteConfirmData } from "@/components/dialogs/deleteConfirm";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 
 import IconPlaylist from "~icons/tabler/playlist";
 import IconDisc from "~icons/tabler/disc";
 import IconUser from "~icons/tabler/user";
 
+const props = defineProps<{
+  data: DeleteConfirmData;
+  open: boolean;
+}>();
+
+const emit = defineEmits<{
+  "update:open": [boolean];
+}>();
+
 const { t } = useI18n();
-const {
-  isOpen,
-  deleteData,
-  closeDeleteDialog,
-  handleConfirm,
-} = useDeleteConfirmDialog();
+const { resolve, dismiss } = useSummonedDialog<boolean>();
 
-const ownerType = computed(() => deleteData.value?.type ?? null);
-const ownerId = computed(() => deleteData.value?.id ?? null);
-
-const { url: coverUrl } = useEntityCover(ownerType, ownerId);
+const { url: coverUrl } = useEntityCover(
+  () => props.data.type,
+  () => props.data.id,
+);
 
 const dialogTitle = computed(() => {
-  switch (deleteData.value?.type) {
+  switch (props.data.type) {
     case "album":
       return t("library.contextMenu.deleteAlbum");
     case "playlist":
@@ -109,22 +111,16 @@ const dialogTitle = computed(() => {
   }
 });
 
-const dialogDescription = computed(() => {
-  if (!deleteData.value) {
-    return "";
-  }
-
-  return t("dialogs.deleteConfirm.description", {
-    name: deleteData.value.name,
-  });
-});
+const dialogDescription = computed(() =>
+  t("dialogs.deleteConfirm.description", { name: props.data.name }),
+);
 
 const coverShapeClass = computed(() =>
-  deleteData.value?.type === "artist" ? "rounded-full" : "rounded-lg",
+  props.data.type === "artist" ? "rounded-full" : "rounded-lg",
 );
 
 const fallbackIcon = computed(() => {
-  switch (deleteData.value?.type) {
+  switch (props.data.type) {
     case "album":
       return IconDisc;
     case "artist":
@@ -134,10 +130,4 @@ const fallbackIcon = computed(() => {
       return IconPlaylist;
   }
 });
-
-function handleOpenChange(open: boolean) {
-  if (!open) {
-    closeDeleteDialog();
-  }
-}
 </script>

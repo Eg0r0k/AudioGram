@@ -90,5 +90,12 @@ const albumId = computed(() => {
 });
 
 const { url: coverBlobUrl } = useEntityCover("album", albumId);
-const coverUrl = computed(() => props.item.cover ?? coverBlobUrl.value ?? "/img/fallback.svg");
+
+// Ephemeral tracks (YT streams, radio) carry their artwork on the track
+// itself — the library blob lookup only ever resolves for album-backed rows.
+const coverUrl = computed(() => {
+  const track = props.item.track;
+  const trackCover = "cover" in track ? track.cover : undefined;
+  return props.item.cover ?? trackCover ?? coverBlobUrl.value ?? "/img/fallback.svg";
+});
 </script>

@@ -24,9 +24,13 @@ vi.mock("@/modules/youtube/provider", () => ({
   },
 }));
 
+import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import { sources } from "../registry";
 import { ytSourceProvider } from "../providers/yt.provider";
 import { ndSourceProvider } from "../providers/nd.provider";
+
+const BASE = "http://127.0.0.1:4321/tok";
+setMediaServerBaseForTests(BASE);
 
 describe("sources registry", () => {
   it("returns providers by kind and via forTrack on prefixed ids", () => {
@@ -61,7 +65,7 @@ describe("ytSourceProvider", () => {
     const result = await ytSourceProvider.resolveStreamUrl(ytTrackId("dQw4w9WgXcQ"));
 
     expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap()).toBe("stream://localhost/yt/dQw4w9WgXcQ");
+    expect(result._unsafeUnwrap()).toBe(`${BASE}/yt/dQw4w9WgXcQ`);
   });
 
   it("downloads through the youtube provider and returns the file path", async () => {

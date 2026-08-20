@@ -176,4 +176,12 @@ fn validate_browse_id(id: String) -> Result<String, YtError> {
     Ok(id)
 }
 
-pub(crate) use crate::stream::status_response;
+/// Bare status answer for the `ytimg://` protocol (which stays a custom
+/// scheme: thumbnails are small, the full-body limitation is irrelevant).
+pub(crate) fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(code)
+        .header("Access-Control-Allow-Origin", "*")
+        .body(Vec::new())
+        .unwrap_or_default()
+}

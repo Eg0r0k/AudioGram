@@ -1,6 +1,6 @@
-//! Stream resolution (yt-dlp `--get-url`) and the yt handler of the
-//! `stream://` proxy. The scheme itself and its dispatcher live in
-//! `crate::stream`; this module only serves `yt/<videoId>` paths.
+//! Stream resolution (yt-dlp `--get-url`) and the yt route of the loopback
+//! media server. The server itself and its dispatcher live in
+//! `crate::media_server`; this module only serves `yt/<videoId>` paths.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
-use crate::stream::{forward_get, range_response, status_response};
+use crate::media_server::{forward_stream, memory_range_response, status_response};
 
 use super::{kill_sidecar_tree, proxy_args, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
 
@@ -289,59 +289,75 @@ pub async fn yt_prefetch<R: Runtime>(
     Ok(())
 }
 
-/// Handles `stream://…/yt/<videoId>`: proxied googlevideo audio (bypassing
-/// the webview's CORS block), served from the prefetch cache when warm.
-pub(crate) async fn stream_yt<R: Runtime>(
+/// Handles `/{token}/yt/<videoId>`: proxied googlevideo audio (bypassing the
+/// webview's CORS block), served from the prefetch cache when warm, streamed
+/// through otherwise. The cached googlevideo URL is transparently re-resolved
+/// when it is missing (app restart) or rejected with 403 (URL expired after
+/// ~6 h, IP change behind a rotating proxy, or a flagged session).
+pub(crate) async fn serve_yt<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
     range: Option<String>,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
-    stream_with_retry(app, id, range).await
-}
-
-/// Streams from the cached googlevideo URL, transparently re-resolving it when
-/// it is missing (app restart) or rejected with 403 (URL expired after ~6 h,
-/// IP change behind a rotating proxy, or a flagged session).
-async fn stream_with_retry<R: Runtime>(
-    app: &AppHandle<R>,
-    id: &str,
-    range: Option<String>,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
+    origin: Option<&str>,
+) -> http::Response<crate::media_server::Body> {
     if validate_id(id.to_owned()).is_err() {
-        return Ok(status_response(404));
+        return status_response(404, origin);
     }
 
     // Prefetched track: serve straight from memory, no network round-trip.
     if let Some((content_type, bytes)) = app.state::<YtAudioCache>().get(id) {
-        return Ok(range_response(&content_type, &bytes, range.as_deref()));
+        return memory_range_response(&content_type, &bytes, range.as_deref(), origin);
     }
 
     let proxy = app.state::<ProxyState>().get();
 
     if let Some(entry) = app.state::<YtStreamCache>().get(id) {
-        let response =
-            forward_get(&entry.url, &entry.headers, range.clone(), proxy.clone(), YT_RANGE_SPAN)
-                .await?;
-        if response.status() != tauri::http::StatusCode::FORBIDDEN {
-            return Ok(response);
+        match forward_stream(
+            &entry.url,
+            &entry.headers,
+            range.clone(),
+            proxy.clone(),
+            Some(YT_RANGE_SPAN),
+            origin,
+        )
+        .await
+        {
+            Ok(response) if response.status() != http::StatusCode::FORBIDDEN => return response,
+            Ok(_) => log::warn!("media yt/{id}: upstream returned 403, re-resolving stream URL"),
+            Err(e) => {
+                log::warn!("media yt/{id}: {e}");
+                return status_response(502, origin);
+            }
         }
-        log::warn!("stream yt/{id}: upstream returned 403, re-resolving stream URL");
     }
 
-    let entry = resolve_stream(app, id).await.map_err(|e| {
-        log::warn!("stream yt/{id}: re-resolve failed: {e}");
-        e
-    })?;
-    let response = forward_get(&entry.url, &entry.headers, range, proxy, YT_RANGE_SPAN).await?;
-    if response.status().as_u16() >= 400 {
-        // A fresh URL still refused: headers/IP no longer satisfy googlevideo
-        // — worth its own line, the webview only sees a generic media error.
-        log::warn!(
-            "stream yt/{id}: upstream status {} on a freshly resolved URL",
-            response.status()
-        );
+    let entry = match resolve_stream(app, id).await {
+        Ok(entry) => entry,
+        Err(e) => {
+            log::warn!("media yt/{id}: re-resolve failed: {e}");
+            return status_response(502, origin);
+        }
+    };
+    match forward_stream(&entry.url, &entry.headers, range, proxy, Some(YT_RANGE_SPAN), origin)
+        .await
+    {
+        Ok(response) => {
+            if response.status().as_u16() >= 400 {
+                // A fresh URL still refused: headers/IP no longer satisfy
+                // googlevideo — worth its own line, the webview only sees a
+                // generic media error.
+                log::warn!(
+                    "media yt/{id}: upstream status {} on a freshly resolved URL",
+                    response.status()
+                );
+            }
+            response
+        }
+        Err(e) => {
+            log::warn!("media yt/{id}: {e}");
+            status_response(502, origin)
+        }
     }
-    Ok(response)
 }
 
 /// Total size from a `Content-Range: bytes X-Y/total` value; None for `*`.

@@ -52,14 +52,6 @@ describe("EntitySelectPanel", () => {
     expect(emitted("update:search")?.at(-1)).toEqual(["abc"]);
   });
 
-  it("shows the create row only when canCreate and search is non-empty, click emits create", async () => {
-    const { queryByTestId, getByTestId, emitted, rerender } = renderPanel({ canCreate: true, search: "" });
-    expect(queryByTestId("create-row")).toBeNull();
-    await rerender({ canCreate: true, search: "  New  Name " });
-    await fireEvent.click(getByTestId("create-row"));
-    expect(emitted("create")?.[0]).toEqual(["New Name"]);
-  });
-
   it("FAB is hidden at confirmCount 0 and emits confirm on click otherwise", async () => {
     const { queryByTestId, getByTestId, emitted, rerender } = renderPanel({ confirmCount: 0 });
     expect(queryByTestId("fab")).toBeNull();

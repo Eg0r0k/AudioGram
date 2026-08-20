@@ -4,10 +4,73 @@ import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 
 const POSITION_UPDATE_INTERVAL = 1000;
+const ANDROID_ARTWORK_SIZE = 512;
+
+/**
+ * Native bridge injected by MainActivity on Android (Tauri). The WebView
+ * implements `navigator.mediaSession` but never surfaces it to the system
+ * (no media notification / lock-screen controls), so the state is mirrored
+ * into a native MediaSession through this object.
+ */
+interface AndroidMediaSessionBridge {
+  setMetadata: (title: string, artist: string, album: string, artworkBase64: string) => void;
+  setPlaybackState: (
+    playing: boolean,
+    positionMs: number,
+    durationMs: number,
+    canSeek: boolean,
+    hasNext: boolean,
+    hasPrevious: boolean,
+  ) => void;
+  release: () => void;
+}
+
+declare global {
+  interface Window {
+    AudiogramMediaSession?: AndroidMediaSessionBridge;
+  }
+}
+
+interface AndroidMediaActionDetail {
+  action?: string;
+  positionMs?: number;
+}
+
+const blobToBase64 = (blob: Blob) => new Promise<string>((resolve) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result as string;
+    resolve(dataUrl.slice(dataUrl.indexOf(",") + 1));
+  };
+  reader.onerror = () => resolve("");
+  reader.readAsDataURL(blob);
+});
+
+// The notification only needs a small bitmap; multi-megabyte originals are
+// wasteful to push over the JS bridge, so downscale to a JPEG first.
+const coverArtworkBase64 = async (blob: Blob): Promise<string> => {
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, ANDROID_ARTWORK_SIZE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(width, height);
+    const context = canvas.getContext("2d");
+    if (!context) return await blobToBase64(blob);
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const jpeg = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 });
+    return await blobToBase64(jpeg);
+  }
+  catch {
+    return blobToBase64(blob);
+  }
+};
 
 export const useMediaSession = () => {
   const isSupported = "mediaSession" in navigator;
-  if (!isSupported) return;
+  const androidBridge = window.AudiogramMediaSession;
+  if (!isSupported && !androidBridge) return;
 
   const player = usePlayerStore();
   const queue = useQueueStore();
@@ -26,29 +89,99 @@ export const useMediaSession = () => {
     currentTrack.value?.kind === "library" ? currentTrack.value.albumId : null,
   );
 
-  const { url: coverBlobUrl } = useEntityCover("album", albumId);
+  const { url: coverBlobUrl, blob: coverBlob } = useEntityCover("album", albumId);
 
   const updateMetadata = () => {
     const track = player.currentTrack;
 
+    if (isSupported) {
+      if (!track) {
+        navigator.mediaSession.metadata = null;
+      }
+      else {
+        const artwork = coverBlobUrl.value
+          ? [{ src: coverBlobUrl.value, sizes: "512x512", type: "image/jpeg" }]
+          : [];
+
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title || "Unknown Title",
+          artist: track.artist || "Unknown Artist",
+          album: track.albumName || "",
+          artwork,
+        });
+      }
+    }
+
+    void updateAndroidMetadata();
+  };
+
+  const updateAndroidPlayback = () => {
+    if (!androidBridge || !player.currentTrack) return;
+
+    androidBridge.setPlaybackState(
+      player.isPlaying,
+      Math.max(0, player.currentTime * 1000),
+      Math.max(0, player.duration * 1000),
+      player.canSeek,
+      queue.hasNext,
+      queue.hasPrevious,
+    );
+  };
+
+  let androidArtworkToken = 0;
+
+  const updateAndroidMetadata = async () => {
+    if (!androidBridge) return;
+
+    const track = player.currentTrack;
     if (!track) {
-      navigator.mediaSession.metadata = null;
+      androidBridge.release();
       return;
     }
 
-    const artwork = coverBlobUrl.value
-      ? [{ src: coverBlobUrl.value, sizes: "512x512", type: "image/jpeg" }]
-      : [];
+    const token = ++androidArtworkToken;
+    const artwork = coverBlob.value ? await coverArtworkBase64(coverBlob.value) : "";
+    if (token !== androidArtworkToken) return;
 
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title || "Unknown Title",
-      artist: track.artist || "Unknown Artist",
-      album: track.albumName || "",
+    androidBridge.setMetadata(
+      track.title || "Unknown Title",
+      track.artist || "Unknown Artist",
+      track.albumName || "",
       artwork,
-    });
+    );
+    updateAndroidPlayback();
+  };
+
+  const handleAndroidAction = (event: Event) => {
+    const detail = (event as CustomEvent<AndroidMediaActionDetail>).detail;
+    switch (detail?.action) {
+      case "play":
+        player.play();
+        break;
+      case "pause":
+        player.pause();
+        break;
+      case "stop":
+        player.stop();
+        break;
+      case "next":
+        if (queue.hasNext) queue.next();
+        break;
+      case "previous":
+        if (queue.hasPrevious) queue.previous();
+        break;
+      case "seekto":
+        if (typeof detail.positionMs === "number" && player.canSeek) {
+          player.seekTo(detail.positionMs / 1000);
+          updateAndroidPlayback();
+        }
+        break;
+    }
   };
 
   const updatePositionState = (force = false) => {
+    if (!isSupported) return;
+
     if (isMediaSessionSeeking.value && !force) {
       return;
     }
@@ -165,6 +298,10 @@ export const useMediaSession = () => {
     setActionHandler("stop", () => player.stop());
 
     updateAvailableActions();
+
+    if (androidBridge) {
+      window.addEventListener("audiogram-media-action", handleAndroidAction);
+    }
   });
 
   onUnmounted(() => {
@@ -193,7 +330,14 @@ export const useMediaSession = () => {
       seekCommitTimer = null;
     }
 
-    navigator.mediaSession.metadata = null;
+    if (isSupported) {
+      navigator.mediaSession.metadata = null;
+    }
+
+    if (androidBridge) {
+      window.removeEventListener("audiogram-media-action", handleAndroidAction);
+      androidBridge.release();
+    }
   });
 
   watch(
@@ -214,13 +358,17 @@ export const useMediaSession = () => {
   watch(
     () => player.isPlaying,
     (isPlaying) => {
-      navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+      if (isSupported) {
+        navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+      }
       updatePositionState(true);
+      updateAndroidPlayback();
 
       if (isPlaying) {
         if (!positionInterval) {
           positionInterval = setInterval(() => {
             updatePositionState();
+            updateAndroidPlayback();
           }, POSITION_UPDATE_INTERVAL);
         }
       }
@@ -238,6 +386,7 @@ export const useMediaSession = () => {
       forceNextUpdate.value = true;
       updatePositionState(true);
       updateAvailableActions();
+      updateAndroidPlayback();
     },
   );
 
@@ -252,6 +401,7 @@ export const useMediaSession = () => {
     () => player.canSeek,
     () => {
       updateAvailableActions();
+      updateAndroidPlayback();
     },
   );
 
@@ -259,6 +409,7 @@ export const useMediaSession = () => {
     [() => queue.hasNext, () => queue.hasPrevious],
     () => {
       updateAvailableActions();
+      updateAndroidPlayback();
     },
   );
 };

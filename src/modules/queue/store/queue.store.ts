@@ -12,7 +12,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
 import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
 import { unique, unwrapResult } from "@/queries/shared";
-import { migrateLegacyYtStreamUrl } from "@/lib/stream-url";
+import { migrateProxyUrl } from "@/lib/stream-url";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { getLogger } from "@/lib/logger";
 import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
@@ -407,6 +407,12 @@ export const useQueueStore = defineStore("queue", () => {
 
       const restoredQueue: QueueItem[] = [];
 
+      // The media server's port and token change every launch, so any stored
+      // proxy URL (playback or cover, current or legacy stream://-era form)
+      // must be re-pointed at the live base; foreign URLs pass through.
+      const migratedCover = (cover: string | null | undefined) =>
+        cover ? migrateProxyUrl(cover) : cover;
+
       for (const item of snapshot.queue) {
         if (item.track.kind === "library") {
           const track = libraryTracksById.get(item.track.trackId);
@@ -417,23 +423,25 @@ export const useQueueStore = defineStore("queue", () => {
             track,
             source: item.source,
             addedAt: item.addedAt,
-            cover: item.cover,
+            cover: migratedCover(item.cover),
           });
           continue;
         }
 
-        // One-time rewrite of pre-`stream://` snapshots: legacy ytstream://
-        // URLs are re-pointed at the generalized scheme (no legacy alias).
-        const track = item.track.source.type === "url"
-          ? { ...item.track, source: { ...item.track.source, url: migrateLegacyYtStreamUrl(item.track.source.url) } }
-          : item.track;
+        const track = {
+          ...item.track,
+          cover: migratedCover(item.track.cover) ?? undefined,
+          source: item.track.source.type === "url"
+            ? { ...item.track.source, url: migrateProxyUrl(item.track.source.url) }
+            : item.track.source,
+        };
 
         restoredQueue.push({
           id: item.id,
           track,
           source: item.source,
           addedAt: item.addedAt,
-          cover: item.cover,
+          cover: migratedCover(item.cover),
         });
       }
 

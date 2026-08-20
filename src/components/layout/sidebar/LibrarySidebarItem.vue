@@ -101,11 +101,11 @@ const handleClick = () => {
       <TooltipTrigger as-child>
         <div
           v-ripple
-          class="block  rounded-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none focus-visible:border-ring cursor-pointer"
+          class="block rounded-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none focus-visible:border-ring cursor-pointer"
           data-library-item
           :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
           role="button"
-          :class="compact ? 'px-auto' : 'px-2'"
+          :class="compact ? '' : 'mx-2'"
           tabindex="0"
           @click="handleClick"
           @keydown.enter="handleClick"
@@ -220,8 +220,8 @@ const handleClick = () => {
                     <Badge
                       v-if="item.type === 'folder'"
                       variant="secondary"
-                      size="sm"
-                      class="shrink-0 font-bold h-5 min-w-5 px-1 py-0 leading-none tabular-nums"
+                      size="md"
+                      class="shrink-0  h-5 min-w-5 px-1 py-0 font-medium!  text-white!"
                     >{{ item.folderItemCount ?? 0 }}</Badge>
                   </span>
                 </ItemDescription>

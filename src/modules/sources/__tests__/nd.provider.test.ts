@@ -31,7 +31,11 @@ vi.mock(import("@tauri-apps/api/core"), async (importOriginal) => {
   };
 });
 
+import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import { ndSourceProvider } from "../providers/nd.provider";
+
+const MEDIA_BASE = "http://127.0.0.1:4321/tok";
+setMediaServerBaseForTests(MEDIA_BASE);
 
 describe("ndSourceProvider", () => {
   beforeEach(() => {
@@ -166,12 +170,12 @@ describe("ndSourceProvider", () => {
     expect(artists[0]?.id).toBe("nd:ar1");
   });
 
-  it("builds stream and cover URLs through the stream:// proxy", async () => {
+  it("builds stream and cover URLs through the media server", async () => {
     const stream = await ndSourceProvider.resolveStreamUrl(ndTrackId("s1"));
-    expect(stream._unsafeUnwrap()).toBe("stream://localhost/nd/song/s1");
+    expect(stream._unsafeUnwrap()).toBe(`${MEDIA_BASE}/nd/song/s1`);
 
-    expect(ndSourceProvider.coverUrl("al-al1", 300)).toBe("stream://localhost/nd/cover/al-al1?size=300");
-    expect(ndSourceProvider.coverUrl("al-al1")).toBe("stream://localhost/nd/cover/al-al1");
+    expect(ndSourceProvider.coverUrl("al-al1", 300)).toBe(`${MEDIA_BASE}/nd/cover/al-al1?size=300`);
+    expect(ndSourceProvider.coverUrl("al-al1")).toBe(`${MEDIA_BASE}/nd/cover/al-al1`);
   });
 
   describe("downloadToFile", () => {

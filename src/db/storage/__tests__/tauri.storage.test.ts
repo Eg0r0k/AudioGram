@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TauriStorage } from "../tauri.storage";
+import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   stat: vi.fn(),
   appDataDir: vi.fn(),
   convertFileSrc: vi.fn(),
+  invoke: vi.fn(),
   fileHandle: {
     read: vi.fn(),
     close: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock("@tauri-apps/api/path", () => ({
 
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: mocks.convertFileSrc,
+  invoke: mocks.invoke,
 }));
 
 vi.mock("@/lib/environment/userAgent", () => ({
@@ -64,6 +67,7 @@ describe("TauriStorage", () => {
     mocks.remove.mockResolvedValue(undefined);
     mocks.copyFile.mockResolvedValue(undefined);
     mocks.mkdir.mockResolvedValue(undefined);
+    mocks.invoke.mockResolvedValue(0);
   });
 
   describe("warmup", () => {
@@ -136,7 +140,21 @@ describe("TauriStorage", () => {
       expect(mocks.open).not.toHaveBeenCalled();
     });
 
-    it("should stream content:// sources through open() instead of copyFile", async () => {
+    it("should copy content:// sources through the native import command", async () => {
+      const result = await storage.importFile("content://media/audio/42", "tracks/z.mp3");
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe("tracks/z.mp3");
+      expect(mocks.invoke).toHaveBeenCalledWith("import_local_file", {
+        source: "content://media/audio/42",
+        targetRel: "tracks/z.mp3",
+      });
+      expect(mocks.copyFile).not.toHaveBeenCalled();
+      expect(mocks.open).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to JS streaming when the native command fails", async () => {
+      mocks.invoke.mockRejectedValueOnce(new Error("command unavailable"));
       const chunks = [new Uint8Array([1, 2, 3])];
       let readCall = 0;
       const src = {
@@ -170,6 +188,7 @@ describe("TauriStorage", () => {
     });
 
     it("should close both handles and fail when the streamed read throws", async () => {
+      mocks.invoke.mockRejectedValueOnce(new Error("command unavailable"));
       const src = {
         read: vi.fn().mockRejectedValue(new Error("EACCES")),
         close: vi.fn().mockResolvedValue(undefined),
@@ -228,59 +247,34 @@ describe("TauriStorage", () => {
   });
 
   describe("getAudioUrl", () => {
-    it("should convert path to asset url", async () => {
-      mocks.convertFileSrc.mockReturnValue("asset://localhost/usr/appdata/tracks/1.mp3");
+    // Every platform plays local audio via the loopback media server.
+    const BASE = "http://127.0.0.1:4321/tok";
 
+    beforeEach(() => {
+      setMediaServerBaseForTests(BASE);
+    });
+
+    it("should join relative paths to appData and build a server URL", async () => {
       const result = await storage.getAudioUrl("tracks/1.mp3");
 
       expect(result.isOk()).toBe(true);
-      expect(mocks.convertFileSrc).toHaveBeenCalledWith(`${APP_DATA_PATH}/tracks/1.mp3`);
-      expect(result._unsafeUnwrap()).toBe("asset://localhost/usr/appdata/tracks/1.mp3");
+      expect(result._unsafeUnwrap())
+        .toBe(`${BASE}/local/${encodeURIComponent(`${APP_DATA_PATH}/tracks/1.mp3`)}`);
     });
 
     it("should use absolute source path directly without joining appData", async () => {
-      mocks.convertFileSrc.mockReturnValue("asset://localhost/abs/x.mp3");
-
       const result = await storage.getAudioUrl("/abs/path/x.mp3");
 
       expect(result.isOk()).toBe(true);
-      expect(mocks.convertFileSrc).toHaveBeenCalledWith("/abs/path/x.mp3");
+      expect(result._unsafeUnwrap()).toBe(`${BASE}/local/${encodeURIComponent("/abs/path/x.mp3")}`);
       expect(mocks.appDataDir).not.toHaveBeenCalled();
     });
 
     it("should normalize windows backslashes before conversion", async () => {
-      mocks.convertFileSrc.mockReturnValue("asset://localhost/c/x.mp3");
-
       const result = await storage.getAudioUrl("C:\\music\\x.mp3");
 
       expect(result.isOk()).toBe(true);
-      expect(mocks.convertFileSrc).toHaveBeenCalledWith("C:/music/x.mp3");
-    });
-
-    it("should route relative paths through the stream local proxy on android", async () => {
-      mocks.isAndroid = true;
-      mocks.convertFileSrc.mockReturnValue("http://stream.localhost/local%2F...");
-
-      const result = await storage.getAudioUrl("tracks/1.mp3");
-
-      expect(result.isOk()).toBe(true);
-      expect(mocks.convertFileSrc).toHaveBeenCalledWith(
-        `local/${APP_DATA_PATH}/tracks/1.mp3`,
-        "stream",
-      );
-    });
-
-    it("should route absolute paths through the stream local proxy on android", async () => {
-      mocks.isAndroid = true;
-      mocks.convertFileSrc.mockReturnValue("http://stream.localhost/local%2F...");
-
-      const result = await storage.getAudioUrl("/storage/emulated/0/Music/x.mp3");
-
-      expect(result.isOk()).toBe(true);
-      expect(mocks.convertFileSrc).toHaveBeenCalledWith(
-        "local//storage/emulated/0/Music/x.mp3",
-        "stream",
-      );
+      expect(result._unsafeUnwrap()).toBe(`${BASE}/local/${encodeURIComponent("C:/music/x.mp3")}`);
     });
   });
 
