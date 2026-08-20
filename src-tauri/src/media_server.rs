@@ -464,6 +464,17 @@ pub(crate) async fn handle<T: RemoteRoutes>(
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
 
+    // CORS preflight: suffix ranges (`bytes=-N`) are not safelisted, so a
+    // scripted fetch OPTIONS-probes first. Answered for any path — it leaks
+    // nothing and the GET itself still 404s without the token.
+    if req.method() == http::Method::OPTIONS {
+        return cors(http::Response::builder().status(204), origin.as_deref())
+            .header("Access-Control-Allow-Methods", "GET")
+            .header("Access-Control-Allow-Headers", "Range")
+            .body(empty_body())
+            .unwrap_or_default();
+    }
+
     if req.method() != http::Method::GET {
         return status_response(405, origin.as_deref());
     }
@@ -896,6 +907,28 @@ mod integration_tests {
         assert_eq!(resp.status(), 416);
         assert_eq!(resp.headers()["Content-Range"], "bytes */20");
         let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn answers_cors_preflight_for_range_requests() {
+        // Suffix ranges (`bytes=-N`) are not CORS-safelisted, so a scripted
+        // fetch preflights with OPTIONS before the GET.
+        let (base, token) = spawn_test_server().await;
+
+        let client = reqwest::Client::new();
+        let resp = client
+            .request(reqwest::Method::OPTIONS, format!("{base}/{token}/local/x"))
+            .header("Origin", "http://tauri.localhost")
+            .header("Access-Control-Request-Method", "GET")
+            .header("Access-Control-Request-Headers", "range")
+            .send()
+            .await
+            .expect("preflight");
+
+        assert_eq!(resp.status(), 204);
+        assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
+        assert_eq!(resp.headers()["Access-Control-Allow-Methods"], "GET");
+        assert_eq!(resp.headers()["Access-Control-Allow-Headers"], "Range");
     }
 
     #[tokio::test]
