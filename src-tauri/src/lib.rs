@@ -22,6 +22,8 @@ mod youtube;
 
 mod localfile;
 
+mod media_server;
+
 mod nd;
 
 mod proxy;
