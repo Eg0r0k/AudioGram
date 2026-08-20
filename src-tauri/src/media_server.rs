@@ -194,6 +194,9 @@ fn audio_base(status: u16, content_type: &str, origin: Option<&str>) -> http::re
         .header("Content-Type", content_type)
         .header("Accept-Ranges", "bytes")
         .header("Cache-Control", "no-store")
+        // Content-Range/Content-Length are not CORS-safelisted; without this
+        // a scripted fetch on the webview origin cannot read them.
+        .header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
 }
 
 /// Serves a fully in-memory body (prefetch caches) honoring Range.
@@ -848,6 +851,12 @@ mod integration_tests {
 
         assert_eq!(resp.status(), 206);
         assert_eq!(resp.headers()["Content-Range"], "bytes 10-19/20");
+        // Content-Range is not CORS-safelisted — without the expose header
+        // scripted readers (fetch) on the webview origin cannot see it.
+        assert_eq!(
+            resp.headers()["Access-Control-Expose-Headers"],
+            "Content-Range, Accept-Ranges, Content-Length",
+        );
         assert_eq!(resp.bytes().await.expect("body").as_ref(), &FILE_BODY[10..]);
         let _ = std::fs::remove_file(path);
     }
