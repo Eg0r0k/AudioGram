@@ -34,14 +34,17 @@ class StatsService {
     const isCompleted = completed
       || (pending.trackDuration > 0
         && secondsListened / pending.trackDuration >= COMPLETE_THRESHOLD);
+    // An interruption past the complete threshold is a finished listen, not
+    // a skip — mirroring scrobbling conventions.
+    const isSkipped = skipped && !isCompleted;
 
     await db.listenEvents.update(pending.eventId, {
       secondsListened,
       completed: isCompleted,
-      skipped,
+      skipped: isSkipped,
     });
 
-    if (!skipped && secondsListened >= MIN_LISTEN_SECONDS) {
+    if (!isSkipped && secondsListened >= MIN_LISTEN_SECONDS) {
       trackRepository.update(pending.trackId, {
         playCount: ((await db.tracks.get(pending.trackId))?.playCount ?? 0) + 1,
         lastPlayedAt: pending.startedAt,
@@ -87,9 +90,12 @@ class StatsService {
     };
   }
 
-  stopListening(secondsListened: number, completed = false): Promise<void> {
+  stopListening(
+    secondsListened: number,
+    options: { completed?: boolean; skipped?: boolean } = {},
+  ): Promise<void> {
     if (!this._pendingEvent) return Promise.resolve();
-    return this._finalizePending(secondsListened, false, completed);
+    return this._finalizePending(secondsListened, options.skipped ?? false, options.completed ?? false);
   }
 
   async removeFromHistory(trackId: TrackId): Promise<void> {

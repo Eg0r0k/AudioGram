@@ -93,11 +93,13 @@ const sourcesMock = vi.hoisted(() => ({ forTrack: vi.fn() }));
 
 vi.mock("@/modules/sources", () => ({ sources: sourcesMock }));
 
+const statsMock = vi.hoisted(() => ({
+  stopListening: vi.fn(() => Promise.resolve()),
+  startListening: vi.fn(),
+}));
+
 vi.mock("@/services/stats.service", () => ({
-  statsService: {
-    stopListening: () => Promise.resolve(null),
-    startListening: () => {},
-  },
+  statsService: statsMock,
 }));
 
 vi.mock("@/queries/client", () => ({
@@ -1108,6 +1110,47 @@ describe("player.store", () => {
 
       expect(store.currentTime).toBe(0);
       expect(onEnded).toHaveBeenCalledTimes(1);
+    });
+
+    it("finalizes the previous listen as skipped when switching tracks", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      statsMock.stopListening.mockClear();
+
+      store.currentTime = 42;
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(42, { skipped: true });
+    });
+
+    it("holds the optimistic loading status through engine chatter while switching tracks", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      engine().trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("playing");
+
+      // Skip to the next track: playPlayerTrack sets "loading" synchronously,
+      // then the engine's load() resets itself through "idle" and resolves
+      // through "ready" before play() lands. None of that may reach the UI —
+      // a single frame of "not playing" visibly re-morphs the pause icon.
+      const switching = store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+      expect(store.status).toBe("loading");
+
+      engine().trigger("statechange", { to: "idle" });
+      expect(store.status).toBe("loading");
+      engine().trigger("statechange", { to: "ready" });
+      expect(store.status).toBe("loading");
+      engine().trigger("statechange", { to: "paused" });
+      expect(store.status).toBe("loading");
+
+      engine().trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("playing");
+      await switching;
+
+      // Once the switch is over, the filter must release: a real stop's
+      // idle transition still has to reach the store.
+      engine().trigger("statechange", { to: "idle" });
+      expect(store.status).toBe("idle");
     });
 
     it("ignores events from a superseded player", async () => {

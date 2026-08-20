@@ -89,7 +89,7 @@ describe("player lifecycle", () => {
 
     trackEndedBus.emit();
 
-    expect(statsService.stopListening).toHaveBeenCalledWith(199, true);
+    expect(statsService.stopListening).toHaveBeenCalledWith(199, { completed: true });
     expect(mockQueue.next).toHaveBeenCalledTimes(1);
 
     const stopOrder = vi.mocked(statsService.stopListening).mock.invocationCallOrder[0];
