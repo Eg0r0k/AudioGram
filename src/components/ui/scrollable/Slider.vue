@@ -4,7 +4,7 @@
     hide-thumb
     :class="cn('w-full', props.class)"
   >
-    <div :class="cn('flex w-max items-stretch gap-4 py-2', props.contentClass)">
+    <div :class="cn('flex w-max items-stretch gap-2 py-2', props.contentClass)">
       <slot />
     </div>
   </Scrollable>
