@@ -104,4 +104,53 @@ describe("menu modality (click-through prevention)", () => {
       expect(document.body.style.pointerEvents).not.toBe("none");
     });
   });
+
+  //
+  // The body pointer-events lock alone is not enough: elements with an
+  // explicit pointer-events:auto stay clickable THROUGH the layers above
+  // them. A scrim in the menu portal (below the content, above everything
+  // else) catches the outside click instead; it must survive until the body
+  // lock is actually released, then leave.
+  //
+
+  it("dropdown renders a hit-testable scrim under the content and removes it after close", async () => {
+    render(DropdownHost, renderOptions);
+
+    await userEvent.click(screen.getByText("open dropdown"));
+    await screen.findByText("dropdown item");
+
+    const scrim = document.querySelector('[data-slot="menu-overlay"]');
+    expect(scrim).not.toBeNull();
+    expect(scrim!.className).toContain("pointer-events-auto");
+
+    const content = screen.getByText("dropdown item")
+      .closest('[data-slot="dropdown-menu-content"]');
+    expect(scrim!.compareDocumentPosition(content!) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(document.body.style.pointerEvents).not.toBe("none");
+    });
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="menu-overlay"]')).toBeNull();
+    });
+  });
+
+  it("context menu renders the scrim while open and removes it after close", async () => {
+    render(ContextHost, renderOptions);
+
+    await fireEvent.contextMenu(screen.getByText("context target"));
+    await screen.findByText("context item");
+
+    expect(document.querySelector('[data-slot="menu-overlay"]')).not.toBeNull();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(document.body.style.pointerEvents).not.toBe("none");
+    });
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="menu-overlay"]')).toBeNull();
+    });
+  });
 });
