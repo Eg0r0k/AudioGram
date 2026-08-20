@@ -1,54 +1,19 @@
-//! Cover proxy and its in-memory cache: the `/{token}/nd/cover/…` route of
-//! the loopback media server.
+//! Cover proxy: the `/{token}/nd/cover/…` route of the loopback media server.
+//!
+//! No server-side cache: responses carry `Cache-Control: public, max-age=86400`
+//! and the loopback transport is plain HTTP, so the webview's own HTTP cache
+//! already serves repeat loads without reaching this route. (An in-memory
+//! cache lived here when the transport was a custom scheme, which WebView2
+//! refused to HTTP-cache; the move to loopback HTTP made it redundant.)
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
-
-/// WebView2 does not put custom-scheme responses into its HTTP cache (same
-/// story as the `ytimg://` thumbnails), so every `<img>` remount would
-/// re-fetch the cover from the server and replay the load animation. Keep
-/// the bytes in memory instead. Keyed by `coverId?size` — no auth material.
-const MAX_CACHED_COVERS: usize = 256;
-const MAX_CACHEABLE_COVER_BYTES: usize = 1024 * 1024;
-
-#[derive(Default)]
-pub struct NdCoverCache {
-    entries: Mutex<(HashMap<String, (String, Vec<u8>)>, VecDeque<String>)>,
-}
-
-impl NdCoverCache {
-    fn get(&self, key: &str) -> Option<(String, Vec<u8>)> {
-        let entries = self.entries.lock().ok()?;
-        entries.0.get(key).cloned()
-    }
-
-    fn insert(&self, key: String, content_type: String, bytes: Vec<u8>) {
-        if bytes.len() > MAX_CACHEABLE_COVER_BYTES {
-            return;
-        }
-        let Ok(mut entries) = self.entries.lock() else {
-            return;
-        };
-        let (map, order) = &mut *entries;
-        if map.insert(key.clone(), (content_type, bytes)).is_none() {
-            order.push_back(key);
-        }
-        while map.len() > MAX_CACHED_COVERS {
-            let Some(oldest) = order.pop_front() else {
-                break;
-            };
-            map.remove(&oldest);
-        }
-    }
-}
+use futures_util::TryStreamExt;
+use http_body_util::{BodyExt, StreamBody};
 
 /// `/{token}/nd/cover/<coverId>?size=<px>` → `getCoverArt.view`. Proxied so
-/// the canvas stays untainted for palette extraction; served from the
-/// in-memory cache after the first fetch. Deliberately buffered (covers are
-/// ≤1 MiB-cacheable) — streaming would bypass the cache.
+/// the canvas stays untainted for palette extraction; the body streams
+/// through without buffering.
 pub(crate) async fn serve_cover(
     config: Option<super::config::NdConfig>,
-    cache: &NdCoverCache,
     proxy: Option<String>,
     cover_id: &str,
     query: Option<&str>,
@@ -61,11 +26,6 @@ pub(crate) async fn serve_cover(
         .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
         .map(|s| format!("&size={s}"))
         .unwrap_or_default();
-
-    let cache_key = format!("{cover_id}{size}");
-    if let Some((content_type, bytes)) = cache.get(&cache_key) {
-        return cover_ok(&content_type, bytes, origin);
-    }
 
     let Some(config) = config else {
         return status_response(503, origin);
@@ -98,30 +58,28 @@ pub(crate) async fn serve_cover(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("image/jpeg")
         .to_owned();
-    let bytes = match response.bytes().await {
-        Ok(bytes) => bytes.to_vec(),
-        Err(e) => {
-            log::warn!("media nd/cover/{cover_id}: body failed: {}", e.without_url());
-            return status_response(502, origin);
-        }
-    };
+    let content_length = response
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
 
-    cache.insert(cache_key, content_type.clone(), bytes.clone());
-    cover_ok(&content_type, bytes, origin)
-}
-
-/// Covers are cacheable, unlike tokenized audio: the browser may keep them
-/// for a day, which kills the `<img>` remount re-fetch flicker.
-fn cover_ok(
-    content_type: &str,
-    bytes: Vec<u8>,
-    origin: Option<&str>,
-) -> http::Response<crate::media_server::Body> {
-    crate::media_server::cors(http::Response::builder().status(200), origin)
+    // Covers are cacheable, unlike tokenized audio: the browser may keep them
+    // for a day, which kills the `<img>` remount re-fetch flicker.
+    let mut builder = crate::media_server::cors(http::Response::builder().status(200), origin)
         .header("Content-Type", content_type)
-        .header("Cache-Control", "public, max-age=86400")
-        .body(crate::media_server::full_body(bytes::Bytes::from(bytes)))
-        .unwrap_or_else(|_| crate::media_server::status_response(500, origin))
+        .header("Cache-Control", "public, max-age=86400");
+    if let Some(len) = content_length {
+        builder = builder.header("Content-Length", len);
+    }
+
+    let stream = response
+        .bytes_stream()
+        .map_err(|e| std::io::Error::other(e.without_url().to_string()))
+        .map_ok(hyper::body::Frame::data);
+    builder
+        .body(StreamBody::new(stream).boxed())
+        .unwrap_or_else(|_| status_response(500, origin))
 }
 
 #[cfg(test)]
@@ -142,15 +100,13 @@ mod tests {
 
     #[tokio::test]
     async fn serve_cover_unconfigured_is_503() {
-        let cache = NdCoverCache::default();
-
-        let resp = serve_cover(None, &cache, None, "c1", None, None).await;
+        let resp = serve_cover(None, None, "c1", None, None).await;
 
         assert_eq!(resp.status(), 503);
     }
 
     #[tokio::test]
-    async fn serve_cover_fetches_once_passes_size_and_replays_from_cache() {
+    async fn serve_cover_streams_upstream_and_passes_size() {
         let hits = Arc::new(AtomicUsize::new(0));
         let seen_hits = Arc::clone(&hits);
         let upstream = crate::media_server::test_support::spawn_upstream(move |req| {
@@ -167,22 +123,22 @@ mod tests {
                 .expect("upstream response")
         })
         .await;
-        let cache = NdCoverCache::default();
         let config = test_config(upstream);
 
-        let first = serve_cover(Some(config.clone()), &cache, None, "c1", Some("size=300"), None).await;
+        let first = serve_cover(Some(config.clone()), None, "c1", Some("size=300"), None).await;
         assert_eq!(first.status(), 200);
         assert_eq!(first.headers()["Content-Type"], "image/png");
         assert_eq!(first.headers()["Cache-Control"], "public, max-age=86400");
         let body = first.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"img");
 
-        let second = serve_cover(Some(config), &cache, None, "c1", Some("size=300"), None).await;
+        // Caching is the webview's job now — the proxy itself stays stateless.
+        let second = serve_cover(Some(config), None, "c1", Some("size=300"), None).await;
         assert_eq!(second.status(), 200);
         let body = second.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"img");
 
-        assert_eq!(hits.load(Ordering::SeqCst), 1, "second answer must come from the cache");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "no server-side cache left behind");
     }
 
     #[tokio::test]
@@ -194,9 +150,8 @@ mod tests {
                 .expect("upstream response")
         })
         .await;
-        let cache = NdCoverCache::default();
 
-        let resp = serve_cover(Some(test_config(upstream)), &cache, None, "c1", None, None).await;
+        let resp = serve_cover(Some(test_config(upstream)), None, "c1", None, None).await;
 
         assert_eq!(resp.status(), 502);
     }

@@ -435,9 +435,8 @@ impl<R: Runtime> RemoteRoutes for AppRoutes<R> {
         if let Some(id) = rest.strip_prefix("nd/cover/") {
             let config = app.state::<crate::nd::NdState>().get();
             let proxy = app.state::<crate::proxy::ProxyState>().get();
-            let cache = app.state::<crate::nd::NdCoverCache>();
             return Some(
-                crate::nd::serve_cover(config, &cache, proxy, id, query.as_deref(), origin).await,
+                crate::nd::serve_cover(config, proxy, id, query.as_deref(), origin).await,
             );
         }
         #[cfg(desktop)]
