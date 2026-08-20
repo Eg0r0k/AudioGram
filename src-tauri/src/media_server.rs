@@ -28,6 +28,15 @@ pub struct MediaServerState {
     pub token: String,
 }
 
+/// The frontend prefixes every media URL with this base:
+/// `http://127.0.0.1:{port}/{token}`. Queried once at bootstrap (top-level
+/// await in main.ts) — the socket is bound before the webview exists, so
+/// this can never race server readiness.
+#[tauri::command]
+pub fn media_server_base(state: tauri::State<'_, MediaServerState>) -> String {
+    format!("http://127.0.0.1:{}/{}", state.port, state.token)
+}
+
 /// What a `Range` header means for a resource of `total` bytes.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum RangeOutcome {
@@ -157,13 +166,13 @@ fn empty_body() -> Body {
         .boxed()
 }
 
-fn full_body(bytes: bytes::Bytes) -> Body {
+pub(crate) fn full_body(bytes: bytes::Bytes) -> Body {
     Full::new(bytes).map_err(|never| match never {}).boxed()
 }
 
 /// CORS + Vary on every response; `Vary: Origin` whenever the value depends
 /// on the request's Origin (i.e. the header was present).
-fn cors(builder: http::response::Builder, origin: Option<&str>) -> http::response::Builder {
+pub(crate) fn cors(builder: http::response::Builder, origin: Option<&str>) -> http::response::Builder {
     let builder = builder.header("Access-Control-Allow-Origin", allow_origin(origin));
     if origin.is_some() {
         builder.header("Vary", "Origin")
@@ -210,6 +219,105 @@ pub(crate) fn memory_range_response(
             .body(full_body(bytes::Bytes::copy_from_slice(bytes)))
             .unwrap_or_else(|_| status_response(500, origin)),
     }
+}
+
+// ── Upstream forwarding ──────────────────────────────────────────────
+
+/// Caps any range to `max_span` bytes: `bytes=X-` (the media element's probe
+/// and seek form) and over-long explicit ranges become `bytes=X-(X+span-1)`.
+///
+/// Sole remaining reason (the in-memory buffering one died with `stream://`):
+/// googlevideo outright rejects large spans on URLs resolved without a PO
+/// token (measured 2026-08: ≤1 MiB → 206, 2 MiB → 403, larger/open → 302
+/// bounce), so the YT side must stay under that. A capped 206 +
+/// Content-Range makes the element stream progressively.
+///
+/// Absent headers and malformed/suffix specs pass through untouched.
+pub(crate) fn cap_range_span(range: Option<String>, max_span: u64) -> Option<String> {
+    let raw = range?;
+    let capped = raw
+        .strip_prefix("bytes=")
+        .and_then(|spec| spec.split_once('-'))
+        .and_then(|(start, end)| {
+            let start: u64 = start.trim().parse().ok()?;
+            let capped_end = start.saturating_add(max_span - 1);
+            let end = match end.trim() {
+                "" => capped_end,
+                end => end.parse::<u64>().ok()?.min(capped_end),
+            };
+            Some(format!("bytes={start}-{end}"))
+        });
+    Some(capped.unwrap_or(raw))
+}
+
+/// reqwest client honoring the app proxy. Errors are proxy-config errors —
+/// they never carry request URLs.
+pub(crate) fn proxied_client(proxy: Option<String>) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder();
+    if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
+        if let Ok(proxy) = reqwest::Proxy::all(url) {
+            builder = builder.proxy(proxy);
+        }
+    }
+    builder.build().map_err(|e| e.to_string())
+}
+
+/// GET `url` forwarding an optional Range header (capped to `max_span` when
+/// given — see [`cap_range_span`]), propagating status, Content-Type,
+/// Content-Range, Content-Length and Accept-Ranges, and passing the upstream
+/// body through AS A STREAM — nothing is buffered on any platform. `headers`
+/// (upstream-required request headers) and `proxy` are per-source concerns.
+/// Errors never embed the URL (nd URLs carry auth tokens).
+pub(crate) async fn forward_stream(
+    url: &str,
+    headers: &[(String, String)],
+    range: Option<String>,
+    proxy: Option<String>,
+    max_span: Option<u64>,
+    origin: Option<&str>,
+) -> Result<http::Response<Body>, String> {
+    use futures_util::TryStreamExt;
+
+    let range = match max_span {
+        Some(span) => cap_range_span(range, span),
+        None => range,
+    };
+    let client = proxied_client(proxy)?;
+
+    let mut req = client.get(url);
+    for (name, value) in headers {
+        req = req.header(name.as_str(), value.as_str());
+    }
+    if let Some(range) = &range {
+        req = req.header(reqwest::header::RANGE, range);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {}", e.without_url()))?;
+    let status = resp.status().as_u16();
+    let upstream_headers = resp.headers().clone();
+
+    let content_type = upstream_headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("audio/mp4");
+
+    let mut builder = audio_base(status, content_type, origin);
+    for name in [reqwest::header::CONTENT_RANGE, reqwest::header::CONTENT_LENGTH] {
+        if let Some(value) = upstream_headers.get(&name).and_then(|v| v.to_str().ok()) {
+            builder = builder.header(name.as_str(), value.to_owned());
+        }
+    }
+
+    let stream = resp
+        .bytes_stream()
+        .map_err(|e| std::io::Error::other(e.without_url().to_string()))
+        .map_ok(hyper::body::Frame::data);
+    builder
+        .body(StreamBody::new(stream).boxed())
+        .map_err(|e| e.to_string())
 }
 
 // ── Local files ──────────────────────────────────────────────────────
@@ -308,8 +416,34 @@ impl<R: Runtime> RemoteRoutes for AppRoutes<R> {
         range: Option<String>,
         origin: Option<String>,
     ) -> Option<http::Response<Body>> {
-        let _ = (rest, query, range, origin);
-        // Wired up when the nd/yt handlers move off the stream:// protocol.
+        use tauri::Manager;
+
+        let app = &self.0;
+        let origin = origin.as_deref();
+
+        if let Some(id) = rest.strip_prefix("nd/song/") {
+            let config = app.state::<crate::nd::NdState>().get();
+            let proxy = app.state::<crate::proxy::ProxyState>().get();
+            let cache = app.state::<crate::nd::NdAudioCache>();
+            return Some(
+                crate::nd::serve_song(config, &cache, proxy, id, range.as_deref(), origin).await,
+            );
+        }
+        if let Some(id) = rest.strip_prefix("nd/cover/") {
+            let config = app.state::<crate::nd::NdState>().get();
+            let proxy = app.state::<crate::proxy::ProxyState>().get();
+            let cache = app.state::<crate::nd::NdCoverCache>();
+            return Some(
+                crate::nd::serve_cover(config, &cache, proxy, id, query.as_deref(), origin).await,
+            );
+        }
+        #[cfg(desktop)]
+        if let Some(id) = rest.strip_prefix("yt/") {
+            return Some(crate::youtube::serve_yt(app, id, range, origin).await);
+        }
+        #[cfg(not(desktop))]
+        let _ = range;
+
         None
     }
 }
@@ -425,6 +559,45 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>, token: String, listener: std::net::T
         };
         run_accept_loop(AppRoutes(app), token, listener).await;
     });
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    /// Minimal in-process upstream: every request goes through `handler`,
+    /// which sees the full request head. Returns the upstream's base URL.
+    pub(crate) async fn spawn_upstream<F>(handler: F) -> String
+    where
+        F: Fn(&http::Request<hyper::body::Incoming>) -> http::Response<Full<bytes::Bytes>>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind upstream");
+        let base = format!("http://127.0.0.1:{}", listener.local_addr().expect("addr").port());
+        tokio::spawn(async move {
+            loop {
+                let Ok((stream, _addr)) = listener.accept().await else {
+                    break;
+                };
+                let handler = handler.clone();
+                tokio::spawn(async move {
+                    let service = hyper::service::service_fn(move |req| {
+                        let handler = handler.clone();
+                        async move { Ok::<_, std::convert::Infallible>(handler(&req)) }
+                    });
+                    let _ = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(hyper_util::rt::TokioIo::new(stream), service)
+                        .await;
+                });
+            }
+        });
+        base
+    }
 }
 
 #[cfg(test)]
@@ -548,6 +721,47 @@ mod tests {
     fn blocks_unknown_origins_and_wildcards_headerless_requests() {
         assert_eq!(allow_origin(Some("https://evil.example")), "null");
         assert_eq!(allow_origin(None), "*");
+    }
+
+    // ── cap_range_span (moved verbatim from stream.rs) ───────────────
+
+    const SPAN: u64 = 1024;
+
+    #[test]
+    fn caps_the_open_probe_and_seek_ranges() {
+        assert_eq!(
+            cap_range_span(Some("bytes=0-".into()), SPAN).as_deref(),
+            Some("bytes=0-1023"),
+        );
+        assert_eq!(
+            cap_range_span(Some("bytes=5000-".into()), SPAN).as_deref(),
+            Some("bytes=5000-6023"),
+        );
+    }
+
+    #[test]
+    fn caps_explicit_ranges_longer_than_the_span() {
+        assert_eq!(
+            cap_range_span(Some("bytes=100-999999".into()), SPAN).as_deref(),
+            Some("bytes=100-1123"),
+        );
+    }
+
+    #[test]
+    fn keeps_explicit_ranges_within_the_span() {
+        assert_eq!(
+            cap_range_span(Some("bytes=100-200".into()), SPAN).as_deref(),
+            Some("bytes=100-200"),
+        );
+    }
+
+    #[test]
+    fn passes_through_absent_suffix_and_malformed_specs() {
+        assert_eq!(cap_range_span(None, SPAN), None);
+        // Suffix ranges ("last N bytes") have no start to cap from.
+        assert_eq!(cap_range_span(Some("bytes=-500".into()), SPAN).as_deref(), Some("bytes=-500"));
+        assert_eq!(cap_range_span(Some("items=0-".into()), SPAN).as_deref(), Some("items=0-"));
+        assert_eq!(cap_range_span(Some("bytes=abc-".into()), SPAN).as_deref(), Some("bytes=abc-"));
     }
 }
 
@@ -726,6 +940,85 @@ mod integration_tests {
             .await
             .expect("unknown");
         assert_eq!(unknown.status(), 404);
+    }
+
+    // ── forward_stream ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn forward_stream_propagates_status_headers_and_body() {
+        let upstream = test_support::spawn_upstream(|_req| {
+            http::Response::builder()
+                .status(206)
+                .header("Content-Type", "audio/flac")
+                .header("Content-Range", "bytes 5-9/100")
+                .body(Full::new(bytes::Bytes::from_static(b"56789")))
+                .expect("upstream response")
+        })
+        .await;
+
+        let resp = forward_stream(
+            &format!("{upstream}/rest/stream.view"),
+            &[],
+            Some("bytes=5-9".into()),
+            None,
+            None,
+            Some("http://tauri.localhost"),
+        )
+        .await
+        .expect("forwarded");
+
+        assert_eq!(resp.status(), 206);
+        assert_eq!(resp.headers()["Content-Type"], "audio/flac");
+        assert_eq!(resp.headers()["Content-Range"], "bytes 5-9/100");
+        assert_eq!(resp.headers()["Accept-Ranges"], "bytes");
+        assert_eq!(resp.headers()["Cache-Control"], "no-store");
+        assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
+        let body = resp.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"56789");
+    }
+
+    #[tokio::test]
+    async fn forward_stream_caps_open_ranges_and_forwards_request_headers() {
+        // The upstream echoes what it received so the test can see the
+        // capped Range and the custom header arrive.
+        let upstream = test_support::spawn_upstream(|req| {
+            let range = req
+                .headers()
+                .get("Range")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("none")
+                .to_owned();
+            let marker = req
+                .headers()
+                .get("X-Test")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("none")
+                .to_owned();
+            http::Response::builder()
+                .status(200)
+                .body(Full::new(bytes::Bytes::from(format!("{range}|{marker}"))))
+                .expect("upstream response")
+        })
+        .await;
+
+        let capped = forward_stream(
+            &upstream,
+            &[("X-Test".into(), "1".into())],
+            Some("bytes=0-".into()),
+            None,
+            Some(1024),
+            None,
+        )
+        .await
+        .expect("capped");
+        let body = capped.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"bytes=0-1023|1");
+
+        let uncapped = forward_stream(&upstream, &[], Some("bytes=0-".into()), None, None, None)
+            .await
+            .expect("uncapped");
+        let body = uncapped.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"bytes=0-|none");
     }
 
     #[tokio::test]

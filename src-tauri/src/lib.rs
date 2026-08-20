@@ -20,15 +20,11 @@ mod discord_utils;
 #[cfg(desktop)]
 mod youtube;
 
-mod localfile;
-
 mod media_server;
 
 mod nd;
 
 mod proxy;
-
-mod stream;
 
 fn dir_size(path: &Path) -> u64 {
     let mut total = 0;
@@ -72,6 +68,14 @@ async fn app_data_folder_size(app: tauri::AppHandle, folder: String) -> Result<u
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Bound BEFORE any webview exists so the frontend can never observe a
+    // non-listening media server. Binding loopback:0 only fails on a broken
+    // network stack — without the playback transport the app is useless, so
+    // failing fast beats limping on.
+    let (media_listener, media_state) = media_server::bind_on_loopback()
+        .expect("failed to bind the loopback media server");
+    let media_token = media_state.token.clone();
+
     let builder = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -94,7 +98,7 @@ pub fn run() {
         .manage(nd::NdCoverCache::default())
         .manage(nd::NdAudioCache::default())
         .manage(nd::NdDownloadRegistry::default())
-        .register_asynchronous_uri_scheme_protocol("stream", stream::serve);
+        .manage(media_state);
 
     #[cfg(desktop)]
     let builder = builder
@@ -122,6 +126,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         app_data_folder_size,
+        media_server::media_server_base,
         discord::discord_set_activity,
         discord::discord_clear_activity,
         updater::check_update,
@@ -149,6 +154,7 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![
         app_data_folder_size,
+        media_server::media_server_base,
         proxy::set_proxy,
         proxy::proxy_check,
         nd::nd_set_config,
@@ -158,7 +164,12 @@ pub fn run() {
     ]);
 
     builder
-        .setup(|_app| {
+        .setup(move |_app| {
+            // The config windows are created after setup returns, so the
+            // accept loop is live before the first frontend request (and the
+            // bound socket's backlog would hold early connections anyway).
+            media_server::spawn(_app.handle().clone(), media_token, media_listener);
+
             #[cfg(desktop)]
             {
                 let app = _app;
