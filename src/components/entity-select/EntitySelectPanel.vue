@@ -71,22 +71,6 @@
         </template>
       </VirtualScrollable>
 
-      <div
-        v-if="showCreateRow"
-        class="absolute inset-x-0 bottom-0 border-t border-border bg-card p-2"
-      >
-        <Item
-          as="button"
-          type="button"
-          data-testid="create-row"
-          class="w-full cursor-pointer gap-2 px-3 py-2 text-left text-primary"
-          @click="emit('create', normalizedSearch)"
-        >
-          <IconPlus class="size-5" />
-          <span class="truncate">{{ createLabel ?? t("entitySelect.create", { name: normalizedSearch }) }}</span>
-        </Item>
-      </div>
-
       <AddFloatingButton
         :count="confirmCount ?? 0"
         :show="(confirmCount ?? 0) > 0"
@@ -97,16 +81,14 @@
 </template>
 
 <script setup lang="ts" generic="T">
-import { computed, useTemplateRef } from "vue";
+import { useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Item } from "@/components/ui/item";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
 import AddFloatingButton from "@/modules/tracks/components/tracks-sheet/AddFloatingButton.vue";
-import IconPlus from "~icons/tabler/plus";
 import IconX from "~icons/tabler/x";
 
 const props = withDefaults(defineProps<{
@@ -148,6 +130,4 @@ const keyAt = (index: number) => {
   return item ? props.getKey(item) : index;
 };
 
-const normalizedSearch = computed(() => props.search.trim().replace(/\s+/g, " "));
-const showCreateRow = computed(() => props.canCreate && normalizedSearch.value.length > 0);
 </script>
