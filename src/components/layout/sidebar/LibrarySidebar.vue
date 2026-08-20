@@ -87,6 +87,7 @@
             :items="libraryItems"
             :item-height="72"
             :get-item-key="getLibraryItemKey"
+            animate-reorder
             class="flex-1"
             @scroll="handleScroll"
           >
