@@ -136,7 +136,8 @@ import { getAlbumPageData } from "@/queries/album.queries";
 import EditAlbumDialog from "@/modules/albums/components/dialogs/EditAlbumDialog.vue";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
-import { useDeleteConfirmDialog } from "@/composables/useDeleteConfirmDialog";
+import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import { summonDialog } from "@/components/dialogs/summon";
 import IconPlus from "~icons/tabler/plus";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -158,7 +159,6 @@ const { t } = useI18n();
 const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
-const { openDeleteDialog: openGlobalDeleteDialog } = useDeleteConfirmDialog();
 const { openMenu } = useTrackMenu();
 const shuffleQueue = useQueueShuffle();
 const route = useRoute();
@@ -279,14 +279,17 @@ function handleAddToQueue() {
   queueStore.addMultipleToQueue(tracks.value);
 }
 
-function openDeleteDialog() {
+async function openDeleteDialog() {
   if (!album.value) return;
-  openGlobalDeleteDialog({
-    type: "album",
-    id: album.value.id,
-    name: album.value.title,
-    trackCount: trackCount.value,
-  }, handleDelete);
+  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+    data: {
+      type: "album",
+      id: album.value.id,
+      name: album.value.title,
+      trackCount: trackCount.value,
+    },
+  }, { key: `delete:${album.value.id}` });
+  if (confirmed) await handleDelete();
 }
 
 async function handleDelete() {
