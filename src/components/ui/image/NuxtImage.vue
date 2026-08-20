@@ -244,9 +244,19 @@ function loadMainImage() {
     img.srcset = props.srcset;
   }
 
-  if (typeof img.decode === "function") {
-    img.src = props.src!;
+  img.src = props.src!;
 
+  // Memory-cached images report `complete` synchronously right after the src
+  // assignment. Marking them loaded here — before the mount paint — means a
+  // remount renders the real image on its first frame instead of flashing the
+  // placeholder (same `complete` check NuxtImg does).
+  if (img.complete && img.naturalWidth > 0) {
+    originalSrcFailed.value = false;
+    handleLoadSuccess();
+    return;
+  }
+
+  if (typeof img.decode === "function") {
     img.decode()
       .then(() => {
         originalSrcFailed.value = false;
@@ -260,7 +270,6 @@ function loadMainImage() {
       handleLoadSuccess(event);
     };
     img.onerror = event => handleLoadError(event);
-    img.src = props.src!;
   }
 }
 function setupImageListeners() {
