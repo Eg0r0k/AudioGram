@@ -204,10 +204,26 @@ export default function useScrollable(
 
   const isScrollLocked = ref(false);
 
+  const preventLockedScroll = (e: Event) => {
+    e.preventDefault();
+  };
+
+  // Blocks wheel/touch scrolling instead of toggling `overflow: hidden`:
+  // removing the overflow reflows the scrollbar gutter, so the content used
+  // to jump sideways every time a context menu / dropdown opened.
   const setScrollLocked = (locked: boolean) => {
+    if (isScrollLocked.value === locked) return;
     isScrollLocked.value = locked;
-    if (!containerRef.value) return;
-    containerRef.value.style.overflow = locked ? "hidden" : "";
+    const container = containerRef.value;
+    if (!container) return;
+    if (locked) {
+      container.addEventListener("wheel", preventLockedScroll, { passive: false });
+      container.addEventListener("touchmove", preventLockedScroll, { passive: false });
+    }
+    else {
+      container.removeEventListener("wheel", preventLockedScroll);
+      container.removeEventListener("touchmove", preventLockedScroll);
+    }
   };
 
   function handleThumbMouseDown(e: MouseEvent) {
@@ -365,6 +381,8 @@ export default function useScrollable(
     if (!container) return;
 
     container.removeEventListener("scroll", handleScroll);
+    container.removeEventListener("wheel", preventLockedScroll);
+    container.removeEventListener("touchmove", preventLockedScroll);
     window.removeEventListener("resize", handleScroll);
 
     if (resizeObserver) {
