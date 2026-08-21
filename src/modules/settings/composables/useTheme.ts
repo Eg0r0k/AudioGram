@@ -1,5 +1,12 @@
 import { watch, computed, readonly } from "vue";
 import { usePreferredDark, useStorage } from "@vueuse/core";
+import { IS_ANDROID } from "@/lib/environment/userAgent";
+
+// Optimisation for Andriod and phones
+const canAnimateThemeChange = (event?: MouseEvent): event is MouseEvent =>
+  !!event
+  && !!document.startViewTransition
+  && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -31,12 +38,22 @@ export const useTheme = () => {
   const toggleTheme = async (event?: MouseEvent) => {
     const newTheme = resolvedTheme.value === "dark" ? "light" : "dark";
 
-    if (
-      !event
-      || !document.startViewTransition
-      || window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
+    if (!canAnimateThemeChange(event)) {
       mode.value = newTheme;
+      return;
+    }
+
+    if (IS_ANDROID) {
+      document.documentElement.classList.add("theme-crossfade");
+      const transition = document.startViewTransition(() => {
+        mode.value = newTheme;
+      });
+      try {
+        await transition.finished;
+      }
+      finally {
+        document.documentElement.classList.remove("theme-crossfade");
+      }
       return;
     }
 

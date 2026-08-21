@@ -349,7 +349,25 @@
   z-index: -1;
 }
 
-a{ 
+@keyframes theme-crossfade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.theme-crossfade::view-transition-old(root) {
+  animation: none;
+}
+
+.theme-crossfade::view-transition-new(root) {
+  animation: theme-crossfade-in 220ms ease-out both;
+}
+
+.no-pinch-zoom {
+  touch-action: pan-x pan-y;
+}
+
+a{
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }

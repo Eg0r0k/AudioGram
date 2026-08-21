@@ -1,6 +1,11 @@
 import IS_TOUCH_SUPPORTED from "@/lib/environment/touchSupport";
-import { IS_APP } from "@/lib/environment/userAgent";
+import { IS_ANDROID, IS_APP } from "@/lib/environment/userAgent";
 import { watchEffect } from "vue";
+
+const ZOOMABLE_VIEWPORT
+  = "width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content";
+const LOCKED_VIEWPORT
+  = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content";
 
 export const usePreventPinchZoom = (isDisabled: boolean = false) => {
   const metaViewport = document.querySelector("meta[name=\"viewport\"]");
@@ -12,11 +17,20 @@ export const usePreventPinchZoom = (isDisabled: boolean = false) => {
     if (!IS_TOUCH_SUPPORTED) return;
 
     if (isDisabled) {
-      metaViewport?.setAttribute("content",
-        "width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover",
-      );
+      metaViewport?.setAttribute("content", ZOOMABLE_VIEWPORT);
       return;
     }
+
+    if (IS_APP && IS_ANDROID) {
+      metaViewport?.setAttribute("content", LOCKED_VIEWPORT);
+      document.documentElement.classList.add("no-pinch-zoom");
+      onCleanup(() => {
+        metaViewport?.setAttribute("content", originalContent);
+        document.documentElement.classList.remove("no-pinch-zoom");
+      });
+      return;
+    }
+
     metaViewport?.setAttribute("content", originalContent);
     if (IS_APP) {
       document.addEventListener("gesturestart", preventGesture);
