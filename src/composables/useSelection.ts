@@ -130,7 +130,7 @@ export function useSelection<T extends Selectable>(
         "[data-no-drag-select]",
       ].join(", "),
       longPressMs = 450,
-      scrollEl: _scrollEl,
+      scrollEl,
     } = options;
 
     let dragStartIndex = -1;
@@ -235,6 +235,8 @@ export function useSelection<T extends Selectable>(
     let touchDragActive = false;
     let touchStartX = 0;
     let touchStartY = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
 
     const cancelLongPressTimer = (): void => {
       if (longPressTimer === null) return;
@@ -242,7 +244,72 @@ export function useSelection<T extends Selectable>(
       longPressTimer = null;
     };
 
+    const AUTO_SCROLL_EDGE_PX = 64;
+    const AUTO_SCROLL_MAX_SPEED_PX = 14;
+
+    let autoScrollSpeed = 0;
+    let autoScrollRaf: number | null = null;
+    let activeScrollEl: HTMLElement | null = null;
+
+    const resolveScrollEl = (): HTMLElement => {
+      if (scrollEl) return scrollEl;
+      let el: HTMLElement | null = containerEl;
+      while (el) {
+        const { overflowY } = getComputedStyle(el);
+        if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
+          return el;
+        }
+        el = el.parentElement;
+      }
+      return containerEl;
+    };
+
+    const autoScrollStep = (): void => {
+      if (!activeScrollEl || autoScrollSpeed === 0) {
+        autoScrollRaf = null;
+        return;
+      }
+
+      activeScrollEl.scrollTop += autoScrollSpeed;
+
+      // Палец стоит на месте, а список едет — диапазон дотягивается до
+      // строки, оказавшейся под пальцем после прокрутки.
+      const current = getRowFromPoint(lastTouchX, lastTouchY);
+      if (current) applyDragRange(current.index);
+
+      autoScrollRaf = requestAnimationFrame(autoScrollStep);
+    };
+
+    const updateAutoScroll = (clientY: number): void => {
+      activeScrollEl ??= resolveScrollEl();
+      const rect = activeScrollEl.getBoundingClientRect();
+      const fromTop = clientY - rect.top;
+      const fromBottom = rect.bottom - clientY;
+
+      if (fromTop < AUTO_SCROLL_EDGE_PX) {
+        autoScrollSpeed = -Math.ceil(((AUTO_SCROLL_EDGE_PX - fromTop) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX);
+      }
+      else if (fromBottom < AUTO_SCROLL_EDGE_PX) {
+        autoScrollSpeed = Math.ceil(((AUTO_SCROLL_EDGE_PX - fromBottom) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX);
+      }
+      else {
+        autoScrollSpeed = 0;
+      }
+
+      if (autoScrollSpeed !== 0 && autoScrollRaf === null) {
+        autoScrollRaf = requestAnimationFrame(autoScrollStep);
+      }
+    };
+
+    const stopAutoScroll = (): void => {
+      if (autoScrollRaf !== null) cancelAnimationFrame(autoScrollRaf);
+      autoScrollRaf = null;
+      autoScrollSpeed = 0;
+      activeScrollEl = null;
+    };
+
     const abortTouchGesture = (): void => {
+      stopAutoScroll();
       touchDragActive = false;
       stopTouchDrag?.();
       stopTouchDrag = null;
@@ -275,6 +342,8 @@ export function useSelection<T extends Selectable>(
       }
 
       const touch = e.touches[0];
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
 
       if (!touchDragActive) {
         const distance = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
@@ -283,6 +352,7 @@ export function useSelection<T extends Selectable>(
       }
 
       e.preventDefault();
+      updateAutoScroll(touch.clientY);
 
       const current = getRowFromPoint(touch.clientX, touch.clientY);
       if (!current) return;
@@ -308,8 +378,8 @@ export function useSelection<T extends Selectable>(
 
       stopTouchDrag?.();
       touchDragActive = false;
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
+      touchStartX = lastTouchX = touch.clientX;
+      touchStartY = lastTouchY = touch.clientY;
 
       longPressTimer = setTimeout(() => {
         longPressTimer = null;
