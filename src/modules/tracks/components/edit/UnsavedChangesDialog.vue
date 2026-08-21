@@ -19,7 +19,7 @@
           {{ $t("common.cancel") }}
         </Button>
         <Button
-          variant="destructive"
+          variant="destructive-link"
           @click="emit('discard')"
         >
           {{ $t("track.edit.discard") }}

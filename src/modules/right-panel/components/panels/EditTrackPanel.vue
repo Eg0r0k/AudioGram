@@ -1,5 +1,8 @@
 <template>
-  <div class="relative flex h-full w-full flex-col overflow-hidden! bg-card">
+  <div
+    class="relative flex h-full w-full flex-col overflow-hidden! bg-card"
+    :style="keyboardInsetStyle"
+  >
     <RightPanelHeader
       :title="$t('track.edit.title')"
       :description="track?.title"
@@ -11,7 +14,7 @@
     <Scrollable class="min-h-0 flex-1">
       <form
         v-if="track"
-        class="grid gap-5 px-5 pb-24 pt-2"
+        class="grid gap-5 px-5 pb-[calc(6rem+var(--keyboard-inset,0px))] pt-2"
         @submit.prevent="onSubmit"
       >
         <div class="space-y-2">
@@ -186,16 +189,21 @@
       </Empty>
     </Scrollable>
 
-    <FloatingActionButton :show="hasChanges">
-      <Button
-        type="button"
-        class="size-12 rounded-full shadow-lg"
-        :disabled="!track || isPending || !meta.valid || !hasChanges"
-        @click="onSubmit"
+    <div class="absolute bottom-[calc(1rem+var(--keyboard-inset,0px))] right-4 z-50">
+      <FloatingActionButton
+        :show="hasChanges"
+        inline
       >
-        <IconSave class="size-6" />
-      </Button>
-    </FloatingActionButton>
+        <Button
+          type="button"
+          class="size-12 rounded-full shadow-lg"
+          :disabled="!track || isPending || !meta.valid || !hasChanges"
+          @click="onSubmit"
+        >
+          <IconSave class="size-6" />
+        </Button>
+      </FloatingActionButton>
+    </div>
 
     <UnsavedChangesDialog
       v-model:open="isUnsavedDialogOpen"
@@ -219,9 +227,11 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Scrollable } from "@/components/ui/scrollable";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
+import { useKeyboardInset } from "@/composables/useKeyboardInset";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { usePanelUiBack } from "@/modules/right-panel/composables/usePanelUiBack";
 import type { RightPanelEditTrackPayload } from "@/modules/right-panel/types";
 import UnsavedChangesDialog from "@/modules/tracks/components/edit/UnsavedChangesDialog.vue";
 import { useTrackEditDraft, type TrackEditDraft } from "@/modules/tracks/composables/useTrackEditDraft";
@@ -240,6 +250,15 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+
+// Primary keyboard handling is CSS-only: the viewport meta declares
+// interactive-widget=resizes-content, so the panel (fixed inset-0 chain)
+// shrinks with the keyboard. On WebViews that ignore it only the visual
+// viewport shrinks; the composable measures that leftover overlap (0 when
+// the CSS route works) and --keyboard-inset lifts the save button and the
+// form's bottom padding above the keyboard.
+const { keyboardInset } = useKeyboardInset();
+const keyboardInsetStyle = computed(() => ({ "--keyboard-inset": `${keyboardInset.value}px` }));
 const queryClient = useQueryClient();
 const queueStore = useQueueStore();
 const rightPanel = useRightPanelStore();
@@ -471,6 +490,7 @@ const confirmLeave = (): void => {
 const handleBack = (): void => {
   requestLeave(() => rightPanel.openTrackInfo({ track: props.payload.track }, { depth: 1 }));
 };
+usePanelUiBack(handleBack);
 
 const handleClose = (): void => {
   requestLeave(() => rightPanel.close());
