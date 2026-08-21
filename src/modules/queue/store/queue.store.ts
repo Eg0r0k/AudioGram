@@ -790,6 +790,7 @@ export const useQueueStore = defineStore("queue", () => {
     insertNext,
     next,
     previous,
+    ensureAutoplayRecommendations,
     jumpTo,
     jumpToId,
     removeFromQueue,

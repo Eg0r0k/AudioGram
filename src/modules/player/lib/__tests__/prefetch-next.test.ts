@@ -7,6 +7,8 @@ import type { PlayerTrack } from "../../types";
 
 const platformCapsMock = vi.hoisted(() => ({ canProxyStream: true }));
 const findByIdMock = vi.hoisted(() => vi.fn());
+const trackFindByIdMock = vi.hoisted(() => vi.fn());
+const getAudioUrlMock = vi.hoisted(() => vi.fn());
 const sourcesGetMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/logger", () => ({
@@ -15,6 +17,10 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("@/lib/environment/platformCaps", () => ({ platformCaps: platformCapsMock }));
 vi.mock("@/db/repositories", () => ({
   offlineCopyRepository: { findById: findByIdMock },
+  trackRepository: { findById: trackFindByIdMock },
+}));
+vi.mock("@/db/storage", () => ({
+  storageService: { getAudioUrl: getAudioUrlMock },
 }));
 vi.mock("@/modules/sources/registry", () => ({
   sources: { get: sourcesGetMock },
@@ -26,8 +32,12 @@ const queueMock = reactive({
   get size() {
     return this.queue.length;
   },
+  ensureAutoplayRecommendations: vi.fn(async () => true),
 });
-const playerMock = reactive({ repeatMode: "off" as "off" | "all" | "one" });
+const playerMock = reactive({
+  repeatMode: "off" as "off" | "all" | "one",
+  isPlaying: false,
+});
 
 vi.mock("@/modules/queue/store/queue.store", () => ({ useQueueStore: () => queueMock }));
 vi.mock("../../store/player.store", () => ({ usePlayerStore: () => playerMock }));
@@ -37,10 +47,11 @@ import {
   initNextTrackPrefetch,
   nextPlaybackIndex,
   prefetchIdOf,
+  warmLocalTranscode,
 } from "../prefetch-next";
 
-const libraryTrack = (id: string): PlayerTrack =>
-  ({ kind: "library", id } as unknown as PlayerTrack);
+const libraryTrack = (id: string, storagePath?: string): PlayerTrack =>
+  ({ kind: "library", id, storagePath } as unknown as PlayerTrack);
 
 const ephemeralUrlTrack = (url: string): PlayerTrack =>
   ({ kind: "ephemeral", id: url, source: { type: "url", url } } as unknown as PlayerTrack);
@@ -81,8 +92,15 @@ describe("prefetchIdOf", () => {
     expect(prefetchIdOf(libraryTrack("yt:dQw4w9WgXcQ"))).toBe("yt:dQw4w9WgXcQ");
   });
 
-  it("skips local library tracks", () => {
+  it("skips local library tracks the webview plays natively", () => {
     expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid"))).toBeNull();
+    expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid", "tracks/a.mp3"))).toBeNull();
+    expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid", "tracks/a.flac"))).toBeNull();
+  });
+
+  it("passes local transcode candidates through — their first request pays a decode", () => {
+    expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid", "tracks/a.ape"))).toBe("3f0a2f8e-uuid");
+    expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid", "tracks/a.m4a"))).toBe("3f0a2f8e-uuid");
   });
 
   it("rebuilds a yt: id from an ephemeral stream:// track", () => {
@@ -95,6 +113,38 @@ describe("prefetchIdOf", () => {
     expect(prefetchIdOf({ kind: "ephemeral", source: { type: "path", path: "C:/a.mp3" } } as unknown as PlayerTrack)).toBeNull();
     expect(prefetchIdOf(null)).toBeNull();
     expect(prefetchIdOf(undefined)).toBeNull();
+  });
+});
+
+describe("warmLocalTranscode", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("requests a 2-byte range of the resolved audio url to warm the server cache", async () => {
+    trackFindByIdMock.mockReturnValue(okAsync({ storagePath: "tracks/a.ape" }));
+    getAudioUrlMock.mockReturnValue(okAsync("http://127.0.0.1:1/t/local/a.ape"));
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await warmLocalTranscode(TrackId("uuid-1"));
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:1/t/local/a.ape",
+      { headers: { Range: "bytes=0-1" } },
+    );
+  });
+
+  it("reports a missing track or a failing server without throwing", async () => {
+    trackFindByIdMock.mockReturnValue(okAsync(undefined));
+    expect((await warmLocalTranscode(TrackId("uuid-1"))).ok).toBe(false);
+
+    trackFindByIdMock.mockReturnValue(okAsync({ storagePath: "tracks/a.ape" }));
+    getAudioUrlMock.mockReturnValue(okAsync("http://127.0.0.1:1/t/local/a.ape"));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500 })));
+
+    expect(await warmLocalTranscode(TrackId("uuid-1"))).toEqual({ ok: false, error: "HTTP 500" });
   });
 });
 
@@ -243,6 +293,7 @@ describe("initNextTrackPrefetch", () => {
     queueMock.queue = [];
     queueMock.currentIndex = -1;
     playerMock.repeatMode = "off";
+    playerMock.isPlaying = false;
   });
 
   afterEach(() => {
@@ -255,6 +306,37 @@ describe("initNextTrackPrefetch", () => {
     await nextTick();
     await vi.advanceTimersByTimeAsync(DEBOUNCE);
   };
+
+  it("tops up autoplay recommendations while the tail track plays, not after it ends", async () => {
+    queueMock.queue = [{ track: libraryTrack("local-uuid") }];
+    queueMock.currentIndex = 0;
+
+    init();
+    await nextTick();
+    expect(queueMock.ensureAutoplayRecommendations).not.toHaveBeenCalled();
+
+    playerMock.isPlaying = true;
+    await nextTick();
+    expect(queueMock.ensureAutoplayRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not top up recommendations mid-queue or under repeat", async () => {
+    queueMock.queue = [
+      { track: libraryTrack("local-a") },
+      { track: libraryTrack("local-b") },
+    ];
+    queueMock.currentIndex = 0;
+    playerMock.isPlaying = true;
+
+    init();
+    await nextTick();
+    expect(queueMock.ensureAutoplayRecommendations).not.toHaveBeenCalled();
+
+    queueMock.currentIndex = 1;
+    playerMock.repeatMode = "all";
+    await nextTick();
+    expect(queueMock.ensureAutoplayRecommendations).not.toHaveBeenCalled();
+  });
 
   it("warms a library-pinned YT track following a local one (the missed case)", async () => {
     queueMock.queue = [

@@ -2,7 +2,9 @@ import { watch } from "vue";
 import { getLogger } from "@/lib/logger";
 import { platformCaps } from "@/lib/environment/platformCaps";
 import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
-import { offlineCopyRepository } from "@/db/repositories";
+import { isTranscodeCandidatePath } from "@/lib/files/transcodeCandidates";
+import { offlineCopyRepository, trackRepository } from "@/db/repositories";
+import { storageService } from "@/db/storage";
 import { sources } from "@/modules/sources/registry";
 import { parseTrackRef, ytTrackId } from "@/types/track-ref";
 import type { TrackId } from "@/types/ids";
@@ -47,21 +49,45 @@ export const nextPlaybackIndex = (
 };
 
 /**
- * Reduces any queue track to the branded remote TrackId to prefetch, or null
- * when playback needs no warm-up (local files, file/path ephemerals, radio
+ * Reduces any queue track to the branded TrackId to prefetch, or null when
+ * playback needs no warm-up (plain local files, file/path ephemerals, radio
  * URLs). Ephemeral YT tracks carry their video id inside the `stream://…/yt/…`
  * URL — rebuilt into a `yt:` id so they dispatch like library YT tracks.
+ * Local tracks pass through only when the media server may need to transcode
+ * them (ALAC/APE) — the first request pays a full decode otherwise.
  */
 export const prefetchIdOf = (track: PlayerTrack | null | undefined): TrackId | null => {
   if (!track) return null;
 
   if (isLibraryTrack(track)) {
-    return parseTrackRef(track.id).kind === "local" ? null : track.id;
+    if (parseTrackRef(track.id).kind === "local") {
+      return isTranscodeCandidatePath(track.storagePath) ? track.id : null;
+    }
+    return track.id;
   }
 
   if (track.source.type !== "url") return null;
   const videoId = ytVideoIdFromStreamUrl(track.source.url);
   return videoId ? ytTrackId(videoId) : null;
+};
+
+/**
+ * Warms the media server's WAV rendition of a local transcode-candidate: a
+ * 2-byte Range request returns only after the server has the rendition
+ * cached, so the coming queue advance plays instantly. Non-ALAC mp4s cost a
+ * header probe — milliseconds.
+ */
+export const warmLocalTranscode = async (id: TrackId): Promise<{ ok: boolean; error?: string }> => {
+  const track = await trackRepository.findById(id);
+  if (track.isErr() || !track.value?.storagePath) {
+    return { ok: false, error: "track not found" };
+  }
+  const url = await storageService.getAudioUrl(track.value.storagePath);
+  if (url.isErr()) {
+    return { ok: false, error: url.error.message };
+  }
+  const response = await fetch(url.value, { headers: { Range: "bytes=0-1" } });
+  return response.ok ? { ok: true } : { ok: false, error: `HTTP ${response.status}` };
 };
 
 interface PrefetcherDeps {
@@ -167,6 +193,9 @@ export const initNextTrackPrefetch = (): (() => void) => {
       return copy.isOk() && copy.value !== undefined;
     },
     prefetch: (id) => {
+      // Local ids have no source provider — they warm the media server's
+      // transcode cache directly.
+      if (parseTrackRef(id).kind === "local") return warmLocalTranscode(id);
       const provider = sources.get(parseTrackRef(id).kind);
       if (!provider.isAvailable || !provider.prefetch) return null;
       return provider.prefetch(id).match(
@@ -180,8 +209,25 @@ export const initNextTrackPrefetch = (): (() => void) => {
     if (id) prefetcher.schedule();
   }, { immediate: true });
 
+  // Autoplay recommendations used to be computed only inside next(), AFTER
+  // the last track had already ended — their latency plus the first
+  // recommendation's cold start (transcode, stream resolve) stalled the
+  // advance. Topping the queue up as soon as the tail track starts playing
+  // moves that work into playback time, and the appended tracks flow through
+  // the regular next-track warmer above.
+  const stopTailWatch = watch(
+    () => player.isPlaying
+      && player.repeatMode === "off"
+      && queue.size > 0
+      && queue.currentIndex === queue.size - 1,
+    (atTail) => {
+      if (atTail) queue.ensureAutoplayRecommendations().catch(() => {});
+    },
+  );
+
   return () => {
     stopWatch();
+    stopTailWatch();
     prefetcher.dispose();
   };
 };
