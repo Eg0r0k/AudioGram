@@ -125,6 +125,11 @@
   },
   "deleted": "Трек удалён",
   "deleteFailed": "Не удалось удалить трек",
+  "deleteDialog": {
+    "title": "Удалить трек?",
+    "description": "«{title}» будет удалён из библиотеки вместе с файлом. Это действие нельзя отменить.",
+    "dontAskAgain": "Больше не спрашивать"
+  },
   "downloadSuccess": "Файл скачан",
   "downloadFailed": "Не удалось скачать файл",
   "removeDownloadFailed": "Не удалось удалить скачанное"

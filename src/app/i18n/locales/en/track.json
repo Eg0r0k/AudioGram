@@ -122,6 +122,11 @@
   },
   "deleted": "Track deleted",
   "deleteFailed": "Failed to delete track",
+  "deleteDialog": {
+    "title": "Delete track?",
+    "description": "\"{title}\" will be removed from the library along with its file. This cannot be undone.",
+    "dontAskAgain": "Don't ask again"
+  },
   "downloadSuccess": "File downloaded",
   "downloadFailed": "Failed to download file",
   "removeDownloadFailed": "Failed to remove download"

@@ -227,6 +227,9 @@ import { Button } from "@/components/ui/button";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
 import { formatDuration } from "@/lib/format/time";
 import { deleteTrackAndSync, getTrackEntityById } from "@/queries/track.queries";
+import DeleteTrackDialog, { type DeleteTrackConfirmation } from "@/components/dialogs/DeleteTrackDialog.vue";
+import { summonDialog } from "@/components/dialogs/summon";
+import { useGeneralSettings } from "@/modules/settings/store/general";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
@@ -383,7 +386,25 @@ function handleBack(): void {
   rightPanel.back();
 }
 
+const { confirmTrackDeletion, setConfirmTrackDeletion } = useGeneralSettings();
+
 async function handleDelete(): Promise<void> {
+  if (!libraryTrack.value || isDeleting.value) return;
+
+  if (confirmTrackDeletion.value) {
+    const confirmation = await summonDialog<DeleteTrackConfirmation>(
+      DeleteTrackDialog,
+      { trackTitle: libraryTrack.value.title },
+      { key: `delete-track:${libraryTrack.value.id}` },
+    );
+    if (!confirmation) return;
+    if (confirmation.dontAskAgain) setConfirmTrackDeletion(false);
+  }
+
+  await performDelete();
+}
+
+async function performDelete(): Promise<void> {
   if (!libraryTrack.value || isDeleting.value) return;
 
   const currentTrack = libraryTrack.value;
