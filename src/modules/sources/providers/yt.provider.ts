@@ -1,8 +1,10 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { ytStreamUrl } from "@/lib/stream-url";
 import { youtubeProvider } from "@/modules/youtube/provider";
+import { getYoutubeMusicDetails } from "@/modules/youtube/api/youtubeApi";
+import { ytMusicTrackToDto } from "@/modules/youtube/lib/playable";
 import { proxiedThumbnail, THUMB_SIZE_FULL } from "@/modules/youtube/lib/thumbnail";
-import { parseTrackRef, ytTrackId } from "@/types/track-ref";
+import { parseTrackRef } from "@/types/track-ref";
 import type { YoutubeError, YtMusicEntity } from "@/modules/youtube/types";
 import type { TrackId } from "@/types/ids";
 import type { SourceError, SourceProvider, SourceTrackDTO } from "../types";
@@ -37,17 +39,11 @@ const videoIdOf = (id: TrackId): string | null => {
   return ref.kind === "yt" ? ref.videoId : null;
 };
 
-const mapMusicTrack = (entity: YtMusicEntity & { kind: "track" }): SourceTrackDTO => {
-  return {
-    id: ytTrackId(entity.id),
-    title: entity.title,
-    artistName: entity.artists.map(a => a.name).join(", ") || undefined,
-    albumTitle: entity.album?.name ?? undefined,
-    duration: entity.duration ?? undefined,
-    trackNo: entity.trackNr ?? undefined,
-    coverRef: entity.thumbnail ?? undefined,
-  };
-};
+// The full DTO builder (album/artist IDS included): a search-row download
+// pins shadow album/artist rows, and the album row is where the cover blob
+// lives — a DTO with only albumTitle pins a coverless track.
+const mapMusicTrack = (entity: YtMusicEntity & { kind: "track" }): SourceTrackDTO =>
+  ytMusicTrackToDto(entity);
 
 /**
  * Adapter exposing the existing {@link youtubeProvider} through the generic
@@ -96,7 +92,13 @@ export const ytSourceProvider: SourceProvider = {
       }));
   },
 
-  getTrack: () => unsupported("track metadata lookup"),
+  getTrack(id) {
+    const videoId = videoIdOf(id);
+    if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
+    return getYoutubeMusicDetails(videoId)
+      .mapErr(mapError)
+      .map(track => ytMusicTrackToDto(track));
+  },
 
   coverUrl(coverRef, size = THUMB_SIZE_FULL) {
     return proxiedThumbnail(coverRef, size);

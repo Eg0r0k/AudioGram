@@ -9,6 +9,7 @@ import type {
   YtDownloadResult,
   YtMusicEntity,
   YtMusicSearchKind,
+  YtMusicTrack,
   YtPage,
   YtPlaylistDetail,
   YtSearchResult,
@@ -95,6 +96,16 @@ export const continueYoutubeVideos = (
 ): ResultAsync<YtPage<YtSearchResult>, YoutubeError> =>
   ResultAsync.fromPromise(
     invoke<YtPage<YtSearchResult>>("yt_search_continue", { continuation }),
+    e => toYoutubeError(e, "SEARCH_FAILED"),
+  );
+
+/** Full metadata for one track — the pin-time safety net for search rows
+ *  that slipped past server-side enrichment. */
+export const getYoutubeMusicDetails = (
+  id: string,
+): ResultAsync<YtMusicTrack, YoutubeError> =>
+  ResultAsync.fromPromise(
+    invoke<YtMusicTrack>("yt_music_details", { id }),
     e => toYoutubeError(e, "SEARCH_FAILED"),
   );
 

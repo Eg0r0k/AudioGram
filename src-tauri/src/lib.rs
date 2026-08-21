@@ -208,6 +208,7 @@ pub fn run() {
         youtube::yt_search,
         youtube::yt_search_continue,
         youtube::yt_music_search,
+        youtube::yt_music_details,
         youtube::yt_continue,
         youtube::yt_music_suggest,
         youtube::yt_music_playlist,

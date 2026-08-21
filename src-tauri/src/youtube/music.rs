@@ -30,20 +30,28 @@ fn empty_page<T>() -> YtPage<T> {
     YtPage { items: Vec::new(), continuation: None, total: None, corrected_query: None }
 }
 
-/// Only the top-result shelf serves stripped rows, so a handful of parallel
-/// lookups covers them without turning one search into a request fan-out.
+/// Stripped rows are rare per page, so a handful of parallel lookups covers
+/// them without turning one search into a request fan-out.
 const MAX_ENRICHED_TRACKS: usize = 6;
 
+/// A search row that needs a details lookup before it is usable: the
+/// top-result shelf strips artists entirely, and regular track-tab rows can
+/// arrive with an artist but no duration or cover — pinning such a row saves
+/// a timeless, coverless track.
+fn needs_details(track: &super::dto::YtMusicTrack) -> bool {
+    track.artists.is_empty() || track.duration.is_none() || track.thumbnail.is_none()
+}
+
 /// Fills in artist/album/duration/cover for search rows YT returned without
-/// them (top-result shelf). Best-effort: a failed lookup leaves its row as
-/// it came, and the whole pass never fails the search.
+/// them. Best-effort: a failed lookup leaves its row as it came, and the
+/// whole pass never fails the search.
 async fn enrich_stripped_tracks(q: &RustyPipeQuery, page: &mut YtPage<YtMusicEntity>) {
     let targets: Vec<(usize, String)> = page
         .items
         .iter()
         .enumerate()
         .filter_map(|(index, item)| match item {
-            YtMusicEntity::Track(track) if track.artists.is_empty() => {
+            YtMusicEntity::Track(track) if needs_details(track) => {
                 Some((index, track.id.clone()))
             }
             _ => None,
@@ -134,6 +142,19 @@ pub async fn yt_music_search<R: Runtime>(
     page.corrected_query = corrected;
     enrich_stripped_tracks(&q, &mut page).await;
     Ok(page)
+}
+
+/// Full metadata for one track — the pin-time safety net for rows that
+/// slipped past search enrichment (cap overflow, continuation pages, older
+/// queue entries).
+#[tauri::command]
+pub async fn yt_music_details<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<super::dto::YtMusicTrack, YtError> {
+    let rp = yt_client(&app).await?;
+    let details = rp.query().music_details(&id).await?;
+    Ok(to_music_track(details.track))
 }
 
 /// Fetch-more for music search results AND playlist track listings — the
@@ -255,5 +276,52 @@ fn to_search_result(item: VideoItem) -> YtSearchResult {
         title: item.name,
         uploader: item.channel.map(|c| c.name),
         duration: item.duration.map(f64::from),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::needs_details;
+    use super::super::dto::{YtArtistRef, YtMusicTrack};
+
+    fn track(artists: Vec<YtArtistRef>, duration: Option<u32>, thumbnail: Option<String>) -> YtMusicTrack {
+        YtMusicTrack {
+            id: "v1".into(),
+            title: "T".into(),
+            artists,
+            album: None,
+            duration,
+            thumbnail,
+            is_video: false,
+            track_nr: None,
+        }
+    }
+
+    fn artist() -> YtArtistRef {
+        YtArtistRef { id: Some("a1".into()), name: "A".into() }
+    }
+
+    #[test]
+    fn complete_rows_need_no_lookup() {
+        let t = track(vec![artist()], Some(180), Some("https://c/img".into()));
+        assert!(!needs_details(&t));
+    }
+
+    #[test]
+    fn top_result_shelf_rows_without_artists_need_a_lookup() {
+        let t = track(vec![], Some(180), Some("https://c/img".into()));
+        assert!(needs_details(&t));
+    }
+
+    #[test]
+    fn track_tab_rows_without_duration_need_a_lookup() {
+        let t = track(vec![artist()], None, Some("https://c/img".into()));
+        assert!(needs_details(&t));
+    }
+
+    #[test]
+    fn rows_without_a_cover_need_a_lookup() {
+        let t = track(vec![artist()], Some(180), None);
+        assert!(needs_details(&t));
     }
 }

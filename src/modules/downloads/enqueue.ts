@@ -13,6 +13,31 @@ import { enqueueTrackDownload } from "./manager";
 import { useDownloadsStore } from "./store/downloads.store";
 
 /**
+ * Search rows can arrive stripped (no duration, no cover, no album id — YT
+ * track-tab and top-result shelves); pinning such a DTO saves a timeless,
+ * coverless track. The album id matters as much as the cover ref: the cover
+ * blob is stored on the shadow ALBUM row, so a DTO without albumId pins a
+ * coverless track even when coverRef is present. When any of the three is
+ * missing, refetch the full snapshot from the source and keep the row's own
+ * values where it had them. Best-effort: an offline or unsupported source
+ * pins the DTO as it came.
+ */
+export async function completeDtoForPin(dto: SourceTrackDTO): Promise<SourceTrackDTO> {
+  if (dto.duration != null && dto.coverRef && dto.albumId) return dto;
+
+  const provider = sources.forTrack(dto.id);
+  if (!provider.isAvailable) return dto;
+
+  const result = await provider.getTrack(dto.id);
+  if (result.isErr()) return dto;
+
+  const defined = Object.fromEntries(
+    Object.entries(dto).filter(([, value]) => value !== undefined),
+  );
+  return { ...result.value, ...defined } as SourceTrackDTO;
+}
+
+/**
  * Download = library membership (§1): queuing a download pins the subject at
  * pinned = 1 (with the album/artist cascade) before the job is created.
  * Returns the job id, or null when an offline copy already exists.
@@ -30,9 +55,10 @@ export async function downloadSubject(subject: TrackMenuSubject, batchId?: strin
     return enqueueTrackDownload(subject.track.id, batchId);
   }
 
-  await ensurePinned(subject);
+  const dto = await completeDtoForPin(subject.dto);
+  await ensurePinned({ kind: "remote", dto });
   await invalidateLibraryData(queryClient);
-  return enqueueTrackDownload(subject.dto.id, batchId);
+  return enqueueTrackDownload(dto.id, batchId);
 }
 
 /**
@@ -48,8 +74,9 @@ export async function enqueueSourceTracksDownload(tracks: SourceTrackDTO[]): Pro
   store.registerBatch(batchId);
 
   for (const dto of tracks) {
-    await ensurePinned({ kind: "remote", dto });
-    await enqueueTrackDownload(dto.id, batchId);
+    const completed = await completeDtoForPin(dto);
+    await ensurePinned({ kind: "remote", dto: completed });
+    await enqueueTrackDownload(completed.id, batchId);
   }
   await invalidateLibraryData(queryClient);
 
