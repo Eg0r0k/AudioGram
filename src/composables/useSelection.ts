@@ -11,6 +11,10 @@ export interface SelectionDragOptions {
   idDataKey?: string;
   indexDataKey?: string;
   ignoreSelector?: string;
+  /** Задержка long-press до входа в выделение на таче. */
+  longPressMs?: number;
+  /** Элемент для автоскролла при drag; по умолчанию ближайший скроллируемый предок. */
+  scrollEl?: HTMLElement;
 }
 
 export interface UseSelectionReturn<T extends Selectable> {
@@ -125,6 +129,8 @@ export function useSelection<T extends Selectable>(
         "[role='link']",
         "[data-no-drag-select]",
       ].join(", "),
+      longPressMs = 450,
+      scrollEl: _scrollEl,
     } = options;
 
     let dragStartIndex = -1;
@@ -222,23 +228,73 @@ export function useSelection<T extends Selectable>(
       };
     }
 
+    const LONG_PRESS_MOVE_TOLERANCE_PX = 10;
+    const CLICK_SUPPRESS_WINDOW_MS = 350;
+
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let touchDragActive = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    const cancelLongPressTimer = (): void => {
+      if (longPressTimer === null) return;
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    };
+
+    const abortTouchGesture = (): void => {
+      touchDragActive = false;
+      stopTouchDrag?.();
+      stopTouchDrag = null;
+    };
+
+    // Long-press глушит наведённый браузером click по touchend, иначе клик по
+    // строке в режиме выделения тут же снимает только что поставленную отметку.
+    // Drag с preventDefault click не порождает вовсе — таймер убирает ловушку,
+    // чтобы она не съела следующий честный тап.
+    const suppressNextClick = (): void => {
+      const stop = useEventListener(window, "click", (e) => {
+        e.stopPropagation();
+        stop();
+      }, { capture: true });
+      setTimeout(stop, CLICK_SUPPRESS_WINDOW_MS);
+    };
+
+    const activateTouchDrag = (row: { id: string; index: number }): void => {
+      navigator.vibrate?.(10);
+      initDragState(row.index, row.id);
+      movedToNewRow = true;
+      applyDragRange(row.index);
+      touchDragActive = true;
+    };
+
     function onTouchMove(e: TouchEvent): void {
-      if (e.touches.length !== 1) return;
+      if (e.touches.length !== 1) {
+        if (!touchDragActive) abortTouchGesture();
+        return;
+      }
 
       const touch = e.touches[0];
-      const current = getRowFromPoint(touch.clientX, touch.clientY);
-      if (!current) return;
-      if (current.index === dragStartIndex && !movedToNewRow) return;
+
+      if (!touchDragActive) {
+        const distance = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
+        if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) abortTouchGesture();
+        return;
+      }
 
       e.preventDefault();
-      movedToNewRow = true;
+
+      const current = getRowFromPoint(touch.clientX, touch.clientY);
+      if (!current) return;
       applyDragRange(current.index);
     }
 
     function onTouchEnd(): void {
-      finalizeDrag();
-      stopTouchDrag?.();
-      stopTouchDrag = null;
+      if (touchDragActive) {
+        suppressNextClick();
+        finalizeDrag();
+      }
+      abortTouchGesture();
     }
 
     function onTouchStart(e: TouchEvent): void {
@@ -251,12 +307,20 @@ export function useSelection<T extends Selectable>(
       if (!row) return;
 
       stopTouchDrag?.();
-      initDragState(row.index, row.id);
+      touchDragActive = false;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        activateTouchDrag(row);
+      }, longPressMs);
 
       const stopMove = useEventListener(window, "touchmove", onTouchMove, { passive: false });
       const stopEnd = useEventListener(window, "touchend", onTouchEnd);
       const stopCancel = useEventListener(window, "touchcancel", onTouchEnd);
       stopTouchDrag = () => {
+        cancelLongPressTimer();
         stopMove();
         stopEnd();
         stopCancel();
