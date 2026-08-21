@@ -117,6 +117,26 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     }
   }
 
+  const uiBackDelegate = ref<(() => void) | null>(null);
+
+  const setUiBackDelegate = (delegate: () => void): void => {
+    uiBackDelegate.value = delegate;
+  };
+
+  const clearUiBackDelegate = (delegate: () => void): void => {
+    if (uiBackDelegate.value === delegate) uiBackDelegate.value = null;
+  };
+
+  /** One step of the real back chain: the active panel's UI back if it has its own, the returnToView chain otherwise. */
+  const stepBack = (): void => {
+    const delegate = uiBackDelegate.value;
+    if (delegate) {
+      delegate();
+      return;
+    }
+    back();
+  };
+
   function invalidateRouteScope(routeKey: string): void {
     if (scope.value.type !== "route") return;
     if (scope.value.routeKey === routeKey) return;
@@ -140,6 +160,9 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     openDownloads,
     openEntitySelect,
     back,
+    stepBack,
+    setUiBackDelegate,
+    clearUiBackDelegate,
     close,
     invalidateRouteScope,
   };

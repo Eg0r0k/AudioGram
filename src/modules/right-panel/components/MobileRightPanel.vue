@@ -25,15 +25,15 @@
 import { useScreenSafeArea } from "@vueuse/core";
 import RightPanelHost from "@/modules/right-panel/components/RightPanelHost.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { panelBackDepth } from "@/modules/right-panel/lib/backChain";
 import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 
 const rightPanel = useRightPanelStore();
 const { top, bottom } = useScreenSafeArea();
 
 registerOverlayBackHandler({
-  isOpen: () => rightPanel.isOpen,
-  back: () => rightPanel.back(),
-  priority: 20,
+  depth: () => panelBackDepth(rightPanel.isOpen, rightPanel.view, rightPanel.returnToView),
+  back: () => rightPanel.stepBack(),
 });
 </script>
 

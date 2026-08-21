@@ -65,9 +65,8 @@ defineExpose({ open: openFullPlayer, close: closeFullPlayer });
 
 useOverlayBackButton();
 registerOverlayBackHandler({
-  isOpen: () => isFullPlayerOpen.value,
+  depth: () => (isFullPlayerOpen.value ? 1 : 0),
   back: closeFullPlayer,
-  priority: 10,
 });
 
 watch(() => playerStore.currentTrack, (track) => {

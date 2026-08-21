@@ -184,6 +184,7 @@ import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue"
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSwipeControl } from "@/composables/useSwipeControl";
+import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
@@ -236,6 +237,13 @@ const {
   renameFolder,
   deleteFolder,
   setFolderItems,
+});
+
+// Hardware back leaves an open sidebar folder before falling through to the
+// router. Inert on desktop: the coordinator only runs in MobileLayout.
+registerOverlayBackHandler({
+  depth: () => (activeFolder.value ? 1 : 0),
+  back: closeFolder,
 });
 
 const { t } = useI18n();

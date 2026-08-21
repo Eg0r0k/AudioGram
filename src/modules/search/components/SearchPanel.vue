@@ -19,9 +19,15 @@
 
 <script setup lang="ts">
 import { useSearch } from "@/modules/search/composables/useSearch";
+import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 import LibrarySearchPane from "@/modules/search/components/LibrarySearchPane.vue";
 import NdSearchPane from "@/modules/sources/components/NdSearchPane.vue";
 import YtSearchPane from "@/modules/youtube/components/search/YtSearchPane.vue";
 
-const { isSearchOpen, source, suppressPanelSlide } = useSearch();
+const { isSearchOpen, source, suppressPanelSlide, closeSearch } = useSearch();
+
+registerOverlayBackHandler({
+  depth: () => (isSearchOpen.value ? 1 : 0),
+  back: closeSearch,
+});
 </script>

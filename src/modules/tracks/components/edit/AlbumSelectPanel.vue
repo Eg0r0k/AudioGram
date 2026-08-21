@@ -52,6 +52,7 @@ import type { AlbumEntity } from "@/db/entities";
 import { searchAlbums } from "@/queries/album.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { usePanelUiBack } from "@/modules/right-panel/composables/usePanelUiBack";
 import type { RightPanelEntitySelectPayload } from "@/modules/right-panel/types";
 import IconCheck from "~icons/tabler/check";
 
@@ -64,9 +65,6 @@ const search = ref("");
 const debouncedSearch = refDebounced(search, 200);
 const normalizedSearch = computed(() => debouncedSearch.value.trim().replace(/\s+/g, " "));
 
-// Дефолтный limit=8 у searchAlbums срезал бы почти всю библиотеку: yt:/nd:
-// строки идут последними в порядке первичного ключа и никогда не попадали
-// в выдачу. Пикер листает весь список виртуально — берём с запасом и сортируем.
 const PICKER_LIMIT = 1000;
 
 const { data } = useQuery({
@@ -91,6 +89,7 @@ const handleDone = () => {
 
   rightPanel.back();
 };
+usePanelUiBack(handleDone);
 
 const handleSelect = (album: AlbumEntity) => {
   props.payload.onConfirm({ albumId: album.id, albumTitle: album.title });

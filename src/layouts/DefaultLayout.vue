@@ -41,12 +41,24 @@ import LibrarySidebar from "@/components/layout/sidebar/LibrarySidebar.vue";
 import DropOverlay from "@/components/DropOverlay.vue";
 import { useImport } from "@/modules/library/composables/useImport";
 import { useFileDrop } from "@/composables/useFileDrop";
+import { registerOverlayBackHandler, useOverlayEscape } from "@/composables/useOverlayBackButton";
+import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import RightPanelHost from "@/modules/right-panel/components/RightPanelHost.vue";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { panelBackDepth } from "@/modules/right-panel/lib/backChain";
+
+useOverlayEscape();
+
+const rightPanel = useRightPanelStore();
+registerOverlayBackHandler({
+  depth: () => panelBackDepth(rightPanel.isOpen, rightPanel.view, rightPanel.returnToView),
+  back: () => rightPanel.stepBack(),
+});
 
 const { importFiles } = useImport();
 
 const { isDragging } = useFileDrop({
-  acceptedExtensions: [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus"],
+  acceptedExtensions: [...ACCEPTED_AUDIO_EXTENSIONS],
   onDrop: (files) => {
     importFiles(files);
   },

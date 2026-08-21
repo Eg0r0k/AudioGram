@@ -54,6 +54,7 @@ import type { ArtistEntity } from "@/db/entities";
 import { searchArtists } from "@/queries/artist.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { usePanelUiBack } from "@/modules/right-panel/composables/usePanelUiBack";
 import type { RightPanelEntitySelectPayload } from "@/modules/right-panel/types";
 import IconCheck from "~icons/tabler/check";
 
@@ -76,9 +77,6 @@ const toggleName = (name: string) => {
     : [...selectedNames.value, name];
 };
 
-// Limit=30 в порядке первичного ключа прятал yt:/nd: артистов: их id
-// сортируются после UUID и не влезали в срез. Пикер виртуализирован —
-// берём с запасом и сортируем по имени.
 const PICKER_LIMIT = 1000;
 
 const { data } = useQuery({
@@ -107,6 +105,7 @@ const handleDone = () => {
 
   rightPanel.back();
 };
+usePanelUiBack(handleDone);
 
 const handleConfirm = () => {
   props.payload.onConfirm({ names: [...selectedNames.value] });
