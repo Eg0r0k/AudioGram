@@ -193,9 +193,10 @@ const {
 
 watch(() => route.params.id, () => clearSelection());
 
-// ESC cancels selection
-onKeyStroke("Escape", () => {
-  if (isSelecting.value) clearSelection();
+onKeyStroke("Escape", (event) => {
+  if (!isSelecting.value) return;
+  event.preventDefault();
+  clearSelection();
 });
 
 const showEditDialog = ref(false);
