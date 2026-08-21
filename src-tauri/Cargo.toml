@@ -43,11 +43,27 @@ getrandom = "0.3"
 hex = "0.4"
 lofty = "0.24.0"
 log = "0.4.33"
+# ALAC-in-mp4 cannot be decoded by any Chromium webview (desktop WebView2 or
+# Android); the media server transcodes such files to WAV on the fly.
+symphonia = { version = "0.5", default-features = false, features = ["alac", "isomp4"] }
+hound = "3.5"
+ape-decoder = "0.3"
 percent-encoding = "2"
 tauri-plugin-http = "2.5.9"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# Unoptimized decoders run ~10x slower than what playback UX tolerates
+# (12s/track ALAC, ~8x realtime APE measured); keep them fast in dev builds.
+[profile.dev.package.symphonia-core]
+opt-level = 3
+[profile.dev.package.symphonia-codec-alac]
+opt-level = 3
+[profile.dev.package.symphonia-format-isomp4]
+opt-level = 3
+[profile.dev.package.ape-decoder]
+opt-level = 3
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # rquickjs (via rustypipe) ships no prebuilt bindings for mobile targets;

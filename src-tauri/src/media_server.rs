@@ -118,6 +118,7 @@ pub(crate) fn mime_for_path(path: &str) -> &'static str {
         "m4a" | "mp4" => "audio/mp4",
         "aac" => "audio/aac",
         "wav" => "audio/wav",
+        "ape" => "audio/x-ape",
         "wma" => "audio/x-ms-wma",
         "webm" => "audio/webm",
         _ => "application/octet-stream",
@@ -335,11 +336,36 @@ fn file_stream_body(file: tokio::fs::File, len: u64) -> Body {
 }
 
 /// `local/<abs path>`: opens the file, seeks to the requested range and
-/// streams the span.
-async fn serve_local(path: &str, range: Option<&str>, origin: Option<&str>) -> http::Response<Body> {
+/// streams the span. ALAC-in-mp4 sources (undecodable by any Chromium
+/// webview) are transparently swapped for their cached WAV rendition —
+/// the response then carries `audio/wav` and ranges resolve against it.
+async fn serve_local(
+    path: &str,
+    range: Option<&str>,
+    origin: Option<&str>,
+    transcode_cache: Option<&std::path::Path>,
+) -> http::Response<Body> {
     if !is_safe_abs_path(path) {
         return status_response(403, origin);
     }
+
+    let mut path = std::borrow::Cow::Borrowed(path);
+    if crate::transcode::is_transcode_candidate(&path) {
+        if let Some(cache) = transcode_cache {
+            let src = std::path::PathBuf::from(path.as_ref());
+            let cache = cache.to_path_buf();
+            let wav = tokio::task::spawn_blocking(move || {
+                crate::transcode::wav_rendition_path(&src, &cache)
+            })
+            .await
+            .ok()
+            .flatten();
+            if let Some(wav) = wav {
+                path = std::borrow::Cow::Owned(wav.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    let path = path.as_ref();
 
     let mut file = match tokio::fs::File::open(path).await {
         Ok(file) => file,
@@ -455,6 +481,7 @@ impl<R: Runtime> RemoteRoutes for AppRoutes<R> {
 pub(crate) async fn handle<T: RemoteRoutes>(
     remote: T,
     token: &str,
+    transcode_cache: Option<&std::path::Path>,
     req: http::Request<hyper::body::Incoming>,
 ) -> http::Response<Body> {
     let origin = req
@@ -493,7 +520,7 @@ pub(crate) async fn handle<T: RemoteRoutes>(
         .map(str::to_owned);
 
     if let Some(local_path) = rest.strip_prefix("local/") {
-        return serve_local(local_path, range.as_deref(), origin.as_deref()).await;
+        return serve_local(local_path, range.as_deref(), origin.as_deref(), transcode_cache).await;
     }
 
     let query = req.uri().query().map(str::to_owned);
@@ -518,8 +545,10 @@ pub fn bind_on_loopback() -> std::io::Result<(std::net::TcpListener, MediaServer
 pub(crate) async fn run_accept_loop<T: RemoteRoutes>(
     remote: T,
     token: String,
+    transcode_cache: Option<std::path::PathBuf>,
     listener: tokio::net::TcpListener,
 ) {
+    let transcode_cache = transcode_cache.map(Arc::new);
     loop {
         let stream = match listener.accept().await {
             Ok((stream, _addr)) => stream,
@@ -534,12 +563,15 @@ pub(crate) async fn run_accept_loop<T: RemoteRoutes>(
 
         let remote = remote.clone();
         let token = token.clone();
+        let transcode_cache = transcode_cache.clone();
         tokio::spawn(async move {
             let service = hyper::service::service_fn(move |req| {
                 let remote = remote.clone();
                 let token = token.clone();
+                let transcode_cache = transcode_cache.clone();
                 async move {
-                    Ok::<_, std::convert::Infallible>(handle(remote, &token, req).await)
+                    let cache = transcode_cache.as_deref().map(|p| p.as_path());
+                    Ok::<_, std::convert::Infallible>(handle(remote, &token, cache, req).await)
                 }
             });
             let io = hyper_util::rt::TokioIo::new(stream);
@@ -570,7 +602,16 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>, token: String, listener: std::net::T
                 return;
             }
         };
-        run_accept_loop(AppRoutes(app), token, listener).await;
+        use tauri::Manager;
+        let transcode_cache = app
+            .path()
+            .app_cache_dir()
+            .map(|dir| dir.join("transcode"))
+            .ok();
+        if let Some(cache) = &transcode_cache {
+            crate::transcode::clean_stale_tmp(cache);
+        }
+        run_accept_loop(AppRoutes(app), token, transcode_cache, listener).await;
     });
 }
 
@@ -808,7 +849,8 @@ mod integration_tests {
         let tokio_listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
         let base = format!("http://127.0.0.1:{}", state.port);
         let token = state.token.clone();
-        tokio::spawn(run_accept_loop(NoRemote, state.token, tokio_listener));
+        let cache = std::env::temp_dir().join(format!("media-server-test-cache-{}", new_token()));
+        tokio::spawn(run_accept_loop(NoRemote, state.token, Some(cache), tokio_listener));
         (base, token)
     }
 
@@ -928,6 +970,67 @@ mod integration_tests {
         assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
         assert_eq!(resp.headers()["Access-Control-Allow-Methods"], "GET");
         assert_eq!(resp.headers()["Access-Control-Allow-Headers"], "Range");
+    }
+
+    fn fixture(name: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+    }
+
+    #[tokio::test]
+    async fn alac_m4a_is_served_as_transcoded_wav() {
+        let (base, token) = spawn_test_server().await;
+        let url = format!("{base}/{token}/local/{}", encode_path(&fixture("tiny-alac.m4a")));
+
+        let resp = reqwest::get(&url).await.expect("request");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["Content-Type"], "audio/wav");
+        assert_eq!(resp.headers()["Accept-Ranges"], "bytes");
+        let total: u64 = resp.headers()["Content-Length"].to_str().unwrap().parse().unwrap();
+        let body = resp.bytes().await.expect("body");
+        assert_eq!(&body[..4], b"RIFF");
+        assert_eq!(body.len() as u64, total);
+
+        let client = reqwest::Client::new();
+        let tail = client
+            .get(&url)
+            .header("Range", format!("bytes={}-", total - 4))
+            .send()
+            .await
+            .expect("range request");
+        assert_eq!(tail.status(), 206);
+        assert_eq!(
+            tail.headers()["Content-Range"].to_str().unwrap(),
+            format!("bytes {}-{}/{}", total - 4, total - 1, total),
+        );
+        assert_eq!(tail.bytes().await.expect("body").as_ref(), &body[body.len() - 4..]);
+    }
+
+    #[tokio::test]
+    async fn ape_is_served_as_transcoded_wav() {
+        let (base, token) = spawn_test_server().await;
+        let url = format!("{base}/{token}/local/{}", encode_path(&fixture("tiny-impulse.ape")));
+
+        let resp = reqwest::get(&url).await.expect("request");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["Content-Type"], "audio/wav");
+        let body = resp.bytes().await.expect("body");
+        assert_eq!(&body[..4], b"RIFF");
+        // 1.0s of 16-bit 44.1kHz stereo PCM behind a 44-byte header.
+        assert_eq!(body.len(), 44 + 44100 * 2 * 2);
+    }
+
+    #[tokio::test]
+    async fn aac_m4a_is_served_raw() {
+        let (base, token) = spawn_test_server().await;
+        let path = fixture("tiny-aac.m4a");
+        let size = std::fs::metadata(&path).expect("fixture size").len();
+
+        let resp = reqwest::get(format!("{base}/{token}/local/{}", encode_path(&path)))
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["Content-Type"], "audio/mp4");
+        assert_eq!(resp.bytes().await.expect("body").len() as u64, size);
     }
 
     #[tokio::test]

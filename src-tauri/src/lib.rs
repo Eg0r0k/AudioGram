@@ -24,6 +24,8 @@ mod media_server;
 
 mod nd;
 
+mod transcode;
+
 mod proxy;
 
 fn dir_size(path: &Path) -> u64 {
