@@ -6,6 +6,7 @@
       class="contents"
       role="presentation"
       @contextmenu.capture="guardContextMenu"
+      @pointerdown.capture="guardLongPress"
     >
       <ContextMenuTrigger as-child>
         <slot />
@@ -121,24 +122,23 @@ const contextProps = computed(() => {
   }
 });
 
-function guardContextMenu(event: MouseEvent) {
-  const target = event.target as HTMLElement;
+const canFillMenuFrom = (target: HTMLElement): boolean => {
   const row = target.closest("[data-library-item]");
-  if (row) {
-    if (row.matches("[data-library-menu=\"none\"]")) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    return;
-  }
+  if (row) return !row.matches("[data-library-menu=\"none\"]");
+  return !!target.closest("[data-track-row]")?.closest("[data-track-menu-scope]");
+};
 
-  if (target.closest("[data-track-row]")?.closest("[data-track-menu-scope]")) {
-    return;
-  }
-
+function guardContextMenu(event: MouseEvent) {
+  if (canFillMenuFrom(event.target as HTMLElement)) return;
   event.preventDefault();
   event.stopPropagation();
 }
+
+const guardLongPress = (event: PointerEvent) => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  if (canFillMenuFrom(event.target as HTMLElement)) return;
+  event.preventDefault();
+};
 
 const handleTogglePin = () => {
   if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;

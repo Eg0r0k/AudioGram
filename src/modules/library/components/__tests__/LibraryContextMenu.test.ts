@@ -55,6 +55,16 @@ function rightClick(el: HTMLElement) {
   return event;
 }
 
+// reka's touch long-press timer starts from pointerdown and never sees the
+// contextmenu guard — the guard must cancel the pointerdown itself. jsdom has
+// no PointerEvent constructor, so fake the pointerType on a MouseEvent.
+const pressWith = (el: HTMLElement, pointerType: string) => {
+  const event = new MouseEvent("pointerdown", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "pointerType", { value: pointerType });
+  el.dispatchEvent(event);
+  return event;
+};
+
 function item(type: LibraryItem["type"], isCatalog: boolean): LibraryItem {
   return {
     id: `nd:${type}1`,
@@ -80,6 +90,21 @@ describe("LibraryContextMenu", () => {
     mountMenu();
 
     expect(rightClick(screen.getByTestId("row")).defaultPrevented).toBe(false);
+  });
+
+  it("cancels touch long-presses that cannot fill the menu", () => {
+    mountMenu();
+
+    expect(pressWith(screen.getByTestId("offrow"), "touch").defaultPrevented).toBe(true);
+    expect(pressWith(screen.getByTestId("blocked"), "touch").defaultPrevented).toBe(true);
+    expect(pressWith(screen.getByTestId("blocked"), "pen").defaultPrevented).toBe(true);
+  });
+
+  it("keeps touch long-press alive on rows and never touches mouse presses", () => {
+    mountMenu();
+
+    expect(pressWith(screen.getByTestId("row"), "touch").defaultPrevented).toBe(false);
+    expect(pressWith(screen.getByTestId("offrow"), "mouse").defaultPrevented).toBe(false);
   });
 });
 
