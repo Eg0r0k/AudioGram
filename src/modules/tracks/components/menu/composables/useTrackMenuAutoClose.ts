@@ -1,10 +1,9 @@
 import { computed, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
-import { skipToken, useQuery } from "@tanstack/vue-query";
+import { useQuery } from "@tanstack/vue-query";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { isLibraryTrack } from "@/modules/player/types";
-import { queryKeys } from "@/queries/query-keys";
-import type { PlaylistEntity } from "@/db/entities";
+import { playlistQueries } from "@/queries/playlist.queries";
 import { PlaylistId } from "@/types/ids";
 import type { TrackContext } from "../type";
 
@@ -20,10 +19,17 @@ export function useTrackMenuAutoClose(
   const { activeTrack, activeQueueItemId, closeMenu, closeDropdown } = useTrackMenu();
   const queueStore = useQueueStore();
 
-  const { data: playlistDetail } = useQuery(computed(() => ({
-    queryKey: queryKeys.playlists.detail(toValue(options.playlistId) ?? NO_PLAYLIST_ID),
-    queryFn: skipToken,
-  })));
+  // A real (cheap, Dexie-backed) queryFn, NOT skipToken: playlist mutations
+  // invalidate ["playlists", id], and when this observer is the only one on
+  // that key a skipToken entry cannot be refetched — tanstack retries into
+  // "Attempted to invoke queryFn when set to skipToken" spam. The enabled
+  // gate keeps the no-playlist case a genuinely disabled query, which
+  // invalidation skips.
+  const playlistId = computed(() => toValue(options.playlistId));
+  const { data: playlistDetail } = useQuery(computed(() => playlistQueries.detail(
+    playlistId.value ?? NO_PLAYLIST_ID,
+    playlistId.value !== undefined,
+  )));
 
   const isEntityGone = computed(() => {
     if (!isOpen.value) return false;
@@ -38,7 +44,7 @@ export function useTrackMenuAutoClose(
       }
       case "playlist": {
         if (!isLibraryTrack(track)) return false;
-        const trackIds = (playlistDetail.value as PlaylistEntity | undefined)?.trackIds;
+        const trackIds = playlistDetail.value?.trackIds;
         if (!trackIds) return false;
         return !trackIds.includes(track.id);
       }
