@@ -30,6 +30,7 @@ skills-lock.json
 # Project config
 opencode.jsonc
 .opencode/
+docs
 AGENTS.md
 CLAUDE.md
 DESIGN.md
