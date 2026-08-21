@@ -8,6 +8,11 @@ import type { Ref } from "vue";
  * nextTick — capture-preventDefault здесь отменяет его long-press-таймер.
  * contextmenu, порождённый тач-нажатием, гасится тоже: Android WebView
  * синтезирует его независимо от reka.
+ *
+ * Контракт: touch pointerdown внутри враппера отменяется везде, кроме
+ * освобождённых целей (canFillMenuFrom) — click при этом всё равно
+ * срабатывает, а focus/:active — нет; не кладите фокусируемые инпуты внутрь
+ * враппера без освобождения через canFillMenuFrom.
  */
 export const useTouchContextMenuGuard = (
   guardRef: Ref<HTMLElement | null>,

@@ -144,3 +144,123 @@ describe("useSelection touch autoscroll", () => {
     expect(container.scrollTop - before).toBe(AUTO_SCROLL_MAX_SPEED_PX);
   });
 });
+
+describe("useSelection touch autoscroll - scroller resolution", () => {
+  let rafCallbacks: Map<number, FrameRequestCallback>;
+  let rafId: number;
+
+  const flushFrames = (count: number) => {
+    for (let i = 0; i < count; i++) {
+      const pending = [...rafCallbacks.entries()];
+      rafCallbacks.clear();
+      pending.forEach(([, cb]) => cb(performance.now()));
+    }
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    rafCallbacks = new Map();
+    rafId = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafCallbacks.set(++rafId, cb);
+      return rafId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => rafCallbacks.delete(id));
+    Object.defineProperty(navigator, "vibrate", { value: vi.fn(), configurable: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
+  // Скроллируемый элемент без строк-детей — для сценариев, где скроллер не
+  // совпадает со списком строк (явный scrollEl) или где сам список строк
+  // — вложенный потомок нескроллируемого враппера.
+  const makeScrollableEl = (count: number): HTMLElement => {
+    const el = document.createElement("div");
+    el.style.overflowY = "auto";
+    Object.defineProperty(el, "scrollHeight", { value: count * ROW_HEIGHT, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: VIEWPORT_HEIGHT, configurable: true });
+    el.getBoundingClientRect = () =>
+      ({ top: 0, bottom: VIEWPORT_HEIGHT, left: 0, right: 300, width: 300, height: VIEWPORT_HEIGHT, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    return el;
+  };
+
+  it("scrolls a scrollable descendant when the container itself is not scrollable (AlbumPage/AddTracksPanel shape)", () => {
+    const outer = document.createElement("div");
+    const scroller = makeScrollableEl(40);
+    for (let i = 0; i < 40; i++) {
+      const row = document.createElement("div");
+      row.dataset.selectableId = `t${i}`;
+      row.dataset.selectableIndex = String(i);
+      scroller.appendChild(row);
+    }
+    outer.appendChild(scroller);
+    document.body.appendChild(outer);
+
+    vi.spyOn(document, "elementFromPoint").mockImplementation(
+      (_x: number, y: number) =>
+        scroller.children[Math.floor((y + scroller.scrollTop) / ROW_HEIGHT)] ?? null,
+    );
+
+    const selection = useSelection(makeItems(40));
+    const cleanup = selection.attachDragListeners(outer);
+
+    outer.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, scroller.children[0]!));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, outer));
+
+    const before = scroller.scrollTop;
+    flushFrames(10);
+
+    expect(scroller.scrollTop).toBeGreaterThan(before);
+    expect(outer.scrollTop).toBe(0);
+
+    cleanup();
+  });
+
+  it("scrolls the explicit scrollEl option instead of the (also scrollable) container", () => {
+    const container = buildScrollableContainer(40);
+    const explicitScrollEl = makeScrollableEl(40);
+    document.body.appendChild(explicitScrollEl);
+
+    const selection = useSelection(makeItems(40));
+    const cleanup = selection.attachDragListeners(container, { scrollEl: explicitScrollEl });
+
+    container.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, container.children[0]!));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+
+    flushFrames(10);
+
+    expect(explicitScrollEl.scrollTop).toBeGreaterThan(0);
+    expect(container.scrollTop).toBe(0);
+
+    cleanup();
+  });
+
+  it("stops the autoscroll rAF loop when the returned cleanup runs mid-drag", () => {
+    const container = buildScrollableContainer(40);
+    const selection = useSelection(makeItems(40));
+    const cleanup = selection.attachDragListeners(container);
+
+    container.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, container.children[0]!));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    flushFrames(3);
+
+    expect(rafCallbacks.size).toBeGreaterThan(0);
+
+    cleanup();
+
+    expect(rafCallbacks.size).toBe(0);
+    const settled = container.scrollTop;
+    flushFrames(5);
+
+    expect(rafCallbacks.size).toBe(0);
+    expect(container.scrollTop).toBe(settled);
+  });
+});

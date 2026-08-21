@@ -237,6 +237,10 @@ export function useSelection<T extends Selectable>(
     let touchStartY = 0;
     let lastTouchX = 0;
     let lastTouchY = 0;
+    // Палец реально сходил на другую строку — в этом случае браузер не
+    // порождает синтетический click по touchend, и ловушку suppressNextClick
+    // ставить не нужно (см. suppressNextClick ниже).
+    let dragLeftStartRow = false;
 
     const cancelLongPressTimer = (): void => {
       if (longPressTimer === null) return;
@@ -251,16 +255,32 @@ export function useSelection<T extends Selectable>(
     let autoScrollRaf: number | null = null;
     let activeScrollEl: HTMLElement | null = null;
 
+    const isScrollableEl = (el: HTMLElement): boolean => {
+      const { overflowY } = getComputedStyle(el);
+      return (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay")
+        && el.scrollHeight > el.clientHeight;
+    };
+
+    // Порядок разрешения: явный scrollEl → сам containerEl, если скроллится →
+    // первый скроллируемый потомок (AlbumPage/AddTracksPanel держат внешний
+    // нескроллируемый враппер, а реальный скролл — во внутреннем контейнере
+    // VirtualScrollable) → скроллируемый предок (LibraryFolderItemsDialog) →
+    // сам containerEl как крайний случай.
     const resolveScrollEl = (): HTMLElement => {
       if (scrollEl) return scrollEl;
-      let el: HTMLElement | null = containerEl;
-      while (el) {
-        const { overflowY } = getComputedStyle(el);
-        if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
-          return el;
-        }
-        el = el.parentElement;
+      if (isScrollableEl(containerEl)) return containerEl;
+
+      const descendants = containerEl.querySelectorAll<HTMLElement>("*");
+      for (const el of descendants) {
+        if (isScrollableEl(el)) return el;
       }
+
+      let ancestor: HTMLElement | null = containerEl.parentElement;
+      while (ancestor) {
+        if (isScrollableEl(ancestor)) return ancestor;
+        ancestor = ancestor.parentElement;
+      }
+
       return containerEl;
     };
 
@@ -313,14 +333,19 @@ export function useSelection<T extends Selectable>(
     const abortTouchGesture = (): void => {
       stopAutoScroll();
       touchDragActive = false;
+      dragLeftStartRow = false;
       stopTouchDrag?.();
       stopTouchDrag = null;
     };
 
     // Long-press глушит наведённый браузером click по touchend, иначе клик по
     // строке в режиме выделения тут же снимает только что поставленную отметку.
-    // Drag с preventDefault click не порождает вовсе — таймер убирает ловушку,
-    // чтобы она не съела следующий честный тап.
+    // Синтетический click браузер порождает только когда палец не покидал
+    // стартовую строку (dragLeftStartRow === false) — вызывающая сторона
+    // ставит ловушку лишь в этом случае. Если drag дотянулся до другой
+    // строки, touchmove был preventDefault'нут и синтетического click не
+    // будет вовсе, поэтому ловушку не ставим — иначе она съест следующий
+    // честный тап по другой строке. Таймер снимает ловушку сам по себе.
     const suppressNextClick = (): void => {
       const stop = useEventListener(window, "click", (e) => {
         e.stopPropagation();
@@ -358,12 +383,13 @@ export function useSelection<T extends Selectable>(
 
       const current = getRowFromPoint(touch.clientX, touch.clientY);
       if (!current) return;
+      if (current.index !== dragStartIndex) dragLeftStartRow = true;
       applyDragRange(current.index);
     }
 
     function onTouchEnd(): void {
       if (touchDragActive) {
-        suppressNextClick();
+        if (!dragLeftStartRow) suppressNextClick();
         finalizeDrag();
       }
       abortTouchGesture();
@@ -380,6 +406,7 @@ export function useSelection<T extends Selectable>(
 
       stopTouchDrag?.();
       touchDragActive = false;
+      dragLeftStartRow = false;
       touchStartX = lastTouchX = touch.clientX;
       touchStartY = lastTouchY = touch.clientY;
 
@@ -407,7 +434,7 @@ export function useSelection<T extends Selectable>(
     return () => {
       stopContainer.forEach(stop => stop());
       stopMouseDrag?.();
-      stopTouchDrag?.();
+      abortTouchGesture();
     };
   }
 

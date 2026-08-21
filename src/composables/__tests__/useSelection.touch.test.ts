@@ -142,6 +142,20 @@ describe("useSelection touch long-press", () => {
     expect(rowClick).toHaveBeenCalledTimes(1);
   });
 
+  it("does not suppress a click after a drag that moved to another row", () => {
+    const rowClick = vi.fn();
+    container.children[2]!.addEventListener("click", rowClick);
+
+    touchStartOnRow(1);
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    touchMoveTo(rowY(2));
+    touchEnd();
+
+    container.children[2]!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(rowClick).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores touches that start on ignored elements", () => {
     const button = document.createElement("button");
     container.children[1]!.appendChild(button);
