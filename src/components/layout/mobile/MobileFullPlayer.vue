@@ -46,13 +46,15 @@
 
     <div class="flex min-h-0 flex-1 flex-col w-full mx-auto px-6 pt-4 pb-6 max-w-md">
       <div class="flex-1 min-h-0 @container-[size] flex items-center justify-center pb-2">
-        <div class="aspect-square w-[min(100cqw,100cqh)] rounded-2xl bg-muted overflow-hidden shadow-lg">
+        <div
+          ref="coverRef"
+          class="relative aspect-square w-[min(100cqw,100cqh)] rounded-2xl bg-muted overflow-hidden shadow-lg touch-pan-y"
+        >
           <NuxtImage
             v-slot="{ imgAttrs, isLoaded, src }"
-            :src="coverUrl"
+            :src="displayedCoverUrl"
             fallback-src="/img/fallback.svg"
             :alt="currentTrack?.title ?? ''"
-            :placeholder="true"
             custom
           >
             <img
@@ -64,10 +66,15 @@
               :class="isLoaded ? 'scale-100 opacity-100' : 'scale-[1.02] opacity-0 motion-reduce:scale-100'"
             >
           </NuxtImage>
+          <CoverStateOverlay :visible="isScrubbing">
+            <span class="text-2xl font-semibold tabular-nums text-white">
+              {{ scrubTimeDisplay }}
+            </span>
+          </CoverStateOverlay>
         </div>
       </div>
 
-      <div class="flex items-center justify-between gap-3 mt-6">
+      <div class="flex items-center justify-between gap-3 mt-6 h-14">
         <div class="min-w-0 flex-1">
           <MarqueeBlock
             :duration="10"
@@ -88,7 +95,21 @@
             gradient-length="20px"
           >
             <span class="text-base text-white/80 capitalize mt-0.5 block">
-              {{ currentTrack?.artist }}
+              <template
+                v-for="(artistName, artistIndex) in artistsList"
+                :key="`${artistName}-${artistIndex}`"
+              >
+                <span
+                  v-if="canNavigateArtists"
+                  role="link"
+                  tabindex="0"
+                  class="inline-block cursor-pointer py-1.5 -my-1.5 active:text-white"
+                  @click.stop="goToArtistAt(artistIndex)"
+                  @keypress.enter.stop="goToArtistAt(artistIndex)"
+                >{{ artistName }}</span>
+                <span v-else>{{ artistName }}</span>
+                <span v-if="artistIndex < artistsList.length - 1">, </span>
+              </template>
             </span>
           </MarqueeBlock>
         </div>
@@ -277,12 +298,13 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
+import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { formatDuration } from "@/lib/format/time";
@@ -315,6 +337,7 @@ import IconChevronDown from "~icons/tabler/chevron-down";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
 import { Button } from "@/components/ui/button";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
+import CoverStateOverlay from "@/components/layout/mobile/CoverStateOverlay.vue";
 import PlayButton from "@/modules/player/components/PlayButton.vue";
 import type { PlayerTrack, Track } from "@/modules/player/types";
 import { RangeSelector } from "@/modules/player";
@@ -338,7 +361,12 @@ const rightPanelStore = useRightPanelStore();
 const saveChapters = useSaveTrackChapters();
 const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown } = useTrackMenu();
-const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
+const { displayProgress, isTransitionEnabled, isScrubbing, scrubValue, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
+
+const scrubTimeDisplay = computed(() => {
+  const target = (scrubValue.value / 100) * playerStore.duration;
+  return `${formatDuration(target)} / ${formatDuration(playerStore.duration)}`;
+});
 
 const mobileTrackId = computed<TrackId>(() => {
   const track = playerStore.currentTrack;
@@ -421,6 +449,20 @@ useSwipeControl(rootRef, {
   onSwipeDown: () => emit("close"),
 });
 
+// Horizontal swipes on the cover mirror the next/previous buttons (same
+// hasNext/hasPrevious gating); vertical swipes fall through to the root's
+// swipe-down-to-close above.
+const coverRef = useTemplateRef<HTMLDivElement>("coverRef");
+useSwipeControl(coverRef, {
+  threshold: 60,
+  onSwipeLeft: () => {
+    if (queueStore.hasNext) queueStore.next().catch(() => {});
+  },
+  onSwipeRight: () => {
+    if (queueStore.hasPrevious) queueStore.previous().catch(() => {});
+  },
+});
+
 const { presets, isActive: isSleepTimerActive, statusText, setTimer, cancel: cancelSleepTimer } = useSleepTimer();
 
 // Any playing track — library or ephemeral (YouTube) — drives the display;
@@ -431,7 +473,7 @@ const libraryTrack = computed<Track | null>(() =>
   isLibraryTrack(currentTrack.value) ? currentTrack.value : null,
 );
 
-const { url: coverBlobUrl } = useEntityCover(
+const { url: coverBlobUrl, isLoading: isCoverLoading } = useEntityCover(
   "album",
   () => libraryTrack.value?.albumId ?? null,
 );
@@ -442,6 +484,55 @@ const coverUrl = computed(() => {
   if (track.kind === "ephemeral") return track.cover;
   return coverBlobUrl.value ?? undefined;
 });
+
+// Sticky cover: on fast track switches coverUrl transiently goes undefined
+// (the next album's blob is still loading) and the image component would
+// flash its fallback art between tracks. Hold the previous cover on screen
+// until the next one has actually decoded; show the fallback only once the
+// absence is definitive (cover query settled empty) or the load errored.
+const displayedCoverUrl = ref<string | undefined>(coverUrl.value);
+let coverProbeToken = 0;
+const COVER_PROBE_TIMEOUT_MS = 4000;
+
+watch([coverUrl, isCoverLoading], ([nextUrl, loading]) => {
+  const token = ++coverProbeToken;
+
+  if (!nextUrl) {
+    if (!loading) displayedCoverUrl.value = undefined;
+    return;
+  }
+
+  const probe = new Image();
+  probe.src = nextUrl;
+
+  let hangGuard: ReturnType<typeof setTimeout> | undefined;
+  const settle = (value: string | undefined) => {
+    clearTimeout(hangGuard);
+    if (token === coverProbeToken) displayedCoverUrl.value = value;
+  };
+  const commit = () => settle(nextUrl);
+  const abandon = () => settle(undefined);
+
+  // A hung remote load (neither load nor error) must not pin the previous
+  // album's art forever: after the guard fires the new URL is applied anyway
+  // and the image component's own load/error path takes over.
+  hangGuard = setTimeout(commit, COVER_PROBE_TIMEOUT_MS);
+
+  // Cached/decoded images (stableObjectUrl keeps blob covers alive) report
+  // complete synchronously — swap without ever leaving the previous frame.
+  if (probe.complete && probe.naturalWidth > 0) {
+    commit();
+    return;
+  }
+
+  if (typeof probe.decode === "function") {
+    probe.decode().then(commit).catch(abandon);
+  }
+  else {
+    probe.onload = commit;
+    probe.onerror = abandon;
+  }
+}, { immediate: true });
 
 const timeDisplay = computed(() => {
   if (playerStore.isLiveStream) return { current: "🔴", duration: "LIVE" };
@@ -454,6 +545,28 @@ const timeDisplay = computed(() => {
 const toggleLike = async () => {
   if (!libraryTrack.value) return;
   await toggleTrackLike(libraryTrack.value);
+};
+
+// Tappable artist caption, mirroring SidebarMusic: split the display string
+// per artist and index into artistIds. goToArtist comes from the shared
+// context actions so it closes the player (onNavigate) and composes with the
+// back-stack's navigation guard. Ephemeral (YT/ND) tracks have no artist
+// entities — the caption stays plain text, same as the dots menu hides its
+// navigation items for them.
+const trackActions = useTrackContextActions(currentTrack, { onNavigate: closePlayer });
+
+const artistsList = computed(() => {
+  const artistNames = currentTrack.value?.artist;
+  if (!artistNames) return [];
+  return artistNames.split(/,\s*/).map(name => name.trim()).filter(Boolean);
+});
+
+const canNavigateArtists = computed(() => libraryTrack.value !== null);
+
+const goToArtistAt = (index: number) => {
+  const artistId = libraryTrack.value?.artistIds?.[index];
+  if (!artistId) return;
+  trackActions.goToArtist(artistId);
 };
 
 const onDotsClick = (event: MouseEvent) => {

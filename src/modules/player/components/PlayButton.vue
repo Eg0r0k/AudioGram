@@ -13,7 +13,7 @@
       <MorphIcon
         tabindex="-1"
         :icon="shouldShowPauseIcon ? pausePath : playPath"
-        :size="32"
+        :size="props.iconSize"
         spring="snappy"
         reduced-motion="user"
         class="morph-icon relative z-10"
@@ -40,9 +40,10 @@ import pauseSvg from "@/assets/icons/pause-rounded.svg?raw";
 
 interface Props {
   class?: HTMLAttributes["class"];
+  iconSize?: number;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { iconSize: 32, class: undefined });
 const playerStore = usePlayerStore();
 
 const playPath = svgPathData(playSvg);

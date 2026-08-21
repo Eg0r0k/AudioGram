@@ -109,5 +109,5 @@ export function usePlayerProgress() {
       startRAF();
     }
   });
-  return { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd };
+  return { displayProgress, isTransitionEnabled, isScrubbing, scrubValue, onScrubStart, onScrub, onScrubEnd };
 }

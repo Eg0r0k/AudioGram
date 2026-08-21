@@ -1,15 +1,19 @@
 ﻿<template>
   <button
     ref="rootRef"
-    class="relative flex shrink-0  w-full h-14 px-2 cursor-pointer text-left [-webkit-tap-highlight-color:transparent]"
+    v-ripple
+    class="relative flex shrink-0  w-full h-14 cursor-pointer  rounded-lg  text-left [-webkit-tap-highlight-color:transparent]"
     :aria-label="$t('player.nowPlaying')"
     @click="handleOpenFullPlayer"
   >
     <div
+
       class="relative flex-1 rounded-lg overflow-hidden transition-colors duration-300"
       :style="containerStyle"
     >
-      <div class="flex items-center gap-2.5 px-2 h-14">
+      <div
+        class="flex items-center gap-2.5 px-2 h-14"
+      >
         <div class="size-10 shrink-0 rounded-md overflow-hidden flex items-center justify-center bg-black/20">
           <NuxtImage
             :src="coverUrl"
@@ -47,18 +51,11 @@
         </div>
 
         <div class="flex items-center gap-1 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            class="rounded-full text-white"
-            :aria-label="playerStore.isPlaying ? $t('player.pause') : $t('player.play')"
-            @click.stop="playerStore.togglePlay()"
-          >
-            <component
-              :is="playerStore.isPlaying ? IconPause : IconPlay"
-              class="size-5"
-            />
-          </Button>
+          <PlayButton
+            class="bg-transparent text-white hover:bg-white/10"
+            :icon-size="24"
+            @click.stop
+          />
           <Button
             variant="ghost"
             size="icon-lg"
@@ -94,9 +91,8 @@ import { usePlayerProgress } from "@/modules/tracks/composables/usePlayerProgres
 import { Button } from "@/components/ui/button";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
-import IconPlay from "~icons/tabler/player-play-filled";
-import IconPause from "~icons/tabler/player-pause-filled";
 import IconPlaylist from "~icons/tabler/playlist";
+import PlayButton from "@/modules/player/components/PlayButton.vue";
 
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
