@@ -32,6 +32,9 @@ gen sample.flac -c:a flac
 gen sample.ogg  -c:a libvorbis -q:a 2
 gen sample.opus -c:a libopus -b:a 64k
 gen sample.m4a  -c:a aac -b:a 128k
+# sample.ape is NOT generated here: ffmpeg has no APE encoder. It is a 1s
+# impulse vendored from the ape-decoder crate's test fixtures with an APEv2
+# tag appended (Title/Artist/Album/Track matching the other samples).
 gen sample.aac  -c:a aac -b:a 128k -f adts
 gen sample.webm -c:a libopus -b:a 64k -f webm
 gen sample.wma  -c:a wmav2 -b:a 128k

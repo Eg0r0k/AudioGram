@@ -18,5 +18,6 @@ export const sniffAudioExtension = (head: Uint8Array): string | null => {
   if (ascii(head, 0, "OggS")) return "ogg";
   if (ascii(head, 0, "RIFF") && ascii(head, 8, "WAVE")) return "wav";
   if (ascii(head, 4, "ftyp")) return "m4a";
+  if (ascii(head, 0, "MAC ")) return "ape";
   return null;
 };

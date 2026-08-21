@@ -1,6 +1,6 @@
 export const filterFilesByExtension = (
   files: File[],
-  extensions: string[],
+  extensions: readonly string[],
 ): File[] => {
   if (!extensions.length) return files;
 

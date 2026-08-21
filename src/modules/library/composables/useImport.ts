@@ -5,6 +5,7 @@ import { invalidateLibraryData } from "@/queries/library.queries";
 import { indexImportedTracks } from "@/modules/search/searchIndex";
 import { getLogger } from "@/lib/logger";
 import { filterFilesByExtension } from "@/lib/files/filterFiles";
+import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { requestFiles } from "@/lib/files/requestFiles";
 import { ImportBatchResult, ImportErrorCode } from "@/services/types";
@@ -33,7 +34,7 @@ export interface ImportState {
   isCancelling: boolean;
 }
 
-const ACCEPTED_EXTENSIONS = [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus"];
+const ACCEPTED_EXTENSIONS = ACCEPTED_AUDIO_EXTENSIONS;
 const MAX_VISIBLE_IMPORT_FILES = 500;
 
 const state = ref<ImportState>({

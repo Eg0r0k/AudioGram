@@ -22,6 +22,10 @@ describe("sniffAudioExtension", () => {
     expect(sniffAudioExtension(bytes(0, 0, 0, 32, "ftypisom"))).toBe("m4a");
   });
 
+  it("detects the Monkey's Audio magic as ape", () => {
+    expect(sniffAudioExtension(bytes("MAC ", 0x96, 0x0F))).toBe("ape");
+  });
+
   it("returns null for unknown payloads", () => {
     expect(sniffAudioExtension(bytes("PK", 3, 4))).toBeNull();
     expect(sniffAudioExtension(bytes("RIFF", 0, 0, 0, 0, "AVI "))).toBeNull();

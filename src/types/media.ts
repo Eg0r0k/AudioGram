@@ -8,6 +8,7 @@ export const AUDIO_MIME_TYPES = {
   "m4a": "audio/mp4",
   "webm": "audio/webm",
   "opus": "audio/opus",
+  "ape": "audio/x-ape",
 
   // Codecs
   "ogg-vorbis": "audio/ogg; codecs=\"vorbis\"",

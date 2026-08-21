@@ -51,10 +51,18 @@ const FORMATS = [
   { file: "sample.webm", codec: "OPUS", lossless: undefined, sampleRate: 48000, tagged: true },
   { file: "sample.alac", codec: "ALAC", lossless: true, sampleRate: 44100, tagged: true },
   { file: "sample.wma", codec: "Windows Media Audio V8", lossless: undefined, sampleRate: undefined, tagged: true },
+  // Not ffmpeg-generated (ffmpeg has no APE encoder): a vendored 1s impulse
+  // from the ape-decoder test suite with an APEv2 tag appended. music-metadata
+  // reports no codec string for APE, only the container.
+  { file: "sample.ape", codec: undefined, lossless: true, sampleRate: 44100, tagged: true, durationRange: [0.9, 1.1] },
 ] as const;
 
 describe("metadata parsing across audio formats", () => {
-  describe.each(FORMATS)("$file", ({ file, codec, lossless, sampleRate, tagged }) => {
+  describe.each(FORMATS)("$file", (format) => {
+    const { file, codec, lossless, sampleRate, tagged } = format;
+    // ffmpeg fixtures are a 0.3s sine; encoder padding shifts it slightly.
+    const [minDuration, maxDuration] = "durationRange" in format ? format.durationRange : [0.25, 0.45];
+
     it("parses successfully", async () => {
       const res = await parse(file);
       expect(res.success).toBe(true);
@@ -66,9 +74,8 @@ describe("metadata parsing across audio formats", () => {
       expect(meta.format.codec).toBe(codec);
       expect(meta.format.lossless).toBe(lossless);
       expect(meta.format.sampleRate).toBe(sampleRate);
-      // Every fixture is a 0.3s sine; encoder padding shifts it slightly.
-      expect(meta.duration).toBeGreaterThan(0.25);
-      expect(meta.duration).toBeLessThan(0.45);
+      expect(meta.duration).toBeGreaterThan(minDuration);
+      expect(meta.duration).toBeLessThan(maxDuration);
     });
 
     if (tagged) {
