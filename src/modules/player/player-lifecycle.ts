@@ -35,7 +35,7 @@ export function initPlayerLifecycle(): void {
     const player = usePlayerStore();
 
     if (isLibraryTrack(player.currentTrack)) {
-      statsService.stopListening(player.currentTime, { completed: true })
+      statsService.stopListening(player.getListenedSeconds(), { completed: true })
         .catch(err => getLogger().error(`[Stats] ${String(err)}`));
     }
 

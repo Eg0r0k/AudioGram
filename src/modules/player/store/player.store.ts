@@ -21,6 +21,7 @@ import { statsService } from "@/services/stats.service";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
+import { createListenSession } from "../lib/listen-session";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
@@ -113,7 +114,28 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
+  // See listen-session.ts for the accounting model (engine-clock deltas,
+  // armed-after-load contract).
+  const listenSession = createListenSession();
+  const getListenedSeconds = () => listenSession.seconds();
+
+  const stopListeningAndSync = (options: { completed?: boolean; skipped?: boolean } = {}) => {
+    // Pull the element position right now: in the background the last
+    // timeupdate may be minutes stale, and the engine clock is the only
+    // source that never throttles.
+    if (player.value) listenSession.sample(player.value.currentTime);
+    statsService.stopListening(listenSession.seconds(), options)
+      .catch(err => getLogger().error(`[Stats] ${String(err)}`));
+  };
+
   const clearCurrentTrack = () => {
+    // A session can still be open here (dispose, resolve failure): finalize it
+    // with real accumulated seconds instead of leaking it to the wall-clock
+    // fallback in stats.service.
+    if (isLibraryTrack(currentTrack.value)) {
+      stopListeningAndSync({ skipped: true });
+    }
+    listenSession.reset();
     _isSwitchingTrack = false;
     if (_activeBlobUrl) {
       URL.revokeObjectURL(_activeBlobUrl);
@@ -123,11 +145,6 @@ export const usePlayerStore = defineStore("player", () => {
     currentTime.value = 0;
     duration.value = 0;
     trackChangedBus.emit(null);
-  };
-
-  const stopListeningAndSync = (options: { completed?: boolean; skipped?: boolean } = {}) => {
-    statsService.stopListening(currentTime.value, options)
-      .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
 
   // Drops a broken instance so the next play starts on a fresh engine.
@@ -174,11 +191,30 @@ export const usePlayerStore = defineStore("player", () => {
     });
     newPlayer.on("ended", () => {
       if (player.value !== newPlayer) return;
+      // A natural end means the element reached its duration: credit the
+      // sliver past the last sample BEFORE the UI reset below, because the
+      // lifecycle's completed-stop runs off this emit and must see the full
+      // session (reading the zeroed time recorded every natural end as
+      // 0 seconds listened and never bumped playCount).
+      if (duration.value > 0) listenSession.sample(duration.value);
       currentTime.value = 0;
+      listenSession.rebase(0);
       trackEndedBus.emit();
     });
     newPlayer.on("timeupdate", ({ currentTime: t }) => {
-      if (player.value === newPlayer) currentTime.value = t;
+      if (player.value !== newPlayer) return;
+      listenSession.sample(t);
+      currentTime.value = t;
+    });
+    // Both hooks re-base without crediting: "seeking" fires synchronously with
+    // the clamped target (covers every initiator — slider, chapters, media
+    // session), "seeked" re-syncs to the position the element actually landed
+    // on.
+    newPlayer.on("seeking", (t) => {
+      if (player.value === newPlayer) listenSession.rebase(t);
+    });
+    newPlayer.on("seeked", (t) => {
+      if (player.value === newPlayer) listenSession.rebase(t);
     });
     newPlayer.on("durationchange", (dur) => {
       if (player.value === newPlayer) duration.value = dur;
@@ -490,6 +526,8 @@ export const usePlayerStore = defineStore("player", () => {
     if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync({ skipped: true });
     }
+    // The consumed session is over; the next one starts at position 0.
+    listenSession.reset();
 
     cancelActiveFade();
     currentTime.value = 0;
@@ -529,6 +567,9 @@ export const usePlayerStore = defineStore("player", () => {
       // playing now would fight the newer request.
       if (requestId !== _playRequestId) return;
 
+      // Only now is this track the engine's media — positions sampled before
+      // this point still belonged to the previous track.
+      listenSession.arm();
       applyLoudnessMetadata(p, track);
       await play();
       useAudioSettingsStore().pushToGraph();
@@ -638,6 +679,7 @@ export const usePlayerStore = defineStore("player", () => {
     toggleMute,
     toggleRepeat,
     getAudioGraph,
+    getListenedSeconds,
     dispose,
     setMuted,
     setSleepTimer,

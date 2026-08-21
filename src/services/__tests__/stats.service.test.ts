@@ -52,6 +52,27 @@ describe("statsService skip detection", () => {
     expect((await db.tracks.get(TRACK_ID))?.playCount ?? 0).toBe(1);
   });
 
+  it("closes a leaked session as an unmeasured skip, not wall-clock time", async () => {
+    statsService.startListening(TRACK_ID, ARTIST_ID, ALBUM_ID, DURATION);
+    await flush();
+
+    // A second start without an intervening stop (session leak). The old
+    // wall-clock fallback fabricated listen time — hours if the app sat
+    // paused or throttled in the background — inflating completions and
+    // play counts.
+    statsService.startListening("track-2" as TrackId, ARTIST_ID, ALBUM_ID, DURATION);
+    await flush();
+
+    const events = await db.listenEvents.toArray();
+    const leaked = events.find(event => event.trackId === TRACK_ID)!;
+    expect(leaked.secondsListened).toBe(0);
+    expect(leaked.skipped).toBe(true);
+    expect(leaked.completed).toBe(false);
+    expect((await db.tracks.get(TRACK_ID))?.playCount ?? 0).toBe(0);
+
+    await statsService.stopListening(0, { skipped: true });
+  });
+
   it("records a natural end as completed, not skipped", async () => {
     statsService.startListening(TRACK_ID, ARTIST_ID, ALBUM_ID, DURATION);
     await flush();

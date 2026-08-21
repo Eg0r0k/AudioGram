@@ -61,8 +61,7 @@ class StatsService {
     trackDuration: number,
   ): void {
     if (this._pendingEvent) {
-      const elapsed = (Date.now() - this._pendingEvent.startedAt) / 1000;
-      this._finalizePending(elapsed, true).catch(console.error);
+      this._finalizePending(0, true).catch(console.error);
     }
 
     const eventId = crypto.randomUUID();

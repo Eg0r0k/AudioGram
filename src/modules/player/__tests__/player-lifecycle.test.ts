@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockPlayer = {
   currentTrack: null as unknown,
   currentTime: 0,
+  listenedSeconds: 0,
+  getListenedSeconds: () => mockPlayer.listenedSeconds,
   sleepAfterCurrentTrack: false,
 };
 const mockQueue = { next: vi.fn() };
@@ -50,6 +52,7 @@ describe("player lifecycle", () => {
     vi.clearAllMocks();
     mockPlayer.currentTrack = null;
     mockPlayer.currentTime = 0;
+    mockPlayer.listenedSeconds = 0;
     mockPlayer.sleepAfterCurrentTrack = false;
   });
 
@@ -85,7 +88,10 @@ describe("player lifecycle", () => {
 
   it("completes stats before advancing the queue on track end", () => {
     mockPlayer.currentTrack = libraryTrack;
-    mockPlayer.currentTime = 199;
+    // The store zeroes currentTime before emitting trackEnded — the stop must
+    // consume the accumulated listened seconds, never the time ref.
+    mockPlayer.currentTime = 0;
+    mockPlayer.listenedSeconds = 199;
 
     trackEndedBus.emit();
 

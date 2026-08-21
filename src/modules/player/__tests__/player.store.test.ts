@@ -44,6 +44,7 @@ vi.mock("lyra-audio", () => {
       get isReady() { return true; },
       get isPlaying() { return false; },
       get duration() { return 0; },
+      get currentTime() { return 0; },
       get graph() { return null; },
     };
     mockPlayer = instance;
@@ -1117,7 +1118,7 @@ describe("player.store", () => {
       await store.playPlayerTrack(createLibraryTrack());
       statsMock.stopListening.mockClear();
 
-      store.currentTime = 42;
+      engine().trigger("timeupdate", { currentTime: 42 });
       await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
 
       expect(statsMock.stopListening).toHaveBeenCalledWith(42, { skipped: true });
@@ -1166,6 +1167,142 @@ describe("player.store", () => {
 
       expect(store.status).not.toBe("playing");
       expect(store.currentTime).toBe(0);
+    });
+  });
+
+  describe("listen-time accounting", () => {
+    type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
+    const engine = () => mockPlayer as unknown as EngineMock;
+
+    const startedTrackedStore = async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      engine().trigger("durationchange", 200);
+      statsMock.stopListening.mockClear();
+      return store;
+    };
+
+    it("survives background timer throttling: sparse timeupdates lose no time", async () => {
+      const store = await startedTrackedStore();
+
+      // Android WebView in the background clamps JS timers, so minutes of
+      // playback can arrive as a single position sample. The position delta
+      // must be credited in full — tick counting or wall clock would drift.
+      engine().trigger("timeupdate", { currentTime: 3 });
+      engine().trigger("timeupdate", { currentTime: 190 });
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(190, { skipped: true });
+    });
+
+    it("does not count a seek jump as listened time", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 10 });
+      // The engine announces every seek with its clamped target...
+      engine().trigger("seeking", 150);
+      engine().trigger("seeked", 150);
+      // ...so the post-seek sample only credits playback past the target.
+      engine().trigger("timeupdate", { currentTime: 152 });
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(12, { skipped: true });
+    });
+
+    it("counts re-listened spans after a backwards seek", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 100 });
+      engine().trigger("seeking", 40);
+      engine().trigger("seeked", 40);
+      engine().trigger("timeupdate", { currentTime: 70 });
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(130, { skipped: true });
+    });
+
+    it("credits the final sliver up to the duration on a natural end", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 199 });
+      engine().trigger("ended");
+
+      // The store zeroes currentTime for the UI, but the session keeps the
+      // full listened total for the lifecycle's completed-stop.
+      expect(store.currentTime).toBe(0);
+      expect(store.getListenedSeconds()).toBe(200);
+    });
+
+    it("samples the live engine position on stop, not the throttled time ref", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 30 });
+      // In the background the last timeupdate can be minutes stale while the
+      // element clock kept moving — the finalize pulls the element directly.
+      Object.defineProperty(mockPlayer, "currentTime", { get: () => 95 });
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(95, { skipped: true });
+    });
+
+    it("finalizes an open session with accumulated seconds when the track is cleared", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 30 });
+      store.clearCurrentTrack();
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(30, { skipped: true });
+    });
+
+    it("does not credit the previous track's engine position to a rapid-skipped session", async () => {
+      const store = await startedTrackedStore();
+
+      // Track A is 180s in, still audible on the shared engine.
+      engine().trigger("timeupdate", { currentTime: 180 });
+      Object.defineProperty(mockPlayer, "currentTime", { get: () => 180 });
+
+      // Track B's remote source resolution / load is slow: park the load so
+      // the engine keeps playing A for the whole window.
+      let finishLoad!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishLoad = resolve; }),
+      );
+      const switching = store.playPlayerTrack(
+        createLibraryTrack({ id: "track-b" as Track["id"] }),
+      );
+      statsMock.stopListening.mockClear();
+      await flushPromises();
+
+      // A's positions keep arriving while B resolves — they are A's audio,
+      // not B's, and must not anchor or credit B's session.
+      engine().trigger("timeupdate", { currentTime: 181 });
+
+      // The user skips again before B's media ever loaded: B produced zero
+      // audio, so its session must finalize at 0 — not at A's 180s (which
+      // would even count as completed and bump B's playCount).
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-c" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(0, { skipped: true });
+
+      finishLoad();
+      await switching;
+    });
+
+    it("starts each track's session from zero", async () => {
+      const store = await startedTrackedStore();
+
+      engine().trigger("timeupdate", { currentTime: 120 });
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+      statsMock.stopListening.mockClear();
+
+      engine().trigger("timeupdate", { currentTime: 15 });
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-3" as Track["id"] }));
+
+      expect(statsMock.stopListening).toHaveBeenCalledWith(15, { skipped: true });
     });
   });
 
