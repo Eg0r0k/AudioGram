@@ -4,11 +4,11 @@
   overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
-  --ripple-duration: 0.7s;
+  --ripple-duration: 0.6s;
   --ripple-start-scale: 0;
   --ripple-end-scale: 2;
   --ripple-color: currentColor;
-  --ripple-max-opacity: 0.2;
+  --ripple-max-opacity: 0.16;
 }
 
 @media only screen and (max-width: 925px) {

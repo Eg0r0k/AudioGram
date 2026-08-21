@@ -5,7 +5,7 @@
     :class="compact ? 'justify-center px-2' : 'gap-3 px-4'"
   >
     <div class="relative size-10 shrink-0">
-      <AnimatePresence>
+      <AnimatePresence :initial="false">
         <Motion
           v-if="isSearchOpen"
           key="back"
@@ -164,7 +164,7 @@
           </DropdownMenu>
           <IconSearch
             v-else
-            class="ml-1 size-5"
+            class="ml-1 mr-2 size-5"
           />
         </InputGroupAddon>
         <InputGroupInput
@@ -195,15 +195,16 @@
       </InputGroup>
     </div>
 
-    <AnimatePresence>
+    <AnimatePresence :initial="false">
       <Motion
-        v-if="!compact && !isSearchOpen"
+        v-if="!isSearchOpen"
+        v-show="!compact"
         key="page-source"
         class="shrink-0 overflow-hidden"
         :initial="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
         :animate="{ width: 'auto', opacity: 1, marginLeft: '0rem' }"
         :exit="{ width: 0, opacity: 0, marginLeft: '-0.75rem' }"
-        :transition="headerTransition"
+        :transition="compact ? { duration: 0 } : headerTransition"
       >
         <PageSourceDropdown />
       </Motion>
