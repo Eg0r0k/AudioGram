@@ -22,7 +22,6 @@
 
 <script setup lang="ts">
 import { computed, toRef, useTemplateRef } from "vue";
-import { useEventListener } from "@vueuse/core";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCloseBridge } from "@/components/ui/context-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { AlbumId, PlaylistId } from "@/types/ids";
@@ -32,6 +31,7 @@ import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
 import { useTrackMenuAutoClose } from "../composables/useTrackMenuAutoClose";
+import { useTouchContextMenuGuard } from "../composables/useTouchContextMenuGuard";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 provideTrackMenuComponents(contextMenuTrackComponents);
@@ -117,15 +117,9 @@ const contextProps = computed(() => {
 
 const guardRef = useTemplateRef<HTMLElement>("guardRef");
 
-useEventListener(guardRef, "contextmenu", (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  if (target.closest("[data-media-context]")) {
-    return;
-  }
+const canFillMenuFrom = (target: HTMLElement): boolean =>
+  !!(target.closest("[data-media-context]")
+    || target.closest("[data-track-row], [data-track-menu-trigger]"));
 
-  if (!target.closest("[data-track-row], [data-track-menu-trigger]")) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}, { capture: true });
+useTouchContextMenuGuard(guardRef, canFillMenuFrom);
 </script>
