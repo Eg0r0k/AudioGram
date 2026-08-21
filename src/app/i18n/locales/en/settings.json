@@ -14,7 +14,11 @@
         "resetAll": "Reset settings",
         "resetAllDescription": "Restore all app settings to their default values.",
         "resetAllAction": "Reset all settings",
-        "resetAllDone": "Settings reset"
+        "resetAllDone": "Settings reset",
+        "resetAllDialogTitle": "Reset all settings?",
+        "resetAllDialogDesc": "Every app setting will return to its default value. Your library, tracks and statistics are not affected.",
+        "resetAllConfirm": "Reset",
+        "resetAllConfirmCountdown": "Reset ({seconds})"
     },
     "general": {
         "checkUpdates": "Check for updates on launch",

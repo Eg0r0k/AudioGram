@@ -14,7 +14,11 @@
         "resetAll": "Сброс настроек",
         "resetAllDescription": "Вернуть все настройки приложения к значениям по умолчанию.",
         "resetAllAction": "Сбросить все настройки",
-        "resetAllDone": "Настройки сброшены"
+        "resetAllDone": "Настройки сброшены",
+        "resetAllDialogTitle": "Сбросить все настройки?",
+        "resetAllDialogDesc": "Все настройки приложения вернутся к значениям по умолчанию. Библиотека, треки и статистика не пострадают.",
+        "resetAllConfirm": "Сбросить",
+        "resetAllConfirmCountdown": "Сбросить ({seconds})"
     },
     "general": {
         "checkUpdates": "Проверять обновления при запуске",

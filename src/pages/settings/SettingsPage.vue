@@ -117,6 +117,8 @@ import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useAccentColor } from "@/modules/settings/composables/useAccentColor";
 import { useZoom } from "@/modules/settings/composables/useZoom";
 import { routeLocation } from "@/app/router/route-locations";
+import { summonDialog } from "@/components/dialogs/summon";
+import ResetSettingsDialog from "@/pages/settings/components/ResetSettingsDialog.vue";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 
 const { language } = useGeneralSettings();
@@ -128,7 +130,10 @@ const { resetAccentColor } = useAccentColor();
 const { resetZoom } = useZoom();
 const isTauri = IS_TAURI;
 
-const handleResetAllSettings = () => {
+const handleResetAllSettings = async () => {
+  const confirmed = await summonDialog<boolean>(ResetSettingsDialog, {}, { key: "reset-settings" });
+  if (!confirmed) return;
+
   settingsStore.reset();
   audioSettingsStore.reset();
   changeTheme("system");

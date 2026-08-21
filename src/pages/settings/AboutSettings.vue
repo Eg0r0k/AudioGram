@@ -50,6 +50,33 @@
         </div>
       </SettingsGroup>
       <SettingsGroup class="mt-3">
+        <Button
+          class="w-full h-14 justify-start"
+          size="xl"
+          variant="ghost-primary"
+          :class="{ 'text-destructive': updateStore.status === 'error' }"
+          :disabled="updateStore.isBusy"
+          :title="updateStore.error?.message"
+          @click="updateStore.check()"
+        >
+          <IconLoader2
+            v-if="updateStore.status === 'checking'"
+            class="size-6 animate-spin"
+          />
+          <IconCheck
+            v-else-if="updateStore.status === 'up-to-date'"
+            class="size-6"
+          />
+          <IconAlertTriangle
+            v-else-if="updateStore.status === 'error'"
+            class="size-6"
+          />
+          <IconCloudDownload
+            v-else
+            class="size-6"
+          />
+          {{ checkStateLabel }}
+        </Button>
         <SettingsItem
           :title="$t('settings.about.whatsNew')"
           @click="handleOpenWhatsNew"
@@ -153,6 +180,9 @@ import IconExternalLink from "~icons/tabler/external-link";
 import IconBarBell from "~icons/tabler/brand-among-us";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconDownload from "~icons/tabler/download";
+import IconCloudDownload from "~icons/tabler/cloud-download";
+import IconCheck from "~icons/tabler/check";
+import IconAlertTriangle from "~icons/tabler/alert-triangle";
 
 import IconLogo from "~icons/audiogram/logo";
 import { toast } from "vue-sonner";
@@ -166,10 +196,11 @@ import SettingsItem from "@/modules/settings/components/SettingsItem.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useReleaseNotesDialog } from "@/modules/update/composables/useReleaseNotesDialog";
 import { useChangelogStore } from "@/modules/update/store/changelog.store";
+import { useUpdateStore } from "@/modules/update/store/update.store";
 import { routeLocation } from "@/app/router/route-locations";
 import { useRouter } from "vue-router";
 import { exportLogs } from "@/lib/logger";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
 const isExporting = ref(false);
 
@@ -180,6 +211,20 @@ const appVersion = __APP_VERSION__;
 const buildTime = __BUILD_TIME__;
 const { t } = useI18n();
 const changelog = useChangelogStore();
+const updateStore = useUpdateStore();
+
+const checkStateLabel = computed(() => {
+  switch (updateStore.status) {
+    case "checking":
+      return t("update.checking");
+    case "up-to-date":
+      return t("update.upToDate");
+    case "error":
+      return t("update.updaterError");
+    default:
+      return t("update.checkForUpdates");
+  }
+});
 
 const {
   isOpening,

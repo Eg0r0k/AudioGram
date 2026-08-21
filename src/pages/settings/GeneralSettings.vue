@@ -32,34 +32,6 @@
             />
           </ItemActions>
         </Item>
-
-        <Button
-          class="w-full h-14 justify-start"
-          size="xl"
-          variant="ghost-primary"
-          :class="{ 'text-destructive': updateStore.status === 'error' }"
-          :disabled="updateStore.isBusy"
-          :title="updateStore.error?.message"
-          @click="updateStore.check()"
-        >
-          <IconLoader2
-            v-if="updateStore.status === 'checking'"
-            class="size-6 animate-spin"
-          />
-          <IconCheck
-            v-else-if="updateStore.status === 'up-to-date'"
-            class="size-6"
-          />
-          <IconAlertTriangle
-            v-else-if="updateStore.status === 'error'"
-            class="size-6"
-          />
-          <IconCloudDownload
-            v-else
-            class="size-6"
-          />
-          {{ checkStateLabel }}
-        </Button>
       </SettingsGroup>
 
       <template v-if="platformCaps.hasNativeWindow">
@@ -113,8 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useI18n } from "vue-i18n";
+import { ref } from "vue";
 import { Scrollable } from "@/components/ui/scrollable";
 import {
   Item,
@@ -123,15 +94,9 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import IconLoader2 from "~icons/tabler/loader-2";
-import IconCloudDownload from "~icons/tabler/cloud-download";
-import IconCheck from "~icons/tabler/check";
-import IconAlertTriangle from "~icons/tabler/alert-triangle";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
 import { useGeneralSettings } from "@/modules/settings/store/general";
-import { useUpdateStore } from "@/modules/update/store/update.store";
 import { platformCaps } from "@/lib/environment/platformCaps";
 
 const {
@@ -146,28 +111,6 @@ const {
   setLaunchAtStartup,
   setLaunchMinimized,
 } = useGeneralSettings();
-
-const { t } = useI18n();
-const updateStore = useUpdateStore();
-
-/**
- * The button carries its own state: label and icon swap with the check
- * status (full error text lives in the title tooltip). An available update
- * is not reported here — the sidebar update button owns that, and it stays
- * until the user acts on it.
- */
-const checkStateLabel = computed(() => {
-  switch (updateStore.status) {
-    case "checking":
-      return t("update.checking");
-    case "up-to-date":
-      return t("update.upToDate");
-    case "error":
-      return t("update.updaterError");
-    default:
-      return t("update.checkForUpdates");
-  }
-});
 
 const isTogglingAutostart = ref(false);
 
