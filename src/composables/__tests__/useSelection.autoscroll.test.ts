@@ -5,6 +5,7 @@ import { useSelection } from "../useSelection";
 const ROW_HEIGHT = 50;
 const LONG_PRESS_MS = 450;
 const VIEWPORT_HEIGHT = 400;
+const AUTO_SCROLL_MAX_SPEED_PX = 14;
 
 const makeItems = (count: number) =>
   ref(Array.from({ length: count }, (_, i) => ({ id: `t${i}` })));
@@ -131,5 +132,15 @@ describe("useSelection touch autoscroll", () => {
     flushFrames(5);
 
     expect(container.scrollTop).toBeLessThan(500);
+  });
+
+  it("clamps scroll speed to the max even when the finger is far past the bottom edge", () => {
+    longPressRow(0);
+    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT + 100, container));
+
+    const before = container.scrollTop;
+    flushFrames(1);
+
+    expect(container.scrollTop - before).toBe(AUTO_SCROLL_MAX_SPEED_PX);
   });
 });

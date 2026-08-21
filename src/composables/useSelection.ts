@@ -287,10 +287,12 @@ export function useSelection<T extends Selectable>(
       const fromBottom = rect.bottom - clientY;
 
       if (fromTop < AUTO_SCROLL_EDGE_PX) {
-        autoScrollSpeed = -Math.ceil(((AUTO_SCROLL_EDGE_PX - fromTop) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX);
+        const magnitude = Math.min(((AUTO_SCROLL_EDGE_PX - fromTop) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX, AUTO_SCROLL_MAX_SPEED_PX);
+        autoScrollSpeed = -Math.ceil(magnitude);
       }
       else if (fromBottom < AUTO_SCROLL_EDGE_PX) {
-        autoScrollSpeed = Math.ceil(((AUTO_SCROLL_EDGE_PX - fromBottom) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX);
+        const magnitude = Math.min(((AUTO_SCROLL_EDGE_PX - fromBottom) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED_PX, AUTO_SCROLL_MAX_SPEED_PX);
+        autoScrollSpeed = Math.ceil(magnitude);
       }
       else {
         autoScrollSpeed = 0;
