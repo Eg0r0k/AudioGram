@@ -100,6 +100,7 @@ import {
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import WatchedFolderItem from "./WatchedFolderItem.vue";
 import { useWatchedFolders } from "../composables/useWatchedFolders";
+import { isAndroidFolderPickerAvailable } from "@/lib/android/folderPicker";
 import { IS_MOBILE } from "@/lib/environment/userAgent";
 import type { WatchedFolder } from "../types";
 
@@ -120,11 +121,15 @@ const isAnyScanning = computed(() =>
   folders.value.some(f => f.status === "scanning"),
 );
 
-// On Android the only bindable folder is the public Music directory, so the
-// add button binds it once and then disappears.
-const canAddFolder = computed(() => !IS_MOBILE || folders.value.length === 0);
+// With the SAF picker bridge any internal-storage folder is bindable, any
+// number of times. Without it (outdated APK, web preview) the legacy
+// behavior remains: one bound Music folder, then the button disappears.
+const hasMobilePicker = isAndroidFolderPickerAvailable();
+const canAddFolder = computed(
+  () => !IS_MOBILE || hasMobilePicker || folders.value.length === 0,
+);
 const addFolderLabelKey = computed(() =>
-  IS_MOBILE ? "watchedFolders.addMusicFolder" : "watchedFolders.addFolder",
+  IS_MOBILE && !hasMobilePicker ? "watchedFolders.addMusicFolder" : "watchedFolders.addFolder",
 );
 
 const isRemoveDialogOpen = ref(false);

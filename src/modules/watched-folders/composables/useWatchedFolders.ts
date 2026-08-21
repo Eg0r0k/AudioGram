@@ -15,11 +15,17 @@ import { musicLibraryEngine } from "@/services/importer.service";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { normalizePath } from "@/lib/files/filterFiles";
 import { IS_MOBILE } from "@/lib/environment/userAgent";
+import {
+  isAndroidFolderPickerAvailable,
+  pickAndroidFolderTreeUri,
+  treeUriToPath,
+} from "@/lib/android/folderPicker";
 import { invalidateLibraryData } from "@/queries/library.queries";
 
 const activeWatchers = new Map<string, StopWatchFn>();
 
-/** The public Android music directory — the only folder bindable on mobile. */
+/** Fallback when the SAF picker bridge is unavailable (outdated APK, web
+ *  preview): the public Music directory, readable via direct paths. */
 const ANDROID_MUSIC_DIR = "/storage/emulated/0/Music";
 
 export function useWatchedFolders() {
@@ -29,12 +35,27 @@ export function useWatchedFolders() {
 
   const { folders, autoScanOnStartup } = storeToRefs(store);
 
+  // SAF tree picker → real path on the primary volume. The pipeline stays
+  // path-based (READ_MEDIA_AUDIO grants direct-path reads of audio under any
+  // public folder); SD-card/USB volumes have no path mapping and are
+  // rejected with a toast. Cancel → null, silent.
+  async function pickMobileFolderPath(): Promise<string | null> {
+    if (!isAndroidFolderPickerAvailable()) return ANDROID_MUSIC_DIR;
+
+    const uri = await pickAndroidFolderTreeUri();
+    if (!uri) return null;
+
+    const path = treeUriToPath(uri);
+    if (!path) {
+      toast.error(t("watchedFolders.unsupportedVolume"));
+      return null;
+    }
+    return path;
+  }
+
   async function addFolder() {
-    // Android has no directory picker; the one bindable folder is the public
-    // Music directory, readable via direct paths once READ_MEDIA_AUDIO is
-    // granted (MainActivity requests it on launch).
     const selected = IS_MOBILE
-      ? ANDROID_MUSIC_DIR
+      ? await pickMobileFolderPath()
       : await open({
           directory: true,
           multiple: false,
