@@ -12,12 +12,14 @@
     >
       <slot />
     </main>
+    <div class="px-2 py-1">
+      <MiniPlayer
+        v-if="playerStore.currentTrack"
+        @click="isFullPlayerOpen = true"
+      />
+    </div>
 
-    <MiniPlayer
-      v-if="playerStore.currentTrack"
-      class="my-1"
-      @click="isFullPlayerOpen = true"
-    />
+    <MobileBottomNav />
 
     <Transition name="full-player">
       <div
@@ -43,9 +45,11 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { registerOverlayBackHandler, useOverlayBackButton } from "@/composables/useOverlayBackButton";
 import { useImport } from "@/modules/library/composables/useImport";
+import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import { useMobilePlayerColor } from "@/modules/player/composables/useMobilePlayerColor";
 import DropOverlay from "@/components/DropOverlay.vue";
 import MiniPlayer from "@/components/layout/mobile/MiniPlayer.vue";
+import MobileBottomNav from "@/components/layout/mobile/MobileBottomNav.vue";
 import MobileFullPlayer from "@/components/layout/mobile/MobileFullPlayer.vue";
 import MobileRightPanel from "@/modules/right-panel/components/MobileRightPanel.vue";
 import WindowToolbar from "@/components/WindowToolbar.vue";
@@ -76,7 +80,7 @@ watch(() => playerStore.currentTrack, (track) => {
 const { importFiles } = useImport();
 
 const { isDragging } = useFileDrop({
-  acceptedExtensions: [".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus"],
+  acceptedExtensions: [...ACCEPTED_AUDIO_EXTENSIONS],
   onDrop: (files) => {
     importFiles(files);
   },
@@ -104,14 +108,14 @@ const { top, right, bottom, left } = useScreenSafeArea();
 .full-player-enter-active {
   transition-property: transform, opacity, --player-bg;
   transition-timing-function: var(--ease-drawer);
-  transition-duration: 280ms;
+  transition-duration: 350ms;
   will-change: transform, opacity;
 }
 
 .full-player-leave-active {
   transition-property: transform, opacity, --player-bg;
   transition-timing-function: var(--ease-drawer);
-  transition-duration: 260ms;
+  transition-duration: 350ms;
   will-change: transform, opacity;
 }
 
