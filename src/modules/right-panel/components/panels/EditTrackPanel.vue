@@ -189,21 +189,16 @@
       </Empty>
     </Scrollable>
 
-    <div class="absolute bottom-[calc(1rem+var(--keyboard-inset,0px))] right-4 z-50">
-      <FloatingActionButton
-        :show="hasChanges"
-        inline
+    <FloatingActionButton :show="hasChanges">
+      <Button
+        type="button"
+        class="size-12 rounded-full shadow-lg"
+        :disabled="!track || isPending || !meta.valid || !hasChanges"
+        @click="onSubmit"
       >
-        <Button
-          type="button"
-          class="size-12 rounded-full shadow-lg"
-          :disabled="!track || isPending || !meta.valid || !hasChanges"
-          @click="onSubmit"
-        >
-          <IconSave class="size-6" />
-        </Button>
-      </FloatingActionButton>
-    </div>
+        <IconSave class="size-6" />
+      </Button>
+    </FloatingActionButton>
 
     <UnsavedChangesDialog
       v-model:open="isUnsavedDialogOpen"

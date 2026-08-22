@@ -1,5 +1,8 @@
 <template>
-  <div class="relative flex h-full w-full flex-col overflow-hidden bg-card">
+  <div
+    class="relative flex h-full w-full flex-col overflow-hidden bg-card"
+    :style="keyboardInsetStyle"
+  >
     <RightPanelHeader
       :title="title"
       :description="null"
@@ -43,7 +46,7 @@
         :get-item-key="keyAt"
         :item-height="itemHeight"
         :load-more-offset="160"
-        :padding-bottom="8"
+        :padding-bottom="8 + keyboardInset"
         :loading="isLoading"
         class="h-full"
         @load-more="emit('loadMore')"
@@ -81,8 +84,9 @@
 </template>
 
 <script setup lang="ts" generic="T">
-import { useTemplateRef } from "vue";
+import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
+import { useKeyboardInset } from "@/composables/useKeyboardInset";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -121,6 +125,13 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// Searching opens the keyboard; on WebViews that ignore resizes-content the
+// confirm button and the list tail would sit behind it. Same pattern as
+// EditTrackPanel: the measured overlap feeds --keyboard-inset, which the
+// floating button's bottom calc consumes.
+const { keyboardInset } = useKeyboardInset();
+const keyboardInsetStyle = computed(() => ({ "--keyboard-inset": `${keyboardInset.value}px` }));
 
 const listEl = useTemplateRef<HTMLElement>("listEl");
 defineExpose({ listEl });

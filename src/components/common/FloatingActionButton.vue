@@ -12,7 +12,7 @@
       stiffness: 300,
       damping: 25
     }"
-    :class="inline ? 'relative shrink-0' : 'absolute bottom-4 right-4 z-50'"
+    :class="inline ? 'relative shrink-0' : 'absolute bottom-[calc(1rem+var(--keyboard-inset,0px))] right-4 z-50'"
   >
     <slot />
   </Motion>
@@ -21,6 +21,10 @@
 <script setup lang="ts">
 import { Motion, useReducedMotion } from "motion-v";
 
+// The absolute variant sits at bottom-4 plus --keyboard-inset: a host panel
+// that measures the on-screen keyboard (useKeyboardInset) sets the variable
+// on its root and the button lifts above the keyboard; without it the calc
+// collapses to plain bottom-4.
 defineProps<{
   show: boolean;
   inline?: boolean;
