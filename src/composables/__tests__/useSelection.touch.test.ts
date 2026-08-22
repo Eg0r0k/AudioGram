@@ -43,16 +43,20 @@ describe("useSelection touch long-press", () => {
   let selection: ReturnType<typeof useSelection>;
   let vibrate: ReturnType<typeof vi.fn>;
 
+  // Real browsers dispatch every event of a touch gesture on the touchstart
+  // target — the drag listeners live there, so the tests must too.
+  let gestureNode: Element;
+
   const touchStartOnRow = (index: number) => {
-    const target = container.children[index]!;
-    container.dispatchEvent(touchEvent("touchstart", 10, rowY(index), target));
+    gestureNode = container.children[index]!;
+    container.dispatchEvent(touchEvent("touchstart", 10, rowY(index), gestureNode));
   };
   const touchMoveTo = (y: number): Event => {
-    const event = touchEvent("touchmove", 10, y, container);
-    window.dispatchEvent(event);
+    const event = touchEvent("touchmove", 10, y, gestureNode);
+    gestureNode.dispatchEvent(event);
     return event;
   };
-  const touchEnd = () => window.dispatchEvent(touchEvent("touchend", 0, 0, container));
+  const touchEnd = () => gestureNode.dispatchEvent(touchEvent("touchend", 0, 0, gestureNode));
 
   beforeEach(() => {
     vi.useFakeTimers();

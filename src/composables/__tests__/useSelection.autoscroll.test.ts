@@ -82,17 +82,22 @@ describe("useSelection touch autoscroll", () => {
     vi.useRealTimers();
   });
 
+  // Реальный браузер диспатчит все события touch-жеста на узел touchstart —
+  // там теперь живут drag-слушатели, поэтому тесты диспатчат туда же.
+  let gestureNode: Element;
+
   // y — визуальная координата: позиция строки минус текущий scrollTop,
   // иначе тест со стартовым scrollTop попадает пальцем не в ту строку.
   const longPressRow = (index: number) => {
     const y = index * ROW_HEIGHT + ROW_HEIGHT / 2 - container.scrollTop;
-    container.dispatchEvent(touchEvent("touchstart", 10, y, container.children[index]!));
+    gestureNode = container.children[index]!;
+    container.dispatchEvent(touchEvent("touchstart", 10, y, gestureNode));
     vi.advanceTimersByTime(LONG_PRESS_MS);
   };
 
   it("scrolls down and keeps extending the selection while the finger holds the bottom edge", () => {
     longPressRow(0);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, gestureNode));
 
     const before = container.scrollTop;
     flushFrames(10);
@@ -103,10 +108,10 @@ describe("useSelection touch autoscroll", () => {
 
   it("stops scrolling when the finger leaves the edge zone", () => {
     longPressRow(0);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, gestureNode));
     flushFrames(5);
 
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT / 2, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT / 2, gestureNode));
     const settled = container.scrollTop;
     flushFrames(5);
 
@@ -115,10 +120,30 @@ describe("useSelection touch autoscroll", () => {
 
   it("stops scrolling on touchend", () => {
     longPressRow(0);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, gestureNode));
     flushFrames(3);
 
-    window.dispatchEvent(touchEvent("touchend", 0, 0, container));
+    gestureNode.dispatchEvent(touchEvent("touchend", 0, 0, gestureNode));
+    const settled = container.scrollTop;
+    flushFrames(5);
+
+    expect(container.scrollTop).toBe(settled);
+  });
+
+  it("stops the drag when the finger lifts after the start row was virtualized away", () => {
+    const startNode = container.children[0]!;
+    longPressRow(0);
+    startNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, startNode));
+    flushFrames(3);
+    expect(container.scrollTop).toBeGreaterThan(0);
+
+    // VirtualScrollable размонтирует стартовую строку, когда она уезжает из
+    // окна рендера. Браузер продолжает диспатчить события жеста на (уже
+    // отсоединённый) узел touchstart — из отсоединённого дерева ничего не
+    // всплывает до window, так что window-слушатели отпускание не увидят.
+    startNode.remove();
+    startNode.dispatchEvent(touchEvent("touchend", 0, 0, startNode));
+
     const settled = container.scrollTop;
     flushFrames(5);
 
@@ -128,7 +153,7 @@ describe("useSelection touch autoscroll", () => {
   it("scrolls up near the top edge", () => {
     container.scrollTop = 500;
     longPressRow(12);
-    window.dispatchEvent(touchEvent("touchmove", 10, 10, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, 10, gestureNode));
     flushFrames(5);
 
     expect(container.scrollTop).toBeLessThan(500);
@@ -136,7 +161,7 @@ describe("useSelection touch autoscroll", () => {
 
   it("clamps scroll speed to the max even when the finger is far past the bottom edge", () => {
     longPressRow(0);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT + 100, container));
+    gestureNode.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT + 100, gestureNode));
 
     const before = container.scrollTop;
     flushFrames(1);
@@ -211,7 +236,7 @@ describe("useSelection touch autoscroll - scroller resolution", () => {
 
     outer.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, scroller.children[0]!));
     vi.advanceTimersByTime(LONG_PRESS_MS);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, outer));
+    scroller.children[0]!.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, scroller.children[0]!));
 
     const before = scroller.scrollTop;
     flushFrames(10);
@@ -232,7 +257,7 @@ describe("useSelection touch autoscroll - scroller resolution", () => {
 
     container.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, container.children[0]!));
     vi.advanceTimersByTime(LONG_PRESS_MS);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    container.children[0]!.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container.children[0]!));
 
     flushFrames(10);
 
@@ -249,7 +274,7 @@ describe("useSelection touch autoscroll - scroller resolution", () => {
 
     container.dispatchEvent(touchEvent("touchstart", 10, ROW_HEIGHT / 2, container.children[0]!));
     vi.advanceTimersByTime(LONG_PRESS_MS);
-    window.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container));
+    container.children[0]!.dispatchEvent(touchEvent("touchmove", 10, VIEWPORT_HEIGHT - 10, container.children[0]!));
     flushFrames(3);
 
     expect(rafCallbacks.size).toBeGreaterThan(0);

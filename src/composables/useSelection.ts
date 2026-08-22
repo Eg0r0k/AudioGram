@@ -415,9 +415,15 @@ export function useSelection<T extends Selectable>(
         activateTouchDrag(row);
       }, longPressMs);
 
-      const stopMove = useEventListener(window, "touchmove", onTouchMove, { passive: false });
-      const stopEnd = useEventListener(window, "touchend", onTouchEnd);
-      const stopCancel = useEventListener(window, "touchcancel", onTouchEnd);
+      // Touch events of one gesture are always dispatched to the touchstart
+      // target — even after the virtual list unmounts that row mid-autoscroll.
+      // A detached node still receives the events (Chromium) but nothing
+      // bubbles to window from a detached tree, so window-level listeners
+      // would lose the release and the autoscroll would run forever.
+      const gestureTarget: EventTarget = touch.target ?? window;
+      const stopMove = useEventListener(gestureTarget, "touchmove", onTouchMove, { passive: false });
+      const stopEnd = useEventListener(gestureTarget, "touchend", onTouchEnd);
+      const stopCancel = useEventListener(gestureTarget, "touchcancel", onTouchEnd);
       stopTouchDrag = () => {
         cancelLongPressTimer();
         stopMove();
