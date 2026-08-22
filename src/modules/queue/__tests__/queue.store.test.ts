@@ -608,6 +608,7 @@ describe("queue.store", () => {
         ],
         originalQueueOrder: store.queue.map(item => item.id),
         currentIndex: 1,
+        currentItemId: store.queue[1].id,
         isShuffled: false,
       });
     });
@@ -919,6 +920,9 @@ describe("queue.store", () => {
       ];
       store.currentIndex = 0;
       playerStore.currentTime = 5;
+      // A seekable track: the restart-at-zero branch requires canSeek.
+      playerStore.player = {} as any;
+      playerStore.duration = 120;
 
       await store.previous();
 
@@ -1393,6 +1397,232 @@ describe("queue.store", () => {
       store.removeMultiple(["item-1"] as any);
 
       expect(store.currentIndex).toBe(-1);
+    });
+  });
+
+  describe("queue audit fixes", () => {
+    const seedQueue = (store: ReturnType<typeof useQueueStore>, ids: string[], current = -1) => {
+      store.queue = ids.map(id => ({
+        id: `item-${id}` as any,
+        track: createTrack(id),
+        source: { type: "manual" as const },
+        addedAt: Date.now(),
+      }));
+      store.originalQueueOrder = store.queue.map(item => item.id);
+      store.currentIndex = current;
+    };
+
+    describe("restore vs early user actions", () => {
+      it("aborts the restore commit when the queue was mutated during the DB read", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+        let resolveDb!: (value: unknown) => void;
+        vi.mocked(trackRepository.findByIds).mockImplementationOnce(
+          () => new Promise((resolve) => { resolveDb = resolve; }) as any,
+        );
+
+        store.persistedSnapshot = {
+          version: 1,
+          queue: [{ id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 }],
+          originalQueueOrder: ["item-1"],
+          currentIndex: 0,
+          isShuffled: false,
+        };
+
+        const restoring = store.restorePersistedQueue();
+        // The user starts their own playback while the snapshot's DB read is
+        // still in flight (open-with launch, an early click).
+        await store.setQueue([createTrack("9")], 0, { type: "manual" });
+        // The real playPlayerTrack is mocked out — assign what it would have.
+        playerStore.currentTrack = createTrack("9");
+
+        resolveDb(ok([createTrackEntity("1")]));
+        await restoring;
+
+        expect(store.queue.map(item => item.track.id)).toEqual(["9"]);
+        expect(playerStore.currentTrack?.id).toBe("9");
+      });
+
+      it("leaves the player alone when playback is already active at commit time", async () => {
+        vi.mocked(trackRepository.findByIds).mockResolvedValue(ok([createTrackEntity("1")]));
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+
+        // Playback started outside the queue (cold play of the persisted track).
+        playerStore.currentTrack = createTrack("9");
+        playerStore.status = "playing";
+
+        store.persistedSnapshot = {
+          version: 1,
+          queue: [{ id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 }],
+          originalQueueOrder: ["item-1"],
+          currentIndex: 0,
+          isShuffled: false,
+        };
+
+        await store.restorePersistedQueue();
+
+        expect(store.queue).toHaveLength(1);
+        expect(playerStore.currentTrack?.id).toBe("9");
+      });
+    });
+
+    describe("restore failure resilience", () => {
+      it("keeps the stored snapshot when the repository read fails", async () => {
+        vi.mocked(trackRepository.findByIds).mockRejectedValue(new Error("DB error"));
+
+        const store = useQueueStore();
+        store.persistedSnapshot = {
+          version: 1,
+          queue: [{ id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 }],
+          originalQueueOrder: ["item-1"],
+          currentIndex: 0,
+          isShuffled: false,
+        };
+
+        await store.restorePersistedQueue();
+
+        expect(store.queue).toEqual([]);
+        expect(store.currentIndex).toBe(-1);
+        // A transient infrastructure failure must not wipe the stored queue —
+        // the next healthy launch should still be able to restore it.
+        expect(store.persistedSnapshot).not.toBeNull();
+      });
+
+      it("does not touch state for an unknown snapshot version", async () => {
+        const store = useQueueStore();
+        store.persistedSnapshot = {
+          version: 2,
+          queue: [],
+          originalQueueOrder: [],
+          currentIndex: -1,
+          isShuffled: false,
+        } as any;
+
+        await store.restorePersistedQueue();
+
+        expect(trackRepository.findByIds).not.toHaveBeenCalled();
+        expect(store.persistedSnapshot).not.toBeNull();
+      });
+    });
+
+    describe("restore current item by id", () => {
+      it("keeps the same current track when earlier tracks vanished from the library", async () => {
+        vi.mocked(trackRepository.findByIds).mockResolvedValue(
+          ok([createTrackEntity("2"), createTrackEntity("3")]),
+        );
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+
+        store.persistedSnapshot = {
+          version: 1,
+          queue: [
+            { id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 },
+            { id: "item-2", track: { kind: "library", trackId: "2" }, source: { type: "manual" }, addedAt: 200 },
+            { id: "item-3", track: { kind: "library", trackId: "3" }, source: { type: "manual" }, addedAt: 300 },
+          ],
+          originalQueueOrder: ["item-1", "item-2", "item-3"],
+          currentIndex: 2,
+          currentItemId: "item-3",
+          isShuffled: false,
+        } as any;
+
+        await store.restorePersistedQueue();
+
+        expect(store.queue.map(item => item.track.id)).toEqual(["2", "3"]);
+        expect(store.currentIndex).toBe(1);
+        expect(playerStore.currentTrack?.id).toBe("3");
+      });
+
+      it("persists the current item id in the snapshot", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+        await store.setQueue([createTrack("1"), createTrack("2")], 1, { type: "manual" });
+
+        expect((store.persistedSnapshot as any)?.currentItemId).toBe(store.queue[1].id);
+      });
+    });
+
+    describe("removeMultiple index arithmetic", () => {
+      it("plays the correct successor when removing current plus items above it", () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        seedQueue(store, ["1", "2", "3", "4", "5"], 2);
+
+        store.removeMultiple(["item-1", "item-3"] as any);
+
+        expect(store.queue.map(item => item.track.id)).toEqual(["2", "4", "5"]);
+        expect(playSpy).toHaveBeenCalledWith(createTrack("4"));
+      });
+    });
+
+    describe("insertNext order sync", () => {
+      it("keeps originalQueueOrder aligned when inserting with no current track", () => {
+        const store = useQueueStore();
+        store.addToQueue(createTrack("1"));
+        store.addToQueue(createTrack("2"));
+        store.currentIndex = -1;
+
+        store.insertNext(createTrack("9"));
+
+        expect(store.queue.map(item => item.track.id)).toEqual(["9", "1", "2"]);
+        expect(store.originalQueue.map(item => item.track.id)).toEqual(["9", "1", "2"]);
+      });
+    });
+
+    describe("previous on unseekable tracks", () => {
+      it("goes to the previous track when the current one cannot seek", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        seedQueue(store, ["1", "2"], 1);
+
+        // Live stream: the position advances but seeking is impossible, so
+        // the restart-at-zero branch must not swallow the button press.
+        playerStore.currentTime = 50;
+        playerStore.duration = 0;
+
+        await store.previous();
+
+        expect(store.currentIndex).toBe(0);
+        expect(playSpy).toHaveBeenCalledWith(createTrack("1"));
+      });
+    });
+
+    describe("repeat-one restart failures", () => {
+      it("retries once and recovers when the restart succeeds", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValueOnce(new Error("transient"))
+          .mockResolvedValue(undefined);
+        seedQueue(store, ["1"], 0);
+        playerStore.repeatMode = "one";
+
+        await store.next();
+
+        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(store.currentIndex).toBe(0);
+      });
+
+      it("resets the selection when the restart keeps failing", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValue(new Error("dead"));
+        seedQueue(store, ["1"], 0);
+        playerStore.repeatMode = "one";
+
+        await store.next();
+
+        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(store.currentIndex).toBe(-1);
+      });
     });
   });
 
