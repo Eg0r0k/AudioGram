@@ -586,15 +586,29 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
+  // A fade-out-to-pause/stop in flight means the UI already shows "paused"
+  // but only the fade's deferred engine pause would make it real — and that
+  // pause is abort-guarded. Seeking must complete the pause instead of
+  // abandoning it, or the element keeps playing silently at gain 0 and later
+  // "ends" into the next track at full volume. Order matters: pause first,
+  // because cancelFade snaps the multiplier back to full and would pop over
+  // still-playing audio.
+  const settleFadeBeforeSeek = () => {
+    if (!_activeFadeAbort) return;
+    cancelActiveFade();
+    player.value?.pause();
+    player.value?.cancelFade();
+  };
+
   const seekTo = (seconds: number) => {
     if (!canSeek.value) return;
-    cancelActiveFade();
+    settleFadeBeforeSeek();
     player.value?.seek(seconds);
   };
 
   const seekPercent = (percent: number) => {
     if (!canSeek.value) return;
-    cancelActiveFade();
+    settleFadeBeforeSeek();
     player.value?.seekPercent(percent / 100);
   };
 

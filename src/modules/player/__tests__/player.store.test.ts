@@ -1058,6 +1058,42 @@ describe("player.store", () => {
       expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
     });
 
+    it("completes the deferred pause when seeking during a fade-out", async () => {
+      const store = await startedStore();
+      store.duration = 200;
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+
+      store.pause();
+      expect(store.status).toBe("paused");
+
+      // Seeking abandons the deferred pause's abort-guarded .then — the engine
+      // must be paused right here, or it keeps playing silently at gain 0
+      // while the UI says paused (and later "ends" into the next track at
+      // full volume).
+      store.seekTo(50);
+
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.cancelFade).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(50);
+      // Pause must land before cancelFade: cancelFade snaps the fade
+      // multiplier back to full and would pop over still-playing audio.
+      expect(mockPlayerMethods.pause.mock.invocationCallOrder[0])
+        .toBeLessThan(mockPlayerMethods.cancelFade.mock.invocationCallOrder[0]);
+
+      finishFade();
+      await flushPromises();
+
+      // The fade's own deferred pause was aborted — no double pause.
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+      expect(store.status).toBe("paused");
+    });
+
     it("stop with fade fades out before stopping the engine", async () => {
       const store = await startedStore();
       store.currentTime = 55;
