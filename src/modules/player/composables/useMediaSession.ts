@@ -2,6 +2,8 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "../store/player.store";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
+import { isLibraryTrack } from "../types";
 
 const POSITION_UPDATE_INTERVAL = 1000;
 const ANDROID_ARTWORK_SIZE = 512;
@@ -21,6 +23,9 @@ interface AndroidMediaSessionBridge {
     canSeek: boolean,
     hasNext: boolean,
     hasPrevious: boolean,
+    repeatMode: string,
+    liked: boolean,
+    canLike: boolean,
   ) => void;
   release: () => void;
 }
@@ -74,6 +79,7 @@ export const useMediaSession = () => {
 
   const player = usePlayerStore();
   const queue = useQueueStore();
+  const { toggleTrackLike } = useToggleTrackLike();
 
   let lastPositionUpdate = 0;
   let lastReportedPosition = 0;
@@ -112,25 +118,37 @@ export const useMediaSession = () => {
       }
     }
 
-    void updateAndroidMetadata();
+    updateAndroidMetadata();
   };
 
-  const updateAndroidPlayback = () => {
+  const updateAndroidPlayback = (positionOverrideMs?: number) => {
     if (!androidBridge || !player.currentTrack) return;
+
+    const track = player.currentTrack;
+    const canLike = isLibraryTrack(track);
 
     androidBridge.setPlaybackState(
       player.isPlaying,
-      Math.max(0, player.currentTime * 1000),
+      positionOverrideMs ?? Math.max(0, player.currentTime * 1000),
       Math.max(0, player.duration * 1000),
       player.canSeek,
       queue.hasNext,
       queue.hasPrevious,
+      player.repeatMode,
+      canLike && track.isLiked,
+      canLike,
     );
   };
 
   let androidArtworkToken = 0;
+  // Encoded artwork keyed to the album it belongs to. At track-change time
+  // the cover query for a NEW album hasn't resolved yet, and pushing whatever
+  // blob is currently around pins the previous album's art on the lock
+  // screen; the cache makes "matches this track" checkable.
+  let artworkAlbumId: string | null = null;
+  let artworkBase64 = "";
 
-  const updateAndroidMetadata = async () => {
+  const updateAndroidMetadata = () => {
     if (!androidBridge) return;
 
     const track = player.currentTrack;
@@ -139,9 +157,9 @@ export const useMediaSession = () => {
       return;
     }
 
-    const token = ++androidArtworkToken;
-    const artwork = coverBlob.value ? await coverArtworkBase64(coverBlob.value) : "";
-    if (token !== androidArtworkToken) return;
+    const artwork = albumId.value !== null && albumId.value === artworkAlbumId
+      ? artworkBase64
+      : "";
 
     androidBridge.setMetadata(
       track.title || "Unknown Title",
@@ -173,9 +191,21 @@ export const useMediaSession = () => {
       case "seekto":
         if (typeof detail.positionMs === "number" && player.canSeek) {
           player.seekTo(detail.positionMs / 1000);
-          updateAndroidPlayback();
+          // The store's currentTime only updates on the next engine
+          // timeupdate — report the seek target itself, or the lock-screen
+          // scrubber snaps back to the old position for a second.
+          updateAndroidPlayback(detail.positionMs);
         }
         break;
+      case "repeat":
+        player.toggleRepeat();
+        updateAndroidPlayback();
+        break;
+      case "like": {
+        const track = player.currentTrack;
+        if (track && isLibraryTrack(track)) void toggleTrackLike(track);
+        break;
+      }
     }
   };
 
@@ -394,6 +424,29 @@ export const useMediaSession = () => {
     coverBlobUrl,
     () => {
       updateMetadata();
+    },
+  );
+
+  // The blob arriving means the cover query for the CURRENT album resolved —
+  // encode it, remember which album it belongs to, and re-push metadata.
+  watch(
+    coverBlob,
+    async (blob) => {
+      if (!androidBridge) return;
+      const album = albumId.value;
+      const token = ++androidArtworkToken;
+      const encoded = blob ? await coverArtworkBase64(blob) : "";
+      if (token !== androidArtworkToken) return;
+      artworkAlbumId = blob && album ? album : null;
+      artworkBase64 = encoded;
+      updateAndroidMetadata();
+    },
+  );
+
+  watch(
+    () => player.repeatMode,
+    () => {
+      updateAndroidPlayback();
     },
   );
 

@@ -57,6 +57,9 @@ class MediaSessionBridge(
   private var canSeek = false
   private var hasNext = false
   private var hasPrevious = false
+  private var repeatMode = "off"
+  private var liked = false
+  private var canLike = false
 
   // ── JS-facing API (called on the WebView "JavaBridge" thread) ─────────────
 
@@ -64,11 +67,16 @@ class MediaSessionBridge(
   fun setMetadata(title: String, artist: String, album: String, artworkBase64: String) {
     val bitmap = decodeArtwork(artworkBase64)
     mainHandler.post {
+      val trackChanged = this.title != title || this.artist != artist
       this.title = title
       this.artist = artist
       this.album = album
-      this.artwork?.recycle()
+      // No recycle(): the session/notification hold parcel copies, but the
+      // original may still be referenced by an in-flight publish.
       this.artwork = bitmap
+      // A fresh track's duration is unknown until the media loads; publishing
+      // the previous track's value would draw its seek bar length here.
+      if (trackChanged) this.durationMs = 0L
       publishMetadata()
       publishNotification()
     }
@@ -82,17 +90,30 @@ class MediaSessionBridge(
     canSeek: Boolean,
     hasNext: Boolean,
     hasPrevious: Boolean,
+    repeatMode: String,
+    liked: Boolean,
+    canLike: Boolean,
   ) {
     mainHandler.post {
       val playStateChanged = this.playing != playing
-      val actionsChanged = this.canSeek != canSeek || this.hasNext != hasNext || this.hasPrevious != hasPrevious
+      val actionsChanged = this.canSeek != canSeek || this.hasNext != hasNext ||
+        this.hasPrevious != hasPrevious || this.repeatMode != repeatMode ||
+        this.liked != liked || this.canLike != canLike
+      val newDurationMs = safeMs(durationMs)
+      val durationChanged = this.durationMs != newDurationMs
       this.playing = playing
-      this.positionMs = positionMs.toLong().coerceAtLeast(0L)
-      this.durationMs = durationMs.toLong().coerceAtLeast(0L)
+      this.positionMs = safeMs(positionMs)
+      this.durationMs = newDurationMs
       this.canSeek = canSeek
       this.hasNext = hasNext
       this.hasPrevious = hasPrevious
+      this.repeatMode = repeatMode
+      this.liked = liked
+      this.canLike = canLike
       publishPlaybackState()
+      // Metadata is the only channel that carries duration to the seek bar,
+      // and it settles after the track-change metadata push.
+      if (durationChanged) publishMetadata()
       // Re-posting the notification every position tick makes it flicker;
       // only the play/pause icon and action row depend on these flags.
       if (playStateChanged || actionsChanged) publishNotification()
@@ -125,7 +146,6 @@ class MediaSessionBridge(
       }
     }
     buttonReceiver = null
-    artwork?.recycle()
     artwork = null
     title = ""
     artist = ""
@@ -165,6 +185,9 @@ class MediaSessionBridge(
       override fun onSkipToNext() = dispatch("next")
       override fun onSkipToPrevious() = dispatch("previous")
       override fun onSeekTo(pos: Long) = dispatch("seekto", pos)
+      override fun onCustomAction(action: String?, extras: android.os.Bundle?) {
+        if (action != null) dispatch(action)
+      }
     })
     created.isActive = true
     session = created
@@ -193,13 +216,44 @@ class MediaSessionBridge(
     if (hasPrevious) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
 
     val state = if (playing) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
-    ensureSession().setPlaybackState(
-      PlaybackStateCompat.Builder()
-        .setActions(actions)
-        .setState(state, positionMs, if (playing) 1f else 0f)
-        .build(),
+    val builder = PlaybackStateCompat.Builder()
+      .setActions(actions)
+      .setState(state, positionMs, if (playing) 1f else 0f)
+
+    // Android 13+ renders custom actions as the extra buttons of the system
+    // media controls; older versions get them via our own notification row.
+    builder.addCustomAction(
+      PlaybackStateCompat.CustomAction.Builder("repeat", "Repeat", repeatIcon()).build(),
     )
+    if (canLike) {
+      builder.addCustomAction(
+        PlaybackStateCompat.CustomAction.Builder(
+          "like",
+          if (liked) "Unlike" else "Like",
+          likeIcon(),
+        ).build(),
+      )
+    }
+
+    val session = ensureSession()
+    session.setRepeatMode(
+      when (repeatMode) {
+        "one" -> PlaybackStateCompat.REPEAT_MODE_ONE
+        "all" -> PlaybackStateCompat.REPEAT_MODE_ALL
+        else -> PlaybackStateCompat.REPEAT_MODE_NONE
+      },
+    )
+    session.setPlaybackState(builder.build())
   }
+
+  private fun repeatIcon(): Int = when (repeatMode) {
+    "one" -> R.drawable.ic_media_repeat_one
+    "all" -> R.drawable.ic_media_repeat_on
+    else -> R.drawable.ic_media_repeat_off
+  }
+
+  private fun likeIcon(): Int =
+    if (liked) R.drawable.ic_media_like_filled else R.drawable.ic_media_like
 
   @SuppressLint("MissingPermission")
   private fun publishNotification() {
@@ -225,19 +279,31 @@ class MediaSessionBridge(
       .setOnlyAlertOnce(true)
       .setShowWhen(false)
 
+    // Own vector icons: the framework's ic_media_* set renders with a dated
+    // outlined look on pre-13 devices. Transport row stays in the compact
+    // view (3 slots max); repeat/like show in the expanded card.
     val compactActions = mutableListOf<Int>()
+    var actionIndex = 0
+    builder.addAction(actionOf(repeatIcon(), "Repeat", "repeat"))
+    actionIndex++
     if (hasPrevious) {
-      builder.addAction(actionOf(android.R.drawable.ic_media_previous, "Previous", "previous"))
-      compactActions.add(compactActions.size)
+      builder.addAction(actionOf(R.drawable.ic_media_prev, "Previous", "previous"))
+      compactActions.add(actionIndex)
+      actionIndex++
     }
     builder.addAction(
-      if (playing) actionOf(android.R.drawable.ic_media_pause, "Pause", "pause")
-      else actionOf(android.R.drawable.ic_media_play, "Play", "play"),
+      if (playing) actionOf(R.drawable.ic_media_pause, "Pause", "pause")
+      else actionOf(R.drawable.ic_media_play, "Play", "play"),
     )
-    compactActions.add(compactActions.size)
+    compactActions.add(actionIndex)
+    actionIndex++
     if (hasNext) {
-      builder.addAction(actionOf(android.R.drawable.ic_media_next, "Next", "next"))
-      compactActions.add(compactActions.size)
+      builder.addAction(actionOf(R.drawable.ic_media_next, "Next", "next"))
+      compactActions.add(actionIndex)
+      actionIndex++
+    }
+    if (canLike) {
+      builder.addAction(actionOf(likeIcon(), if (liked) "Unlike" else "Like", "like"))
     }
 
     builder.setStyle(
@@ -287,6 +353,9 @@ class MediaSessionBridge(
     activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
   // ── helpers ───────────────────────────────────────────────────────────────
+
+  private fun safeMs(value: Double): Long =
+    if (value.isFinite()) value.toLong().coerceAtLeast(0L) else 0L
 
   private fun decodeArtwork(base64: String): Bitmap? {
     if (base64.isEmpty()) return null
