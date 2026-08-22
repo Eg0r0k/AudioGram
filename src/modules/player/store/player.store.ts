@@ -147,8 +147,6 @@ export const usePlayerStore = defineStore("player", () => {
     trackChangedBus.emit(null);
   };
 
-  // Drops a broken instance so the next play starts on a fresh engine.
-  // Fire-and-forget: nothing awaits teardown of an errored player.
   const discardPlayer = () => {
     const broken = player.value;
     player.value = null;
@@ -167,9 +165,10 @@ export const usePlayerStore = defineStore("player", () => {
 
     const audioSettings = useAudioSettingsStore();
     const newPlayer = new Player({
-      mode: "auto",
+      mode: "html5",
       Hls,
       playbackRate: playbackRate.value,
+      latencyHint: "playback",
       loudnessNormalization: {
         enabled: audioSettings.isNormalizationEnabled,
         targetLufs: audioSettings.normalizationTargetLufs,
@@ -321,8 +320,6 @@ export const usePlayerStore = defineStore("player", () => {
     // playback must not wait for the cascade.
     if (track.sourceDto) {
       ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
-        // A failed shadow-pin silently loses history/stats/persist for this
-        // play — surface it.
         getLogger().warn(`[Player] Shadow-pin failed for ${track.id}: ${String(error)}`);
       });
     }
@@ -362,19 +359,11 @@ export const usePlayerStore = defineStore("player", () => {
       await p.load({ url, type: "hls" });
     }
     else if (allowCorsFallback) {
-      // Ephemeral direct URLs (radio) may lack ACAO headers; a routed load
-      // (crossOrigin=anonymous) would fail outright. Retry un-routed on a media
-      // error — EQ/fades/normalization drop for the track, but it plays.
       await p.load(url, { corsFallback: true });
     }
     else {
       await p.load(url);
     }
-
-    // The HTML media load algorithm resets the element's playbackRate to
-    // defaultPlaybackRate (1) on every load(), clobbering the rate lyra-audio
-    // applies before assigning src. Re-apply it now that media is loaded so a
-    // persisted/non-default rate survives fresh loads (e.g. after a reload).
     p.setPlaybackRate(playbackRate.value);
   };
 
@@ -513,7 +502,6 @@ export const usePlayerStore = defineStore("player", () => {
    * Throws on failure — queue.store uses this to skip to next.
    */
   const playPlayerTrack = async (track: PlayerTrack): Promise<void> => {
-    // Guard: skip broken library tracks before even trying
     if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
       throw new Error(`Track is marked as broken: "${track.title}"`);
     }
@@ -543,7 +531,6 @@ export const usePlayerStore = defineStore("player", () => {
     trackChangedBus.emit(track);
 
     const url = await resolvePlayback(track);
-    // A newer play request took over while we resolved the source.
     if (requestId !== _playRequestId) return;
     if (!url) {
       _isSwitchingTrack = false;
@@ -576,8 +563,6 @@ export const usePlayerStore = defineStore("player", () => {
       if (requestId === _playRequestId) _isSwitchingTrack = false;
     }
     catch (err) {
-      // Errors from a superseded request belong to it alone — swallowing
-      // them keeps queue.store from skipping to the next track.
       if (requestId !== _playRequestId) return;
       _isSwitchingTrack = false;
       status.value = "error";
@@ -628,8 +613,6 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const dispose = async () => {
-    // Claim the token so any in-flight play request aborts instead of
-    // resurrecting playback after teardown.
     _playRequestId++;
     cancelActiveFade();
     cancelSleepTimer();
