@@ -570,9 +570,14 @@ export const usePlayerStore = defineStore("player", () => {
       // this point still belonged to the previous track.
       listenSession.arm();
       applyLoudnessMetadata(p, track);
+      // The loaded media belongs to THIS track now, so the switching window
+      // must close before play(): with fade-in enabled play() resolves only
+      // after the entire fade, and a track shorter than the fade genuinely
+      // ends inside it — that ended must advance the queue, not be dropped
+      // as stale.
+      if (_switchingRequestId === requestId) _switchingRequestId = null;
       await play();
       useAudioSettingsStore().pushToGraph();
-      if (_switchingRequestId === requestId) _switchingRequestId = null;
     }
     catch (err) {
       if (requestId !== _playRequestId) return;

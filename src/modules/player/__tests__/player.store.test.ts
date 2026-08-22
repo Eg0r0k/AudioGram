@@ -1271,6 +1271,55 @@ describe("player.store", () => {
       expect(store.status).toBe("paused");
     });
 
+    it("processes a natural end that lands during the new track's fade-in", async () => {
+      const store = usePlayerStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 5;
+
+      // The fade-in promise pends for the whole fade while audio already
+      // plays — a track shorter than the fade genuinely ends inside it.
+      let finishFadeIn!: () => void;
+      mockPlayerMethods.fadeIn.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFadeIn = resolve; }),
+      );
+
+      const playing = store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
+      await flushPromises();
+      expect(mockPlayerMethods.fadeIn).toHaveBeenCalled();
+
+      const onEnded = vi.fn();
+      const off = useEventBus(trackEndedEvent).on(onEnded);
+      // The media is already the NEW track (load resolved): its end is real
+      // and must advance the queue, or playback stalls silently forever.
+      engine().trigger("ended");
+      expect(onEnded).toHaveBeenCalledTimes(1);
+      off();
+
+      finishFadeIn();
+      await playing;
+    });
+
+    it("lets timeupdate through once the new track's media has loaded", async () => {
+      const store = usePlayerStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 5;
+
+      let finishFadeIn!: () => void;
+      mockPlayerMethods.fadeIn.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFadeIn = resolve; }),
+      );
+
+      const playing = store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
+      await flushPromises();
+
+      // Audio is audible during the fade-in; the progress bar must move.
+      engine().trigger("timeupdate", { currentTime: 2 });
+      expect(store.currentTime).toBe(2);
+
+      finishFadeIn();
+      await playing;
+    });
+
     it("keeps the optimistic zeroed position while the next track loads", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
