@@ -1170,6 +1170,89 @@ describe("player.store", () => {
     });
   });
 
+  describe("track switch race guards", () => {
+    type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
+    const engine = () => mockPlayer as unknown as EngineMock;
+
+    // Parks the next engine load so the switching window stays open: the old
+    // media keeps playing (and firing events) while the new track "loads".
+    const startParkedSwitch = async (store: ReturnType<typeof usePlayerStore>) => {
+      let finishLoad!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishLoad = resolve; }),
+      );
+      const switching = store.playPlayerTrack(
+        createLibraryTrack({ id: "track-b" as Track["id"], title: "Track B" }),
+      );
+      await flushPromises();
+      return { switching, finishLoad };
+    };
+
+    it("ignores the previous track's natural end while a switch is in flight", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
+      engine().trigger("statechange", { to: "playing" });
+
+      const { switching, finishLoad } = await startParkedSwitch(store);
+
+      const onEnded = vi.fn();
+      const off = useEventBus(trackEndedEvent).on(onEnded);
+      // Track A reaches its natural end while B is still loading. Reacting
+      // (queue.next) would supersede the user's own selection of B.
+      engine().trigger("ended");
+      expect(onEnded).not.toHaveBeenCalled();
+
+      finishLoad();
+      await switching;
+
+      // Once the switch settles, a real end must still advance the queue.
+      engine().trigger("ended");
+      expect(onEnded).toHaveBeenCalledTimes(1);
+      off();
+    });
+
+    it("releases the status filter when togglePlay interrupts a loading switch", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
+      engine().trigger("statechange", { to: "playing" });
+
+      const { switching, finishLoad } = await startParkedSwitch(store);
+      expect(store.status).toBe("loading");
+
+      // Mid-load the engine is not ready, so togglePlay (space bar, media
+      // key, notification play — the buttons without a loading guard) enters
+      // play()'s cold-start branch and supersedes the switch request.
+      Object.defineProperty(mockPlayer, "isReady", { get: () => false });
+      await store.togglePlay();
+
+      finishLoad();
+      await switching;
+
+      // The superseded switch must not leave the status filter latched:
+      // engine state changes have to reach the store again.
+      engine().trigger("statechange", { to: "playing" });
+      engine().trigger("statechange", { to: "paused" });
+      expect(store.status).toBe("paused");
+    });
+
+    it("keeps the optimistic zeroed position while the next track loads", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as Track["id"] }));
+      engine().trigger("timeupdate", { currentTime: 120 });
+      expect(store.currentTime).toBe(120);
+
+      const { switching, finishLoad } = await startParkedSwitch(store);
+
+      // The old media is still audible while B loads; its position samples
+      // must not overwrite the freshly zeroed UI position.
+      engine().trigger("timeupdate", { currentTime: 121 });
+      expect(store.currentTime).toBe(0);
+
+      finishLoad();
+      await switching;
+    });
+  });
+
   describe("listen-time accounting", () => {
     type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
     const engine = () => mockPlayer as unknown as EngineMock;

@@ -59,12 +59,16 @@ export const usePlayerStore = defineStore("player", () => {
   let _activeFadeAbort: AbortController | null = null;
   let _activeBlobUrl: string | null = null;
 
-  // True from the optimistic "loading" of a track switch until that request
-  // reaches playback (or fails). While set, the engine's own load() chatter —
-  // it resets to "idle" and resolves through "ready" before play() lands —
-  // must not reach `status`: a single frame of "not playing" mid-skip
-  // visibly re-morphs the play/pause icon.
-  let _isSwitchingTrack = false;
+  // The _playRequestId of the switch currently in flight, from the optimistic
+  // "loading" until that request reaches playback (or fails). While it matches
+  // _playRequestId the engine still carries the PREVIOUS track's media: its
+  // load() chatter — it resets to "idle" and resolves through "ready" before
+  // play() lands — must not reach `status`, and its ended/timeupdate belong to
+  // the outgoing track, not the incoming one. Keyed to the request id (not a
+  // boolean) so any newer request bumping _playRequestId closes the window
+  // even when the superseded switch never gets to clean up after itself.
+  let _switchingRequestId: number | null = null;
+  const _isSwitchingTrack = () => _switchingRequestId === _playRequestId;
 
   const isPlaying = computed(
     () => status.value === "playing" || status.value === "buffering",
@@ -136,7 +140,7 @@ export const usePlayerStore = defineStore("player", () => {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
-    _isSwitchingTrack = false;
+    _switchingRequestId = null;
     if (_activeBlobUrl) {
       URL.revokeObjectURL(_activeBlobUrl);
       _activeBlobUrl = null;
@@ -185,11 +189,15 @@ export const usePlayerStore = defineStore("player", () => {
     // recovery) from mutating state that now belongs to its successor.
     newPlayer.on("statechange", ({ to }) => {
       if (player.value !== newPlayer) return;
-      if (_isSwitchingTrack && (to === "idle" || to === "ready" || to === "paused")) return;
+      if (_isSwitchingTrack() && (to === "idle" || to === "ready" || to === "paused")) return;
       status.value = to;
     });
     newPlayer.on("ended", () => {
       if (player.value !== newPlayer) return;
+      // Mid-switch the engine still holds the OUTGOING track's media: its
+      // natural end must not advance the queue past the user's own selection.
+      // The cut-short session was already finalized by playPlayerTrack.
+      if (_isSwitchingTrack()) return;
       // A natural end means the element reached its duration: credit the
       // sliver past the last sample BEFORE the UI reset below, because the
       // lifecycle's completed-stop runs off this emit and must see the full
@@ -202,6 +210,10 @@ export const usePlayerStore = defineStore("player", () => {
     });
     newPlayer.on("timeupdate", ({ currentTime: t }) => {
       if (player.value !== newPlayer) return;
+      // Positions arriving mid-switch are the outgoing track's audio: they
+      // must not overwrite the optimistic zeroed position (the un-armed
+      // session drops the samples anyway).
+      if (_isSwitchingTrack()) return;
       listenSession.sample(t);
       currentTime.value = t;
     });
@@ -475,7 +487,7 @@ export const usePlayerStore = defineStore("player", () => {
 
   const stop = () => {
     if (!player.value) return;
-    _isSwitchingTrack = false;
+    _switchingRequestId = null;
     cancelActiveFade();
 
     const audioSettings = useAudioSettingsStore();
@@ -524,7 +536,7 @@ export const usePlayerStore = defineStore("player", () => {
     // leaving the previous track's status (and a false live-stream reading
     // from the zeroed duration) visible while the source URL resolves.
     status.value = "loading";
-    _isSwitchingTrack = true;
+    _switchingRequestId = requestId;
 
     const p = ensurePlayer();
     currentTrack.value = track;
@@ -533,7 +545,7 @@ export const usePlayerStore = defineStore("player", () => {
     const url = await resolvePlayback(track);
     if (requestId !== _playRequestId) return;
     if (!url) {
-      _isSwitchingTrack = false;
+      _switchingRequestId = null;
       status.value = "error";
       discardPlayer();
       clearCurrentTrack();
@@ -560,11 +572,11 @@ export const usePlayerStore = defineStore("player", () => {
       applyLoudnessMetadata(p, track);
       await play();
       useAudioSettingsStore().pushToGraph();
-      if (requestId === _playRequestId) _isSwitchingTrack = false;
+      if (_switchingRequestId === requestId) _switchingRequestId = null;
     }
     catch (err) {
       if (requestId !== _playRequestId) return;
-      _isSwitchingTrack = false;
+      _switchingRequestId = null;
       status.value = "error";
       discardPlayer();
       if (err instanceof StorageError) {
