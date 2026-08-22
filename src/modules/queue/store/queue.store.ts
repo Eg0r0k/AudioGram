@@ -412,6 +412,21 @@ export const useQueueStore = defineStore("queue", () => {
     syncPersistedSnapshot();
   }
 
+  // currentItemId survives library deletions that shorten the restored queue;
+  // the positional index is only a fallback for older v1 snapshots.
+  const resolveRestoredCurrentIndex = (
+    snapshot: PersistedQueueSnapshot,
+    restoredQueue: QueueItem[],
+  ): number => {
+    if (snapshot.currentItemId !== undefined) {
+      return restoredQueue.findIndex(item => item.id === snapshot.currentItemId);
+    }
+    if (snapshot.currentIndex >= 0 && snapshot.currentIndex < restoredQueue.length) {
+      return snapshot.currentIndex;
+    }
+    return -1;
+  };
+
   async function restorePersistedQueue(): Promise<void> {
     const snapshot = persistedSnapshot.value;
 
@@ -486,11 +501,7 @@ export const useQueueStore = defineStore("queue", () => {
       originalQueueOrder.value = restoredOriginalQueueOrder.length > 0
         ? restoredOriginalQueueOrder
         : restoredQueue.map(item => item.id);
-      currentIndex.value = snapshot.currentItemId !== undefined
-        ? restoredQueue.findIndex(item => item.id === snapshot.currentItemId)
-        : snapshot.currentIndex >= 0 && snapshot.currentIndex < restoredQueue.length
-          ? snapshot.currentIndex
-          : -1;
+      currentIndex.value = resolveRestoredCurrentIndex(snapshot, restoredQueue);
       isShuffled.value = snapshot.isShuffled;
 
       // If playback already started this session (cold play of the persisted
@@ -622,10 +633,9 @@ export const useQueueStore = defineStore("queue", () => {
       // A transient failure (remote tracks re-resolve on every loop) gets one
       // retry; after that give up explicitly instead of leaving playback in a
       // silent half-error state with the selection intact.
-      if (!(await playAtIndex(currentIndex.value))
-        && !(await playAtIndex(currentIndex.value))) {
-        resetPlaybackSelection();
-      }
+      let restarted = await playAtIndex(currentIndex.value);
+      if (!restarted) restarted = await playAtIndex(currentIndex.value);
+      if (!restarted) resetPlaybackSelection();
       return;
     }
 
