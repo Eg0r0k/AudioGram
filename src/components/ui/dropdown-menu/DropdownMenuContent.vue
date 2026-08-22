@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DropdownMenuContentEmits, DropdownMenuContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
-import { computed } from "vue";
+import { computed, useTemplateRef } from "vue";
 import { reactiveOmit } from "@vueuse/core";
 import {
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 } from "reka-ui";
 import { cn } from "@/lib/utils";
 import { useMenuScrim } from "@/composables/useMenuScrim";
+import { useSwipeControl } from "@/composables/useSwipeControl";
 import { useSafeAreaCollisionPadding } from "@/composables/useSafeAreaCollisionPadding";
 
 defineOptions({
@@ -40,6 +41,18 @@ const collisionPadding = computed(() => props.collisionPadding ?? safeAreaPaddin
 const rootContext = injectDropdownMenuRootContext();
 const showScrim = useMenuScrim(() => rootContext.open.value && rootContext.modal.value);
 
+// A touch flick over the scrim produces no click, so nothing would dismiss
+// the menu — the swipe just went nowhere. Treat a swipe in ANY direction as
+// an outside interaction and close.
+const scrimEl = useTemplateRef<HTMLElement>("scrimEl");
+const dismiss = () => rootContext.onOpenChange(false);
+useSwipeControl(scrimEl, {
+  onSwipeLeft: dismiss,
+  onSwipeRight: dismiss,
+  onSwipeUp: dismiss,
+  onSwipeDown: dismiss,
+});
+
 // "partial" (the default) pins the menu to its anchor via limitShift, which
 // blocks the shift away from the system-bar zone; only "always" lets the
 // menu detach and slide fully inside the padded boundary.
@@ -52,6 +65,7 @@ const sticky = computed(() =>
   <DropdownMenuPortal>
     <div
       v-if="showScrim"
+      ref="scrimEl"
       data-slot="menu-overlay"
       aria-hidden="true"
       class="pointer-events-auto fixed inset-0 z-50"

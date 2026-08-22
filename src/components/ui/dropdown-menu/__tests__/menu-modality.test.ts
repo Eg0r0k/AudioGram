@@ -153,4 +153,67 @@ describe("menu modality (click-through prevention)", () => {
       expect(document.querySelector('[data-slot="menu-overlay"]')).toBeNull();
     });
   });
+
+  //
+  // On touch, a scroll flick over the scrim produces no click, so nothing
+  // dismissed the menu — it just sat there while the swipe went nowhere.
+  // Any-direction swipes on the scrim must close the menu.
+  //
+
+  const touchOn = (el: Element, type: string, x: number, y: number) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "touches", {
+      value: type === "touchend" ? [] : [{ clientX: x, clientY: y, target: el }],
+    });
+    el.dispatchEvent(event);
+  };
+
+  const swipeOn = (el: Element, dx: number, dy: number) => {
+    touchOn(el, "touchstart", 100, 100);
+    touchOn(el, "touchmove", 100 + dx / 2, 100 + dy / 2);
+    touchOn(el, "touchmove", 100 + dx, 100 + dy);
+    touchOn(el, "touchend", 100 + dx, 100 + dy);
+  };
+
+  it("dropdown closes on a horizontal swipe over the scrim", async () => {
+    render(DropdownHost, renderOptions);
+
+    await userEvent.click(screen.getByText("open dropdown"));
+    await screen.findByText("dropdown item");
+
+    const scrim = document.querySelector('[data-slot="menu-overlay"]')!;
+    swipeOn(scrim, -80, 0);
+
+    await waitFor(() => {
+      expect(screen.queryByText("dropdown item")).toBeNull();
+    });
+  });
+
+  it("dropdown closes on a vertical swipe over the scrim", async () => {
+    render(DropdownHost, renderOptions);
+
+    await userEvent.click(screen.getByText("open dropdown"));
+    await screen.findByText("dropdown item");
+
+    const scrim = document.querySelector('[data-slot="menu-overlay"]')!;
+    swipeOn(scrim, 0, 80);
+
+    await waitFor(() => {
+      expect(screen.queryByText("dropdown item")).toBeNull();
+    });
+  });
+
+  it("context menu closes on a swipe over the scrim", async () => {
+    render(ContextHost, renderOptions);
+
+    await fireEvent.contextMenu(screen.getByText("context target"));
+    await screen.findByText("context item");
+
+    const scrim = document.querySelector('[data-slot="menu-overlay"]')!;
+    swipeOn(scrim, 0, -80);
+
+    await waitFor(() => {
+      expect(screen.queryByText("context item")).toBeNull();
+    });
+  });
 });
