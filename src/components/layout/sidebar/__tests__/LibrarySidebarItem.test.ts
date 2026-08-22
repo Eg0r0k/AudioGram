@@ -5,7 +5,7 @@ import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "@/app/i18n";
 import type { LibraryItem } from "@/modules/library/types";
-import LibrarySidebarItem from "../LibrarySidebarItem.vue";
+import LibrarySidebarItem from "../library-item/LibrarySidebarItem.vue";
 
 const openMenuMock = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/library/composables/useLibraryMenu", () => ({

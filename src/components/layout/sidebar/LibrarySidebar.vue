@@ -173,7 +173,7 @@ import LibraryFolderItemsDialog from "@/components/layout/sidebar/LibraryFolderI
 import LibraryFolderNameDialog from "@/components/layout/sidebar/LibraryFolderNameDialog.vue";
 import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveToFolderDialog.vue";
 import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
-import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
+import LibrarySidebarItem from "@/components/layout/sidebar/library-item/LibrarySidebarItem.vue";
 import SearchPanel from "@/modules/search/components/SearchPanel.vue";
 import SidebarHeader from "@/components/layout/sidebar/header/SidebarHeader.vue";
 import { SIDEBAR_COMPACT_KEY } from "@/components/layout/sidebar/sidebarCompact";

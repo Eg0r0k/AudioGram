@@ -5,7 +5,7 @@ import type { Track } from "@/modules/player/types";
 import type { LibraryItem } from "@/modules/library/types";
 import type { RouteLocationRaw } from "vue-router";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
-import LibrarySidebarItem from "@/components/layout/sidebar/LibrarySidebarItem.vue";
+import LibrarySidebarItem from "@/components/layout/sidebar/library-item/LibrarySidebarItem.vue";
 import { routeLocation } from "@/app/router/route-locations";
 
 const props = defineProps<{
