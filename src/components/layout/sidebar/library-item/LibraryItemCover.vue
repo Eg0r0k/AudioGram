@@ -22,9 +22,9 @@ const hasStaticImage = computed(() => !!props.item.image);
 </script>
 
 <template>
-  <div class="relative shrink-0">
+  <div class="relative  shrink-0 mb-px">
     <ItemMedia
-      class="size-[54px] relative z-1 overflow-hidden"
+      class="size-[55px] aspect-square relative z-1 overflow-hidden "
       :class="item.rounded ? 'rounded-full' : 'rounded-md'"
     >
       <NuxtImage
@@ -33,7 +33,7 @@ const hasStaticImage = computed(() => !!props.item.image);
         :placeholder="item.imageLow"
         placeholder-class="blur-md scale-110"
         :alt="item.title"
-        class="size-full object-cover transition-[filter,scale] duration-300"
+        class="object-cover transition-[filter,scale] duration-300"
       />
 
       <div

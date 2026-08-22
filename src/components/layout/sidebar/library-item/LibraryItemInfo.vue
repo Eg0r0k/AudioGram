@@ -5,9 +5,6 @@ import { ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import IconPinFilled from "~icons/tabler/pin-filled";
 import IconVolume from "~icons/tabler/volume";
 
-// The text column of a full-width library row: title with the now-playing
-// indicator, then the typed subtitle with the pin marker and (for folders)
-// the entry count badge. Compact rows skip this component entirely.
 defineProps<{
   item: LibraryItem;
   subtitle: string;

@@ -39,8 +39,6 @@ export function initPlayerLifecycle(): void {
         .catch(err => getLogger().error(`[Stats] ${String(err)}`));
     }
 
-    // "Sleep after current track" (wip): the flag is consumed here; turning
-    // consumption into pause-instead-of-advance is the feature's next step.
     if (player.sleepAfterCurrentTrack) {
       player.sleepAfterCurrentTrack = false;
     }

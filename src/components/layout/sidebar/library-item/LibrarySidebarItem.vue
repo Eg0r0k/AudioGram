@@ -9,10 +9,6 @@ import LibraryItemCover from "./LibraryItemCover.vue";
 import LibraryItemInfo from "./LibraryItemInfo.vue";
 import { useLibraryItemView } from "./useLibraryItemView";
 
-// Interaction shell of a library row: ripple/focus/click/context-menu, the
-// compact-rail tooltip, and the active-route highlight. What the row shows
-// for each entity kind is resolved by useLibraryItemView and rendered by
-// LibraryItemCover / LibraryItemInfo.
 const props = defineProps<{
   item: LibraryItem;
   compact?: boolean;

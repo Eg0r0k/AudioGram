@@ -1,7 +1,7 @@
 <template>
   <nav
     :aria-label="t('nav.menu')"
-    class="flex items-stretch justify-around bg-card"
+    class="flex items-stretch justify-around bg-card pb-2 gap-1 px-2"
   >
     <Button
       v-for="item in items"

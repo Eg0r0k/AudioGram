@@ -4,12 +4,6 @@ import type { CoverOwnerType } from "@/db/entities";
 import type { LibraryItem } from "@/modules/library/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
-/**
- * Per-entity presentation of a LibraryItem row. All type switches live here:
- * which cover source an entity uses, how its subtitle reads, and how it
- * matches the queue's current playback source — the components only render
- * the resolved values.
- */
 export const useLibraryItemView = (itemSource: MaybeRefOrGetter<LibraryItem>) => {
   const { t } = useI18n();
   const queueStore = useQueueStore();
