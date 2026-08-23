@@ -39,6 +39,9 @@ function okResult<T>(val: T) {
 
 // в”Ђв”Ђ Module mocks в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
 vi.mock("../worker-pool", () => ({
   WorkerPool: MockWorkerPool,
 }));

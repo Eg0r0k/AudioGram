@@ -15,6 +15,7 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 
 import type { IFileStorageWithNativeSupport } from "./IFileStorage";
+import { getLogger } from "@/lib/logger";
 import { localFileStreamUrl } from "@/lib/stream-url";
 import { StorageError } from "../errors/storage.errors";
 import { normalizePath } from "./pathUtils";
@@ -24,6 +25,7 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
 
   private appDataCache: string | null = null;
   private createdDirs = new Set<string>();
+  private mediaServerReadWarned = false;
 
   async getAppDataDir(): Promise<string> {
     if (!this.appDataCache) {
@@ -125,6 +127,9 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
 
   readBytes(absolutePath: string, length: number): ResultAsync<Uint8Array, StorageError> {
     return fromPromise((async () => {
+      const viaServer = await this.readBytesViaMediaServer(absolutePath, length);
+      if (viaServer) return viaServer;
+
       const file = await open(absolutePath, { read: true });
       try {
         const buffer = new Uint8Array(length);
@@ -138,6 +143,50 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
         await file.close();
       }
     })(), e => StorageError.readFailed(absolutePath, e));
+  }
+
+  /**
+   * Head reads ride the loopback media server: one HTTP Range request instead
+   * of a plugin-fs IPC round-trip, which serializes and moves bytes an order
+   * of magnitude slower. Returns null when the server is unavailable or
+   * refuses the path — the caller then falls back to plugin-fs.
+   */
+  private async readBytesViaMediaServer(absolutePath: string, length: number): Promise<Uint8Array | null> {
+    if (length <= 0) return null;
+
+    let url: string;
+    try {
+      // Throws when no server base exists (web build, tests) — there the
+      // plugin-fs path is the primary one and no fallback happened.
+      url = localFileStreamUrl(absolutePath);
+    }
+    catch {
+      return null;
+    }
+
+    try {
+      const response = await fetch(url, { headers: { Range: `bytes=0-${length - 1}` } });
+      // 416: the file is empty — a successful zero-length read, same as plugin-fs.
+      if (response.status === 416) return new Uint8Array(0);
+      if (response.status !== 200 && response.status !== 206) {
+        this.warnMediaServerFallbackOnce(`status ${response.status}`, absolutePath);
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      return new Uint8Array(buffer.byteLength <= length ? buffer : buffer.slice(0, length));
+    }
+    catch (e) {
+      this.warnMediaServerFallbackOnce(String(e), absolutePath);
+      return null;
+    }
+  }
+
+  /** One warning per session: a per-file log would fire thousands of times during a sync. */
+  private warnMediaServerFallbackOnce(reason: string, absolutePath: string): void {
+    if (this.mediaServerReadWarned) return;
+    this.mediaServerReadWarned = true;
+    getLogger().warn(`[Storage] Media-server read failed (${reason}) for ${absolutePath} — falling back to plugin-fs`);
   }
 
   clearCaches(): void {

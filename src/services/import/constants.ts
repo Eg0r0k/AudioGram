@@ -4,6 +4,12 @@ import { AUDIO_MIME_TYPES } from "@/types/media";
 export const HEAD_READ_SIZE = 10 * 1024 * 1024;
 /** Upper bound on bytes read for metadata parsing. */
 export const MAX_METADATA_READ = 12 * 1024 * 1024;
+/**
+ * First-attempt head read for formats whose metadata lives entirely in the
+ * head (see head-read.ts) — enough for tags plus a typical embedded cover.
+ * Parsing failures fall back to {@link MAX_METADATA_READ}.
+ */
+export const INITIAL_METADATA_READ = 1024 * 1024;
 /** Concurrent parse/copy operations. */
 export const PROCESS_CONCURRENCY = 16;
 /** Tracks persisted per DB transaction. */

@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
 vi.mock("@tauri-apps/plugin-fs", () => ({
   writeFile: mocks.writeFile,
   readFile: mocks.readFile,
