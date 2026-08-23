@@ -1,7 +1,7 @@
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "../store/player.store";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { trackCoverOwner, useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { isLibraryTrack } from "../types";
 
@@ -91,11 +91,15 @@ export const useMediaSession = () => {
   const isMediaSessionSeeking = ref(false);
 
   const currentTrack = computed(() => player.currentTrack);
-  const albumId = computed(() =>
-    currentTrack.value?.kind === "library" ? currentTrack.value.albumId : null,
+  const libraryTrack = computed(() =>
+    currentTrack.value?.kind === "library" ? currentTrack.value : null,
   );
 
-  const { url: coverBlobUrl, blob: coverBlob } = useEntityCover("album", albumId);
+  const { url: coverBlobUrl, blob: coverBlob } = useTrackCover(libraryTrack);
+  const coverOwnerId = computed(() => {
+    const owner = trackCoverOwner(libraryTrack.value);
+    return owner ? `${owner.ownerType}:${owner.ownerId}` : null;
+  });
 
   const updateMetadata = () => {
     const track = player.currentTrack;
@@ -141,11 +145,12 @@ export const useMediaSession = () => {
   };
 
   let androidArtworkToken = 0;
-  // Encoded artwork keyed to the album it belongs to. At track-change time
-  // the cover query for a NEW album hasn't resolved yet, and pushing whatever
-  // blob is currently around pins the previous album's art on the lock
-  // screen; the cache makes "matches this track" checkable.
-  let artworkAlbumId: string | null = null;
+  // Encoded artwork keyed to the cover owner (album, or the track itself for
+  // album-less files). At track-change time the cover query for a NEW owner
+  // hasn't resolved yet, and pushing whatever blob is currently around pins
+  // the previous art on the lock screen; the cache makes "matches this track"
+  // checkable.
+  let artworkOwnerId: string | null = null;
   let artworkBase64 = "";
 
   const updateAndroidMetadata = () => {
@@ -157,7 +162,7 @@ export const useMediaSession = () => {
       return;
     }
 
-    const artwork = albumId.value !== null && albumId.value === artworkAlbumId
+    const artwork = coverOwnerId.value !== null && coverOwnerId.value === artworkOwnerId
       ? artworkBase64
       : "";
 
@@ -427,17 +432,17 @@ export const useMediaSession = () => {
     },
   );
 
-  // The blob arriving means the cover query for the CURRENT album resolved —
-  // encode it, remember which album it belongs to, and re-push metadata.
+  // The blob arriving means the cover query for the CURRENT owner resolved —
+  // encode it, remember which owner it belongs to, and re-push metadata.
   watch(
     coverBlob,
     async (blob) => {
       if (!androidBridge) return;
-      const album = albumId.value;
+      const owner = coverOwnerId.value;
       const token = ++androidArtworkToken;
       const encoded = blob ? await coverArtworkBase64(blob) : "";
       if (token !== androidArtworkToken) return;
-      artworkAlbumId = blob && album ? album : null;
+      artworkOwnerId = blob && owner ? owner : null;
       artworkBase64 = encoded;
       updateAndroidMetadata();
     },

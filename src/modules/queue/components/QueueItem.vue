@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import type { QueueItem } from "../types";
 import { formatDuration } from "@/lib/format/time";
 import { Button } from "@/components/ui/button";
@@ -84,12 +84,12 @@ const formattedDuration = computed(() => {
   return dur ? formatDuration(dur) : "--:--";
 });
 
-const albumId = computed(() => {
+const librarySubject = computed(() => {
   const track = props.item.track;
-  return "albumId" in track ? track.albumId : null;
+  return "albumId" in track ? track : null;
 });
 
-const { url: coverBlobUrl } = useEntityCover("album", albumId);
+const { url: coverBlobUrl } = useTrackCover(librarySubject);
 
 // Ephemeral tracks (YT streams, radio) carry their artwork on the track
 // itself — the library blob lookup only ever resolves for album-backed rows.

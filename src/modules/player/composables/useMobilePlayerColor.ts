@@ -1,6 +1,6 @@
 import { computed, watch, ref, type Ref } from "vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { getColorFromImage, type ColorResult } from "@/composables/useImageColor";
 
 const defaultFallback: ColorResult = {
@@ -18,10 +18,7 @@ export function useMobilePlayerColor() {
     return track?.kind === "library" ? track : null;
   });
 
-  const { url: coverBlobUrl } = useEntityCover(
-    "album",
-    () => libraryTrack.value?.albumId ?? null,
-  );
+  const { url: coverBlobUrl } = useTrackCover(libraryTrack);
 
   const coverUrl = computed(() => {
     const track = playerStore.currentTrack;

@@ -203,7 +203,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { formatDuration, formatRelativeTime } from "@/lib/format/time";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import type { Track } from "@/modules/player/types";
 import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { usePlayerStore } from "@/modules/player/store/player.store";
@@ -308,7 +308,7 @@ const { toggleTrackLike } = useToggleTrackLike();
 
 const rowRef = useTemplateRef("rowRef");
 const isRowHovered = useElementHover(() => rowRef.value);
-const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
+const { url: coverBlobUrl } = useTrackCover(() => props.track);
 
 const coverUrl = computed(() => props.coverSrc ?? coverBlobUrl.value ?? "/img/fallback.svg");
 

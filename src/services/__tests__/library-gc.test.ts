@@ -49,10 +49,20 @@ describe("library-gc", () => {
       id: "c1", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1,
     });
 
-    await cleanupAfterTrackRemoval([{ albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
+    await cleanupAfterTrackRemoval([{ id: "t1" as TrackId, albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
 
     expect(await db.albums.get("al1")).toBeUndefined();
     expect(await db.artists.get("ar1")).toBeUndefined();
+    expect(await db.covers.count()).toBe(0);
+  });
+
+  it("drops a track-owned cover with its track", async () => {
+    await db.covers.put({
+      id: "c2", ownerType: "track", ownerId: "t1", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1,
+    });
+
+    await cleanupAfterTrackRemoval([{ id: "t1" as TrackId, albumId: "" as AlbumId, artistIds: [] }]);
+
     expect(await db.covers.count()).toBe(0);
   });
 
@@ -61,7 +71,7 @@ describe("library-gc", () => {
     await db.albums.put(albumRow("al1", "ar1"));
     await db.tracks.put(trackRow("t2", "al1", ["ar1"]));
 
-    await cleanupAfterTrackRemoval([{ albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
+    await cleanupAfterTrackRemoval([{ id: "t1" as TrackId, albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
 
     expect(await db.albums.get("al1")).toBeDefined();
     expect(await db.artists.get("ar1")).toBeDefined();
@@ -73,11 +83,26 @@ describe("library-gc", () => {
     await db.albums.put(albumRow("al2", "ar1", "Other"));
     await db.tracks.put(trackRow("t2", "al2", ["ar1"]));
 
-    await cleanupAfterTrackRemoval([{ albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
+    await cleanupAfterTrackRemoval([{ id: "t1" as TrackId, albumId: "al1" as AlbumId, artistIds: ["ar1" as ArtistId] }]);
 
     expect(await db.albums.get("al1")).toBeUndefined();
     expect(await db.albums.get("al2")).toBeDefined();
     expect(await db.artists.get("ar1")).toBeDefined();
+  });
+
+  it("sweep drops track-owned covers whose track no longer exists", async () => {
+    await db.tracks.put(trackRow("t-alive", "", []));
+    await db.covers.put({
+      id: "c-alive", ownerType: "track", ownerId: "t-alive", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1,
+    });
+    await db.covers.put({
+      id: "c-orphan", ownerType: "track", ownerId: "t-gone", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1,
+    });
+
+    await sweepOrphanedEntities();
+
+    expect(await db.covers.get("c-alive")).toBeDefined();
+    expect(await db.covers.get("c-orphan")).toBeUndefined();
   });
 
   it("sweep clears accumulated orphans across the whole library", async () => {

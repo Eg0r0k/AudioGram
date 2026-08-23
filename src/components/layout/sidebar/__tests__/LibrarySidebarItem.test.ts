@@ -113,6 +113,30 @@ describe("LibrarySidebarItem", () => {
     expect(screen.getByText("7")).toBeTruthy();
   });
 
+  it("keeps folder text in the default foreground on the home route", async () => {
+    // Folder rows point `to` at home, so on "/" they are exact-active — but
+    // they never get the primary background, so the active text color would
+    // render primary-foreground (white) on the plain sidebar.
+    const { container } = await renderItem(createItem({
+      id: "f1",
+      type: "folder",
+      title: "Chill",
+      to: "/",
+      folderItemCount: 3,
+    }));
+
+    const title = container.querySelector("[data-slot=item-title]");
+    expect(title?.className).not.toContain("text-primary-foreground");
+  });
+
+  it("uses active text on the row whose route is exact-active", async () => {
+    await router.push("/playlist/p1");
+    const { container } = await renderItem(createItem());
+
+    const title = container.querySelector("[data-slot=item-title]");
+    expect(title?.className).toContain("text-primary-foreground");
+  });
+
   it("renders no text content in compact mode", async () => {
     await renderItem(createItem(), true);
 

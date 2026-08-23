@@ -163,7 +163,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
 import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
@@ -256,7 +256,7 @@ const downloadableDto = computed(() => {
   return ytPlayable.value ? ytPlayableToDto(ytPlayable.value) : null;
 });
 
-const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
+const { url: coverBlobUrl } = useTrackCover(() => props.track);
 const coverUrl = computed(() => {
   if (props.coverUrl) return props.coverUrl;
   // Remote display rows (ND/YT catalog) carry their cover in the DTO —

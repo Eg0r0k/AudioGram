@@ -59,7 +59,7 @@ import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDuration } from "@/lib/format/time";
 import type { Track } from "@/modules/player/types";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 
 interface Props {
   track: Track;
@@ -76,7 +76,7 @@ const emit = defineEmits<{
   toggleSelect: [track: Track, event: MouseEvent | KeyboardEvent];
 }>();
 
-const { url: coverBlobUrl } = useEntityCover("album", () => props.track.albumId);
+const { url: coverBlobUrl } = useTrackCover(() => props.track);
 const coverUrl = computed(() => coverBlobUrl.value ?? "/img/fallback.svg");
 
 function handleClick(event: MouseEvent | KeyboardEvent) {

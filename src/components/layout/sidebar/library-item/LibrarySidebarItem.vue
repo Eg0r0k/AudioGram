@@ -72,7 +72,7 @@ const handleClick = () => {
                 :cover-owner-type="coverOwnerType"
                 :cover-owner-id="coverOwnerId"
                 :compact="compact"
-                :active="isExactActive"
+                :active="isExactActive && item.type !== 'folder'"
                 :is-playback-source="isCurrentPlaybackSource"
               />
 
@@ -80,7 +80,7 @@ const handleClick = () => {
                 v-if="!compact"
                 :item="item"
                 :subtitle="subtitle"
-                :active="isExactActive"
+                :active="isExactActive && item.type !== 'folder'"
                 :is-playback-source="isCurrentPlaybackSource"
               />
             </Item>

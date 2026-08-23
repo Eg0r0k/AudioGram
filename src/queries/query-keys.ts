@@ -1,4 +1,5 @@
 import type { AlbumId, ArtistId, PlaylistId, TagId, TrackId } from "@/types/ids";
+import type { CoverOwnerType } from "@/db/entities";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import type { SourceKind } from "@/types/track-ref";
 
@@ -72,7 +73,7 @@ export const queryKeys = {
   },
   covers: {
     all: () => ["covers"] as const,
-    detail: (ownerType: "album" | "playlist" | "artist", ownerId: string) =>
+    detail: (ownerType: CoverOwnerType, ownerId: string) =>
       ["covers", ownerType, ownerId] as const,
   },
   recommendations: {

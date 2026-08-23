@@ -232,7 +232,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import IconMusicOff from "~icons/tabler/music-off";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -289,7 +289,7 @@ const libraryTrack = computed<Track | null>(() => {
   return track && isLibraryTrack(track) ? track : null;
 });
 
-const { url: coverBlobUrl } = useEntityCover("album", () => libraryTrack.value?.albumId ?? null);
+const { url: coverBlobUrl } = useTrackCover(libraryTrack);
 
 const coverUrl = computed(() => {
   const track = currentTrack.value;

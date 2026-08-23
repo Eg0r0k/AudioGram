@@ -302,7 +302,7 @@ import { computed, ref, useTemplateRef, watch } from "vue";
 import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
@@ -473,10 +473,7 @@ const libraryTrack = computed<Track | null>(() =>
   isLibraryTrack(currentTrack.value) ? currentTrack.value : null,
 );
 
-const { url: coverBlobUrl, isLoading: isCoverLoading } = useEntityCover(
-  "album",
-  () => libraryTrack.value?.albumId ?? null,
-);
+const { url: coverBlobUrl, isLoading: isCoverLoading } = useTrackCover(libraryTrack);
 
 const coverUrl = computed(() => {
   const track = currentTrack.value;

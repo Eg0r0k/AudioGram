@@ -1,6 +1,6 @@
 import pLimit from "p-limit";
 import { db } from "@/db";
-import { AlbumEntity, ArtistEntity, TrackEntity, TrackState } from "@/db/entities";
+import { AlbumEntity, ArtistEntity, CoverOwnerType, TrackEntity, TrackState } from "@/db/entities";
 import { albumRepository, artistRepository, coverRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
 import { AlbumId, ArtistId } from "@/types/ids";
@@ -48,14 +48,16 @@ const resizeCoverBlob = async (blob: Blob): Promise<Blob> => {
 };
 
 interface CoverToCreate {
-  ownerId: AlbumId;
+  ownerType: CoverOwnerType;
+  ownerId: string;
   blob: Blob;
   mimeType: string;
 }
 
 /** A cover queued for resizing once the batch has been walked. */
 interface PendingCover {
-  ownerId: AlbumId;
+  ownerType: CoverOwnerType;
+  ownerId: string;
   source: Blob;
 }
 
@@ -108,6 +110,10 @@ export async function persistTracks(
     );
     collectArtists(item, resolver, artistIds, existingArtistIds, artistsToCreate, now);
 
+    if (!albumId && item.meta.pictureBlob) {
+      pendingCovers.push({ ownerType: "track", ownerId: item.trackId, source: item.meta.pictureBlob });
+    }
+
     tracksToCreate.push({
       id: item.trackId,
       title: item.meta.title,
@@ -145,12 +151,10 @@ export async function persistTracks(
   // Decoding and re-encoding covers is the slowest part of a batch, so run
   // several at once — but capped, since each decode holds a full-size bitmap.
   const coversToCreate: CoverToCreate[] = await Promise.all(
-    pendingCovers.map(({ ownerId, source }) =>
+    pendingCovers.map(({ ownerType, ownerId, source }) =>
       coverLimit(async () => {
         const blob = await resizeCoverBlob(source);
-        // resizeCoverBlob passes small or already-small images through
-        // untouched, so the stored type must come from the blob we got back.
-        return { ownerId, blob, mimeType: blob.type || source.type };
+        return { ownerType, ownerId, blob, mimeType: blob.type || source.type };
       }),
     ),
   );
@@ -168,7 +172,7 @@ export async function persistTracks(
         await coverRepository.createMany(
           coversToCreate.map(c => ({
             id: crypto.randomUUID(),
-            ownerType: "album" as const,
+            ownerType: c.ownerType,
             ownerId: c.ownerId,
             blob: c.blob,
             mimeType: c.mimeType,
@@ -250,7 +254,7 @@ function collectAlbum(
     });
 
     if (item.meta.pictureBlob) {
-      pendingCovers.push({ ownerId: entry.id, source: item.meta.pictureBlob });
+      pendingCovers.push({ ownerType: "album", ownerId: entry.id, source: item.meta.pictureBlob });
     }
   }
 

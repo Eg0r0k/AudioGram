@@ -109,7 +109,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
+import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { Button } from "@/components/ui/button";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
@@ -135,7 +135,7 @@ const libraryTrack = computed<Track | null>(() =>
   isLibraryTrack(track.value) ? track.value : null,
 );
 
-const { url: coverBlobUrl } = useEntityCover("album", () => libraryTrack.value?.albumId ?? null);
+const { url: coverBlobUrl } = useTrackCover(libraryTrack);
 const coverUrl = computed(() => {
   if (libraryTrack.value) return coverBlobUrl.value ?? "/img/fallback.svg";
   // Ephemeral tracks carry a direct cover URL (YouTube thumbnail, radio art).

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
+  coverRepository,
   offlineCopyRepository,
   playlistRepository,
   trackRepository,
@@ -31,6 +32,7 @@ import {
   syncArtistCaches,
   syncTrackLikeCaches,
   syncTrackMetadataCaches,
+  updateCoverCache,
 } from "./cache";
 import { unique, unwrapResult } from "./shared";
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
@@ -570,6 +572,22 @@ export async function updateTrackMetadataAndSync(
     diskNo: nextDiskNo,
   }));
 
+  // An album-less track resolves its cover from its own id; once it joins an
+  // album that owner stops being consulted, so the embedded art must follow —
+  // to the album when it has none, otherwise the track row is just retired.
+  if (!currentTrack.albumId && album.id) {
+    const trackCover = await unwrapResult(coverRepository.findByOwner("track", currentTrack.id));
+    if (trackCover) {
+      const albumCover = await unwrapResult(coverRepository.findByOwner("album", album.id));
+      if (!albumCover) {
+        await unwrapResult(coverRepository.upsertOwnerCover("album", album.id, trackCover.blob));
+        updateCoverCache(queryClient, "album", album.id, trackCover.blob);
+      }
+      await unwrapResult(coverRepository.deleteByOwner("track", currentTrack.id));
+      queryClient.removeQueries({ queryKey: queryKeys.covers.detail("track", currentTrack.id), exact: true });
+    }
+  }
+
   const nextTrack: Track = {
     ...track,
     title,
@@ -647,6 +665,7 @@ export async function deleteTrackAndSync(
   }
   removeTracksFromCaches(queryClient, [trackId]);
   queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(trackId), exact: true });
+  queryClient.removeQueries({ queryKey: queryKeys.covers.detail("track", trackId), exact: true });
   await removeSearchDocuments([`track:${trackId}`]);
 
   await invalidateForTrackMutation(queryClient, {

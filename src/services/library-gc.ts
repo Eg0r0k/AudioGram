@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { unitOfWork } from "@/db/unit-of-work";
 import { getLogger } from "@/lib/logger";
-import type { AlbumId, ArtistId } from "@/types/ids";
+import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 
 //
 // Orphan cleanup for library entities. Albums and artists are created
@@ -12,6 +12,7 @@ import type { AlbumId, ArtistId } from "@/types/ids";
 
 /** The pieces of a deleted track the cascade needs. */
 export interface RemovedTrackRef {
+  id: TrackId;
   albumId?: AlbumId | "";
   artistIds?: ArtistId[];
 }
@@ -42,6 +43,13 @@ async function deleteAlbums(ids: AlbumId[]): Promise<void> {
  * track rows are gone.
  */
 export async function cleanupAfterTrackRemoval(removed: RemovedTrackRef[]): Promise<void> {
+  // Track-owned covers (album-less imports) die with their track.
+  if (removed.length > 0) {
+    await db.covers.where("[ownerType+ownerId]")
+      .anyOf(removed.map(track => ["track", track.id] as [string, string]))
+      .delete();
+  }
+
   const candidateAlbums = [...new Set(
     removed.map(track => track.albumId).filter((id): id is AlbumId => !!id),
   )];
@@ -87,6 +95,16 @@ export async function sweepOrphanedEntities(): Promise<{ albums: number; artists
     }
     if (orphanArtists.length > 0) {
       await db.artists.bulkDelete(orphanArtists);
+    }
+
+    // Track-owned covers have no implicit-entity cascade of their own, so any
+    // deletion path that skips cleanupAfterTrackRemoval self-heals here.
+    const orphanCoverIds: string[] = [];
+    for (const cover of await db.covers.where("ownerType").equals("track").toArray()) {
+      if (!(await db.tracks.get(cover.ownerId as TrackId))) orphanCoverIds.push(cover.id);
+    }
+    if (orphanCoverIds.length > 0) {
+      await db.covers.bulkDelete(orphanCoverIds);
     }
 
     return { albums: orphanAlbums.length, artists: orphanArtists.length };
