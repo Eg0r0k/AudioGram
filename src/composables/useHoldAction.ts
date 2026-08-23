@@ -1,4 +1,4 @@
-import { MaybeElementRef, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
+import { MaybeElementRef, unrefElement, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
 import { ref, computed, readonly } from "vue";
 
 export interface UseHoldActionOptions {
@@ -8,7 +8,7 @@ export interface UseHoldActionOptions {
 }
 
 export const useHoldAction = (
-  target: MaybeElementRef<HTMLElement | null>,
+  target: MaybeElementRef,
   callbacks: {
     onClick?: () => void;
     onHoldStart?: () => void;
@@ -72,10 +72,12 @@ export const useHoldAction = (
     wasHeld.value = false;
   };
 
-  useEventListener(target, "pointerdown", onPointerDown, { passive: true });
-  useEventListener(target, "pointerup", onPointerUp, { passive: true });
-  useEventListener(target, "pointercancel", cancelHold, { passive: true });
-  useEventListener(target, "pointerleave", cancelHold, { passive: true });
+  const targetElement = computed(() => unrefElement(target));
+
+  useEventListener(targetElement, "pointerdown", onPointerDown, { passive: true });
+  useEventListener(targetElement, "pointerup", onPointerUp, { passive: true });
+  useEventListener(targetElement, "pointercancel", cancelHold, { passive: true });
+  useEventListener(targetElement, "pointerleave", cancelHold, { passive: true });
 
   return {
     isHolding: readonly(isHolding),
