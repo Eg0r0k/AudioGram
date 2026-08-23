@@ -2,6 +2,7 @@ import { normalizePath } from "@/lib/files/filterFiles";
 import { ScannedFile } from "@/types/watched-folders";
 import { readDir, stat } from "@tauri-apps/plugin-fs";
 import { isValidImportItem } from "@/lib/environment/mimeSupport";
+import { getLogger } from "@/lib/logger";
 
 export async function scanFolder(
   folderPath: string,
@@ -20,7 +21,10 @@ export async function scanFolder(
     try {
       entries = await readDir(currentDir);
     }
-    catch {
+    catch (e) {
+      // The directory silently disappears from the scan otherwise — the user
+      // only sees "my folder didn't import" with nothing to go on.
+      getLogger().warn(`[FolderScan] Cannot read ${currentDir}: ${String(e)}`);
       continue;
     }
 

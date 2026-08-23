@@ -358,7 +358,7 @@ export const useQueueStore = defineStore("queue", () => {
       return true;
     }
     catch (err) {
-      console.error(`[Queue] Failed to play "${item.track.title}":`, err);
+      getLogger().error(`[Queue] Failed to play "${item.track.title}": ${String(err)}`);
       handlePlaybackError(item.track, err);
       return false;
     }
@@ -520,7 +520,7 @@ export const useQueueStore = defineStore("queue", () => {
       syncPersistedSnapshot();
     }
     catch (error) {
-      console.error("[Queue] Failed to restore persisted queue:", error);
+      getLogger().error(`[Queue] Failed to restore persisted queue: ${String(error)}`);
       // Infrastructure failure (DB hiccup): reset memory but keep the stored
       // snapshot untouched so the next healthy launch can still restore it.
       queue.value = [];
@@ -584,7 +584,7 @@ export const useQueueStore = defineStore("queue", () => {
       }
     }
     catch (error) {
-      console.error("[Queue] Failed to load autoplay recommendations:", error);
+      getLogger().error(`[Queue] Failed to load autoplay recommendations: ${String(error)}`);
       return false;
     }
 

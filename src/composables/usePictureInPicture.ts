@@ -93,7 +93,6 @@ export const usePictureInPicture = () => {
       });
 
       setupPip(win);
-      console.log("[PIP] Window opened");
       return true;
     }
     catch (e) {
@@ -119,7 +118,6 @@ export const usePictureInPicture = () => {
       const existingWindow = window.documentPictureInPicture.window;
       if (existingWindow) {
         setupPip(existingWindow);
-        console.log("[PIP] Restored existing window");
       }
     }
     catch (e) {

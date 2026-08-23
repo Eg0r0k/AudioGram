@@ -1,7 +1,7 @@
 import pLimit from "p-limit";
 import { ResultAsync } from "neverthrow";
 import { isValidImportItem } from "@/lib/environment/mimeSupport";
-import { TimeProfiler } from "@/lib/profiler";
+import { getLogger } from "@/lib/logger";
 import { TrackId } from "@/types/ids";
 import { trackRepository } from "@/db/repositories";
 import { TrackSource } from "@/db/entities";
@@ -54,7 +54,6 @@ export interface ImportPipelineDeps {
 export class ImportPipeline {
   private readonly processLimit = pLimit(PROCESS_CONCURRENCY);
   private readonly fpLimit = pLimit(FINGERPRINT_CONCURRENCY);
-  private readonly profiler = new TimeProfiler();
 
   constructor(private readonly deps: ImportPipelineDeps) {}
 
@@ -63,8 +62,6 @@ export class ImportPipeline {
     onProgress?: (current: number, total: number) => void,
     control?: ImportControl,
   ): Promise<ImportBatchResult> {
-    this.profiler.reset();
-
     const total = items.length;
     let processed = 0;
     let skipped = 0;
@@ -107,7 +104,14 @@ export class ImportPipeline {
       if (cancelled) break;
     }
 
-    this.profiler.printReport("Import");
+    if (total > 0) {
+      getLogger().info(
+        `[Import] ${successful.length}/${total} imported, ${skipped} skipped, ${failed.length} failed${cancelled ? " (cancelled)" : ""}`,
+      );
+    }
+    for (const f of failed) {
+      getLogger().warn(`[Import] ${f.fileName}: ${f.error.message}`);
+    }
 
     return {
       successful,
@@ -115,7 +119,6 @@ export class ImportPipeline {
       skipped,
       total,
       ...(cancelled ? { cancelled: true } : {}),
-      timings: this.profiler.getTimings(),
     };
   }
 
@@ -145,7 +148,10 @@ export class ImportPipeline {
             this.deps.onTracksImported?.(saved.map(s => s.trackId));
           }
         },
-        error => dbBatch.forEach(item => failed.push({ fileName: item.fileName, error })),
+        (error) => {
+          getLogger().error(`[Import] DB batch of ${dbBatch.length} tracks failed: ${error.message}`);
+          dbBatch.forEach(item => failed.push({ fileName: item.fileName, error }));
+        },
       );
 
       // Yield to the event loop so UI progress updates stay responsive.

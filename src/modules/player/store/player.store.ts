@@ -296,7 +296,7 @@ export const usePlayerStore = defineStore("player", () => {
 
       case "path": {
         if (!platformCaps.hasFs) {
-          console.warn("[Player] path-based ephemeral tracks require native FS");
+          getLogger().warn("[Player] path-based ephemeral tracks require native FS");
           return null;
         }
         const result = await storageService.getAudioUrl(track.source.path);
@@ -319,7 +319,7 @@ export const usePlayerStore = defineStore("player", () => {
 
     if (!isRemote) {
       if (track.source === TrackSource.LOCAL_EXTERNAL && !platformCaps.hasFs) {
-        console.warn("[Player] LOCAL_EXTERNAL tracks require native FS");
+        getLogger().warn("[Player] LOCAL_EXTERNAL tracks require native FS");
         return null;
       }
       const result = await storageService.getAudioUrl(track.storagePath);

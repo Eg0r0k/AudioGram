@@ -35,6 +35,9 @@ function okResult<T>(value: T) {
   return { isOk: () => true, isErr: () => false, value };
 }
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
 vi.mock("@/db/repositories", () => ({
   trackRepository: {
     getAllFingerprints: mockGetAllFingerprints,
@@ -632,6 +635,33 @@ describe("ImportPipeline", () => {
         mimeType: "image/jpeg",
         ownerType: "album",
       });
+    });
+
+    it("stores an embedded cover on the track itself when the tags carry no album", async () => {
+      const blob = new Blob([new Uint8Array(10)], { type: "image/png" });
+      fakes.parse.mockImplementation(async (name: string) =>
+        makeMeta({ title: name, artists: ["A"], album: "", pictureBlob: blob }),
+      );
+
+      await makePipeline(fakes).run(nativeItems("a.mp3"));
+
+      expect(mockAlbumCreateMany).not.toHaveBeenCalled();
+      const trackId = mockTrackCreateMany.mock.calls[0][0][0].id;
+      expect(mockCoverCreateMany.mock.calls[0][0][0]).toMatchObject({
+        ownerType: "track",
+        ownerId: trackId,
+      });
+    });
+
+    it("stores an embedded cover on the track when the album cannot be resolved without an artist", async () => {
+      const blob = new Blob([new Uint8Array(10)], { type: "image/png" });
+      fakes.parse.mockImplementation(async (name: string) =>
+        makeMeta({ title: name, artists: [], album: "Some Album", pictureBlob: blob }),
+      );
+
+      await makePipeline(fakes).run(nativeItems("a.mp3"));
+
+      expect(mockCoverCreateMany.mock.calls[0][0][0]).toMatchObject({ ownerType: "track" });
     });
 
     it("persists the fingerprint alongside the track", async () => {

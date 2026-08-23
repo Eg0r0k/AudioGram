@@ -10,6 +10,9 @@ import type { Track } from "@/modules/player/types";
 import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import { useQueueStore } from "../store/queue.store";
 
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
 vi.mock("@/db/repositories", () => ({
   trackRepository: {
     findByIds: vi.fn(),

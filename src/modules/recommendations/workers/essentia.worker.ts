@@ -153,7 +153,6 @@ const analyzeAudio = (ess: TypedEssentia, pcm: Float32Array) => {
 
 self.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
   const { requestId, trackId, fileData } = e.data;
-  console.log("MESSAGE IN WORKER");
   try {
     const ess = await initEssentia();
     const pcm = await decodeAudio(fileData);
@@ -165,7 +164,6 @@ self.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
       trackId,
       features,
     };
-    console.log("RESPONSE WORKER", response);
     self.postMessage(response);
   }
   catch (error: unknown) {
