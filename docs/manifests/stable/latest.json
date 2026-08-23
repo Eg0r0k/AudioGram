@@ -1,18 +1,18 @@
 {
-  "version": "0.2.6",
+  "version": "0.2.7",
   "notes": "",
-  "pub_date": "2026-08-22T20:53:04Z",
+  "pub_date": "2026-08-23T18:57:46Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.6/Audiogram_0.2.6_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1VEU1RSS2JIQnVsMFJDQjFkNHpja1dYb2ZUd2FKUWtlZWV1VG1wU2Z2MXZMZEN1NkhONHBXYWxDVkxCbFdpTmFUNDdPcFFVMlJOSis5Q2I3Y28wbWd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NDMyMDcwCWZpbGU6QXVkaW9ncmFtXzAuMi42X3g2NC1zZXR1cC5leGUKUDVueEpRUGpHTVo2SUpJeE9VZHo3YjdYNnFUOW9uaTFveDNXOFpNK2NKUEZ4cEtwY1BLYzF4Zll6bXZaQWNNZGhIVEdBejVmZlVjMkE2U2xLV1dnQXc9PQo="
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.7/Audiogram_0.2.7_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1Zaam9BS3dDb2MxQVJRam15TUNzK3dlZUpvbjlYaXJFTFpYUWExMGQyWkVKUkJJZmpkenJlTHZoT1BRQ0lSV0kxK3I3VDJhVW85RFVPR21wQ0tqR2dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NTExNjA3CWZpbGU6QXVkaW9ncmFtXzAuMi43X3g2NC1zZXR1cC5leGUKWXNzVjhjRnlZVjAzbkRjZUFsS3lXL2dkbTV6LzZTTTFqQ1ROcFdmci9ZR09kaE5OQ3l5OHFKZEpoZjl4ZldvNDJUT0VUQ0ZuZE1CVEtuV2ZJQ05VQmc9PQo="
     },
     "linux-x86_64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.6/Audiogram_0.2.6_amd64.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1cxajVPb1pWdi9tOTAzYjJIOTIwRW82TERISXNlT05seUJGWjhoZlZKWkJQN2lTc2M5QUxJU3ZQZkdvOGxCNkhRa1ViaGtHd2IxMEpyanBmZjdBeGdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NDMxOTgzCWZpbGU6QXVkaW9ncmFtXzAuMi42X2FtZDY0LkFwcEltYWdlCmlGcnFqSk1haC9mbms2VWl1RFdielRuaWdZdHEyek9GSXp6SSt4SGdmcUxFZEMvZTdYa1JCNjY3dGU1YXFhTFQ2bEtvUkhPUThua2tJWEJUeE1pOEJRPT0K"
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.7/Audiogram_0.2.7_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRVNHS3p1UXBvc1k5TnZDOFNORnBkMUdjc21uNU5rYTd5YW14NGxub002T3pNbGRDRjNsWllxTS9WblVjSkJFdHVmNndxcGZrQ2RYWUw1VlcwMzBUbDc3UEVJbEFlalEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NTExNDY1CWZpbGU6QXVkaW9ncmFtXzAuMi43X2FtZDY0LkFwcEltYWdlCnlLcHpHTXF1UVJTMVhCTWluOTk0bDlnRERPdlZtc0JvZzdDdU5oTHRhSmVOdVdyQ29jY0FDeHdjdHVzZlo0ZVJOd2FxYUlCczdjZUEvekpwb0lHL0FRPT0K"
     },
     "android-aarch64": {
-      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.6/Audiogram_0.2.6_aarch64.apk",
+      "url": "https://github.com/Eg0r0k/Audiogram/releases/download/v0.2.7/Audiogram_0.2.7_aarch64.apk",
       "signature": ""
     }
   }
