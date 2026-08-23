@@ -69,6 +69,9 @@ class FakeWorker {
 }
 
 vi.mock("@/workers/meta.worker?worker", () => ({ default: FakeWorker }));
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
 
 const { WorkerPool } = await import("../worker-pool");
 
@@ -87,10 +90,26 @@ describe("WorkerPool", () => {
     vi.useRealTimers();
   });
 
-  it("spawns the requested number of workers", () => {
+  it("spawns no workers until the first parse arrives", () => {
     const pool = new WorkerPool(4);
 
-    expect(instances).toHaveLength(4);
+    expect(instances).toHaveLength(0);
+    pool.dispose();
+  });
+
+  it("spawns only as many workers as there are concurrent jobs", async () => {
+    FakeWorker.autoRespond = false;
+    const pool = new WorkerPool(4);
+
+    const pending = [pool.parse("a.mp3", bytes()), pool.parse("b.mp3", bytes())];
+    await Promise.resolve();
+
+    expect(instances).toHaveLength(2);
+
+    for (const worker of instances) {
+      for (const req of worker.received) worker.respond(req.fileId);
+    }
+    await Promise.all(pending);
     pool.dispose();
   });
 
@@ -232,7 +251,8 @@ describe("WorkerPool", () => {
     await stuck;
 
     expect(wedged.terminated, "a wedged worker must not be reused").toBe(true);
-    expect(instances.length).toBe(2);
+    // No queued work is waiting, so a replacement spawns only on the next parse.
+    expect(instances.length).toBe(1);
     pool.dispose();
   });
 
@@ -291,12 +311,18 @@ describe("WorkerPool", () => {
     expect(settled.every(s => s.status === "rejected")).toBe(true);
   });
 
-  it("terminates every worker on dispose", () => {
+  it("terminates every worker on dispose", async () => {
+    FakeWorker.autoRespond = false;
     const pool = new WorkerPool(3);
+
+    const pending = Array.from({ length: 2 }, (_, i) => pool.parse(`s${i}.mp3`, bytes()));
+    await Promise.resolve();
+    expect(instances.length).toBe(2);
 
     pool.dispose();
 
     expect(instances.every(w => w.terminated)).toBe(true);
+    await Promise.allSettled(pending);
   });
 
   it("rejects new work after dispose", async () => {
@@ -309,9 +335,67 @@ describe("WorkerPool", () => {
   it("ignores a response for an unknown request id", async () => {
     const pool = new WorkerPool(1);
 
-    expect(() => instances[0].respond("no-such-id")).not.toThrow();
-
     await expect(pool.parse("a.mp3", bytes())).resolves.toBeTruthy();
+
+    expect(() => instances[0].respond("no-such-id")).not.toThrow();
+    pool.dispose();
+  });
+
+  it("tears idle workers down after the idle shutdown delay", async () => {
+    vi.useFakeTimers();
+    const pool = new WorkerPool(2);
+
+    await pool.parse("a.mp3", bytes());
+    expect(instances.some(w => !w.terminated)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(instances.every(w => w.terminated)).toBe(true);
+    pool.dispose();
+  });
+
+  it("keeps workers alive while a parse is in flight", async () => {
+    vi.useFakeTimers();
+    FakeWorker.autoRespond = false;
+    const pool = new WorkerPool(1);
+
+    const stuck = expect(pool.parse("slow.mp3", bytes())).rejects.toMatchObject({
+      code: ImportErrorCode.WORKER_TIMEOUT,
+    });
+    await vi.advanceTimersByTimeAsync(29_000);
+
+    expect(instances[0].terminated, "idle teardown must not fire mid-parse").toBe(false);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await stuck;
+    pool.dispose();
+  });
+
+  it("a parse arriving before the idle deadline keeps the pool alive", async () => {
+    vi.useFakeTimers();
+    const pool = new WorkerPool(1);
+
+    await pool.parse("a.mp3", bytes());
+    await vi.advanceTimersByTimeAsync(29_000);
+    await pool.parse("b.mp3", bytes());
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(instances[0].terminated).toBe(false);
+    pool.dispose();
+  });
+
+  it("spawns fresh workers for work arriving after an idle shutdown", async () => {
+    vi.useFakeTimers();
+    const pool = new WorkerPool(2);
+
+    await pool.parse("a.mp3", bytes());
+    await vi.advanceTimersByTimeAsync(30_000);
+    const reaped = instances.length;
+    expect(instances.every(w => w.terminated)).toBe(true);
+
+    await expect(pool.parse("b.mp3", bytes())).resolves.toBeTruthy();
+
+    expect(instances.length).toBe(reaped + 1);
     pool.dispose();
   });
 });

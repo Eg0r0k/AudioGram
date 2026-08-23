@@ -1,9 +1,16 @@
 import MetaWorker from "@/workers/meta.worker?worker";
 import type { BaseMetadata, ParseRequest, ParseResponse } from "@/workers/types";
+import { getLogger } from "@/lib/logger";
 import { ImportError } from "./types";
 
 const WORKER_TIMEOUT = 30_000; // 30 sec
 const WORKER_POOL_SIZE = 4;
+/**
+ * How long a fully idle pool keeps its workers before tearing them down.
+ * Imports are rare bursts; between them the workers (each a thread with the
+ * parser bundle loaded) would otherwise sit on memory for the app's lifetime.
+ */
+const WORKER_IDLE_SHUTDOWN = 30_000;
 
 interface QueuedJob {
   fileName: string;
@@ -27,29 +34,29 @@ interface WorkerEntry {
 }
 
 /**
- * Fixed-size pool of metadata workers.
+ * Lazily grown pool of metadata workers, capped at {@link WORKER_POOL_SIZE}.
  *
- * Callers may submit far more parses than there are workers; the surplus waits
- * in {@link queue} and is handed to whichever worker frees up first, so every
- * worker stays busy for as long as there is work left.
+ * Workers spawn on demand — one per queued job up to the cap — and a fully
+ * idle pool tears them down after {@link WORKER_IDLE_SHUTDOWN}, so no worker
+ * exists outside an active import. Callers may submit far more parses than
+ * the cap; the surplus waits in {@link queue} and is handed to whichever
+ * worker frees up first.
  */
 export class WorkerPool {
   private readonly entries: WorkerEntry[] = [];
   private readonly pending = new Map<string, PendingRequest>();
   private readonly queue: QueuedJob[] = [];
   private disposed = false;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(size = WORKER_POOL_SIZE) {
-    for (let i = 0; i < size; i++) {
-      this.entries.push(this.spawn());
-    }
-  }
+  constructor(private readonly maxSize = WORKER_POOL_SIZE) {}
 
   parse(fileName: string, data: Uint8Array, options?: { extractCover?: boolean }): Promise<BaseMetadata> {
     if (this.disposed) {
       return Promise.reject(new Error("WorkerPool is disposed"));
     }
 
+    this.clearIdleTimer();
     return new Promise<BaseMetadata>((resolve, reject) => {
       this.queue.push({
         fileName,
@@ -64,6 +71,7 @@ export class WorkerPool {
 
   dispose(): void {
     this.disposed = true;
+    this.clearIdleTimer();
 
     for (const job of this.queue.splice(0)) {
       job.reject(new Error("WorkerPool disposed"));
@@ -87,11 +95,15 @@ export class WorkerPool {
     return { worker, busy: false };
   }
 
-  /** Feeds queued jobs to idle workers until one side runs out. */
+  /** Feeds queued jobs to idle workers, spawning up to the cap on demand. */
   private pump(): void {
     while (this.queue.length > 0) {
-      const entry = this.entries.find(e => !e.busy);
-      if (!entry) return;
+      let entry = this.entries.find(e => !e.busy);
+      if (!entry) {
+        if (this.entries.length >= this.maxSize) return;
+        entry = this.spawn();
+        this.entries.push(entry);
+      }
       this.dispatch(entry, this.queue.shift()!);
     }
   }
@@ -103,9 +115,10 @@ export class WorkerPool {
     // Started here rather than on submit, so queue wait never eats the budget.
     const timeoutId = setTimeout(() => {
       this.pending.delete(id);
-      // A worker that blew the budget is presumed wedged — replace it instead
+      // A worker that blew the budget is presumed wedged — retire it instead
       // of handing it more work behind whatever it is still chewing on.
-      this.replace(entry);
+      getLogger().warn(`[WorkerPool] ${job.fileName}: parse timed out after ${WORKER_TIMEOUT / 1000}s — retiring worker`);
+      this.retire(entry);
       job.reject(ImportError.workerTimeout(job.fileName));
     }, WORKER_TIMEOUT);
 
@@ -139,18 +152,42 @@ export class WorkerPool {
 
   private release(entry: WorkerEntry): void {
     entry.busy = false;
-    if (!this.disposed) this.pump();
+    if (this.disposed) return;
+    this.pump();
+    this.maybeScheduleIdleShutdown();
   }
 
-  private replace(entry: WorkerEntry): void {
+  /** Drops a wedged worker; pump() respawns one only when queued work needs it. */
+  private retire(entry: WorkerEntry): void {
     if (this.disposed) return;
 
     const index = this.entries.indexOf(entry);
     if (index === -1) return;
 
     entry.worker.terminate();
-    this.entries[index] = this.spawn();
+    this.entries.splice(index, 1);
     this.pump();
+    this.maybeScheduleIdleShutdown();
+  }
+
+  private maybeScheduleIdleShutdown(): void {
+    if (this.pending.size > 0 || this.queue.length > 0 || this.entries.length === 0) return;
+
+    this.clearIdleTimer();
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (this.pending.size > 0 || this.queue.length > 0) return;
+      for (const entry of this.entries.splice(0)) {
+        entry.worker.terminate();
+      }
+    }, WORKER_IDLE_SHUTDOWN);
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
   }
 
   private onMessage = (e: MessageEvent<ParseResponse>): void => {
