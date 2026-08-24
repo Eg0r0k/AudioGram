@@ -256,8 +256,21 @@ pub(crate) fn cap_range_span(range: Option<String>, max_span: u64) -> Option<Str
 
 /// reqwest client honoring the app proxy. Errors are proxy-config errors —
 /// they never carry request URLs.
+/// Reaching the server at all.
+const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+/// Gap between two reads of the body. NOT a total request timeout: a whole
+/// track legitimately takes minutes to stream, but a source that goes quiet
+/// mid-body must not hang forever — an upstream that stalls after sending its
+/// headers leaves the media element waiting for bytes that never arrive, with
+/// nothing on this side ever giving up. If that happens before the element has
+/// metadata the engine's own readiness timeout eventually errors out; if it
+/// happens mid-playback nothing does, and playback simply stops.
+const UPSTREAM_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 pub(crate) fn proxied_client(proxy: Option<String>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder();
+    let mut builder = reqwest::Client::builder()
+        .connect_timeout(UPSTREAM_CONNECT_TIMEOUT)
+        .read_timeout(UPSTREAM_READ_TIMEOUT);
     if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
         if let Ok(proxy) = reqwest::Proxy::all(url) {
             builder = builder.proxy(proxy);
