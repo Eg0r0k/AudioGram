@@ -43,7 +43,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       v-bind="forwarded"
       :class="
         cn(
-          'bg-card fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg px-6 pt-5 pb-3 sm:max-w-lg overscroll-behavior-contain',
+          'bg-card fixed top-[50%] left-[50%] z-(--z-dialog) grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg px-6 pt-5 pb-3 sm:max-w-lg overscroll-behavior-contain',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 ',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           'duration-125',

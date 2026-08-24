@@ -385,6 +385,12 @@ video {
   --toolbar-height: 0px;
   --z-mobile-player: 40;
   --z-mobile-right-panel: 50;
+  /* Menus and dialogs shared z-50, so which one covered the other came
+     down to portal order. A dialog opened from a menu item ended up under
+     the menu's full-screen scrim: its buttons stayed reachable by keyboard,
+     but every tap landed on the scrim and merely dismissed the dialog. */
+  --z-menu: 50;
+  --z-dialog: 60;
 }
 
 .is-tauri:not(.is-mobile) {
