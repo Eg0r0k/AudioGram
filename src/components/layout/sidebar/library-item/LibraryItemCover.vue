@@ -5,7 +5,7 @@ import type { LibraryItem } from "@/modules/library/types";
 import { ItemMedia } from "@/components/ui/item";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
-import IconFolder from "~icons/tabler/folder";
+import IconFolder from "~icons/tabler/folder-filled";
 import IconPinFilled from "~icons/tabler/pin-filled";
 import IconVolume from "~icons/tabler/volume";
 
