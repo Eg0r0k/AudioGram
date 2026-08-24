@@ -19,7 +19,7 @@ import { EntityResolver } from "../entity-resolver";
 import { cleanupAfterTrackRemoval } from "../library-gc";
 import { ImportError, TrackToSave } from "../types";
 import { DB_BATCH_SIZE, FINGERPRINT_CONCURRENCY, MAX_METADATA_READ, PIPELINE_BATCH_SIZE, PROCESS_CONCURRENCY } from "./constants";
-import { initialHeadReadSize, mp3HasVbrHeader } from "./head-read";
+import { initialHeadReadSize, m4aHasMoov, mp3HasVbrHeader } from "./head-read";
 import { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
 import { chunk } from "@/lib/math";
@@ -279,7 +279,15 @@ export class FolderSyncService {
     }
     let bytes = readResult.value;
 
-    if (file.ext === "mp3" && bytes.length < fullSize && !mp3HasVbrHeader(bytes)) {
+    // The small first read only pays off when the head really is complete.
+    // An mp3 without a VBR header, or an mp4 whose moov sits after the media
+    // data, parses to a wrong duration or none at all — re-read before that
+    // gets persisted. (For an mp4 larger than MAX_METADATA_READ even the full
+    // read may not reach a trailing moov; nothing short of a tail read would.)
+    const headIsIncomplete = bytes.length < fullSize
+      && ((file.ext === "mp3" && !mp3HasVbrHeader(bytes))
+        || (file.ext === "m4a" && !m4aHasMoov(bytes)));
+    if (headIsIncomplete) {
       readResult = await this.readHead(file, fullSize);
       if (readResult.isErr()) {
         return err(ImportError.readFailed(file.name, readResult.error));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INITIAL_METADATA_READ, MAX_METADATA_READ } from "../constants";
-import { initialHeadReadSize, mp3HasVbrHeader } from "../head-read";
+import { initialHeadReadSize, m4aHasMoov, mp3HasVbrHeader } from "../head-read";
 
 const id3Header = (tagSize: number): number[] => [
   0x49, 0x44, 0x33, 3, 0, 0,
@@ -68,5 +68,49 @@ describe("mp3HasVbrHeader", () => {
     bytes.set(id3Header(0), 0);
     bytes.set(ascii("Xing"), 10 + 8000);
     expect(mp3HasVbrHeader(bytes)).toBe(false);
+  });
+});
+
+const box = (type: string, payload: number[] = []): number[] => {
+  const size = 8 + payload.length;
+  return [(size >> 24) & 0xFF, (size >> 16) & 0xFF, (size >> 8) & 0xFF, size & 0xFF, ...ascii(type), ...payload];
+};
+
+describe("m4aHasMoov", () => {
+  it("finds moov placed before the media data", () => {
+    const bytes = new Uint8Array([...box("ftyp", [0, 0, 0, 0]), ...box("moov", [1, 2, 3]), ...box("mdat", [4, 5])]);
+    expect(m4aHasMoov(bytes)).toBe(true);
+  });
+
+  it("returns false when moov sits past the truncated head", () => {
+    // ffmpeg without -movflags +faststart writes mdat first; the head read
+    // stops inside it and the box never appears.
+    const mdatPayload = Array.from({ length: 512 }, () => 0);
+    const bytes = new Uint8Array([...box("ftyp", [0, 0, 0, 0]), ...box("mdat", mdatPayload)].slice(0, 300));
+    expect(m4aHasMoov(bytes)).toBe(false);
+  });
+
+  it("does not mistake the four letters inside audio data for the box", () => {
+    // "moov" occurs freely in compressed payloads; only the box chain counts.
+    const payload = [...Array.from({ length: 40 }, () => 0)];
+    payload.splice(20, 4, ...ascii("moov"));
+    const bytes = new Uint8Array([...box("ftyp", [0, 0, 0, 0]), ...box("mdat", payload)]);
+    expect(m4aHasMoov(bytes)).toBe(false);
+  });
+
+  it("stops on a box that declares an impossible size", () => {
+    const bytes = new Uint8Array([0, 0, 0, 2, ...ascii("ftyp"), 0, 0, 0, 0]);
+    expect(m4aHasMoov(bytes)).toBe(false);
+  });
+
+  it("stops on a box that runs to the end of the file", () => {
+    const bytes = new Uint8Array([0, 0, 0, 0, ...ascii("mdat"), ...Array.from({ length: 64 }, () => 0)]);
+    expect(m4aHasMoov(bytes)).toBe(false);
+  });
+
+  it("walks past a 64-bit largesize box", () => {
+    const large = [0, 0, 0, 1, ...ascii("mdat"), 0, 0, 0, 0, 0, 0, 0, 24, ...Array.from({ length: 8 }, () => 0)];
+    const bytes = new Uint8Array([...large, ...box("moov", [7])]);
+    expect(m4aHasMoov(bytes)).toBe(true);
   });
 });
