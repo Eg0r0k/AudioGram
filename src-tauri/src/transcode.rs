@@ -333,14 +333,27 @@ fn remux_mp4_aac_to_adts(src: &Path, dst: &Path) -> Result<(), String> {
         .extra_data
         .as_deref()
         .ok_or("AAC track carries no AudioSpecificConfig")?;
-    let (object_type, freq_index, channel_config) =
+    let (signalled_type, freq_index, channel_config) =
         parse_audio_specific_config(asc).ok_or("unreadable AudioSpecificConfig")?;
+
+    // HE-AAC (SBR, type 5) and HE-AACv2 (PS, 29) describe an AAC-LC core plus
+    // an extension the payload already carries inline, and the sampling index
+    // beside them is the core's, not the doubled output rate. ADTS has no way
+    // to signal the extension and needs none: decoders pick SBR up from the
+    // payload, which is exactly how ffmpeg muxes these. So the header claims
+    // the core profile — the alternative is refusing the file, which leaves it
+    // playing its video track and stopping the moment the app is backgrounded.
+    let object_type = match signalled_type {
+        5 | 29 => 2,
+        other => other,
+    };
+
     // AAC Main/LC/SSR/LTP with a table-indexed rate and a plain channel
-    // layout. Anything else (HE-AAC signalling, explicit rates, program
-    // config elements) would need more than a header rewrite.
+    // layout. Anything else (explicit rates, program config elements) would
+    // need more than a header rewrite.
     if !(1..=4).contains(&object_type) || freq_index > 12 || !(1..=7).contains(&channel_config) {
         return Err(format!(
-            "unsupported AAC config: object_type={object_type} \
+            "unsupported AAC config: object_type={signalled_type} \
              freq_index={freq_index} channel_config={channel_config}"
         ));
     }
@@ -731,6 +744,44 @@ mod tests {
 
         let again = rendition_path(&src, &cache).expect("cached path");
         assert_eq!(again, out);
+
+        let _ = std::fs::remove_dir_all(cache);
+    }
+
+    #[test]
+    fn remuxes_he_aac_by_claiming_its_lc_core() {
+        let cache = temp_cache();
+        let src = fixture("tiny-heaac-video.m4a");
+
+        // Real YouTube audio: h264 plus HE-AAC. Refusing it left the video
+        // track in place, so backgrounding stopped playback.
+        let out = rendition_path(&src, &cache).expect("HE-AAC must still get a rendition");
+        let bytes = std::fs::read(&out).expect("readable rendition");
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes[0], 0xFF);
+
+        // profile bits are object_type - 1, and the header must claim LC (2)
+        // rather than the signalled SBR (5), which ADTS cannot express.
+        let profile = (bytes[2] >> 6) & 0x03;
+        assert_eq!(profile, 1, "expected an AAC-LC profile in the ADTS header");
+        // The sampling index beside an SBR config is the core rate: 22050 (7),
+        // not the 44100 the decoder ultimately outputs.
+        let freq_index = (bytes[2] >> 2) & 0x0F;
+        assert_eq!(freq_index, 7);
+
+        let mut offset = 0usize;
+        let mut frames = 0u32;
+        while offset + 7 <= bytes.len() {
+            assert_eq!(bytes[offset], 0xFF, "frame {frames} lost sync");
+            let len = (usize::from(bytes[offset + 3] & 0x03) << 11)
+                | (usize::from(bytes[offset + 4]) << 3)
+                | (usize::from(bytes[offset + 5]) >> 5);
+            assert!(len > 7);
+            offset += len;
+            frames += 1;
+        }
+        assert_eq!(offset, bytes.len(), "frame lengths must tile the file");
+        assert!(frames > 1);
 
         let _ = std::fs::remove_dir_all(cache);
     }
