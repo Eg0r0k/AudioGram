@@ -18,6 +18,7 @@
     <template v-else-if="artistData">
       <TrackContextMenu context="artist">
         <VirtualScrollable
+          ref="scrollableRef"
           :items="tracks"
           :get-item-key="getTrackKey"
           :item-height="56"
@@ -121,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
@@ -161,6 +162,7 @@ import type { AlbumId } from "@/types/ids";
 import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useRoute } from "vue-router";
+import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 
 const { t } = useI18n();
 const queueStore = useQueueStore();
@@ -338,5 +340,15 @@ const openAddTracksPanel = () => {
     depth: 1,
   });
 };
+
+
+const scrollableRef = useTemplateRef("scrollableRef");
+// Declared after the page state it reads: the hook evaluates `ready`
+// immediately, so placing this any earlier hits the temporal dead zone.
+useScrollRestoration(scrollableRef, {
+  key: () => `artist:${route.params.id}`,
+  ready: () => !isLoading.value,
+  deps: () => tracks.value.length,
+});
 
 </script>

@@ -22,6 +22,7 @@
         :is-playlist-owner="playlistData?.isOwner ?? true"
       >
         <VirtualScrollable
+          ref="scrollableRef"
           :items="tracks"
           :get-item-key="getTrackKey"
           :item-height="56"
@@ -120,11 +121,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, useTemplateRef } from "vue";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
+import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
 import { Button } from "@/components/ui/button";
@@ -322,4 +324,14 @@ async function handleSave(changes: PlaylistChanges) {
     toast.error(message);
   }
 }
+
+const scrollableRef = useTemplateRef("scrollableRef");
+// Declared after the page state it reads: the hook evaluates `ready`
+// immediately, so placing this any earlier hits the temporal dead zone.
+useScrollRestoration(scrollableRef, {
+  key: () => `playlist:${route.params.id}`,
+  ready: () => !isLoading.value,
+  deps: () => tracks.value.length,
+});
+
 </script>

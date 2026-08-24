@@ -25,6 +25,7 @@
           class="h-full"
         >
           <VirtualScrollable
+            ref="scrollableRef"
             :items="tracks"
             :get-item-key="getTrackKey"
             :item-height="56"
@@ -122,6 +123,7 @@ import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
+import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 import { onKeyStroke } from "@vueuse/core";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
@@ -325,4 +327,14 @@ async function handleShuffle() {
   const source = { type: "album", albumId: album.value.id } as const;
   await shuffleQueue(source, async () => (await getAlbumPageData(album.value!.id, sortKey.value)).tracks);
 }
+
+const scrollableRef = useTemplateRef("scrollableRef");
+// Declared after the page state it reads: the hook evaluates `ready`
+// immediately, so placing this any earlier hits the temporal dead zone.
+useScrollRestoration(scrollableRef, {
+  key: () => `album:${route.params.id}`,
+  ready: () => !isLoading.value,
+  deps: () => tracks.value.length,
+});
+
 </script>
