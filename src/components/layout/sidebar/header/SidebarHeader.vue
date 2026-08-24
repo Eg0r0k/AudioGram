@@ -213,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
@@ -267,7 +267,22 @@ const headerTransition = computed(() =>
     : { duration: 0.3, ease: [0.23, 1, 0.32, 1] as const },
 );
 
-const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear } = useSearch();
+const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear, focusRequests }
+  = useSearch();
+
+// `ref="inputRef"` in the template had no declaration behind it, so nothing
+// could reach the field. Declared here so a focus request can land on it.
+const inputRef = ref<HTMLInputElement | { $el?: HTMLElement } | null>(null);
+
+watch(focusRequests, async () => {
+  openSearch();
+  // The panel needs a tick to render before the field can take focus.
+  await nextTick();
+  const target = inputRef.value;
+  const root = target instanceof HTMLElement ? target : target?.$el;
+  const field = root instanceof HTMLInputElement ? root : root?.querySelector?.("input");
+  field?.focus();
+});
 
 const isYoutubeAvailable = youtubeProvider.isAvailable;
 const isNdSearchAvailable = computed(() => getNdConfig() !== null);

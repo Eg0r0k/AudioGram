@@ -110,6 +110,10 @@ const availableFilters: { label: string; value: SearchFilter }[] = [
 ];
 
 const isSearchOpen = ref(false);
+// Bumped by anything that wants the search field focused without owning it
+// — the mobile bottom nav, for one. The field lives in SidebarHeader, which
+// watches this and does the focusing.
+const focusRequests = ref(0);
 // Открытие из compact-сайдбара: движение даёт анимация ширины панели,
 // собственный слайд поисковой панели на это время глушится (и на закрытии).
 const suppressPanelSlide = ref(false);
@@ -176,6 +180,8 @@ export function useSearch() {
     hasQuery: computed(() => query.value.trim().length > 0),
     openSearch,
     closeSearch,
+    focusRequests: readonly(focusRequests),
+    requestSearchFocus() { focusRequests.value++; },
 
     setSource,
     setYtChip(chip: YtChip) { ytChip.value = chip; },
