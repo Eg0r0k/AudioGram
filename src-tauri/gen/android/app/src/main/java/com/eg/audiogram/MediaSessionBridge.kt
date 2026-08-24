@@ -37,7 +37,9 @@ class MediaSessionBridge(
 ) {
   companion object {
     private const val CHANNEL_ID = "audiogram.playback"
-    private const val NOTIFICATION_ID = 0xA7D1
+    // Shared with PlaybackService: the foreground service adopts this exact
+    // notification, so both must address the same card.
+    const val NOTIFICATION_ID = 0xA7D1
     private const val ACTION_EVENT = "audiogram-media-action"
     private const val BUTTON_ACTION = "com.eg.audiogram.MEDIA_BUTTON"
     private const val EXTRA_COMMAND = "command"
@@ -140,6 +142,7 @@ class MediaSessionBridge(
   }
 
   private fun tearDown() {
+    PlaybackService.stop(activity)
     notificationManager().cancel(NOTIFICATION_ID)
     session?.run {
       isActive = false
@@ -352,12 +355,17 @@ class MediaSessionBridge(
         .setShowActionsInCompactView(*compactActions.toIntArray()),
     )
 
+    val notification = builder.build()
     try {
-      notificationManager().notify(NOTIFICATION_ID, builder.build())
+      notificationManager().notify(NOTIFICATION_ID, notification)
     } catch (_: SecurityException) {
       // Notifications permission denied — session (lock screen / headset)
       // controls still work without the notification card.
     }
+    // Hand the same card to the foreground service so the framework stops
+    // treating a playing app as a cached process. Posting above first means a
+    // refused service start still leaves the controls on screen.
+    PlaybackService.start(activity, notification)
   }
 
   private fun actionOf(icon: Int, label: String, action: String): NotificationCompat.Action {
