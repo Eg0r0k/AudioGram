@@ -141,6 +141,7 @@ import EditPlaylistDialog from "@/modules/playlist/components/dialogs/EditPlayli
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import type { DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
 import { summonDialog } from "@/components/dialogs/summon";
 import IconPlus from "~icons/tabler/plus";
 import type { TrackSortKey } from "@/modules/tracks/types";
@@ -294,7 +295,7 @@ function handleShare() {
 
 async function openDeleteDialog() {
   if (!playlist.value) return;
-  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+  const result = await summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
     data: {
       type: "playlist",
       id: playlist.value.id,
@@ -302,12 +303,12 @@ async function openDeleteDialog() {
       trackCount: trackCount.value,
     },
   }, { key: `delete:${playlist.value.id}` });
-  if (confirmed) await handleDelete();
+  if (result) await handleDelete(result.deleteTracks);
 }
 
-async function handleDelete() {
+async function handleDelete(deleteTracks: boolean) {
   try {
-    await deletePlaylist();
+    await deletePlaylist({ deleteTracks });
   }
   catch {
     toast.error(t("playlist.deleteFailed"));

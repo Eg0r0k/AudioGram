@@ -134,7 +134,8 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
   });
 
   const { mutateAsync: deletePlaylist } = useMutation({
-    mutationFn: () => deletePlaylistAndSync(queryClient, playlist.value),
+    mutationFn: (options: { deleteTracks?: boolean } = {}) =>
+      deletePlaylistAndSync(queryClient, playlist.value, options),
     onSuccess: () => {
       router.push(routeLocation.home());
     },

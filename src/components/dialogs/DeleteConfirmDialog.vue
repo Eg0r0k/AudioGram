@@ -1,3 +1,4 @@
+<!-- eslint-disable vuejs-accessibility/label-has-for -->
 <template>
   <Dialog
     :open="open"
@@ -43,6 +44,18 @@
         </div>
       </div>
 
+      <Label
+        v-if="canDeleteTracks"
+        for="delete-confirm-tracks"
+        class="cursor-pointer font-normal text-muted-foreground"
+      >
+        <Checkbox
+          id="delete-confirm-tracks"
+          v-model="deleteTracks"
+        />
+        {{ $t("dialogs.deleteConfirm.deleteTracks") }}
+      </Label>
+
       <DialogFooter>
         <Button
           variant="ghost-primary"
@@ -52,7 +65,7 @@
         </Button>
         <Button
           variant="destructive-link"
-          @click="resolve(true)"
+          @click="resolve({ deleteTracks })"
         >
           {{ $t("common.delete") }}
         </Button>
@@ -62,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Dialog,
@@ -73,8 +86,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useSummonedDialog } from "@/components/dialogs/summon";
-import type { DeleteConfirmData } from "@/components/dialogs/deleteConfirm";
+import type { DeleteConfirmData, DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 
 import IconPlaylist from "~icons/tabler/playlist";
@@ -91,7 +106,11 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { resolve, dismiss } = useSummonedDialog<boolean>();
+const { resolve, dismiss } = useSummonedDialog<DeleteConfirmResult>();
+
+const deleteTracks = ref(props.data.defaultDeleteTracks === true);
+
+const canDeleteTracks = computed(() => props.data.trackCount > 0);
 
 const { url: coverUrl } = useEntityCover(
   () => props.data.type,

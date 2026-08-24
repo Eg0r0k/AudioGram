@@ -150,7 +150,8 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   });
 
   const { mutateAsync: deleteAlbum } = useMutation({
-    mutationFn: () => deleteAlbumAndSync(queryClient, albumData.value ?? null),
+    mutationFn: (options: { deleteTracks?: boolean } = {}) =>
+      deleteAlbumAndSync(queryClient, albumData.value ?? null, options),
     onSuccess: () => {
       router.push(routeLocation.home());
     },

@@ -1,3 +1,4 @@
 {
-  "description": "Are you sure you want to delete \"{name}\"?"
+  "description": "Are you sure you want to delete \"{name}\"?",
+  "deleteTracks": "Also delete the tracks inside"
 }

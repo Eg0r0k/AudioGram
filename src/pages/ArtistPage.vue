@@ -138,6 +138,7 @@ import { getArtistPageData } from "@/queries/artist.queries";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import type { DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
 import { summonDialog } from "@/components/dialogs/summon";
 import EditArtistDialog from "@/modules/artists/components/dialogs/EditArtistDialog.vue";
 import type { ArtistChanges } from "@/modules/artists/composables/useArtistPage";
@@ -297,7 +298,7 @@ async function handleShuffle() {
 async function openDeleteDialog() {
   if (!artist.value) return;
 
-  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+  const result = await summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
     data: {
       type: "artist",
       id: artist.value.id,
@@ -305,12 +306,12 @@ async function openDeleteDialog() {
       trackCount: trackCount.value,
     },
   }, { key: `delete:${artist.value.id}` });
-  if (confirmed) await handleDelete();
+  if (result) await handleDelete(result.deleteTracks);
 }
 
-async function handleDelete() {
+async function handleDelete(deleteTracks: boolean) {
   try {
-    await deleteArtist();
+    await deleteArtist({ deleteTracks });
   }
   catch {
     toast.error(t("artist.deleteFailed"));

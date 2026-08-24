@@ -8,7 +8,7 @@ import { messages } from "@/app/i18n/messages";
 import type { PlaylistId } from "@/types/ids";
 import DeleteConfirmDialog from "../DeleteConfirmDialog.vue";
 import { DialogSummonHost, dismissAllSummonedDialogs, summonDialog } from "../summon";
-import type { DeleteConfirmData } from "../deleteConfirm";
+import type { DeleteConfirmData, DeleteConfirmResult } from "../deleteConfirm";
 
 const DATA: DeleteConfirmData = {
   type: "playlist",
@@ -35,20 +35,54 @@ describe("DeleteConfirmDialog (summoned)", () => {
     await new Promise(resolve => setTimeout(resolve, 350));
   });
 
-  it("resolves true when the destructive action is confirmed", async () => {
+  it("keeps the tracks when the destructive action is confirmed as-is", async () => {
     renderHost();
-    const promise = summonDialog<boolean>(DeleteConfirmDialog, { data: DATA });
+    const promise = summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, { data: DATA });
     await nextTick();
 
     expect(await screen.findByText("My Playlist")).toBeInTheDocument();
 
     await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await expect(promise).resolves.toBe(true);
+    await expect(promise).resolves.toEqual({ deleteTracks: false });
+  });
+
+  it("reports the opt-in to delete the tracks inside", async () => {
+    renderHost();
+    const promise = summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, { data: DATA });
+    await nextTick();
+    await screen.findByText("My Playlist");
+
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Also delete the tracks inside" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await expect(promise).resolves.toEqual({ deleteTracks: true });
+  });
+
+  it("starts the track opt-in on where the container owns its tracks", async () => {
+    renderHost();
+    const promise = summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
+      data: { ...DATA, defaultDeleteTracks: true },
+    });
+    await nextTick();
+    await screen.findByText("My Playlist");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await expect(promise).resolves.toEqual({ deleteTracks: true });
+  });
+
+  it("hides the track opt-in when there are no tracks inside", async () => {
+    renderHost();
+    summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
+      data: { ...DATA, trackCount: 0 },
+    });
+    await nextTick();
+    await screen.findByText("My Playlist");
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   it("resolves undefined when cancelled", async () => {
     renderHost();
-    const promise = summonDialog<boolean>(DeleteConfirmDialog, { data: DATA });
+    const promise = summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, { data: DATA });
     await nextTick();
     await screen.findByText("My Playlist");
 

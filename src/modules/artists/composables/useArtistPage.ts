@@ -155,7 +155,8 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   });
 
   const { mutateAsync: deleteArtist } = useMutation({
-    mutationFn: () => deleteArtistAndSync(queryClient, artistData.value ?? null),
+    mutationFn: (options: { deleteTracks?: boolean } = {}) =>
+      deleteArtistAndSync(queryClient, artistData.value ?? null, options),
     onSuccess: () => {
       router.push(routeLocation.home());
     },

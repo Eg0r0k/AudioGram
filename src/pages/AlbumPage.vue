@@ -139,6 +139,7 @@ import EditAlbumDialog from "@/modules/albums/components/dialogs/EditAlbumDialog
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import type { DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
 import { summonDialog } from "@/components/dialogs/summon";
 import IconPlus from "~icons/tabler/plus";
 import type { TrackSortKey } from "@/modules/tracks/types";
@@ -284,20 +285,21 @@ function handleAddToQueue() {
 
 async function openDeleteDialog() {
   if (!album.value) return;
-  const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+  const result = await summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
     data: {
       type: "album",
       id: album.value.id,
       name: album.value.title,
       trackCount: trackCount.value,
+      defaultDeleteTracks: sourceKindOf(album.value.id) !== "local",
     },
   }, { key: `delete:${album.value.id}` });
-  if (confirmed) await handleDelete();
+  if (result) await handleDelete(result.deleteTracks);
 }
 
-async function handleDelete() {
+async function handleDelete(deleteTracks: boolean) {
   try {
-    await deleteAlbum();
+    await deleteAlbum({ deleteTracks });
     toast.success(t("album.deleted"));
   }
   catch {

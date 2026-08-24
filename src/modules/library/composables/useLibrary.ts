@@ -26,7 +26,8 @@ import {
 } from "@/queries/playlist.queries";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
 import { summonDialog } from "@/components/dialogs/summon";
-import type { DeleteConfirmData } from "@/components/dialogs/deleteConfirm";
+import type { DeleteConfirmData, DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
+import { sourceKindOf } from "@/modules/sources/lib/display";
 import type { AlbumId, ArtistId, PlaylistId, SidebarFolderId } from "@/types/ids";
 import { SidebarFolderId as createSidebarFolderId } from "@/types/ids";
 import { routeLocation } from "@/app/router/route-locations";
@@ -344,31 +345,34 @@ export const useLibrary = () => {
   const deleteItem = async (item: LibraryItem) => {
     if (item.type === "liked" || item.type === "allMedia") return;
 
-    const confirmed = await summonDialog<boolean>(DeleteConfirmDialog, {
+    const result = await summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
       data: {
         type: item.type as "artist" | "album" | "playlist",
         id: item.id as AlbumId | ArtistId | PlaylistId,
         name: item.title,
         trackCount: item.trackCount ?? 0,
+        defaultDeleteTracks: item.type === "album" && sourceKindOf(item.id) !== "local",
       } satisfies DeleteConfirmData,
     }, { key: `delete:${item.id}` });
-    if (!confirmed) return;
+    if (!result) return;
+
+    const options = { deleteTracks: result.deleteTracks };
 
     switch (item.type) {
       case "artist":
-        await deleteArtistAndSync(queryClient, artists.value.find(artist => artist.id === item.id) ?? null);
+        await deleteArtistAndSync(queryClient, artists.value.find(artist => artist.id === item.id) ?? null, options);
         store.unpin("artist", item.id);
         await removeFolderItemAndSync(queryClient, "artist", item.id);
         await navigateHomeIfViewingItem(item);
         break;
       case "album":
-        await deleteAlbumAndSync(queryClient, albums.value.find(album => album.id === item.id) ?? null);
+        await deleteAlbumAndSync(queryClient, albums.value.find(album => album.id === item.id) ?? null, options);
         store.unpin("album", item.id);
         await removeFolderItemAndSync(queryClient, "album", item.id);
         await navigateHomeIfViewingItem(item);
         break;
       case "playlist":
-        await deletePlaylistAndSync(queryClient, playlists.value.find(playlist => playlist.id === item.id) ?? null);
+        await deletePlaylistAndSync(queryClient, playlists.value.find(playlist => playlist.id === item.id) ?? null, options);
         store.unpin("playlist", item.id);
         await removeFolderItemAndSync(queryClient, "playlist", item.id);
         await navigateHomeIfViewingItem(item);
