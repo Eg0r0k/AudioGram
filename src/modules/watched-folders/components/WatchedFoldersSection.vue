@@ -148,15 +148,7 @@ function confirmRemove(id: string) {
   const folder = folders.value.find(f => f.id === id);
   if (!folder) return;
   folderToRemove.value = folder;
-  // Opening the dialog straight out of the menu item's click leaves the two
-  // overlays alive at once, and the menu's dismiss layer outlives its content
-  // — it ends up above the dialog and swallows the confirm tap, which lands on
-  // a backdrop instead of the button and just closes the dialog. Traced on
-  // device: the failing taps hit an unlabelled div, the working one hit the
-  // button. Waiting for the menu to finish closing keeps the layers apart.
-  requestAnimationFrame(() => {
-    isRemoveDialogOpen.value = true;
-  });
+  isRemoveDialogOpen.value = true;
 }
 
 function cancelRemove() {
