@@ -2,7 +2,6 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { md5 } from "@noble/hashes/legacy.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { fetch } from "@tauri-apps/plugin-http";
-import { getLogger } from "@/lib/logger"; // DIAG
 import type { SourceError } from "../../types";
 
 //
@@ -100,10 +99,34 @@ export function parseSubsonicBody<T>(body: unknown): { ok: true; value: T } | { 
   return { ok: true, value: envelope as T };
 }
 
+/** How many characters of an unparseable body make it into the message. */
+const BODY_PREVIEW_CHARS = 200;
+
+/**
+ * A non-2xx response is an HTTP failure, not a Subsonic one — the body is
+ * whatever the server or the reverse proxy in front of it felt like sending.
+ * Classifying by status keeps "your session expired" and "the server is down"
+ * from both surfacing as a parse error.
+ */
+export function mapHttpStatus(status: number, endpoint: string): SourceError {
+  const message = `${endpoint} failed with HTTP ${status}`;
+  if (status === 401 || status === 403) return { kind: "AUTH", message };
+  if (status === 404) return { kind: "NOT_FOUND", message };
+  if (status >= 500) return { kind: "UNAVAILABLE", message };
+  return { kind: "UNKNOWN", message };
+}
+
 /**
  * Calls a Subsonic endpoint and returns its typed `subsonic-response`
- * payload. Network failures map to NETWORK, malformed bodies to PARSE,
- * API errors through {@link mapSubsonicErrorCode}.
+ * payload. Transport failures map to NETWORK, HTTP failures through
+ * {@link mapHttpStatus}, malformed bodies to PARSE, API errors through
+ * {@link mapSubsonicErrorCode}.
+ *
+ * The body is read as text rather than through `response.json()` so a parse
+ * failure can say what actually arrived. Reporting only "Invalid JSON" made a
+ * real incident undiagnosable: 52 such lines in one session with no way to
+ * tell whether the server was down, the auth had expired, or a proxy had
+ * returned an HTML error page.
  */
 export function subsonicFetch<T>(
   config: NdConfig,
@@ -113,34 +136,29 @@ export function subsonicFetch<T>(
   return ResultAsync.fromPromise(
     fetch(subsonicUrl(config, endpoint, params)),
     (): SourceError => ({ kind: "NETWORK", message: `Request to ${endpoint} failed` }),
-  ).andThen(response =>
-    // DIAG: read the body as text so a parse failure can report what actually
-    // arrived (status, content-type, first bytes) instead of swallowing it.
-    ResultAsync.fromPromise(
-      response.text().then((text) => {
-        try {
-          return JSON.parse(text) as unknown;
-        }
-        catch (err) {
-          void getLogger().error(
-            `[DIAG nd] ${endpoint} status=${response.status} ok=${response.ok}`
-            + ` ct=${response.headers.get("content-type") ?? "-"}`
-            + ` len=${text.length} err=${String(err).slice(0, 80)}`
-            + ` preview=${JSON.stringify(text.slice(0, 200))}`,
-          );
-          throw err;
-        }
-      }),
-      (): SourceError => ({ kind: "PARSE", message: `Invalid JSON from ${endpoint}` }),
-    ).andThen((body) => {
-      const parsed = parseSubsonicBody<T>(body);
-      // DIAG
-      if (!parsed.ok) {
-        void getLogger().error(
-          `[DIAG nd] ${endpoint} envelope rejected: ${parsed.error.kind} ${parsed.error.message}`,
-        );
+  ).andThen((response) => {
+    if (!response.ok) {
+      return errAsync<T, SourceError>(mapHttpStatus(response.status, endpoint));
+    }
+
+    return ResultAsync.fromPromise(
+      response.text(),
+      (): SourceError => ({ kind: "NETWORK", message: `Reading ${endpoint} failed` }),
+    ).andThen((text) => {
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
       }
+      catch {
+        const contentType = response.headers.get("content-type") ?? "unknown";
+        return errAsync<T, SourceError>({
+          kind: "PARSE",
+          message: `Invalid JSON from ${endpoint} (content-type ${contentType},`
+            + ` ${text.length} chars): ${text.slice(0, BODY_PREVIEW_CHARS)}`,
+        });
+      }
+      const parsed = parseSubsonicBody<T>(body);
       return parsed.ok ? okAsync(parsed.value) : errAsync(parsed.error);
-    }),
-  );
+    });
+  });
 }

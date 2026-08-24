@@ -5,6 +5,7 @@ const fetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: fetchMock }));
 
 import {
+  mapHttpStatus,
   mapSubsonicErrorCode,
   parseSubsonicBody,
   randomSalt,
@@ -98,15 +99,46 @@ describe("parseSubsonicBody", () => {
   });
 });
 
+interface ResponseStub {
+  ok?: boolean;
+  status?: number;
+  contentType?: string;
+  body: string;
+}
+
+const respond = ({ ok = true, status = 200, contentType = "application/json", body }: ResponseStub) => ({
+  ok,
+  status,
+  headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? contentType : null) },
+  text: () => Promise.resolve(body),
+});
+
+const respondJson = (body: unknown) => respond({ body: JSON.stringify(body) });
+
+describe("mapHttpStatus", () => {
+  it("separates expired credentials from a server that is down", () => {
+    expect(mapHttpStatus(401, "ping").kind).toBe("AUTH");
+    expect(mapHttpStatus(403, "ping").kind).toBe("AUTH");
+    expect(mapHttpStatus(404, "ping").kind).toBe("NOT_FOUND");
+    expect(mapHttpStatus(500, "ping").kind).toBe("UNAVAILABLE");
+    expect(mapHttpStatus(502, "ping").kind).toBe("UNAVAILABLE");
+    expect(mapHttpStatus(418, "ping").kind).toBe("UNKNOWN");
+  });
+
+  it("names the endpoint and the status in the message", () => {
+    expect(mapHttpStatus(503, "getArtists").message).toBe("getArtists failed with HTTP 503");
+  });
+});
+
 describe("subsonicFetch", () => {
   beforeEach(() => {
     fetchMock.mockReset();
   });
 
   it("resolves the typed payload for an ok response", async () => {
-    fetchMock.mockResolvedValue({
-      json: () => Promise.resolve({ "subsonic-response": { status: "ok", playlists: { playlist: [] } } }),
-    });
+    fetchMock.mockResolvedValue(
+      respondJson({ "subsonic-response": { status: "ok", playlists: { playlist: [] } } }),
+    );
 
     const result = await subsonicFetch<{ playlists: { playlist: unknown[] } }>(DOCS_CONFIG, "getPlaylists");
 
@@ -125,13 +157,55 @@ describe("subsonicFetch", () => {
     expect(result._unsafeUnwrapErr()).toEqual({ kind: "NETWORK", message: "Request to ping failed" });
   });
 
-  it("maps invalid JSON to PARSE and api errors through the code table", async () => {
-    fetchMock.mockResolvedValue({ json: () => Promise.reject(new Error("bad json")) });
-    expect((await subsonicFetch(DOCS_CONFIG, "ping"))._unsafeUnwrapErr().kind).toBe("PARSE");
+  it("classifies an HTTP failure by status instead of trying to parse it", async () => {
+    // A proxy in front of Navidrome answering with its own error page: the
+    // body is HTML, but the status is what actually explains the failure.
+    fetchMock.mockResolvedValue(respond({
+      ok: false,
+      status: 502,
+      contentType: "text/html",
+      body: "<html><body>502 Bad Gateway</body></html>",
+    }));
 
-    fetchMock.mockResolvedValue({
-      json: () => Promise.resolve({ "subsonic-response": { status: "failed", error: { code: 70, message: "not found" } } }),
-    });
+    const error = (await subsonicFetch(DOCS_CONFIG, "getAlbumList2"))._unsafeUnwrapErr();
+
+    expect(error.kind).toBe("UNAVAILABLE");
+    expect(error.message).toContain("502");
+  });
+
+  it("reports an expired session as AUTH, not as a parse failure", async () => {
+    fetchMock.mockResolvedValue(respond({ ok: false, status: 401, contentType: "text/html", body: "denied" }));
+
+    expect((await subsonicFetch(DOCS_CONFIG, "getArtists"))._unsafeUnwrapErr().kind).toBe("AUTH");
+  });
+
+  it("puts the content-type and the body into a PARSE error", async () => {
+    fetchMock.mockResolvedValue(respond({
+      contentType: "text/html",
+      body: "<!doctype html><title>Just a moment...</title>",
+    }));
+
+    const error = (await subsonicFetch(DOCS_CONFIG, "getArtists"))._unsafeUnwrapErr();
+
+    expect(error.kind).toBe("PARSE");
+    expect(error.message).toContain("getArtists");
+    expect(error.message).toContain("text/html");
+    expect(error.message).toContain("Just a moment");
+  });
+
+  it("truncates an oversized body so one bad response cannot flood the log", async () => {
+    fetchMock.mockResolvedValue(respond({ contentType: "text/html", body: "x".repeat(50_000) }));
+
+    const error = (await subsonicFetch(DOCS_CONFIG, "getArtists"))._unsafeUnwrapErr();
+
+    expect(error.message.length).toBeLessThan(400);
+  });
+
+  it("maps api errors through the code table", async () => {
+    fetchMock.mockResolvedValue(respondJson({
+      "subsonic-response": { status: "failed", error: { code: 70, message: "not found" } },
+    }));
+
     expect((await subsonicFetch(DOCS_CONFIG, "getAlbum", { id: "x" }))._unsafeUnwrapErr().kind).toBe("NOT_FOUND");
   });
 });
