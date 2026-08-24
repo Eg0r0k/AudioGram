@@ -23,5 +23,6 @@
   "justNow": "Just now",
   "minutesAgo": "{n} min ago",
   "hoursAgo": "{n} hr ago",
-  "daysAgo": "{n} days ago"
+  "daysAgo": "{n} days ago",
+  "removeFailed": "Could not remove “{name}”"
 }

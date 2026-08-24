@@ -23,5 +23,6 @@
   "justNow": "Только что",
   "minutesAgo": "{n} мин назад",
   "hoursAgo": "{n} ч назад",
-  "daysAgo": "{n} дн назад"
+  "daysAgo": "{n} дн назад",
+  "removeFailed": "Не удалось удалить «{name}»"
 }

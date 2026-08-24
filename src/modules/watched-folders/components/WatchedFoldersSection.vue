@@ -81,6 +81,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { toast } from "vue-sonner";
+import { useI18n } from "vue-i18n";
+import { getLogger } from "@/lib/logger";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,6 +120,8 @@ const {
   relinkFolder,
 } = useWatchedFolders();
 
+const { t } = useI18n();
+
 const isAnyScanning = computed(() =>
   folders.value.some(f => f.status === "scanning"),
 );
@@ -143,7 +148,15 @@ function confirmRemove(id: string) {
   const folder = folders.value.find(f => f.id === id);
   if (!folder) return;
   folderToRemove.value = folder;
-  isRemoveDialogOpen.value = true;
+  // Opening the dialog straight out of the menu item's click leaves the two
+  // overlays alive at once, and the menu's dismiss layer outlives its content
+  // — it ends up above the dialog and swallows the confirm tap, which lands on
+  // a backdrop instead of the button and just closes the dialog. Traced on
+  // device: the failing taps hit an unlabelled div, the working one hit the
+  // button. Waiting for the menu to finish closing keeps the layers apart.
+  requestAnimationFrame(() => {
+    isRemoveDialogOpen.value = true;
+  });
 }
 
 function cancelRemove() {
@@ -151,11 +164,20 @@ function cancelRemove() {
   folderToRemove.value = null;
 }
 
-function executeRemove() {
-  if (folderToRemove.value) {
-    removeFolder(folderToRemove.value.id);
-  }
+async function executeRemove() {
+  const folder = folderToRemove.value;
   isRemoveDialogOpen.value = false;
   folderToRemove.value = null;
+  if (!folder) return;
+
+  try {
+    await removeFolder(folder.id);
+  }
+  catch (e) {
+    // Unawaited, this rejected into nothing: the dialog closed, the folder
+    // stayed and neither the user nor the log heard about it.
+    getLogger().error(`[WatchedFolders] Removing ${folder.name} failed: ${String(e)}`);
+    toast.error(t("watchedFolders.removeFailed", { name: folder.name }));
+  }
 }
 </script>
