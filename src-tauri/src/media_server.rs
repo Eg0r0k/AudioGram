@@ -519,15 +519,50 @@ pub(crate) async fn handle<T: RemoteRoutes>(
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
 
-    if let Some(local_path) = rest.strip_prefix("local/") {
-        return serve_local(local_path, range.as_deref(), origin.as_deref(), transcode_cache).await;
-    }
+    // DIAG: every inbound media request — the primary artifact for the
+    // background-playback investigation. Requests going silent at the moment
+    // the app is backgrounded (and resuming on return) is the whole proof.
+    let diag_started = diag_now_ms();
+    log::info!(
+        "[DIAG srv] t={diag_started} IN  route={rest} range={}",
+        range.as_deref().unwrap_or("-"),
+    );
 
-    let query = req.uri().query().map(str::to_owned);
-    match remote.dispatch(rest, query, range, origin.clone()).await {
-        Some(response) => response,
-        None => status_response(404, origin.as_deref()),
+    let response = if let Some(local_path) = rest.strip_prefix("local/") {
+        serve_local(local_path, range.as_deref(), origin.as_deref(), transcode_cache).await
     }
+    else {
+        let query = req.uri().query().map(str::to_owned);
+        match remote.dispatch(rest.clone(), query, range.clone(), origin.clone()).await {
+            Some(response) => response,
+            None => status_response(404, origin.as_deref()),
+        }
+    };
+
+    // DIAG
+    let diag_done = diag_now_ms();
+    log::info!(
+        "[DIAG srv] t={diag_done} OUT route={rest} range={} status={} content-range={} took={}ms",
+        range.as_deref().unwrap_or("-"),
+        response.status().as_u16(),
+        response
+            .headers()
+            .get("Content-Range")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-"),
+        diag_done.saturating_sub(diag_started),
+    );
+
+    response
+}
+
+/// DIAG: wall-clock milliseconds, for correlating server-side lines with the
+/// webview's `Date.now()` stamps and with logcat timestamps.
+fn diag_now_ms() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default()
 }
 
 // ── Server lifecycle ─────────────────────────────────────────────────
