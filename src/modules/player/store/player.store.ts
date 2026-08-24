@@ -25,7 +25,6 @@ import { createListenSession } from "../lib/listen-session";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
-import { setDiagProbeUrl } from "@/lib/diag"; // DIAG
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
@@ -70,17 +69,6 @@ export const usePlayerStore = defineStore("player", () => {
   // even when the superseded switch never gets to clean up after itself.
   let _switchingRequestId: number | null = null;
   const _isSwitchingTrack = () => _switchingRequestId === _playRequestId;
-
-  // DIAG: stage timings for playPlayerTrack. Separates hypothesis A (the media
-  // element never loads in a hidden frame) from B (the chain stalls earlier, in
-  // resolvePlayback/Dexie) — whichever stage has no closing line is where it
-  // stopped. visibilityState on every line ties the stall to backgrounding.
-  const diagStage = (req: number, stage: string, extra = "") => {
-    const vis = typeof document === "undefined" ? "?" : document.visibilityState;
-    void getLogger().info(
-      `[DIAG play] t=${Date.now()} req=${req} ${stage} vis=${vis}${extra ? ` ${extra}` : ""}`,
-    );
-  };
 
   const isPlaying = computed(
     () => status.value === "playing" || status.value === "buffering",
@@ -196,39 +184,6 @@ export const usePlayerStore = defineStore("player", () => {
     newPlayer.setMuted(isMuted.value);
     newPlayer.setPlaybackRate(playbackRate.value);
     player.value = markRaw(newPlayer);
-
-    // DIAG: raw engine events with wall-clock stamps. `waiting` without a
-    // following `playing` is the buffer-starvation signature of half 1b;
-    // `loadstart` without `loadedmetadata` is half 1a. `progress` carries the
-    // buffered end, so a flat buffered end while playing means the element is
-    // draining what it has and getting no refill.
-    {
-      const ev = (name: string, extra: () => string = () => "") => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (newPlayer as any).on(name, () => {
-          if (player.value !== newPlayer) return;
-          const vis = typeof document === "undefined" ? "?" : document.visibilityState;
-          void getLogger().info(`[DIAG ev] t=${Date.now()} ${name} vis=${vis} ${extra()}`);
-        });
-      };
-      for (const name of ["loadstart", "loadedmetadata", "canplay", "canplaythrough",
-        "waiting", "playing", "play", "pause", "ended", "buffered"]) {
-        ev(name);
-      }
-      newPlayer.on("progress", ({ ranges, percent }) => {
-        if (player.value !== newPlayer) return;
-        const end = ranges.length > 0 ? ranges[ranges.length - 1].end : 0;
-        const vis = typeof document === "undefined" ? "?" : document.visibilityState;
-        void getLogger().info(
-          `[DIAG ev] t=${Date.now()} progress vis=${vis} bufferedEnd=${end.toFixed(1)}`
-          + ` pct=${(percent * 100).toFixed(1)} pos=${currentTime.value.toFixed(1)}`,
-        );
-      });
-      newPlayer.on("error", ({ code, message }) => {
-        if (player.value !== newPlayer) return;
-        void getLogger().error(`[DIAG ev] t=${Date.now()} error code=${code} msg=${message}`);
-      });
-    }
 
     // Guards keep a disposed-then-replaced instance (dispose(), load-error
     // recovery) from mutating state that now belongs to its successor.
@@ -409,7 +364,6 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const loadUrl = async (p: Player, url: string, allowCorsFallback = false) => {
-    setDiagProbeUrl(url); // DIAG
     const isHls = url.includes(".m3u8")
       || url.includes("application/vnd.apple.mpegurl");
 
@@ -584,15 +538,12 @@ export const usePlayerStore = defineStore("player", () => {
     status.value = "loading";
     _switchingRequestId = requestId;
 
-    diagStage(requestId, "ENTER", `title=${JSON.stringify(track.title)}`);
 
     const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
-    diagStage(requestId, "resolvePlayback:start");
     const url = await resolvePlayback(track);
-    diagStage(requestId, "resolvePlayback:done", `url=${url ? "ok" : "null"}`);
     if (requestId !== _playRequestId) return;
     if (!url) {
       _switchingRequestId = null;
@@ -603,7 +554,6 @@ export const usePlayerStore = defineStore("player", () => {
     }
 
     try {
-      diagStage(requestId, "load:start");
       if (isEphemeralTrack(track) && track.source.type === "file") {
         await p.load(track.source.file);
         // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
@@ -612,7 +562,6 @@ export const usePlayerStore = defineStore("player", () => {
       else {
         await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       }
-      diagStage(requestId, "load:done");
 
       // A superseded load() resolves silently (lyra cancels it internally);
       // playing now would fight the newer request.
@@ -628,13 +577,10 @@ export const usePlayerStore = defineStore("player", () => {
       // ends inside it — that ended must advance the queue, not be dropped
       // as stale.
       if (_switchingRequestId === requestId) _switchingRequestId = null;
-      diagStage(requestId, "play:start");
       await play();
-      diagStage(requestId, "play:done");
       useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
-      diagStage(requestId, "THROW", `err=${String(err)}`);
       if (requestId !== _playRequestId) return;
       _switchingRequestId = null;
       status.value = "error";
