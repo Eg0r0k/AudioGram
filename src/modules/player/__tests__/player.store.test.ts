@@ -1160,6 +1160,35 @@ describe("player.store", () => {
       expect(statsMock.stopListening).toHaveBeenCalledWith(42, { skipped: true });
     });
 
+    it("reflects a pause the app did not ask for", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      engine().trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("playing");
+
+      // The platform can stop the element under the store: audio focus loss,
+      // an incoming call, Chromium pausing a hidden video-bearing element.
+      // The engine reports it as `pause` only — no statechange — so without
+      // this the UI kept showing playback over a silent, frozen element.
+      engine().trigger("pause", undefined);
+
+      expect(store.status).toBe("paused");
+    });
+
+    it("ignores an engine pause belonging to the outgoing track mid-switch", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      engine().trigger("statechange", { to: "playing" });
+
+      const switching = store.playPlayerTrack(createLibraryTrack({ id: "track-2" as Track["id"] }));
+      expect(store.status).toBe("loading");
+
+      engine().trigger("pause", undefined);
+      expect(store.status).toBe("loading");
+
+      await switching;
+    });
+
     it("holds the optimistic loading status through engine chatter while switching tracks", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack());

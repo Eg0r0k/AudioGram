@@ -192,6 +192,22 @@ export const usePlayerStore = defineStore("player", () => {
       if (_isSwitchingTrack() && (to === "idle" || to === "ready" || to === "paused")) return;
       status.value = to;
     });
+    // The engine emits `pause` without moving its own state machine, so a
+    // pause it did not initiate never reaches `status` through statechange.
+    // The platform does initiate them — audio focus loss, a call, Chromium
+    // pausing a hidden element — and the UI then goes on claiming it is
+    // playing over a silent element, with the position frozen. lyra already
+    // filters the pause that accompanies `ended`.
+    newPlayer.on("pause", () => {
+      if (player.value !== newPlayer) return;
+      // Mid-switch the engine still holds the OUTGOING track's media.
+      if (_isSwitchingTrack()) return;
+      // A fade-out-to-pause has already set "paused" optimistically; anything
+      // else that is still nominally playing has just been overruled.
+      if (status.value === "playing" || status.value === "buffering") {
+        status.value = "paused";
+      }
+    });
     newPlayer.on("ended", () => {
       if (player.value !== newPlayer) return;
       // Mid-switch the engine still holds the OUTGOING track's media: its
