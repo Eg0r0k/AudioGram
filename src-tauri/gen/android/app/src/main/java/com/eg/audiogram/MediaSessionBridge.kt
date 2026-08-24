@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +19,7 @@ import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 
 /**
@@ -39,6 +41,11 @@ class MediaSessionBridge(
     private const val ACTION_EVENT = "audiogram-media-action"
     private const val BUTTON_ACTION = "com.eg.audiogram.MEDIA_BUTTON"
     private const val EXTRA_COMMAND = "command"
+
+    private const val PLACEHOLDER_SIZE = 512
+    private const val PLACEHOLDER_BACKGROUND = 0xFF202124.toInt()
+    private const val PLACEHOLDER_GLYPH = 0xFF9AA0A6.toInt()
+    private const val PLACEHOLDER_GLYPH_FRACTION = 0.42f
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -50,6 +57,7 @@ class MediaSessionBridge(
   private var artist = ""
   private var album = ""
   private var artwork: Bitmap? = null
+  private var placeholderArtwork: Bitmap? = null
 
   private var playing = false
   private var positionMs = 0L
@@ -147,6 +155,7 @@ class MediaSessionBridge(
     }
     buttonReceiver = null
     artwork = null
+    placeholderArtwork = null
     title = ""
     artist = ""
     album = ""
@@ -196,13 +205,44 @@ class MediaSessionBridge(
 
   // ── publishing ────────────────────────────────────────────────────────────
 
+  /**
+   * A metadata update that simply omits ALBUM_ART does not clear the art on
+   * every system UI — MIUI keeps rendering the last bitmap it was handed, so a
+   * track without a cover inherits the previous track's one while showing its
+   * own title and artist. Publishing a placeholder instead of nothing makes
+   * "no cover" mean no cover.
+   */
+  private fun artworkOrPlaceholder(): Bitmap? {
+    artwork?.let { return it }
+    placeholderArtwork?.let { return it }
+
+    val bitmap = try {
+      Bitmap.createBitmap(PLACEHOLDER_SIZE, PLACEHOLDER_SIZE, Bitmap.Config.ARGB_8888)
+    } catch (_: Throwable) {
+      // Out of memory here must not take playback down with it.
+      return null
+    }
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(PLACEHOLDER_BACKGROUND)
+    ContextCompat.getDrawable(activity, R.drawable.ic_stat_music)?.let { glyph ->
+      val side = (PLACEHOLDER_SIZE * PLACEHOLDER_GLYPH_FRACTION).toInt()
+      val inset = (PLACEHOLDER_SIZE - side) / 2
+      glyph.setBounds(inset, inset, inset + side, inset + side)
+      glyph.setTint(PLACEHOLDER_GLYPH)
+      glyph.draw(canvas)
+    }
+    placeholderArtwork = bitmap
+    return bitmap
+  }
+
   private fun publishMetadata() {
     val builder = MediaMetadataCompat.Builder()
       .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
       .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
       .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, album)
     if (durationMs > 0) builder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs)
-    artwork?.let { builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, it) }
+    // Always set the key — see artworkOrPlaceholder().
+    builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artworkOrPlaceholder())
     ensureSession().setMetadata(builder.build())
   }
 
@@ -272,7 +312,7 @@ class MediaSessionBridge(
       .setContentTitle(title)
       .setContentText(artist)
       .setSubText(album.ifEmpty { null })
-      .setLargeIcon(artwork)
+      .setLargeIcon(artworkOrPlaceholder())
       .setContentIntent(contentIntent)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setOngoing(playing)
