@@ -138,7 +138,7 @@ describe("deletion transactionality (integration)", () => {
       throw new Error("boom mid-transaction");
     });
 
-    await expect(deleteAlbumAndSync(queryClient, album)).rejects.toThrow("boom mid-transaction");
+    await expect(deleteAlbumAndSync(queryClient, album, { deleteTracks: true })).rejects.toThrow("boom mid-transaction");
 
     expect(await snapshotCounts()).toEqual(before);
     const playlist = await db.playlists.get(playlistId);
@@ -221,7 +221,7 @@ describe("deletion transactionality (integration)", () => {
         return ok((await db.offlineCopies.bulkGet(ids)).filter(copy => copy !== undefined));
       });
     try {
-      await deleteAlbumAndSync(queryClient, album);
+      await deleteAlbumAndSync(queryClient, album, { deleteTracks: true });
     }
     finally {
       spy.mockRestore();

@@ -6,6 +6,7 @@ import {
   playlistRepository,
   trackRepository,
 } from "@/db/repositories";
+import { unitOfWork } from "@/db/unit-of-work";
 import { queryKeys } from "@/queries/query-keys";
 import { buildPlaylistDoc } from "@/modules/search/buildDocuments";
 import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/searchIndex";
@@ -17,6 +18,7 @@ import { PlaylistId as createPlaylistId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForPlaylistMutation,
+  invalidateForTrackMutation,
   removePlaylistCaches,
   syncPlaylistCaches,
   syncPlaylistTrackAddition,
@@ -24,6 +26,12 @@ import {
   updateCoverCache,
 } from "./cache";
 import { sortTracks, unique, unwrapResult } from "./shared";
+import {
+  findOfflineCopiesOf,
+  purgeTracksInTx,
+  syncAfterTrackPurge,
+  trackCascadeTables,
+} from "./track-cascade";
 import type { PlaylistPageData, PaginatedPlaylistTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
@@ -244,20 +252,50 @@ export async function updatePlaylistAndSync(
   return nextPlaylist;
 }
 
+/**
+ * A playlist is only a list of references, so deleting one leaves its tracks
+ * in the library by default. `deleteTracks` removes them from the library
+ * outright — including from every other playlist that referenced them.
+ */
 export async function deletePlaylistAndSync(
   queryClient: QueryClient,
   currentPlaylist: PlaylistEntity | null,
+  options: { deleteTracks?: boolean } = {},
 ) {
   if (!currentPlaylist) {
     return;
   }
 
-  await unwrapResult(coverRepository.deletePlaylistCover(currentPlaylist.id));
-  await unwrapResult(playlistRepository.delete(currentPlaylist.id));
+  const tracks = options.deleteTracks === true && currentPlaylist.trackIds.length > 0
+    ? await unwrapResult(trackRepository.findByIds(currentPlaylist.trackIds))
+    : [];
+  const trackIds = tracks.map(track => track.id);
+  const copies = await findOfflineCopiesOf(trackIds);
+  const now = Date.now();
+
+  const txResult = await unitOfWork.runScoped(
+    trackCascadeTables(),
+    async () => {
+      const removals = await purgeTracksInTx(tracks, copies, now);
+      await unwrapResult(coverRepository.deletePlaylistCover(currentPlaylist.id));
+      await unwrapResult(playlistRepository.delete(currentPlaylist.id));
+      return removals;
+    },
+  );
+  if (txResult.isErr()) throw txResult.error;
+
+  // This playlist is gone — re-syncing its caches would put it back.
+  await syncAfterTrackPurge(queryClient, trackIds, txResult.value, copies, [currentPlaylist.id]);
   await removeSearchDocuments([`playlist:${currentPlaylist.id}`]);
 
   removePlaylistCaches(queryClient, currentPlaylist.id);
   queryClient.removeQueries({ queryKey: queryKeys.playlists.cover(currentPlaylist.id), exact: true });
+
+  if (trackIds.length > 0) {
+    // A playlist's tracks span arbitrary albums and artists, and the purge may
+    // have GC'd any of them — nothing narrower than the full sweep is safe.
+    await invalidateForTrackMutation(queryClient, { kind: "relations" });
+  }
 }
 
 export async function removeTrackFromPlaylistAndSync(

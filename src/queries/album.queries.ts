@@ -1,17 +1,11 @@
 import type { AlbumEntity, TrackEntity } from "@/db/entities";
-import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
   coverRepository,
-  offlineCopyRepository,
-  playlistRepository,
   trackRepository,
 } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
-import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
-import { sourceKindOf } from "@/modules/sources/lib/display";
-import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { queryKeys } from "@/queries/query-keys";
 import { buildAlbumDocFromDb, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
 import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/searchIndex";
@@ -23,13 +17,16 @@ import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForAlbumMutation,
   removeAlbumCaches,
-  removeTracksFromCaches,
   syncAlbumCaches,
-  syncPlaylistCaches,
-  syncPlaylistTrackRemoval,
   updateCoverCache,
 } from "./cache";
 import { sortTracks, unwrapResult, unique } from "./shared";
+import {
+  findOfflineCopiesOf,
+  purgeTracksInTx,
+  syncAfterTrackPurge,
+  trackCascadeTables,
+} from "./track-cascade";
 import type { AlbumPageData, PaginatedTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
@@ -257,60 +254,36 @@ export async function updateAlbumAndSync(
 }
 
 /**
- * Remote album deletion cascades tracks/copies/playlists in one transaction
- * (local albums keep the ungroup semantics); file deletion and cache/search
- * sync run strictly after it.
+ * `deleteTracks` cascades the album's tracks, their offline copies/files and
+ * their playlist references in one transaction; cache and search sync run
+ * strictly after it. Without it the album only ungroups — its tracks stay in
+ * the library, remote ones included, keeping whatever is downloaded.
  */
 export async function deleteAlbumAndSync(
   queryClient: QueryClient,
   albumEntity: AlbumEntity | null,
+  options: { deleteTracks?: boolean } = {},
 ) {
   if (!albumEntity) {
     return;
   }
 
   const rawTracks = await unwrapResult(trackRepository.findByAlbumId(albumEntity.id));
-  const isRemote = sourceKindOf(albumEntity.id) !== "local";
+  const cascadeTracks = options.deleteTracks === true;
   const trackIds = rawTracks.map(track => track.id);
-  const trackIdSet = new Set(trackIds);
   const now = Date.now();
 
-  const copies = isRemote && trackIds.length > 0
-    ? await unwrapResult(offlineCopyRepository.findByIds(trackIds))
-    : [];
+  const copies = cascadeTracks ? await findOfflineCopiesOf(trackIds) : [];
 
   const txResult = await unitOfWork.runScoped(
-    [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
+    trackCascadeTables(),
     async () => {
-      // Playlists are read inside the tx and written back as partial updates,
-      // so a rename racing the delete survives.
-      const playlists = isRemote ? await unwrapResult(playlistRepository.findAll()) : [];
-      const affectedPlaylists = playlists
-        .filter(playlist => playlist.trackIds.some(id => trackIdSet.has(id)))
-        .map(playlist => ({
-          next: {
-            ...playlist,
-            trackIds: playlist.trackIds.filter(id => !trackIdSet.has(id)),
-            updatedAt: now,
-          },
-          removedIds: playlist.trackIds.filter(id => trackIdSet.has(id)),
-        }));
+      // An empty shadow album (0 tracks) is deleted explicitly below.
+      const removals = cascadeTracks
+        ? await purgeTracksInTx(rawTracks, copies, now)
+        : [];
 
-      if (isRemote) {
-        if (affectedPlaylists.length > 0) {
-          await unwrapResult(playlistRepository.updateMany(affectedPlaylists.map(({ next }) => ({
-            key: next.id,
-            changes: { trackIds: next.trackIds, updatedAt: next.updatedAt },
-          }))));
-        }
-        if (copies.length > 0) {
-          await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
-        }
-        await unwrapResult(trackRepository.deleteMany(trackIds));
-        // An empty shadow album (0 tracks) is deleted explicitly below.
-        await cleanupAfterTrackRemoval(rawTracks);
-      }
-      else if (rawTracks.length > 0) {
+      if (!cascadeTracks && rawTracks.length > 0) {
         // Detach fully — a dangling albumId would keep pointing at a dead row.
         await unwrapResult(trackRepository.updateMany(rawTracks.map(track => ({
           key: track.id,
@@ -321,27 +294,19 @@ export async function deleteAlbumAndSync(
       await unwrapResult(coverRepository.deleteAlbumCover(albumEntity.id));
       await unwrapResult(albumRepository.delete(albumEntity.id));
 
-      return affectedPlaylists;
+      return removals;
     },
   );
   if (txResult.isErr()) throw txResult.error;
-  const affectedPlaylists = txResult.value;
 
-  await cleanupOfflineCopyFiles(copies);
-  if (isRemote) {
-    for (const { next, removedIds } of affectedPlaylists) {
-      for (const id of removedIds) {
-        syncPlaylistTrackRemoval(queryClient, next.id, id);
-      }
-      syncPlaylistCaches(queryClient, next);
-    }
-    removeTracksFromCaches(queryClient, trackIds);
-  }
-  await removeSearchDocuments([
-    ...(isRemote ? trackIds.map(id => `track:${id}`) : []),
-    `album:${albumEntity.id}`,
-  ]);
-  if (!isRemote) {
+  await syncAfterTrackPurge(
+    queryClient,
+    cascadeTracks ? trackIds : [],
+    txResult.value,
+    copies,
+  );
+  await removeSearchDocuments([`album:${albumEntity.id}`]);
+  if (!cascadeTracks) {
     const updatedTracks = await unwrapResult(trackRepository.findByIds(rawTracks.map(track => track.id)));
     await upsertSearchDocuments(await Promise.all(
       updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),

@@ -1,5 +1,4 @@
 import type { ArtistEntity, TrackEntity } from "@/db/entities";
-import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
@@ -27,6 +26,12 @@ import {
   updateCoverCache,
 } from "./cache";
 import { sortTracks, unwrapResult, unique } from "./shared";
+import {
+  findOfflineCopiesOf,
+  purgeTracksInTx,
+  syncAfterTrackPurge,
+  trackCascadeTables,
+} from "./track-cascade";
 import type { ArtistPageData, PaginatedTracksResult, PaginatedAlbumsResult } from "./types";
 
 export interface ArtistChanges {
@@ -293,14 +298,21 @@ export async function updateArtistAndSync(
   return nextArtist;
 }
 
+/**
+ * Deleting an artist always takes their albums. Their tracks are detached and
+ * stay in the library by default; `deleteTracks` removes them instead — note
+ * that includes tracks credited to a second artist too.
+ */
 export async function deleteArtistAndSync(
   queryClient: QueryClient,
   artistEntity: ArtistEntity | null,
+  options: { deleteTracks?: boolean } = {},
 ) {
   if (!artistEntity) {
     return;
   }
 
+  const cascadeTracks = options.deleteTracks === true;
   const albums = await unwrapResult(albumRepository.findByArtistId(artistEntity.id));
   const rawTracks = await unwrapResult(trackRepository.findByArtistId(artistEntity.id));
   const albumTracks = (await Promise.all(
@@ -309,6 +321,9 @@ export async function deleteArtistAndSync(
   const affectedTracks = [...new Map(
     [...rawTracks, ...albumTracks].map(track => [track.id, track]),
   ).values()];
+  const affectedTrackIds = affectedTracks.map(track => track.id);
+  const copies = cascadeTracks ? await findOfflineCopiesOf(affectedTrackIds) : [];
+  const now = Date.now();
   const remainingArtistIds = unique(
     affectedTracks.flatMap(track => track.artistIds.filter(id => id !== artistEntity.id)),
   );
@@ -335,9 +350,15 @@ export async function deleteArtistAndSync(
   });
 
   const txResult = await unitOfWork.runScoped(
-    [db.tracks, db.albums, db.artists, db.covers],
+    trackCascadeTables(),
     async () => {
-      if (trackUpdates.length > 0) {
+      // The purge GCs albums that lost their last track; the artist's own
+      // albums are dropped explicitly right after, empty or not.
+      const removals = cascadeTracks
+        ? await purgeTracksInTx(affectedTracks, copies, now)
+        : [];
+
+      if (!cascadeTracks && trackUpdates.length > 0) {
         await unwrapResult(trackRepository.updateMany(trackUpdates));
       }
       for (const album of albums) {
@@ -348,9 +369,18 @@ export async function deleteArtistAndSync(
       }
       await unwrapResult(coverRepository.deleteArtistCover(artistEntity.id));
       await unwrapResult(artistRepository.delete(artistEntity.id));
+
+      return removals;
     },
   );
   if (txResult.isErr()) throw txResult.error;
+
+  await syncAfterTrackPurge(
+    queryClient,
+    cascadeTracks ? affectedTrackIds : [],
+    txResult.value,
+    copies,
+  );
 
   for (const album of albums) {
     removeAlbumCaches(queryClient, album.id, artistEntity.id);
@@ -360,10 +390,12 @@ export async function deleteArtistAndSync(
     `artist:${artistEntity.id}`,
     ...albums.map(album => `album:${album.id}`),
   ]);
-  const updatedTracks = await unwrapResult(trackRepository.findByIds(affectedTracks.map(track => track.id)));
-  await upsertSearchDocuments(await Promise.all(
-    updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),
-  ));
+  if (!cascadeTracks) {
+    const updatedTracks = await unwrapResult(trackRepository.findByIds(affectedTrackIds));
+    await upsertSearchDocuments(await Promise.all(
+      updatedTracks.filter(t => t.pinned !== 0).map(track => buildTrackDocFromDb(track)),
+    ));
+  }
 
   removeArtistCaches(queryClient, artistEntity.id);
   queryClient.removeQueries({ queryKey: queryKeys.covers.detail("artist", artistEntity.id), exact: true });

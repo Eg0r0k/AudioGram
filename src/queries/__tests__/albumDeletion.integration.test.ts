@@ -8,10 +8,10 @@ import { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { ytAlbumId, ytArtistId, ytTrackId } from "@/types/track-ref";
 
 //
-// Deleting a downloaded (shadow) remote album cascades: its remote tracks,
-// their offline copies and files go with it, GC drops the orphaned artist.
-// Deleting a local album keeps its tracks (ungroup), but must not leave a
-// dangling albumId behind.
+// Deleting an album with `deleteTracks` cascades: its tracks, their offline
+// copies and files go with it, GC drops the orphaned artist. Without the flag
+// the album only ungroups — its tracks stay, downloads intact, but must not be
+// left with a dangling albumId.
 //
 
 const storageMock = vi.hoisted(() => ({
@@ -79,7 +79,7 @@ describe("deleteAlbumAndSync cascade (integration)", () => {
       { trackId: ytTrackId("v2"), storagePath: "offline/yt/v2.m4a", sizeBytes: 1, format: {}, downloadedAt: 1 },
     ]);
 
-    await deleteAlbumAndSync(queryClient, album);
+    await deleteAlbumAndSync(queryClient, album, { deleteTracks: true });
 
     expect(await db.tracks.count()).toBe(0);
     expect(await db.offlineCopies.count()).toBe(0);
@@ -87,6 +87,25 @@ describe("deleteAlbumAndSync cascade (integration)", () => {
     expect(await db.artists.count()).toBe(0);
     const deletedPaths = storageMock.deleteFile.mock.calls.map(call => call[0]).sort();
     expect(deletedPaths).toEqual(["offline/yt/v1.m4a", "offline/yt/v2.m4a"]);
+  });
+
+  it("ungroups a remote album without the flag, keeping its tracks and downloads", async () => {
+    await db.artists.put({ id: ytArtist, name: "Shadow Artist", pinned: 1, addedAt: 1, updatedAt: 1 });
+    const album: AlbumEntity = { id: ytAlbum, title: "Shadow Album", artistId: ytArtist, pinned: 1, addedAt: 1, updatedAt: 1 };
+    await db.albums.put(album);
+    await db.tracks.put(ytTrack("v1", "One"));
+    await db.offlineCopies.put({ trackId: ytTrackId("v1"), storagePath: "offline/yt/v1.m4a", sizeBytes: 1, format: {}, downloadedAt: 1 });
+
+    await deleteAlbumAndSync(queryClient, album);
+
+    const track = await db.tracks.get(ytTrackId("v1"));
+    expect(track?.albumId).toBe("");
+    expect(track?.albumTitle).toBeUndefined();
+    expect(await db.offlineCopies.count()).toBe(1);
+    expect(await db.albums.count()).toBe(0);
+    // The tracks still credit them, so the artist is not orphaned.
+    expect(await db.artists.count()).toBe(1);
+    expect(storageMock.deleteFile).not.toHaveBeenCalled();
   });
 
   it("keeps local tracks but detaches them without a dangling albumId", async () => {
