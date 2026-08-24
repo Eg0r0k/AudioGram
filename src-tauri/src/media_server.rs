@@ -354,14 +354,14 @@ async fn serve_local(
         if let Some(cache) = transcode_cache {
             let src = std::path::PathBuf::from(path.as_ref());
             let cache = cache.to_path_buf();
-            let wav = tokio::task::spawn_blocking(move || {
-                crate::transcode::wav_rendition_path(&src, &cache)
+            let rendition = tokio::task::spawn_blocking(move || {
+                crate::transcode::rendition_path(&src, &cache)
             })
             .await
             .ok()
             .flatten();
-            if let Some(wav) = wav {
-                path = std::borrow::Cow::Owned(wav.to_string_lossy().replace('\\', "/"));
+            if let Some(rendition) = rendition {
+                path = std::borrow::Cow::Owned(rendition.to_string_lossy().replace('\\', "/"));
             }
         }
     }

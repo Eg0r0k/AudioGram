@@ -1,23 +1,30 @@
-//! Lazy transcoding of Chromium-undecodable lossless formats to WAV for the
-//! loopback media server.
+//! Lazy renditions of sources the webview cannot play as-is, for the loopback
+//! media server. Two unrelated reasons a file needs one:
 //!
-//! Chromium ships no ALAC and no Monkey's Audio decoder on any platform, so
-//! an `<audio>` element fed such bytes fails with MEDIA_ERR_SRC_NOT_SUPPORTED
-//! no matter how they are transported. The server therefore inspects
-//! `.m4a`/`.mp4` (ALAC probe via symphonia) and `.ape` (ape-decoder) requests
-//! and decodes them once — both decoders are pure Rust, so Android works too —
-//! into a WAV file under the app cache dir, then serves that file through the
-//! existing Range-aware local path.
-//!
+//! **The codec is missing.** Chromium ships no ALAC and no Monkey's Audio
+//! decoder on any platform, so an `<audio>` element fed such bytes fails with
+//! MEDIA_ERR_SRC_NOT_SUPPORTED no matter how they are transported. Those are
+//! decoded once into WAV — both decoders are pure Rust, so Android works too.
 //! WAV is chosen over FLAC because writing it needs no encoder and the file
-//! lives on loopback — bitrate is irrelevant. The cache key embeds source
-//! mtime + length so an edited/replaced file re-transcodes.
+//! lives on loopback, where bitrate is irrelevant.
+//!
+//! **The file carries video.** Chromium refuses to play media with a video
+//! track while its page is hidden: backgrounding the app pauses the element
+//! within milliseconds and releases the video decoder. Plenty of `.m4a`
+//! downloads are really videos by extension alone, so an mp4 with a `vide`
+//! handler gets its AAC track rewrapped as ADTS — a header-only transform,
+//! no decoding — and everything else is dropped. The same rewrap also makes
+//! seeking cheap, since there is no longer an H.264 stream to re-initialise.
+//!
+//! The cache key embeds source mtime + length so an edited/replaced file
+//! re-renders, and the codec prefix keeps the two kinds apart.
 
 use std::hash::{Hash, Hasher};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_ALAC};
+use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_AAC, CODEC_TYPE_ALAC};
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
@@ -60,10 +67,92 @@ pub(crate) fn is_alac(src: &Path) -> bool {
         .any(|t| t.codec_params.codec == CODEC_TYPE_ALAC)
 }
 
+/// Reads the box header at the reader's position as `(size, type, header_len)`.
+/// `size` covers the whole box including its header. `None` at a clean EOF.
+fn read_box_header<R: Read>(reader: &mut R) -> std::io::Result<Option<(u64, [u8; 4], u64)>> {
+    let mut head = [0u8; 8];
+    match reader.read_exact(&mut head) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(e) => return Err(e),
+    }
+    let mut size = u64::from(u32::from_be_bytes([head[0], head[1], head[2], head[3]]));
+    let kind = [head[4], head[5], head[6], head[7]];
+    let mut header_len = 8u64;
+    // size == 1 escapes to a 64-bit largesize right after the type.
+    if size == 1 {
+        let mut ext = [0u8; 8];
+        reader.read_exact(&mut ext)?;
+        size = u64::from_be_bytes(ext);
+        header_len = 16;
+    }
+    Ok(Some((size, kind, header_len)))
+}
+
+/// moov > trak > mdia > hdlr is the shallowest path to a handler type.
+const VIDEO_SCAN_MAX_DEPTH: u8 = 4;
+
+/// Walks container boxes looking for a track whose media handler is `vide`,
+/// seeking over `mdat` rather than reading it — cost is independent of file
+/// size.
+fn scan_for_video<R: Read + Seek>(reader: &mut R, end: u64, depth: u8) -> std::io::Result<bool> {
+    if depth > VIDEO_SCAN_MAX_DEPTH {
+        return Ok(false);
+    }
+    loop {
+        let pos = reader.stream_position()?;
+        if pos >= end {
+            return Ok(false);
+        }
+        let Some((size, kind, header_len)) = read_box_header(reader)? else {
+            return Ok(false);
+        };
+        // size == 0 means "runs to the end of the file"; anything shorter than
+        // its own header is malformed and would stall the walk.
+        let size = if size == 0 { end - pos } else { size };
+        if size < header_len {
+            return Ok(false);
+        }
+        let body_end = pos.saturating_add(size).min(end);
+
+        match &kind {
+            // FullBox: version+flags (4), pre_defined (4), handler_type (4).
+            b"hdlr" => {
+                let mut buf = [0u8; 12];
+                if reader.read_exact(&mut buf).is_ok() && &buf[8..12] == b"vide" {
+                    return Ok(true);
+                }
+            }
+            b"moov" | b"trak" | b"mdia" => {
+                if scan_for_video(reader, body_end, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+            _ => {}
+        }
+        reader.seek(SeekFrom::Start(body_end))?;
+    }
+}
+
+/// Does this mp4 carry a video track? Chromium refuses to play media with one
+/// while its page is hidden — the element is paused the moment the app is
+/// backgrounded — so such files need an audio-only rendition even though their
+/// audio codec is perfectly playable.
+pub(crate) fn has_video_track(src: &Path) -> bool {
+    let Ok(file) = std::fs::File::open(src) else {
+        return false;
+    };
+    let Ok(len) = file.metadata().map(|m| m.len()) else {
+        return false;
+    };
+    let mut reader = std::io::BufReader::new(file);
+    scan_for_video(&mut reader, len, 0).unwrap_or(false)
+}
+
 /// Cache file name for `src`: content-addressed by path + mtime + length so
 /// replacing the source invalidates the entry without any bookkeeping. The
 /// codec prefix keeps entries distinguishable when inspecting the cache.
-fn cache_name(src: &Path, prefix: &str) -> std::io::Result<String> {
+fn cache_name(src: &Path, prefix: &str, ext: &str) -> std::io::Result<String> {
     let meta = std::fs::metadata(src)?;
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     src.to_string_lossy().hash(&mut hasher);
@@ -71,7 +160,7 @@ fn cache_name(src: &Path, prefix: &str) -> std::io::Result<String> {
     if let Ok(mtime) = meta.modified() {
         mtime.hash(&mut hasher);
     }
-    Ok(format!("{prefix}-{:016x}.wav", hasher.finish()))
+    Ok(format!("{prefix}-{:016x}.{ext}", hasher.finish()))
 }
 
 /// Decodes the ALAC track of `src` into `dst` as PCM WAV, preserving the
@@ -183,6 +272,109 @@ fn decode_ape_to_wav(src: &Path, dst: &Path) -> Result<(), String> {
     out.flush().map_err(|e| e.to_string())
 }
 
+/// AudioSpecificConfig → `(object_type, sampling_frequency_index,
+/// channel_config)`, the three fields ADTS needs. The first 16 bits carry
+/// 5 + 4 + 4 of them; the escape encodings (object type 31, frequency index
+/// 15) are rejected by the caller because ADTS cannot express them.
+fn parse_audio_specific_config(asc: &[u8]) -> Option<(u8, u8, u8)> {
+    if asc.len() < 2 {
+        return None;
+    }
+    let bits = u16::from_be_bytes([asc[0], asc[1]]);
+    Some((
+        ((bits >> 11) & 0x1F) as u8,
+        ((bits >> 7) & 0x0F) as u8,
+        ((bits >> 3) & 0x0F) as u8,
+    ))
+}
+
+/// The 7-byte ADTS header (no CRC) that turns one raw AAC frame into a
+/// self-describing one. `None` when the frame will not fit its 13-bit length.
+fn adts_header(
+    object_type: u8,
+    freq_index: u8,
+    channel_config: u8,
+    payload_len: usize,
+) -> Option<[u8; 7]> {
+    let frame_len = payload_len.checked_add(7)?;
+    if frame_len >= 1 << 13 {
+        return None;
+    }
+    let profile = object_type.checked_sub(1)? & 0x03;
+    Some([
+        0xFF,
+        // MPEG-4, layer 0, protection absent.
+        0xF1,
+        (profile << 6) | ((freq_index & 0x0F) << 2) | ((channel_config >> 2) & 0x01),
+        ((channel_config & 0x03) << 6) | ((frame_len >> 11) & 0x03) as u8,
+        ((frame_len >> 3) & 0xFF) as u8,
+        (((frame_len & 0x07) << 5) as u8) | 0x1F,
+        0xFC,
+    ])
+}
+
+/// Rewraps the AAC track of an mp4 as raw ADTS, dropping every other track.
+/// No decoding happens: mp4 already stores the exact AAC frames, they just
+/// lack the per-frame header a bare stream needs. The point is losing the
+/// video track — see {@link has_video_track}.
+fn remux_mp4_aac_to_adts(src: &Path, dst: &Path) -> Result<(), String> {
+    use std::io::Write;
+
+    let mut format = open_format(src)?;
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec == CODEC_TYPE_AAC)
+        .ok_or("no AAC track")?
+        .clone();
+
+    let asc = track
+        .codec_params
+        .extra_data
+        .as_deref()
+        .ok_or("AAC track carries no AudioSpecificConfig")?;
+    let (object_type, freq_index, channel_config) =
+        parse_audio_specific_config(asc).ok_or("unreadable AudioSpecificConfig")?;
+    // AAC Main/LC/SSR/LTP with a table-indexed rate and a plain channel
+    // layout. Anything else (HE-AAC signalling, explicit rates, program
+    // config elements) would need more than a header rewrite.
+    if !(1..=4).contains(&object_type) || freq_index > 12 || !(1..=7).contains(&channel_config) {
+        return Err(format!(
+            "unsupported AAC config: object_type={object_type} \
+             freq_index={freq_index} channel_config={channel_config}"
+        ));
+    }
+
+    let out = std::fs::File::create(dst).map_err(|e| e.to_string())?;
+    let mut out = std::io::BufWriter::new(out);
+    let mut frames: u64 = 0;
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            // UnexpectedEof is symphonia's normal end-of-stream signal.
+            Err(symphonia::core::errors::Error::IoError(e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(e) => return Err(e.to_string()),
+        };
+        if packet.track_id() != track.id {
+            continue;
+        }
+        let data = packet.buf();
+        let header = adts_header(object_type, freq_index, channel_config, data.len())
+            .ok_or("AAC frame too large for ADTS")?;
+        out.write_all(&header).map_err(|e| e.to_string())?;
+        out.write_all(data).map_err(|e| e.to_string())?;
+        frames += 1;
+    }
+    if frames == 0 {
+        return Err("no AAC frames".into());
+    }
+    out.flush().map_err(|e| e.to_string())
+}
+
 /// Returns the WAV rendition of a source the webview cannot decode (ALAC in
 /// mp4, Monkey's Audio), transcoding on first use. `None` when the source
 /// needs no rendition or anything fails — the caller then serves the raw
@@ -202,17 +394,37 @@ pub(crate) fn clean_stale_tmp(cache_dir: &Path) {
 
 type DecodeFn = fn(&Path, &Path) -> Result<(), String>;
 
-pub(crate) fn wav_rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
+/// Returns the rendition of a source the webview cannot play as-is,
+/// producing it on first use:
+///
+/// - Monkey's Audio and ALAC → WAV, because Chromium ships neither decoder;
+/// - any mp4 carrying a video track → audio-only ADTS, because Chromium
+///   refuses to play video-bearing media while the page is hidden.
+///
+/// `None` when the source needs no rendition or anything fails — the caller
+/// then serves the raw file exactly as before.
+pub(crate) fn rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
     let path_str = src.to_string_lossy();
-    let (prefix, decode): (&str, DecodeFn) = if is_ape(&path_str) {
-        ("ape", decode_ape_to_wav)
-    } else if is_mp4_family(&path_str) && is_alac(src) {
-        ("alac", decode_to_wav)
-    } else {
+    let (prefix, ext, decode): (&str, &str, DecodeFn) = if is_ape(&path_str) {
+        ("ape", "wav", decode_ape_to_wav)
+    }
+    else if is_mp4_family(&path_str) {
+        // ALAC first: its WAV rendition drops the video track anyway.
+        if is_alac(src) {
+            ("alac", "wav", decode_to_wav)
+        }
+        else if has_video_track(src) {
+            ("aacv", "aac", remux_mp4_aac_to_adts)
+        }
+        else {
+            return None;
+        }
+    }
+    else {
         return None;
     };
 
-    let name = match cache_name(src, prefix) {
+    let name = match cache_name(src, prefix, ext) {
         Ok(name) => name,
         Err(e) => {
             log::warn!("{prefix} transcode: source metadata failed: {e}");
@@ -298,7 +510,7 @@ mod tests {
 
         let paths: Vec<_> = std::thread::scope(|scope| {
             (0..4)
-                .map(|_| scope.spawn(|| wav_rendition_path(&src, &cache)))
+                .map(|_| scope.spawn(|| rendition_path(&src, &cache)))
                 .collect::<Vec<_>>()
                 .into_iter()
                 .map(|h| h.join().expect("thread").expect("wav path"))
@@ -345,7 +557,7 @@ mod tests {
         let cache = temp_cache();
         let src = fixture("tiny-impulse.ape");
 
-        let wav = wav_rendition_path(&src, &cache).expect("transcoded path");
+        let wav = rendition_path(&src, &cache).expect("transcoded path");
         assert!(wav.file_name().unwrap().to_string_lossy().starts_with("ape-"));
 
         let reader = hound::WavReader::open(&wav).expect("valid wav");
@@ -356,7 +568,7 @@ mod tests {
         // The fixture is exactly 1.0s of 44.1kHz audio.
         assert_eq!(reader.duration(), 44100);
 
-        let again = wav_rendition_path(&src, &cache).expect("cached path");
+        let again = rendition_path(&src, &cache).expect("cached path");
         assert_eq!(again, wav);
 
         let _ = std::fs::remove_dir_all(cache);
@@ -379,8 +591,84 @@ mod tests {
     #[test]
     fn aac_source_is_left_alone() {
         let cache = temp_cache();
-        assert_eq!(wav_rendition_path(&fixture("tiny-aac.m4a"), &cache), None);
+        assert_eq!(rendition_path(&fixture("tiny-aac.m4a"), &cache), None);
         let _ = std::fs::remove_dir_all(cache);
+    }
+
+    #[test]
+    fn detects_video_track_only_when_one_is_present() {
+        assert!(has_video_track(&fixture("tiny-video.m4a")));
+        assert!(!has_video_track(&fixture("tiny-aac.m4a")));
+        assert!(!has_video_track(&fixture("tiny-alac.m4a")));
+        // A non-mp4 must not be mistaken for one carrying video.
+        assert!(!has_video_track(&fixture("tiny-impulse.ape")));
+    }
+
+    #[test]
+    fn remuxes_video_bearing_mp4_to_audio_only_adts() {
+        let cache = temp_cache();
+        let src = fixture("tiny-video.m4a");
+
+        let out = rendition_path(&src, &cache).expect("rendition path");
+        assert_eq!(out.extension().and_then(|e| e.to_str()), Some("aac"));
+        assert!(out.file_name().unwrap().to_string_lossy().starts_with("aacv-"));
+
+        let bytes = std::fs::read(&out).expect("readable rendition");
+        assert!(!bytes.is_empty(), "rendition must not be empty");
+        // Every ADTS frame starts with the 12-bit syncword.
+        assert_eq!(bytes[0], 0xFF, "missing ADTS syncword");
+        assert_eq!(bytes[1] & 0xF0, 0xF0, "missing ADTS syncword");
+
+        // Walking the declared frame lengths must land exactly on the end of
+        // the file — proof the headers describe the payload they precede.
+        let mut offset = 0usize;
+        let mut frames = 0u32;
+        while offset + 7 <= bytes.len() {
+            assert_eq!(bytes[offset], 0xFF, "frame {frames} lost sync");
+            let len = (usize::from(bytes[offset + 3] & 0x03) << 11)
+                | (usize::from(bytes[offset + 4]) << 3)
+                | (usize::from(bytes[offset + 5]) >> 5);
+            assert!(len > 7, "frame {frames} has a degenerate length {len}");
+            offset += len;
+            frames += 1;
+        }
+        assert_eq!(offset, bytes.len(), "frame lengths must tile the file");
+        assert!(frames > 1, "expected several frames, got {frames}");
+
+        // The rendition carries no video: it is far smaller than the source.
+        let src_len = std::fs::metadata(&src).expect("source metadata").len();
+        assert!(
+            (bytes.len() as u64) < src_len / 2,
+            "expected the video track to be gone: {} vs {src_len}",
+            bytes.len(),
+        );
+
+        let again = rendition_path(&src, &cache).expect("cached path");
+        assert_eq!(again, out);
+
+        let _ = std::fs::remove_dir_all(cache);
+    }
+
+    #[test]
+    fn adts_header_encodes_length_and_config() {
+        let header = adts_header(2, 4, 2, 100).expect("header");
+        assert_eq!(header[0], 0xFF);
+        assert_eq!(header[1], 0xF1);
+        // profile = object_type - 1 = 1, freq_index = 4, channel high bit = 0.
+        assert_eq!(header[2], (1 << 6) | (4 << 2));
+        let len = (usize::from(header[3] & 0x03) << 11)
+            | (usize::from(header[4]) << 3)
+            | (usize::from(header[5]) >> 5);
+        assert_eq!(len, 107, "frame length must include the 7-byte header");
+        // 13 bits cannot describe a frame this large.
+        assert_eq!(adts_header(2, 4, 2, 1 << 13), None);
+    }
+
+    #[test]
+    fn audio_specific_config_splits_into_adts_fields() {
+        // 00010 0100 0010 000 → LC (2), 44.1kHz (4), stereo (2).
+        assert_eq!(parse_audio_specific_config(&[0x12, 0x10]), Some((2, 4, 2)));
+        assert_eq!(parse_audio_specific_config(&[0x12]), None);
     }
 
     #[test]
@@ -388,7 +676,7 @@ mod tests {
         let cache = temp_cache();
         let src = fixture("tiny-alac.m4a");
 
-        let wav = wav_rendition_path(&src, &cache).expect("transcoded path");
+        let wav = rendition_path(&src, &cache).expect("transcoded path");
         assert!(wav.is_file());
 
         let reader = hound::WavReader::open(&wav).expect("valid wav");
@@ -402,7 +690,7 @@ mod tests {
 
         // Second call hits the cache: same path, no re-transcode (mtime of
         // the wav is untouched because the file is simply found).
-        let again = wav_rendition_path(&src, &cache).expect("cached path");
+        let again = rendition_path(&src, &cache).expect("cached path");
         assert_eq!(again, wav);
 
         let _ = std::fs::remove_dir_all(cache);
