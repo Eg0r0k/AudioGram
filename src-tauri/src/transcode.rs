@@ -394,6 +394,90 @@ pub(crate) fn clean_stale_tmp(cache_dir: &Path) {
 
 type DecodeFn = fn(&Path, &Path) -> Result<(), String>;
 
+/// Which rendition a source needs, if any.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Rendition {
+    None,
+    ApeWav,
+    AlacWav,
+    VideoAac,
+}
+
+impl Rendition {
+    /// `(cache prefix, extension, transform)`.
+    fn recipe(self) -> Option<(&'static str, &'static str, DecodeFn)> {
+        match self {
+            Rendition::None => None,
+            Rendition::ApeWav => Some(("ape", "wav", decode_ape_to_wav)),
+            Rendition::AlacWav => Some(("alac", "wav", decode_to_wav)),
+            Rendition::VideoAac => Some(("aacv", "aac", remux_mp4_aac_to_adts)),
+        }
+    }
+}
+
+/// Deciding costs a container parse — up to two, since a non-ALAC mp4 still
+/// has to be walked for a video track.
+fn probe_rendition(src: &Path) -> Rendition {
+    let path_str = src.to_string_lossy();
+    if is_ape(&path_str) {
+        return Rendition::ApeWav;
+    }
+    if !is_mp4_family(&path_str) {
+        return Rendition::None;
+    }
+    // ALAC first: its WAV rendition drops the video track anyway.
+    if is_alac(src) {
+        Rendition::AlacWav
+    }
+    else if has_video_track(src) {
+        Rendition::VideoAac
+    }
+    else {
+        Rendition::None
+    }
+}
+
+/// A source is identified the same way the cache name is — path, length,
+/// mtime — so replacing the file re-probes it.
+type ProbeKey = (PathBuf, u64, Option<std::time::SystemTime>);
+
+/// Past this many distinct sources the map is dropped wholesale. Re-probing
+/// costs time, never correctness, so a plain reset beats carrying an LRU.
+const PROBE_MEMO_CAP: usize = 1024;
+
+/// The media element opens a fresh Range request per seek and several while
+/// simply playing, and every one of them lands here. Parsing the container
+/// each time cost 30-57ms on a three-hour mp4 against 10-16ms for a plain
+/// file — pure waste, because the answer cannot change unless the file does.
+fn memoized_rendition(src: &Path) -> Rendition {
+    static MEMO: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<ProbeKey, Rendition>>> =
+        std::sync::OnceLock::new();
+
+    let Ok(meta) = std::fs::metadata(src) else {
+        // No metadata means no stable key; fall back to probing uncached.
+        return probe_rendition(src);
+    };
+    let key: ProbeKey = (src.to_path_buf(), meta.len(), meta.modified().ok());
+
+    let memo = MEMO.get_or_init(Default::default);
+    if let Ok(map) = memo.lock() {
+        if let Some(&hit) = map.get(&key) {
+            return hit;
+        }
+    }
+
+    // Probe outside the lock: a cold cache must not serialise every request.
+    let kind = probe_rendition(src);
+
+    if let Ok(mut map) = memo.lock() {
+        if map.len() >= PROBE_MEMO_CAP {
+            map.clear();
+        }
+        map.insert(key, kind);
+    }
+    kind
+}
+
 /// Returns the rendition of a source the webview cannot play as-is,
 /// producing it on first use:
 ///
@@ -404,25 +488,7 @@ type DecodeFn = fn(&Path, &Path) -> Result<(), String>;
 /// `None` when the source needs no rendition or anything fails — the caller
 /// then serves the raw file exactly as before.
 pub(crate) fn rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
-    let path_str = src.to_string_lossy();
-    let (prefix, ext, decode): (&str, &str, DecodeFn) = if is_ape(&path_str) {
-        ("ape", "wav", decode_ape_to_wav)
-    }
-    else if is_mp4_family(&path_str) {
-        // ALAC first: its WAV rendition drops the video track anyway.
-        if is_alac(src) {
-            ("alac", "wav", decode_to_wav)
-        }
-        else if has_video_track(src) {
-            ("aacv", "aac", remux_mp4_aac_to_adts)
-        }
-        else {
-            return None;
-        }
-    }
-    else {
-        return None;
-    };
+    let (prefix, ext, decode) = memoized_rendition(src).recipe()?;
 
     let name = match cache_name(src, prefix, ext) {
         Ok(name) => name,
@@ -592,6 +658,26 @@ mod tests {
     fn aac_source_is_left_alone() {
         let cache = temp_cache();
         assert_eq!(rendition_path(&fixture("tiny-aac.m4a"), &cache), None);
+        let _ = std::fs::remove_dir_all(cache);
+    }
+
+    #[test]
+    fn replacing_a_source_reprobes_it() {
+        let cache = temp_cache();
+        let src = cache.join("swapped.m4a");
+
+        // Starts life as plain AAC: nothing to render.
+        std::fs::copy(fixture("tiny-aac.m4a"), &src).expect("copy aac");
+        assert_eq!(memoized_rendition(&src), Rendition::None);
+        assert_eq!(rendition_path(&src, &cache), None);
+
+        // Same path, different bytes — the memo must not answer for the old
+        // file, or a replaced track would be served under the wrong recipe.
+        std::fs::copy(fixture("tiny-video.m4a"), &src).expect("copy video");
+        assert_eq!(memoized_rendition(&src), Rendition::VideoAac);
+        let out = rendition_path(&src, &cache).expect("rendition for the new bytes");
+        assert_eq!(out.extension().and_then(|e| e.to_str()), Some("aac"));
+
         let _ = std::fs::remove_dir_all(cache);
     }
 
