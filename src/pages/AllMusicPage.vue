@@ -12,33 +12,40 @@
             <IconArrowLeft class="size-6" />
           </Button>
 
-          <InputGroup class="bg-muted! min-w-0 flex-1 rounded-full">
-            <InputGroupAddon tabindex="-1">
-              <IconSearch class="ml-1 size-4.5 text-muted-foreground" />
-            </InputGroupAddon>
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <InputGroup class="bg-muted! min-w-0 max-h-9 flex-1 rounded-full">
+              <InputGroupAddon tabindex="-1">
+                <IconSearch class="ml-1 size-5 text-muted-foreground" />
+              </InputGroupAddon>
 
-            <InputGroupInput
-              v-model="searchQuery"
-              class="pl-3! text-[15px]"
-              :placeholder="t('search.mainPlaceholder')"
-              @keydown.stop
-            />
+              <InputGroupInput
+                v-model="searchQuery"
+                class="pl-3! text-base!"
+                :placeholder="t('search.mainPlaceholder')"
+                @keydown.stop
+              />
 
-            <InputGroupAddon
-              v-if="searchQuery.trim()"
-              tabindex="-1"
-              align="inline-end"
-            >
-              <Button
-                class="rounded-full"
-                variant="ghost-primary"
-                size="icon-sm"
-                @click="searchQuery = ''"
+              <InputGroupAddon
+                v-if="searchQuery.trim()"
+                tabindex="-1"
+                align="inline-end"
               >
-                <IconX class="size-5" />
-              </Button>
-            </InputGroupAddon>
-          </InputGroup>
+                <Button
+                  class="rounded-full"
+                  variant="ghost-primary"
+                  size="icon-sm"
+                  @click="searchQuery = ''"
+                >
+                  <IconX class="size-5" />
+                </Button>
+              </InputGroupAddon>
+            </InputGroup>
+
+            <TrackSortMenu
+              v-if="isMobileLayout"
+              v-model:sort-key="sortKey"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -91,7 +98,7 @@
           @load-more="handleLoadMore"
         >
           <template #default="{ item, index }">
-            <div class="px-4">
+            <div class="px-2">
               <TrackExpanded
                 :track="item"
                 :index="index + 1"
@@ -103,7 +110,7 @@
           </template>
 
           <template #loader>
-            <div class="flex items-center px-4 flex-col w-full">
+            <div class="flex items-center px-2 flex-col w-full">
               <TrackRowLoading />
             </div>
           </template>
@@ -152,6 +159,8 @@ import IconX from "~icons/tabler/x";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
+import TrackSortMenu from "@/modules/library/components/TrackSortMenu.vue";
+import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -166,6 +175,9 @@ import { useRouter } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
 const { t } = useI18n();
 const router = useRouter();
+// LibrarySortHeader drops its column buttons below 620px, so the narrow
+// layout needs the sort menu to reach anything but the default order.
+const { isMobileLayout } = useDeviceLayout();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
 const {

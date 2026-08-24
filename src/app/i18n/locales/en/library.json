@@ -56,10 +56,13 @@
     "deletePlaylist": "Delete playlist",
     "deleteItem": "Delete item"
   },
+  "sortBy": "Sort by",
   "sortColumn": {
     "title": "Title",
+    "artist": "Artist",
     "album": "Album",
-    "dateAdded": "Date Added"
+    "dateAdded": "Date Added",
+    "duration": "Duration"
   },
   "allMusic": {
     "title": "All Music",

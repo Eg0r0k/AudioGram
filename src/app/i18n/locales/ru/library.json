@@ -56,10 +56,13 @@
     "deletePlaylist": "Удалить плейлист",
     "deleteItem": "Удалить"
   },
+  "sortBy": "Сортировка",
   "sortColumn": {
     "title": "Название",
+    "artist": "Артист",
     "album": "Альбом",
-    "dateAdded": "Дата добавления"
+    "dateAdded": "Дата добавления",
+    "duration": "Длительность"
   },
   "allMusic": {
     "title": "Медиатека",
