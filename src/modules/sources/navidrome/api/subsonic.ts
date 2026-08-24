@@ -2,6 +2,7 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { md5 } from "@noble/hashes/legacy.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { fetch } from "@tauri-apps/plugin-http";
+import { getLogger } from "@/lib/logger"; // DIAG
 import type { SourceError } from "../../types";
 
 //
@@ -113,11 +114,32 @@ export function subsonicFetch<T>(
     fetch(subsonicUrl(config, endpoint, params)),
     (): SourceError => ({ kind: "NETWORK", message: `Request to ${endpoint} failed` }),
   ).andThen(response =>
+    // DIAG: read the body as text so a parse failure can report what actually
+    // arrived (status, content-type, first bytes) instead of swallowing it.
     ResultAsync.fromPromise(
-      response.json() as Promise<unknown>,
+      response.text().then((text) => {
+        try {
+          return JSON.parse(text) as unknown;
+        }
+        catch (err) {
+          void getLogger().error(
+            `[DIAG nd] ${endpoint} status=${response.status} ok=${response.ok}`
+            + ` ct=${response.headers.get("content-type") ?? "-"}`
+            + ` len=${text.length} err=${String(err).slice(0, 80)}`
+            + ` preview=${JSON.stringify(text.slice(0, 200))}`,
+          );
+          throw err;
+        }
+      }),
       (): SourceError => ({ kind: "PARSE", message: `Invalid JSON from ${endpoint}` }),
     ).andThen((body) => {
       const parsed = parseSubsonicBody<T>(body);
+      // DIAG
+      if (!parsed.ok) {
+        void getLogger().error(
+          `[DIAG nd] ${endpoint} envelope rejected: ${parsed.error.kind} ${parsed.error.message}`,
+        );
+      }
       return parsed.ok ? okAsync(parsed.value) : errAsync(parsed.error);
     }),
   );
