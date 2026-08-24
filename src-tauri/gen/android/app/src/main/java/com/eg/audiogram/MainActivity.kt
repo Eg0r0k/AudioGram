@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +21,7 @@ class MainActivity : TauriActivity() {
 
   private var mediaSessionBridge: MediaSessionBridge? = null
   private var folderPickerBridge: FolderPickerBridge? = null
+  private var backBridge: BackBridge? = null
   private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +43,27 @@ class MainActivity : TauriActivity() {
     val folderPicker = FolderPickerBridge(this, webView)
     folderPickerBridge = folderPicker
     webView.addJavascriptInterface(folderPicker, "AudiogramFolderPicker")
+
+    val back = BackBridge(webView)
+    backBridge = back
+    webView.addJavascriptInterface(back, "AudiogramBack")
+    // Registered after super's canGoBack() callback, and the dispatcher runs
+    // callbacks newest-first, so this one decides before that check is ever
+    // reached — see BackBridge for why the check cannot be trusted.
+    onBackPressedDispatcher.addCallback(
+      this,
+      object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+          if (back.claimsBack()) {
+            back.dispatchBack()
+            return
+          }
+          isEnabled = false
+          onBackPressedDispatcher.onBackPressed()
+          isEnabled = true
+        }
+      },
+    )
   }
 
   /** Opens the SAF folder picker; the result lands in [FolderPickerBridge]. */
@@ -52,6 +75,7 @@ class MainActivity : TauriActivity() {
     mediaSessionBridge?.destroy()
     mediaSessionBridge = null
     folderPickerBridge = null
+    backBridge = null
     super.onDestroy()
   }
 

@@ -59,6 +59,27 @@ const topOpenHandler = (): OverlayBackHandler | undefined => {
   return openOrder[openOrder.length - 1];
 };
 
+/**
+ * Native back routing, present only inside the Android shell. When it is there
+ * the whole history-sentinel dance below is skipped: the shell asks the page
+ * directly instead of inferring intent from WebView.canGoBack(), which
+ * Chromium's history-manipulation intervention makes unreliable — it marks
+ * pushState entries skippable, CanGoBack() then excludes them and the activity
+ * minimises with an overlay still open. Measured: the page saw no popstate at
+ * all while the task went to the background.
+ */
+interface AndroidBackBridge {
+  setOverlayDepth: (depth: number) => void;
+}
+
+declare global {
+  interface Window {
+    AudiogramBack?: AndroidBackBridge;
+  }
+}
+
+const NATIVE_BACK_EVENT = "audiogram-back";
+
 const SENTINEL_KEY = "__audiogramOverlay";
 const BASE_KEY = "__audiogramOverlayBase";
 
@@ -121,7 +142,31 @@ const stripOwnState = (state: unknown): Record<string, unknown> => {
  * position bookkeeping in history.state, and clobbering it breaks scroll
  * restoration and back/forward deltas.
  */
+/**
+ * Android path: report how many steps are dismissible and let the shell hand
+ * the press back. No history entries are involved, so nothing can be marked
+ * skippable and there is no stack to keep in sync with vue-router.
+ */
+const useNativeOverlayBack = (bridge: AndroidBackBridge): void => {
+  const popTopSurface = (): void => {
+    topOpenHandler()?.back();
+  };
+
+  watch(totalDepth, (depth) => {
+    syncOpenOrder();
+    bridge.setOverlayDepth(depth);
+  }, { immediate: true });
+
+  useEventListener(window, NATIVE_BACK_EVENT, popTopSurface);
+};
+
 export const useOverlayBackButton = (): void => {
+  const nativeBridge = typeof window === "undefined" ? undefined : window.AudiogramBack;
+  if (nativeBridge) {
+    useNativeOverlayBack(nativeBridge);
+    return;
+  }
+
   let entryCount = 0;
   let generation = 0;
   let suppressedPops = 0;

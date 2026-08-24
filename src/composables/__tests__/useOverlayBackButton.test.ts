@@ -698,3 +698,104 @@ describe("useOverlayEscape", () => {
     expect(queueBack).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useOverlayBackButton on Android", () => {
+  const setOverlayDepth = vi.fn();
+  const playerOpen = ref(false);
+  const panelDepth = ref(0);
+  const playerBack = vi.fn(() => {
+    playerOpen.value = false;
+  });
+  const panelBack = vi.fn(() => {
+    panelDepth.value = Math.max(0, panelDepth.value - 1);
+  });
+  let wrapper: VueWrapper | null = null;
+  let pushStateSpy: ReturnType<typeof vi.spyOn>;
+
+  const mountHost = () => {
+    const Host = defineComponent({
+      setup() {
+        useOverlayBackButton();
+        registerOverlayBackHandler({ depth: () => (playerOpen.value ? 1 : 0), back: playerBack });
+        registerOverlayBackHandler({ depth: () => panelDepth.value, back: panelBack });
+        return () => null;
+      },
+    });
+    wrapper = mount(Host);
+  };
+
+  const pressNativeBack = () => {
+    window.dispatchEvent(new CustomEvent("audiogram-back"));
+  };
+
+  beforeEach(() => {
+    playerOpen.value = false;
+    panelDepth.value = 0;
+    setOverlayDepth.mockClear();
+    playerBack.mockClear();
+    panelBack.mockClear();
+    pushStateSpy = vi.spyOn(history, "pushState");
+    window.AudiogramBack = { setOverlayDepth };
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+    delete window.AudiogramBack;
+    vi.restoreAllMocks();
+  });
+
+  it("reports the current depth to the shell", async () => {
+    mountHost();
+    expect(setOverlayDepth).toHaveBeenLastCalledWith(0);
+
+    playerOpen.value = true;
+    await nextTick();
+    expect(setOverlayDepth).toHaveBeenLastCalledWith(1);
+
+    panelDepth.value = 2;
+    await nextTick();
+    expect(setOverlayDepth).toHaveBeenLastCalledWith(3);
+  });
+
+  it("touches no history entries at all", async () => {
+    mountHost();
+    playerOpen.value = true;
+    await nextTick();
+
+    // The sentinel entries were the whole problem: Chromium marks them
+    // skippable, canGoBack() then reports false and the activity minimises
+    // with the overlay still open.
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
+
+  it("closes the most recently opened surface per press", async () => {
+    mountHost();
+    playerOpen.value = true;
+    await nextTick();
+    panelDepth.value = 1;
+    await nextTick();
+
+    pressNativeBack();
+    expect(panelBack).toHaveBeenCalledTimes(1);
+    expect(playerBack).not.toHaveBeenCalled();
+
+    await nextTick();
+    pressNativeBack();
+    expect(playerBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops driving surfaces once everything is closed", async () => {
+    mountHost();
+    playerOpen.value = true;
+    await nextTick();
+
+    pressNativeBack();
+    await nextTick();
+    expect(setOverlayDepth).toHaveBeenLastCalledWith(0);
+
+    // A press the shell should never have handed over must not throw.
+    pressNativeBack();
+    expect(playerBack).toHaveBeenCalledTimes(1);
+  });
+});
