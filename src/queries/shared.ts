@@ -78,7 +78,7 @@ export function sortTracks(tracks: TrackEntity[], sortKey: TrackSortKey): TrackE
       case "title_asc": case "title_desc": return t.title || "";
       case "duration_asc": case "duration_desc": return t.duration || 0;
       case "plays_desc": return t.playCount || 0;
-      case "artist_asc": return t.artistName || "";
+      case "artist_asc": case "artist_desc": return t.artistName || "";
       case "album_asc": case "album_desc": return t.albumTitle || "";
       default: return t.addedAt || 0;
     }

@@ -15,7 +15,7 @@ export function sortDisplayTracks(tracks: Track[], sortKey: TrackSortKey): Track
       case "title_asc": case "title_desc": return track.title || "";
       case "duration_asc": case "duration_desc": return track.duration || 0;
       case "plays_desc": return track.playCount || 0;
-      case "artist_asc": return track.artist || "";
+      case "artist_asc": case "artist_desc": return track.artist || "";
       case "album_asc": case "album_desc": return track.albumName || "";
       default: return track.addedAt || 0;
     }

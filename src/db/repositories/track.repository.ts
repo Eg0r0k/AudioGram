@@ -41,6 +41,8 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         return this.table.orderBy("playCount").reverse();
       case "artist_asc":
         return this.table.orderBy("artistName");
+      case "artist_desc":
+        return this.table.orderBy("artistName").reverse();
       case "album_asc":
         return this.table.orderBy("albumTitle");
       case "album_desc":
@@ -55,7 +57,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       case "title_asc": case "title_desc": return "title";
       case "duration_asc": case "duration_desc": return "duration";
       case "plays_desc": return "playCount";
-      case "artist_asc": return "artistName";
+      case "artist_asc": case "artist_desc": return "artistName";
       case "album_asc": case "album_desc": return "albumTitle";
       case "date_added_asc": case "date_added_desc": return "addedAt";
       default: return "addedAt";

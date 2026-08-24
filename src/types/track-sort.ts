@@ -4,6 +4,7 @@ export type TrackSortKey
     | "title_asc"
     | "title_desc"
     | "artist_asc"
+    | "artist_desc"
     | "album_asc"
     | "album_desc"
     | "duration_asc"
