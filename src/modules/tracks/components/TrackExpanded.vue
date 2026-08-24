@@ -109,18 +109,24 @@
               :aria-label="$t('downloads.done')"
               :title="$t('downloads.done')"
             />
-            <template
-              v-for="(artist, artistIndex) in artists"
-              :key="artist"
-            >
-              <button
-                type="button"
-                class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
-                @click.stop="handleArtistClick(artistIndex)"
+            <span
+              v-if="isMobileLayout"
+              class="truncate"
+            >{{ track.artist }}</span>
+            <template v-else>
+              <template
+                v-for="(artist, artistIndex) in artists"
+                :key="artist"
               >
-                {{ artist }}
-              </button>
-              <span v-if="artistIndex < artists.length - 1">,&nbsp;</span>
+                <button
+                  type="button"
+                  class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
+                  @click.stop="handleArtistClick(artistIndex)"
+                >
+                  {{ artist }}
+                </button>
+                <span v-if="artistIndex < artists.length - 1">,&nbsp;</span>
+              </template>
             </template>
           </div>
         </div>
@@ -199,6 +205,7 @@
 import { computed, useTemplateRef } from "vue";
 import { cva } from "class-variance-authority";
 import { useElementHover } from "@vueuse/core";
+import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
@@ -302,6 +309,9 @@ const emit = defineEmits<{
 
 const playerStore = usePlayerStore();
 const router = useRouter();
+// Touch layouts tap the row to play, so the artist links inside it are pure
+// misclick surface — there they collapse into the plain artist line.
+const { isMobileLayout } = useDeviceLayout();
 const { locale } = useI18n();
 const { openDropdown } = useTrackMenu();
 const { toggleTrackLike } = useToggleTrackLike();
