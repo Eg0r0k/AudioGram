@@ -4,6 +4,7 @@
   "tabHistory": "History",
   "nowPlaying": "Now Playing",
   "upNext": "Up Next",
+  "upNextFrom": "Up next from:",
   "added": "Added to queue",
   "addFailed": "Could not add to the queue",
   "drag": "Drag to reorder",

@@ -24,10 +24,17 @@
                 />
               </div>
             </div>
-            <div class="px-4 bg-card">
-              <span class=" block font-medium pb-2  ">
-                {{ t("queue.upNext") }}
-              </span>
+            <div class="flex min-w-0 items-baseline gap-1 px-4 pb-2 bg-card font-medium">
+              <template v-if="sourceLink">
+                <span class="shrink-0">{{ t("queue.upNextFrom") }}</span>
+                <Link
+                  :to="sourceLink.to"
+                  class="min-w-0 truncate text-primary hover:underline"
+                >
+                  {{ sourceLink.label }}
+                </Link>
+              </template>
+              <span v-else>{{ t("queue.upNext") }}</span>
             </div>
             <QueueUpNext />
           </div>
@@ -44,7 +51,9 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { DnDProvider } from "@vue-dnd-kit/core";
+import { Link } from "@/components/ui/link";
 import { useQueueStore } from "../store/queue.store";
+import { useQueueSourceLink } from "../composables/useQueueSourceLink";
 import type { QueueItem } from "../types";
 import type { Track } from "@/modules/player/types";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
@@ -56,6 +65,7 @@ import QueueUpNext from "./QueueUpNext.vue";
 const { t } = useI18n();
 
 const queueStore = useQueueStore();
+const { link: sourceLink } = useQueueSourceLink();
 
 const currentQueueItem = computed<QueueItem | null>(() => {
   if (queueStore.currentIndex < 0) return null;
