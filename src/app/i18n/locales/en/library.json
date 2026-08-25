@@ -29,6 +29,10 @@
     "create": "Create folder",
     "newFolder": "New folder",
     "namePlaceholder": "Folder name",
+    "validation": {
+      "nameRequired": "Enter a folder name",
+      "nameMaxLength": "The name must be at most {max} characters"
+    },
     "open": "Open folder",
     "rename": "Rename folder",
     "delete": "Delete folder",

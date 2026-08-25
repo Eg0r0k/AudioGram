@@ -20,9 +20,11 @@
       <EditableValue
         :model-value="folder.name"
         type="text"
-        root-class="block"
-        display-class="truncate text-lg font-bold truncate"
-        input-class="text-lg  font-bold w-full truncate min-w-0"
+        :max-length="FOLDER_NAME_MAX_LENGTH"
+        :validate="isValidFolderName"
+        root-class="max-w-full"
+        display-class="text-lg font-bold truncate min-w-0"
+        input-class="text-lg font-bold"
         @change="(name) => emit('rename', name as string)"
       />
     </div>
@@ -33,6 +35,9 @@
 import { Button } from "@/components/ui/button";
 import { EditableValue } from "@/components/ui/editable";
 import type { SidebarFolderEntity } from "@/db/entities";
+import { FOLDER_NAME_MAX_LENGTH, validateFolderName } from "@/modules/library/lib/folderName";
+
+const isValidFolderName = (name: string) => validateFolderName(name) === null;
 import IconArrowLeft from "~icons/tabler/arrow-left";
 
 defineProps<{

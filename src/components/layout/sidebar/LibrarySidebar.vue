@@ -16,7 +16,7 @@
           :compact="isCompact"
           @close="closeFolder"
           @manage="openManageFolderDialog"
-          @rename="(name) => renameFolder(activeFolder!.id, name)"
+          @rename="renameActiveFolder"
         />
 
         <Scrollable
@@ -141,7 +141,7 @@
 
     <LibraryFolderNameDialog
       v-model:open="isFolderNameDialogOpen"
-      v-model:name="folderName"
+      :initial-name="folderName"
       :title="folderNameDialogTitle"
       @submit="submitFolderName"
     />
@@ -228,6 +228,7 @@ const {
   openMoveToFolderDialog,
   openRenameFolderDialog,
   removeItemFromActiveFolder,
+  renameActiveFolder,
   selectedFolderItemKeys,
   submitFolderName,
   submitManageFolder,

@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SidebarFolderEntity } from "@/db/entities";
+import { normalizeFolderName, validateFolderName } from "@/modules/library/lib/folderName";
 import type { FolderLibraryItemType, LibraryFolderEntry, LibraryItem } from "@/modules/library/types";
 
 interface UseLibrarySidebarFoldersOptions {
@@ -26,6 +27,7 @@ export function useLibrarySidebarFolders({
 
   const activeFolderId = ref<string | null>(null);
   const isFolderNameDialogOpen = ref(false);
+  /** What the name dialog opens with; the dialog owns the edited value. */
   const folderName = ref("");
   const editingFolderId = ref<string | null>(null);
   const isManageFolderDialogOpen = ref(false);
@@ -66,9 +68,10 @@ export function useLibrarySidebarFolders({
     isFolderNameDialogOpen.value = true;
   }
 
-  async function submitFolderName() {
-    const name = folderName.value.trim();
-    if (!name) return;
+  /** `rawName` comes from the dialog already validated; the guard backs it up. */
+  async function submitFolderName(rawName: string) {
+    if (validateFolderName(rawName)) return;
+    const name = normalizeFolderName(rawName);
 
     if (editingFolderId.value) {
       await renameFolder(editingFolderId.value, name);
@@ -78,6 +81,15 @@ export function useLibrarySidebarFolders({
     }
 
     isFolderNameDialogOpen.value = false;
+  }
+
+  /**
+   * Inline rename from the folder header. The field itself refuses an
+   * invalid name (red border, no commit); this guard only backs it up.
+   */
+  async function renameActiveFolder(rawName: string) {
+    if (!activeFolder.value || validateFolderName(rawName)) return;
+    await renameFolder(activeFolder.value.id, normalizeFolderName(rawName));
   }
 
   function openManageFolderDialog(folderId: string) {
@@ -146,6 +158,7 @@ export function useLibrarySidebarFolders({
     openMoveToFolderDialog,
     openRenameFolderDialog,
     removeItemFromActiveFolder,
+    renameActiveFolder,
     submitFolderName,
     submitManageFolder,
   };

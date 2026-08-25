@@ -27,14 +27,21 @@
       :min="type === 'number' ? min : undefined"
       :max="type === 'number' ? max : undefined"
       :step="type === 'number' ? step : undefined"
+      :size="type === 'text' ? Math.max(1, inputValue.length) : undefined"
+      :maxlength="type === 'text' ? maxLength : undefined"
       :aria-label="computedAriaLabel"
+      :aria-invalid="isInvalid || undefined"
       :class="[
-        'bg-background border border-primary rounded px-1 text-center',
-        'focus:outline-none focus:ring-1 focus:ring-primary',
+        'bg-background border rounded px-1 text-center',
+        'field-sizing-content max-w-full min-w-0',
+        'focus:outline-none focus:ring-1',
+        isInvalid
+          ? 'border-destructive focus:ring-destructive'
+          : 'border-primary focus:ring-primary',
         type === 'number' && '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
         inputClass
       ]"
-      @blur="commitEdit"
+      @blur="onBlur"
       @keydown.enter="commitEdit"
       @keydown.escape="cancelEdit"
       @keydown.up.prevent="type === 'number' && increment"
@@ -45,7 +52,7 @@
 
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue";
-import { ref, computed, nextTick, useTemplateRef } from "vue";
+import { ref, computed, nextTick, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -58,6 +65,13 @@ const props = withDefaults(defineProps<{
   step?: number;
   showSign?: boolean;
   suffix?: string;
+  /** Text mode only: hard cap on what can be typed. */
+  maxLength?: number;
+  /**
+   * Text mode only: a value it rejects is not committed — Enter keeps the
+   * field open with a red border, leaving it reverts to the stored value.
+   */
+  validate?: (value: string) => boolean;
   editHint?: string;
   ariaLabel?: string;
   rootClass?: HTMLAttributes["class"];
@@ -70,6 +84,8 @@ const props = withDefaults(defineProps<{
   step: 1,
   showSign: true,
   suffix: "",
+  maxLength: undefined,
+  validate: undefined,
   editHint: undefined,
   ariaLabel: undefined,
   rootClass: "",
@@ -93,8 +109,22 @@ const computedAriaLabel = computed(() =>
 const inputRef = useTemplateRef("inputRef");
 const isEditing = ref(false);
 const inputValue = ref("");
+const isInvalid = ref(false);
+
+// Typing again clears the rejection; the next commit re-validates.
+watch(inputValue, () => {
+  isInvalid.value = false;
+});
+
+const isRejected = () =>
+  props.type === "text" && props.validate !== undefined && !props.validate(inputValue.value);
 
 const inputType = computed(() => props.type === "number" ? "number" : "text");
+
+// The input sizes to its text: `field-sizing: content` where the engine has
+// it (Chromium — WebView2, Android), the `size` attribute bound to the text
+// length elsewhere (WebKitGTK). An explicit width in `inputClass` still wins
+// over both, and `max-w-full` keeps a long value inside the parent.
 
 const formattedValue = computed(() => {
   if (props.type === "text") {
@@ -115,6 +145,7 @@ const startEdit = () => {
     inputValue.value = String(Math.round(props.modelValue as number));
   }
   isEditing.value = true;
+  isInvalid.value = false;
 
   nextTick(() => {
     inputRef.value?.focus();
@@ -123,6 +154,14 @@ const startEdit = () => {
 };
 
 const commitEdit = () => {
+  // Enter commits and unmounts the input, whose blur then lands here again
+  // — the second call must be a no-op or every change fires twice.
+  if (!isEditing.value) return;
+  if (isRejected()) {
+    isInvalid.value = true;
+    return;
+  }
+
   if (props.type === "text") {
     if (inputValue.value !== props.modelValue) {
       emit("update:modelValue", inputValue.value);
@@ -148,6 +187,17 @@ const commitEdit = () => {
 
 const cancelEdit = () => {
   isEditing.value = false;
+  isInvalid.value = false;
+};
+
+// Leaving the field with a rejected value cannot keep it open (nothing
+// would ever close it), so it reverts to the stored value instead.
+const onBlur = () => {
+  if (isRejected()) {
+    cancelEdit();
+    return;
+  }
+  commitEdit();
 };
 
 const increment = () => {
