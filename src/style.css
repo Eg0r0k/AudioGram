@@ -143,6 +143,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* In the base layer so utilities like hover:underline can win; an
+     unlayered rule would outrank every Tailwind utility. */
+  a {
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 @layer components {
@@ -368,12 +374,7 @@
   touch-action: pan-x pan-y;
 }
 
-a{
-  text-decoration: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-img, 
+img,
 video {
   -webkit-user-drag: none;
 }
