@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { YtMusicTrack } from "../types";
 
 // The row builder needs the media-server base for the stream URL; the
-// proxied-cover path is gated off (IS_TAURI false → no ytimg scheme).
+// proxied-cover path is gated off (IS_TAURI false → no ytimg route).
 vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: false, IS_MOBILE: false }));
 import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import {

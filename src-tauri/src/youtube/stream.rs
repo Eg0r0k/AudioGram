@@ -307,6 +307,7 @@ pub async fn yt_prefetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result<()
 /// ~6 h, IP change behind a rotating proxy, or a flagged session).
 pub(crate) async fn serve_yt<R: Runtime>(
     app: &AppHandle<R>,
+    client: &reqwest::Client,
     id: &str,
     range: Option<String>,
     origin: Option<&str>,
@@ -320,17 +321,9 @@ pub(crate) async fn serve_yt<R: Runtime>(
         return memory_range_response(&content_type, &bytes, range.as_deref(), origin);
     }
 
-    let client = match app.state::<ProxyState>().client() {
-        Ok(client) => client,
-        Err(e) => {
-            log::warn!("media yt/{id}: client: {e}");
-            return status_response(502, origin);
-        }
-    };
-
     if let Some(entry) = app.state::<YtStreamCache>().get(id) {
         match forward_stream(
-            &client,
+            client,
             &entry.url,
             &entry.headers,
             range.clone(),
@@ -356,7 +349,7 @@ pub(crate) async fn serve_yt<R: Runtime>(
         }
     };
     match forward_stream(
-        &client,
+        client,
         &entry.url,
         &entry.headers,
         range,

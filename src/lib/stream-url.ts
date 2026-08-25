@@ -10,6 +10,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 //   http://127.0.0.1:{port}/{token}/nd/song/<songId>
 //   http://127.0.0.1:{port}/{token}/nd/cover/<coverId>?size=<px>
 //   http://127.0.0.1:{port}/{token}/local/<encoded absolute path>
+//   http://127.0.0.1:{port}/{token}/ytimg/<encoded https thumbnail url>
 //
 // The base is fetched ONCE at bootstrap (top-level await in main.ts), so the
 // builders stay synchronous. Port and token change every launch — server
@@ -66,27 +67,40 @@ export const ndCoverUrl = (coverId: string, size?: number): string => {
   return `${requireBase()}/nd/cover/${encodeURIComponent(coverId)}${query}`;
 };
 
-const KNOWN_ROUTES = /^(yt|nd\/song|nd\/cover|local)\//;
+/**
+ * Builds the proxied YouTube thumbnail URL. The whole https URL rides as ONE
+ * encoded segment (it may carry its own query); the Rust side percent-decodes
+ * it back and enforces the host allowlist.
+ */
+export const ytImageUrl = (thumbnailUrl: string): string => {
+  return `${requireBase()}/ytimg/${encodeURIComponent(thumbnailUrl)}`;
+};
+
+const KNOWN_ROUTES = /^(yt|nd\/song|nd\/cover|local|ytimg)\//;
 
 /**
  * Recognizes every current and historical proxy URL shape and returns the
  * decoded route path (`yt/<id>`, `nd/song/<id>`, `nd/cover/<id>?size=<px>`,
- * `local/<abs path>`), or null for anything that never was a proxy URL:
+ * `local/<abs path>`, `ytimg/<https url>`), or null for anything that never
+ * was a proxy URL:
  *
  * - current/previous-session server: `http://127.0.0.1:{port}/{token}/…`
  * - generalized scheme: `stream://localhost/<enc path>` and
  *   `http(s)://stream.localhost/<enc path>` (windows/android form)
  * - pre-generalization: `ytstream://localhost/<videoId>` and
  *   `http(s)://ytstream.localhost/<videoId>`
+ * - thumbnail scheme: `ytimg://localhost/<enc https url>` and
+ *   `http(s)://ytimg.localhost/<enc https url>`
  */
 export const proxyPathFromUrl = (url: string | null | undefined): string | null => {
   if (!url) return null;
   try {
     const parsed = new URL(url);
     const isYtLegacy = parsed.protocol === "ytstream:" || parsed.hostname === "ytstream.localhost";
+    const isYtimgLegacy = parsed.protocol === "ytimg:" || parsed.hostname === "ytimg.localhost";
     const isStreamLegacy = parsed.protocol === "stream:" || parsed.hostname === "stream.localhost";
     const isServer = parsed.hostname === "127.0.0.1";
-    if (!isYtLegacy && !isStreamLegacy && !isServer) return null;
+    if (!isYtLegacy && !isYtimgLegacy && !isStreamLegacy && !isServer) return null;
 
     let path = decodeURIComponent(parsed.pathname).replace(/^\//, "");
 
@@ -98,6 +112,9 @@ export const proxyPathFromUrl = (url: string | null | undefined): string | null 
     }
     if (isYtLegacy) {
       return path ? `yt/${path}` : null;
+    }
+    if (isYtimgLegacy) {
+      return path ? `ytimg/${path}` : null;
     }
 
     const withQuery = `${path}${parsed.search}`;
@@ -131,6 +148,10 @@ export const migrateProxyUrl = (url: string): string => {
   if (!serverBase) return url;
   const path = proxyPathFromUrl(url);
   if (!path) return url;
+
+  // Before the query split: the thumbnail URL may carry a query of its own.
+  const ytimg = path.startsWith("ytimg/") ? path.slice("ytimg/".length) : null;
+  if (ytimg) return ytImageUrl(ytimg);
 
   const [route, query = ""] = path.split("?", 2);
 

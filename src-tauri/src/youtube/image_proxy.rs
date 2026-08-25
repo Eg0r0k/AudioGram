@@ -1,71 +1,27 @@
-//! The `ytimg://` thumbnail proxy scheme.
+//! The `/{token}/ytimg/<encoded https url>` route of the loopback media
+//! server: YouTube cover art fetched by the Rust side.
+//!
+//! `<img>` loads in the webview go straight to the network and bypass the app
+//! proxy (it only covers the Rust-side clients), so on a network where
+//! YouTube is blocked thumbnails never render; this routes them through the
+//! shared proxy-aware client instead. The original https URL rides as one
+//! percent-encoded path segment (built by `ytImageUrl` on the frontend) and
+//! `media_server::handle` decodes it.
+//!
+//! No server-side cache: responses carry `Cache-Control: public, max-age=86400`
+//! and the transport is plain HTTP, so the webview's own HTTP cache serves
+//! repeat loads without reaching this route. (An in-memory cache lived here
+//! while this was the `ytimg://` custom scheme, whose responses WebView2
+//! refuses to HTTP-cache — the same reason the nd cover route moved.)
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use futures_util::TryStreamExt;
+use http_body_util::{BodyExt, StreamBody};
 
-use bytes::Bytes;
-use tauri::{AppHandle, Manager, Runtime};
+use crate::media_server::{cors, status_response, Body};
 
-use super::{http_client, status_response};
-
-/// WebView2 does not put custom-scheme responses into its HTTP cache, so the
-/// `Cache-Control` header on proxied thumbnails is ignored and every remount
-/// of an `<img>` re-fetches the cover over the network — long enough that the
-/// frontend replays its load animation. Keep the bytes in memory instead.
-const MAX_CACHED_IMAGES: usize = 256;
-const MAX_CACHEABLE_BYTES: usize = 1024 * 1024;
-
-struct CachedImage {
-    content_type: String,
-    bytes: Bytes,
-}
-
-#[derive(Default)]
-pub struct YtImageCache {
-    entries: Mutex<(HashMap<String, CachedImage>, VecDeque<String>)>,
-}
-
-impl YtImageCache {
-    fn get(&self, url: &str) -> Option<(String, Bytes)> {
-        let entries = self.entries.lock().ok()?;
-        entries
-            .0
-            .get(url)
-            .map(|img| (img.content_type.clone(), img.bytes.clone()))
-    }
-
-    fn insert(&self, url: String, content_type: String, bytes: Bytes) {
-        if bytes.len() > MAX_CACHEABLE_BYTES {
-            return;
-        }
-        let Ok(mut entries) = self.entries.lock() else {
-            return;
-        };
-        let (map, order) = &mut *entries;
-        if map
-            .insert(
-                url.clone(),
-                CachedImage {
-                    content_type,
-                    bytes,
-                },
-            )
-            .is_none()
-        {
-            order.push_back(url);
-        }
-        while map.len() > MAX_CACHED_IMAGES {
-            let Some(oldest) = order.pop_front() else {
-                break;
-            };
-            map.remove(&oldest);
-        }
-    }
-}
-
-/// Hosts the `ytimg://` scheme may fetch from (video thumbnails, channel art,
-/// YT Music covers). Exact googleusercontent hosts only — the wildcard domain
-/// hosts arbitrary user content.
+/// Hosts the route may fetch from (video thumbnails, channel art, YT Music
+/// covers). Exact googleusercontent hosts only — the wildcard domain hosts
+/// arbitrary user content.
 pub(super) fn is_allowed_image_host(host: &str) -> bool {
     host == "ytimg.com"
         || host.ends_with(".ytimg.com")
@@ -74,84 +30,150 @@ pub(super) fn is_allowed_image_host(host: &str) -> bool {
         || host == "yt3.googleusercontent.com"
 }
 
-/// Serves YouTube cover art over the `ytimg://` scheme. `<img>` loads in the
-/// webview bypass the app proxy (it only covers the Rust-side clients), so on
-/// a network where YouTube is blocked thumbnails never render; this routes
-/// them through the shared proxy state instead. The original https URL arrives
-/// percent-encoded as the request path (built by `proxiedThumbnail` on the
-/// frontend via `convertFileSrc`).
-pub fn serve_image<R: Runtime>(
-    ctx: tauri::UriSchemeContext<'_, R>,
-    request: tauri::http::Request<Vec<u8>>,
-    responder: tauri::UriSchemeResponder,
-) {
-    let encoded = request.uri().path().trim_start_matches('/').to_owned();
-    let app = ctx.app_handle().clone();
-
-    tauri::async_runtime::spawn(async move {
-        let response = fetch_image(&app, &encoded).await.unwrap_or_else(|e| {
-            log::warn!("ytimg: {e}");
-            status_response(502)
-        });
-        responder.respond(response);
-    });
+/// The URL is frontend-supplied: without `https` + the host allowlist this
+/// route would be an open proxy for whatever the webview asks.
+fn is_allowed_image_url(url: &str) -> bool {
+    tauri::Url::parse(url)
+        .is_ok_and(|u| u.scheme() == "https" && u.host_str().is_some_and(is_allowed_image_host))
 }
 
-async fn fetch_image<R: Runtime>(
-    app: &AppHandle<R>,
-    encoded: &str,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
-    let url = percent_encoding::percent_decode_str(encoded)
-        .decode_utf8()
-        .map_err(|e| format!("bad encoding: {e}"))?;
-    let parsed = tauri::Url::parse(&url).map_err(|e| format!("bad url: {e}"))?;
+/// `ytimg/<https url>`: 403 outside the allowlist, otherwise the image
+/// streams through with cacheable headers.
+pub(crate) async fn serve_image(
+    client: &reqwest::Client,
+    url: &str,
+    origin: Option<&str>,
+) -> http::Response<Body> {
+    if !is_allowed_image_url(url) {
+        return status_response(403, origin);
+    }
+    proxy_image(client, url, origin).await
+}
 
-    if parsed.scheme() != "https" || !parsed.host_str().is_some_and(is_allowed_image_host) {
-        return Ok(status_response(403));
+/// The pass-through itself, allowlist already applied — split off so tests
+/// can point it at a local upstream.
+async fn proxy_image(
+    client: &reqwest::Client,
+    url: &str,
+    origin: Option<&str>,
+) -> http::Response<Body> {
+    let response = match client.get(url).send().await {
+        Ok(response) => response,
+        Err(e) => {
+            log::warn!("media ytimg: request failed: {e}");
+            return status_response(502, origin);
+        }
+    };
+    if response.status().as_u16() != 200 {
+        log::warn!(
+            "media ytimg: upstream status {} for {url}",
+            response.status()
+        );
+        return status_response(502, origin);
     }
 
-    let cache = app.state::<YtImageCache>();
-    if let Some((content_type, bytes)) = cache.get(parsed.as_str()) {
-        return image_response(200, &content_type, bytes.to_vec());
-    }
-
-    let resp = http_client(app)?
-        .get(parsed.as_str())
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let status = resp.status().as_u16();
-    let content_type = resp
+    let content_type = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("image/jpeg")
         .to_owned();
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    let content_length = response
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
 
-    if status == 200 {
-        cache.insert(
-            parsed.as_str().to_owned(),
-            content_type.clone(),
-            bytes.clone(),
-        );
+    let mut builder = cors(http::Response::builder().status(200), origin)
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "public, max-age=86400");
+    if let Some(len) = content_length {
+        builder = builder.header("Content-Length", len);
     }
 
-    // The custom-protocol responder needs an owned `Vec` — the one copy.
-    image_response(status, &content_type, bytes.to_vec())
+    let stream = response
+        .bytes_stream()
+        .map_err(|e| std::io::Error::other(e.to_string()))
+        .map_ok(hyper::body::Frame::data);
+    builder
+        .body(StreamBody::new(stream).boxed())
+        .unwrap_or_else(|_| status_response(500, origin))
 }
 
-fn image_response(
-    status: u16,
-    content_type: &str,
-    bytes: Vec<u8>,
-) -> Result<tauri::http::Response<Vec<u8>>, String> {
-    tauri::http::Response::builder()
-        .status(status)
-        .header("Access-Control-Allow-Origin", "*")
-        .header("Content-Type", content_type)
-        .header("Cache-Control", "public, max-age=86400")
-        .body(bytes)
-        .map_err(|e| e.to_string())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::media_server::test_support::spawn_upstream;
+
+    #[test]
+    fn allows_https_on_known_hosts_only() {
+        assert!(is_allowed_image_url(
+            "https://i.ytimg.com/vi/x/hqdefault.jpg"
+        ));
+        assert!(is_allowed_image_url(
+            "https://lh3.googleusercontent.com/c=w544-h544"
+        ));
+        assert!(!is_allowed_image_url(
+            "http://i.ytimg.com/vi/x/hqdefault.jpg"
+        ));
+        assert!(!is_allowed_image_url(
+            "https://evil.example/i.ytimg.com/x.jpg"
+        ));
+        assert!(!is_allowed_image_url(
+            "https://user.googleusercontent.com/x.jpg"
+        ));
+        assert!(!is_allowed_image_url("not a url"));
+    }
+
+    #[tokio::test]
+    async fn serve_image_refuses_urls_outside_the_allowlist_with_403() {
+        let resp = serve_image(&reqwest::Client::new(), "https://evil.example/x.jpg", None).await;
+
+        assert_eq!(resp.status(), 403);
+    }
+
+    #[tokio::test]
+    async fn streams_the_image_through_with_cache_headers() {
+        let upstream = spawn_upstream(|req| {
+            assert_eq!(req.uri().path(), "/vi/x/hqdefault.jpg");
+            http::Response::builder()
+                .status(200)
+                .header("Content-Type", "image/png")
+                .body(http_body_util::Full::new(bytes::Bytes::from_static(b"img")))
+                .expect("upstream response")
+        })
+        .await;
+
+        let resp = proxy_image(
+            &reqwest::Client::new(),
+            &format!("{upstream}/vi/x/hqdefault.jpg"),
+            Some("http://tauri.localhost"),
+        )
+        .await;
+
+        assert_eq!(resp.status(), 200);
+        assert_eq!(resp.headers()["Content-Type"], "image/png");
+        assert_eq!(resp.headers()["Cache-Control"], "public, max-age=86400");
+        assert_eq!(
+            resp.headers()["Access-Control-Allow-Origin"],
+            "http://tauri.localhost"
+        );
+        let body = resp.into_body().collect().await.expect("body").to_bytes();
+        assert_eq!(body.as_ref(), b"img");
+    }
+
+    #[tokio::test]
+    async fn maps_upstream_errors_to_502() {
+        let upstream = spawn_upstream(|_req| {
+            http::Response::builder()
+                .status(404)
+                .body(http_body_util::Full::new(bytes::Bytes::new()))
+                .expect("upstream response")
+        })
+        .await;
+
+        let resp = proxy_image(&reqwest::Client::new(), &upstream, None).await;
+
+        assert_eq!(resp.status(), 502);
+    }
 }

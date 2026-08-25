@@ -1,5 +1,5 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { platformCaps } from "@/lib/environment/platformCaps";
+import { proxyPathFromUrl, ytImageUrl } from "@/lib/stream-url";
 
 /**
  * googleusercontent/ggpht covers are served at the size encoded in the URL,
@@ -22,32 +22,33 @@ export const THUMB_SIZE_CARD = 320;
 export const THUMB_SIZE_ROW = 226;
 
 /**
- * Routes a YouTube thumbnail URL through the `ytimg://` scheme so the Rust
- * side fetches it honoring the configured proxy. `<img>` loads in the webview
- * go straight to the network and bypass the app proxy otherwise. No-op on web.
+ * Routes a YouTube thumbnail URL through the media server's `ytimg` route so
+ * the Rust side fetches it honoring the configured proxy. `<img>` loads in
+ * the webview go straight to the network and bypass the app proxy otherwise.
+ * No-op on web and mobile (the route lives in the desktop-only youtube module).
  *
  * `size` picks the CDN rendition — request only what the layout needs so long
  * lists don't decode hero-sized covers per row.
  */
 export function proxiedThumbnail(url: string, size: number = THUMB_SIZE_FULL): string {
   const sharp = upscaledThumbnail(url, size);
-  // ytimg:// is registered by the desktop-only youtube module.
   if (!platformCaps.canShellSpawn) return sharp;
-  return convertFileSrc(sharp, "ytimg");
+  return ytImageUrl(sharp);
 }
 
 /**
- * Recovers the original https thumbnail URL from a `ytimg://`-proxied one
- * (the original arrives percent-encoded as the request path). Non-proxied
- * URLs pass through unchanged.
+ * Recovers the original https thumbnail URL from a proxied one — the current
+ * `ytimg/<enc url>` server route or the legacy `ytimg://` scheme persisted in
+ * older queue snapshots. Non-proxied URLs pass through unchanged; anything
+ * that is not a URL at all yields null.
  */
 export function unproxiedThumbnail(url: string | null | undefined): string | null {
   if (!url) return null;
+  const route = proxyPathFromUrl(url);
+  if (route?.startsWith("ytimg/")) return route.slice("ytimg/".length);
   try {
-    const parsed = new URL(url);
-    const isProxied = parsed.protocol === "ytimg:" || parsed.hostname === "ytimg.localhost";
-    if (!isProxied) return url;
-    return decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+    new URL(url);
+    return url;
   }
   catch {
     return null;

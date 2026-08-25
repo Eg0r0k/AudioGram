@@ -177,11 +177,9 @@ pub fn run() {
     let builder = builder
         .manage(discord::DiscordPresenceState::default())
         .manage(youtube::YtStreamCache::default())
-        .manage(youtube::YtImageCache::default())
         .manage(youtube::YtAudioCache::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
-        .register_asynchronous_uri_scheme_protocol("ytimg", youtube::serve_image)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
 

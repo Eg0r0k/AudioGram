@@ -22,7 +22,7 @@ pub use browse::*;
 pub use download::*;
 pub use dto::*;
 pub use error::*;
-pub use image_proxy::*;
+pub(crate) use image_proxy::*;
 pub use music::*;
 pub use stream::*;
 
@@ -168,14 +168,4 @@ fn validate_browse_id(id: String) -> Result<String, YtError> {
         return Err(YtError::invalid_input("invalid browse id"));
     }
     Ok(id)
-}
-
-/// Bare status answer for the `ytimg://` protocol (which stays a custom
-/// scheme: thumbnails are small, the full-body limitation is irrelevant).
-pub(crate) fn status_response(code: u16) -> tauri::http::Response<Vec<u8>> {
-    tauri::http::Response::builder()
-        .status(code)
-        .header("Access-Control-Allow-Origin", "*")
-        .body(Vec::new())
-        .unwrap_or_default()
 }

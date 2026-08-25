@@ -9,7 +9,8 @@
 //! Bound to `127.0.0.1:0` (random port) BEFORE the webview starts; every
 //! request path must begin with a per-launch random token segment:
 //! `/{token}/local/<enc path>`, `/{token}/nd/song/<id>`,
-//! `/{token}/nd/cover/<id>?size=<px>`, `/{token}/yt/<videoId>`.
+//! `/{token}/nd/cover/<id>?size=<px>`, `/{token}/yt/<videoId>`,
+//! `/{token}/ytimg/<enc https url>`.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -452,36 +453,37 @@ impl<R: Runtime> RemoteRoutes for AppRoutes<R> {
         let app = &self.0;
         let origin = origin.as_deref();
 
+        // Every remote route talks to its upstream through the shared client;
+        // cache hits pay only a mutex lock for it. The one failure is an
+        // unparsable proxy URL, which no route could work around anyway.
+        let client = match crate::proxy::http_client(app) {
+            Ok(client) => client,
+            Err(e) => {
+                log::warn!("media {rest}: client: {e}");
+                return Some(status_response(502, origin));
+            }
+        };
+
         if let Some(id) = rest.strip_prefix("nd/song/") {
             let config = app.state::<crate::nd::NdState>().get();
             let cache = app.state::<crate::nd::NdAudioCache>();
-            let client = match crate::proxy::http_client(app) {
-                Ok(client) => client,
-                Err(e) => {
-                    log::warn!("media nd/song/{id}: client: {e}");
-                    return Some(status_response(502, origin));
-                }
-            };
             return Some(
                 crate::nd::serve_song(config, &cache, &client, id, range.as_deref(), origin).await,
             );
         }
         if let Some(id) = rest.strip_prefix("nd/cover/") {
             let config = app.state::<crate::nd::NdState>().get();
-            let client = match crate::proxy::http_client(app) {
-                Ok(client) => client,
-                Err(e) => {
-                    log::warn!("media nd/cover/{id}: client: {e}");
-                    return Some(status_response(502, origin));
-                }
-            };
             return Some(
                 crate::nd::serve_cover(config, &client, id, query.as_deref(), origin).await,
             );
         }
         #[cfg(desktop)]
         if let Some(id) = rest.strip_prefix("yt/") {
-            return Some(crate::youtube::serve_yt(app, id, range, origin).await);
+            return Some(crate::youtube::serve_yt(app, &client, id, range, origin).await);
+        }
+        #[cfg(desktop)]
+        if let Some(url) = rest.strip_prefix("ytimg/") {
+            return Some(crate::youtube::serve_image(&client, url, origin).await);
         }
         #[cfg(not(desktop))]
         let _ = range;
