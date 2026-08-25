@@ -16,7 +16,18 @@
       </Button>
 
       <div class="flex min-w-0 flex-col items-center">
-        <div class="text-sm font-medium text-white">
+        <Link
+          v-if="sourceLink"
+          :to="sourceLink.to"
+          class="max-w-55 truncate text-sm font-medium text-white hover:underline"
+          @click="closePlayer"
+        >
+          {{ sourceLink.label }}
+        </Link>
+        <div
+          v-else
+          class="text-sm font-medium text-white"
+        >
           {{ $t('player.nowPlaying') }}
         </div>
 
@@ -336,6 +347,8 @@ import IconChevronDown from "~icons/tabler/chevron-down";
 
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/components/ui/link";
+import { useQueueSourceLink } from "@/modules/queue/composables/useQueueSourceLink";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import CoverStateOverlay from "@/components/layout/mobile/CoverStateOverlay.vue";
 import PlayButton from "@/modules/player/components/PlayButton.vue";
@@ -361,6 +374,9 @@ const rightPanelStore = useRightPanelStore();
 const saveChapters = useSaveTrackChapters();
 const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown } = useTrackMenu();
+// The header names where the queue was started from (album, artist,
+// playlist, ...) and opens it; plain "Now playing" when there is no page.
+const { link: sourceLink } = useQueueSourceLink();
 const { displayProgress, isTransitionEnabled, isScrubbing, scrubValue, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
 
 const scrubTimeDisplay = computed(() => {
