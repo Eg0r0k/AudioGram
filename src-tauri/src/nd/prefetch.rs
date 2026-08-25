@@ -1,65 +1,35 @@
 //! Whole-track prefetch cache and the `/{token}/nd/song/…` route of the
 //! loopback media server.
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use std::ops::Deref;
 
-use bytes::Bytes;
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::config::NdState;
+use crate::audio_cache::{AudioCache, CachedAudio};
 
-/// Whole prefetched ND tracks, keyed by song id — the counterpart of the YT
-/// prefetch cache: `nd_prefetch` fills it for the next queue entry while the
-/// current track plays, and `stream_song` answers range requests from memory
-/// so the next track starts instantly. Raw FLAC can be large, so the cache
-/// is small and per-track capped.
+/// Raw FLAC can be large, so the ND cache is small and per-track capped.
 const MAX_PREFETCHED_ND_TRACKS: usize = 2;
 const MAX_PREFETCHED_ND_BYTES: usize = 128 * 1024 * 1024;
 
-/// `(content type, audio)` — `Bytes` so a cache hit and every Range slice
-/// served from it are refcounted views, never copies.
-type CachedTrack = (String, Bytes);
+/// The ND instance of [`AudioCache`] — a newtype because tauri manages
+/// state by type, and the yt path has its own.
+pub(crate) struct NdAudioCache(AudioCache);
 
-#[derive(Default)]
-pub struct NdAudioCache {
-    entries: Mutex<(HashMap<String, CachedTrack>, VecDeque<String>)>,
+impl Default for NdAudioCache {
+    fn default() -> Self {
+        Self(AudioCache::new(
+            MAX_PREFETCHED_ND_TRACKS,
+            MAX_PREFETCHED_ND_BYTES,
+        ))
+    }
 }
 
-impl NdAudioCache {
-    fn get(&self, id: &str) -> Option<CachedTrack> {
-        let entries = self.entries.lock().ok()?;
-        entries.0.get(id).cloned()
-    }
+impl Deref for NdAudioCache {
+    type Target = AudioCache;
 
-    fn contains(&self, id: &str) -> bool {
-        self.entries
-            .lock()
-            .map(|entries| entries.0.contains_key(id))
-            .unwrap_or(false)
-    }
-
-    /// Returns false when the track is over the per-track cap and was NOT
-    /// cached — the command must surface that instead of reporting success.
-    /// `pub(crate)`: the media-server tests seed the cache directly.
-    pub(crate) fn insert(&self, id: String, content_type: String, bytes: Bytes) -> bool {
-        if bytes.len() > MAX_PREFETCHED_ND_BYTES {
-            return false;
-        }
-        let Ok(mut entries) = self.entries.lock() else {
-            return false;
-        };
-        let (map, order) = &mut *entries;
-        if map.insert(id.clone(), (content_type, bytes)).is_none() {
-            order.push_back(id);
-        }
-        while map.len() > MAX_PREFETCHED_ND_TRACKS {
-            let Some(oldest) = order.pop_front() else {
-                break;
-            };
-            map.remove(&oldest);
-        }
-        true
+    fn deref(&self) -> &AudioCache {
+        &self.0
     }
 }
 
@@ -127,7 +97,11 @@ pub(crate) async fn serve_song(
 ) -> http::Response<crate::media_server::Body> {
     use crate::media_server::{forward_stream, memory_range_response, status_response};
 
-    if let Some((content_type, bytes)) = cache.get(song_id) {
+    if let Some(CachedAudio {
+        content_type,
+        bytes,
+    }) = cache.get(song_id)
+    {
         return memory_range_response(&content_type, &bytes, range, origin);
     }
 
@@ -157,19 +131,8 @@ pub(crate) async fn serve_song(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
     use http_body_util::BodyExt;
-
-    fn filled(cache: &NdAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(
-            id.to_owned(),
-            "audio/flac".into(),
-            Bytes::from(vec![0u8; len]),
-        )
-    }
-
-    fn direct() -> reqwest::Client {
-        reqwest::Client::new()
-    }
 
     fn test_config(base_url: String) -> super::super::config::NdConfig {
         super::super::config::NdConfig {
@@ -178,6 +141,10 @@ mod tests {
             token: "t".into(),
             salt: "s".into(),
         }
+    }
+
+    fn direct() -> reqwest::Client {
+        reqwest::Client::new()
     }
 
     #[tokio::test]
@@ -261,47 +228,5 @@ mod tests {
         .await;
 
         assert_eq!(resp.status(), 502);
-    }
-
-    #[test]
-    fn insert_and_get_round_trip() {
-        let cache = NdAudioCache::default();
-        assert!(filled(&cache, "s1", 16));
-
-        let (content_type, bytes) = cache.get("s1").expect("cached entry");
-        assert_eq!(content_type, "audio/flac");
-        assert_eq!(bytes.len(), 16);
-        assert!(cache.contains("s1"));
-        assert!(!cache.contains("s2"));
-    }
-
-    #[test]
-    fn insert_rejects_tracks_over_the_per_track_cap() {
-        let cache = NdAudioCache::default();
-        assert!(!filled(&cache, "big", MAX_PREFETCHED_ND_BYTES + 1));
-        assert!(!cache.contains("big"));
-    }
-
-    #[test]
-    fn insert_evicts_the_oldest_entry_beyond_the_track_cap() {
-        let cache = NdAudioCache::default();
-        assert!(filled(&cache, "s1", 8));
-        assert!(filled(&cache, "s2", 8));
-        assert!(filled(&cache, "s3", 8));
-
-        assert!(!cache.contains("s1"));
-        assert!(cache.contains("s2"));
-        assert!(cache.contains("s3"));
-    }
-
-    #[test]
-    fn reinserting_an_id_does_not_evict_others() {
-        let cache = NdAudioCache::default();
-        assert!(filled(&cache, "s1", 8));
-        assert!(filled(&cache, "s2", 8));
-        assert!(filled(&cache, "s2", 24));
-
-        assert!(cache.contains("s1"));
-        assert_eq!(cache.get("s2").expect("updated entry").1.len(), 24);
     }
 }

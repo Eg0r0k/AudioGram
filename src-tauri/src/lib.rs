@@ -20,6 +20,8 @@ mod discord_utils;
 #[cfg(desktop)]
 mod youtube;
 
+mod audio_cache;
+
 mod media_server;
 
 mod nd;

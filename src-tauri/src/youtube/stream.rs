@@ -2,7 +2,8 @@
 //! media server. The server itself and its dispatcher live in
 //! `crate::media_server`; this module only serves `yt/<videoId>` paths.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
+use crate::audio_cache::{AudioCache, CachedAudio};
 use crate::media_server::{forward_stream, memory_range_response, status_response};
 
 use super::{kill_sidecar_tree, proxy_args, validate_id, ProxyState, YtError, SIDECAR_YTDLP};
@@ -44,11 +46,6 @@ impl YtStreamCache {
     }
 }
 
-/// Whole prefetched audio files, keyed by video id. Filled by `yt_prefetch`
-/// while the previous track is still playing; the `stream://` proxy serves
-/// range requests straight from memory, so the next track starts instantly
-/// instead of waiting for the full googlevideo download.
-///
 /// Long uploads (2h mixes) are refused: warming them would pin hundreds of
 /// MB of audio in memory for a head start the capped-range streaming path
 /// already provides.
@@ -61,58 +58,24 @@ const MAX_PREFETCHED_YT_BYTES: usize = 128 * 1024 * 1024;
 /// (streaming AND prefetch) must stay under this.
 const YT_RANGE_SPAN: u64 = 1024 * 1024;
 
-struct CachedAudio {
-    content_type: String,
-    /// `Bytes`, so a hit and every Range slice served from it are refcounted
-    /// views — never copies of a 100 MB track.
-    bytes: Bytes,
+/// The YouTube instance of [`AudioCache`], keyed by video id — a newtype
+/// because tauri manages state by type, and the nd path has its own.
+pub(crate) struct YtAudioCache(AudioCache);
+
+impl Default for YtAudioCache {
+    fn default() -> Self {
+        Self(AudioCache::new(
+            MAX_PREFETCHED_TRACKS,
+            MAX_PREFETCHED_YT_BYTES,
+        ))
+    }
 }
 
-#[derive(Default)]
-pub struct YtAudioCache {
-    entries: Mutex<(HashMap<String, CachedAudio>, VecDeque<String>)>,
-}
+impl Deref for YtAudioCache {
+    type Target = AudioCache;
 
-impl YtAudioCache {
-    fn get(&self, id: &str) -> Option<(String, Bytes)> {
-        let entries = self.entries.lock().ok()?;
-        entries
-            .0
-            .get(id)
-            .map(|audio| (audio.content_type.clone(), audio.bytes.clone()))
-    }
-
-    fn contains(&self, id: &str) -> bool {
-        self.entries
-            .lock()
-            .map(|entries| entries.0.contains_key(id))
-            .unwrap_or(false)
-    }
-
-    /// Returns false when the track is over the per-track cap and was NOT
-    /// cached — the command must surface that instead of reporting success.
-    fn insert(&self, id: String, content_type: String, bytes: Bytes) -> bool {
-        if bytes.len() > MAX_PREFETCHED_YT_BYTES {
-            return false;
-        }
-        let Ok(mut entries) = self.entries.lock() else {
-            return false;
-        };
-        let (map, order) = &mut *entries;
-        let audio = CachedAudio {
-            content_type,
-            bytes,
-        };
-        if map.insert(id.clone(), audio).is_none() {
-            order.push_back(id);
-        }
-        while map.len() > MAX_PREFETCHED_TRACKS {
-            let Some(oldest) = order.pop_front() else {
-                break;
-            };
-            map.remove(&oldest);
-        }
-        true
+    fn deref(&self) -> &AudioCache {
+        &self.0
     }
 }
 
@@ -317,7 +280,11 @@ pub(crate) async fn serve_yt<R: Runtime>(
     }
 
     // Prefetched track: serve straight from memory, no network round-trip.
-    if let Some((content_type, bytes)) = app.state::<YtAudioCache>().get(id) {
+    if let Some(CachedAudio {
+        content_type,
+        bytes,
+    }) = app.state::<YtAudioCache>().get(id)
+    {
         return memory_range_response(&content_type, &bytes, range.as_deref(), origin);
     }
 
@@ -475,8 +442,7 @@ async fn fetch_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::{content_range_total, parse_resolve_output, YtAudioCache, MAX_PREFETCHED_YT_BYTES};
-    use bytes::Bytes;
+    use super::{content_range_total, parse_resolve_output};
 
     #[test]
     fn parses_the_total_out_of_content_range() {
@@ -486,34 +452,6 @@ mod tests {
         );
         assert_eq!(content_range_total("bytes 0-1023/*"), None);
         assert_eq!(content_range_total("garbage"), None);
-    }
-
-    fn filled(cache: &YtAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(
-            id.to_owned(),
-            "audio/mp4".into(),
-            Bytes::from(vec![0u8; len]),
-        )
-    }
-
-    #[test]
-    fn cache_rejects_tracks_over_the_per_track_cap() {
-        let cache = YtAudioCache::default();
-        assert!(!filled(&cache, "big", MAX_PREFETCHED_YT_BYTES + 1));
-        assert!(!cache.contains("big"));
-    }
-
-    #[test]
-    fn cache_evicts_the_oldest_entry_beyond_the_track_cap() {
-        let cache = YtAudioCache::default();
-        assert!(filled(&cache, "v1", 8));
-        assert!(filled(&cache, "v2", 8));
-        assert!(filled(&cache, "v3", 8));
-        assert!(filled(&cache, "v4", 8));
-
-        assert!(!cache.contains("v1"));
-        assert!(cache.contains("v2"));
-        assert!(cache.contains("v4"));
     }
 
     #[test]
