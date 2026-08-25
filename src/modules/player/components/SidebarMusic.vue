@@ -109,7 +109,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { Button } from "@/components/ui/button";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
@@ -117,31 +116,19 @@ import IconDots from "~icons/tabler/dots";
 import IconLike from "~icons/tabler/heart";
 import IconLikedFilled from "~icons/tabler/heart-filled";
 import FullscreenTrigger from "@/components/layout/fullscreen/FullscreenTrigger.vue";
-import { usePlayerStore } from "@/modules/player/store/player.store";
+import { useCurrentTrackCover } from "@/modules/player/composables/useCurrentTrackCover";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { routeLocation } from "@/app/router/route-locations";
-import { isEphemeralTrack, isLibraryTrack, type PlayerTrack, type Track } from "../types";
+import { isEphemeralTrack } from "../types";
 
-const playerStore = usePlayerStore();
 const { toggleTrackLike } = useToggleTrackLike();
 const { openDropdown } = useTrackMenu();
 const route = useRouter();
 
 // Show any playing track — library or ephemeral (e.g. a YouTube stream).
-const track = computed<PlayerTrack | null>(() => playerStore.currentTrack);
-const libraryTrack = computed<Track | null>(() =>
-  isLibraryTrack(track.value) ? track.value : null,
-);
-
-const { url: coverBlobUrl } = useTrackCover(libraryTrack);
-const coverUrl = computed(() => {
-  if (libraryTrack.value) return coverBlobUrl.value ?? "/img/fallback.svg";
-  // Ephemeral tracks carry a direct cover URL (YouTube thumbnail, radio art).
-  const cover = isEphemeralTrack(track.value) ? track.value.cover : null;
-  return cover ?? "/img/fallback.svg";
-});
+const { track, libraryTrack, coverUrl } = useCurrentTrackCover();
 
 const artistsList = computed(() => {
   const artistStr = libraryTrack.value?.artist

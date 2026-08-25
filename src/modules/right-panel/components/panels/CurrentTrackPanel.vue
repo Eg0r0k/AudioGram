@@ -15,7 +15,7 @@
     </RightPanelHeader>
     <Scrollable class="flex-1">
       <div
-        class="grid gap-4 py-4 px-5 pt-0"
+        class="grid gap-3 py-4 px-5 pt-0"
       >
         <TrackContextMenu context="current-track">
           <div>
@@ -167,10 +167,10 @@
             </div>
 
             <div
-              class="flex flex-col min-w-0 gap-1 p-2 rounded-sm"
+              class="flex flex-col min-w-0 gap-1 p-2  rounded-sm"
               :style="contentCoverStyle"
             >
-              <div class="flex items-center justify-between gap-3 px-2">
+              <div class="flex items-center justify-between gap-3 pl-2">
                 <div>
                   <p class="text-sm font-medium text-white">
                     {{ $t('player.upNextLabel') }}
@@ -232,9 +232,8 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import IconMusicOff from "~icons/tabler/music-off";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
-import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
-import { usePlayerStore } from "@/modules/player/store/player.store";
-import { isLibraryTrack, type Track } from "@/modules/player/types";
+import { useCurrentTrackCover } from "@/modules/player/composables/useCurrentTrackCover";
+import type { Track } from "@/modules/player/types";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
@@ -265,7 +264,6 @@ const { color: playerColor } = useMobilePlayerColor();
 const contentCoverStyle = computed(() => ({
   background: `color-mix(in oklch, ${playerColor.value.hsl} 25%, black)`,
 }));
-const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const rightPanel = useRightPanelStore();
 const router = useRouter();
@@ -283,20 +281,7 @@ function onCoverContextMenu(): void {
   openMenu(currentTrack.value, 0, { target: "current-track" });
 }
 
-const currentTrack = computed(() => playerStore.currentTrack);
-const libraryTrack = computed<Track | null>(() => {
-  const track = currentTrack.value;
-  return track && isLibraryTrack(track) ? track : null;
-});
-
-const { url: coverBlobUrl } = useTrackCover(libraryTrack);
-
-const coverUrl = computed(() => {
-  const track = currentTrack.value;
-  if (!track) return "/img/fallback.svg";
-  if (!isLibraryTrack(track)) return track.cover ?? "/img/fallback.svg";
-  return coverBlobUrl.value ?? "/img/fallback.svg";
-});
+const { track: currentTrack, libraryTrack, coverUrl } = useCurrentTrackCover();
 
 const artistsList = computed(() => {
   const artistValue = currentTrack.value?.artist;
