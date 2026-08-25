@@ -219,6 +219,9 @@ pub async fn yt_download<R: Runtime>(
         return Err(YtError::cancelled("download cancelled"));
     }
     if let Some(detail) = exit_error {
+        // The frontend shows a trimmed message; yt-dlp's own last ERROR line
+        // is what a bug report needs.
+        log::warn!("yt_download {id}: {detail}");
         return Err(YtError::unknown(detail));
     }
 
@@ -237,6 +240,7 @@ pub async fn yt_download<R: Runtime>(
     if let Err(e) = embed_metadata(&app, &path, &id, meta).await {
         log::warn!("failed to embed metadata into {id}.{AUDIO_FORMAT}: {e}");
     }
+    log::info!("yt_download {id}: done");
 
     Ok(YtDownloadResult {
         path: path.to_string_lossy().into_owned(),

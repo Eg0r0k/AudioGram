@@ -517,7 +517,6 @@ pub(crate) fn rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
     };
     let dst = cache_dir.join(name);
     if dst.is_file() {
-        log::info!("{prefix} transcode: cache hit for {}", src.display());
         return Some(dst);
     }
 
@@ -536,7 +535,6 @@ pub(crate) fn rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     if dst.is_file() {
-        log::info!("{prefix} transcode: cache hit for {}", src.display());
         return Some(dst);
     }
 

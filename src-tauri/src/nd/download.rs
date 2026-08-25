@@ -141,8 +141,10 @@ pub async fn nd_download<R: Runtime>(
     drop(slot);
 
     match &result {
-        Ok(_) => log::info!("nd_download {song_id}: done"),
-        Err(e) => log::info!("nd_download {song_id}: {e}"),
+        Ok(done) => log::info!("nd_download {song_id}: done ({})", done.ext),
+        // A cancel is the user's own doing — nothing to report.
+        Err(e) if e == "cancelled" => {}
+        Err(e) => log::warn!("nd_download {song_id}: {e}"),
     }
     result
 }
@@ -252,12 +254,11 @@ async fn copy_body(
 }
 
 /// Flags the in-flight download as cancelled; the download loop notices
-/// between chunks. Idempotent — cancelling a finished download is a no-op.
+/// between chunks. Idempotent — cancelling a download that already finished
+/// (a routine race with the completion event) is a no-op.
 #[tauri::command]
 pub fn nd_download_cancel<R: Runtime>(app: AppHandle<R>, song_id: String) {
-    if !app.state::<NdDownloadRegistry>().cancel(&song_id) {
-        log::info!("nd_download_cancel {song_id}: not in flight");
-    }
+    app.state::<NdDownloadRegistry>().cancel(&song_id);
 }
 
 #[cfg(test)]

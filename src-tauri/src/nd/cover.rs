@@ -44,7 +44,9 @@ pub(crate) async fn serve_cover(
         }
     };
     if response.status().as_u16() != 200 {
-        log::warn!(
+        // An album without art 404s on every remount — not actionable, and
+        // a broken server already shows up as warnings on the song route.
+        log::debug!(
             "media nd/cover/{cover_id}: upstream status {}",
             response.status()
         );

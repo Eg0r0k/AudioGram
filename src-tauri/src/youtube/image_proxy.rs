@@ -59,13 +59,15 @@ async fn proxy_image(
 ) -> http::Response<Body> {
     let response = match client.get(url).send().await {
         Ok(response) => response,
+        // Debug on both: with YouTube unreachable every card on a search page
+        // would log a line, and the search itself already reports the fault.
         Err(e) => {
-            log::warn!("media ytimg: request failed: {e}");
+            log::debug!("media ytimg: request failed: {e}");
             return status_response(502, origin);
         }
     };
     if response.status().as_u16() != 200 {
-        log::warn!(
+        log::debug!(
             "media ytimg: upstream status {} for {url}",
             response.status()
         );

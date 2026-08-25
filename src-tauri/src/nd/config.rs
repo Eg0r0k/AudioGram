@@ -54,6 +54,11 @@ pub fn nd_set_config(
         .0
         .write()
         .map_err(|_| "nd config lock poisoned".to_string())?;
+    match &config {
+        // base_url only — the auth token never reaches a log line.
+        Some(c) => log::info!("nd source configured: {}", c.base_url.trim_end_matches('/')),
+        None => log::info!("nd source disabled"),
+    }
     *guard = config;
     Ok(())
 }

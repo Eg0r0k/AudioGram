@@ -84,6 +84,19 @@ pub(crate) fn client_builder(proxy: Option<&str>) -> Result<reqwest::ClientBuild
     Ok(builder)
 }
 
+/// The proxy URL with its credentials dropped — the only form that may reach
+/// a log line.
+fn redacted(url: &str) -> String {
+    let Ok(mut parsed) = tauri::Url::parse(url) else {
+        return "<unparsable url>".into();
+    };
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    // `http://host:3128` serializes with a trailing `/`; drop it so the line
+    // reads like what the user typed.
+    parsed.to_string().trim_end_matches('/').to_owned()
+}
+
 /// The shared client honoring the proxy state — see [`ProxyState::client`].
 pub(crate) fn http_client<R: Runtime>(app: &AppHandle<R>) -> Result<reqwest::Client, String> {
     app.state::<ProxyState>().client()
@@ -93,6 +106,10 @@ pub(crate) fn http_client<R: Runtime>(app: &AppHandle<R>) -> Result<reqwest::Cli
 #[tauri::command]
 pub async fn set_proxy<R: Runtime>(app: AppHandle<R>, url: Option<String>) {
     let normalized = url.map(|u| u.trim().to_owned()).filter(|u| !u.is_empty());
+    match &normalized {
+        Some(url) => log::info!("proxy set to {}", redacted(url)),
+        None => log::info!("proxy cleared, connecting directly"),
+    }
     app.state::<ProxyState>().set(normalized);
     // Drop the cached Innertube client so the next query picks up the new proxy.
     #[cfg(desktop)]
@@ -131,7 +148,20 @@ pub async fn proxy_check(url: String) -> Result<u64, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::ProxyState;
+    use super::{redacted, ProxyState};
+
+    #[test]
+    fn redacted_drops_credentials_and_keeps_the_endpoint() {
+        assert_eq!(
+            redacted("socks5://user:s3cret@127.0.0.1:1080"),
+            "socks5://127.0.0.1:1080"
+        );
+        assert_eq!(
+            redacted("http://proxy.example:3128"),
+            "http://proxy.example:3128"
+        );
+        assert_eq!(redacted("not a url"), "<unparsable url>");
+    }
 
     #[test]
     fn client_is_shared_until_the_proxy_changes() {

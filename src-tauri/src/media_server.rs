@@ -381,14 +381,14 @@ async fn serve_local(
             return status_response(404, origin);
         }
         Err(e) => {
-            log::warn!("media local: open failed: {e}");
+            log::warn!("media local: open failed for {path}: {e}");
             return status_response(500, origin);
         }
     };
     let total = match file.metadata().await {
         Ok(meta) => meta.len(),
         Err(e) => {
-            log::warn!("media local: metadata failed: {e}");
+            log::warn!("media local: metadata failed for {path}: {e}");
             return status_response(500, origin);
         }
     };
@@ -406,7 +406,7 @@ async fn serve_local(
         RangeOutcome::Slice { start, end } => {
             use tokio::io::AsyncSeekExt;
             if let Err(e) = file.seek(std::io::SeekFrom::Start(start)).await {
-                log::warn!("media local: seek failed: {e}");
+                log::warn!("media local: seek to {start} failed for {path}: {e}");
                 return status_response(500, origin);
             }
             let len = end - start + 1;
@@ -527,6 +527,8 @@ pub(crate) async fn handle<T: RemoteRoutes>(
     }
 
     let Some(rest) = split_token_route(req.uri().path(), token) else {
+        // The path is not logged: it would carry whatever token was tried.
+        log::debug!("media server: request rejected, token missing or stale");
         return status_response(404, origin.as_deref());
     };
     let rest = percent_encoding::percent_decode_str(rest)
@@ -623,6 +625,9 @@ pub(crate) async fn run_accept_loop<T: RemoteRoutes>(
 /// existed), so requests can never race server readiness.
 pub fn spawn<R: Runtime>(app: AppHandle<R>, token: String, listener: std::net::TcpListener) {
     tauri::async_runtime::spawn(async move {
+        if let Ok(addr) = listener.local_addr() {
+            log::info!("media server listening on {addr}");
+        }
         if let Err(e) = listener.set_nonblocking(true) {
             log::error!("media server: set_nonblocking failed: {e}");
             return;

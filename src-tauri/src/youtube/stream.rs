@@ -266,6 +266,7 @@ pub async fn yt_prefetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result<()
     }
 
     let (status, content_type, bytes) = result;
+    log::debug!("yt_prefetch {id}: status {status}, {} bytes", bytes.len());
     if !(200..300).contains(&status) {
         return Err(YtError::from(format!(
             "prefetch failed: upstream status {status}"
@@ -317,7 +318,9 @@ pub(crate) async fn serve_yt<R: Runtime>(
         .await
         {
             Ok(response) if response.status() != http::StatusCode::FORBIDDEN => return response,
-            Ok(_) => log::warn!("media yt/{id}: upstream returned 403, re-resolving stream URL"),
+            // Routine after ~6 h: googlevideo URLs expire and a re-resolve
+            // is the designed recovery, not a fault.
+            Ok(_) => log::info!("media yt/{id}: upstream returned 403, re-resolving stream URL"),
             Err(e) => {
                 log::warn!("media yt/{id}: {e}");
                 return status_response(502, origin);

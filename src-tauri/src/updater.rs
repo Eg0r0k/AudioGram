@@ -65,7 +65,7 @@ impl From<tauri_plugin_updater::Error> for UpdateError {
 fn build_updater<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<tauri_plugin_updater::Updater, UpdateError> {
-    app.updater_builder().build().map_err(UpdateError::from)
+    Ok(app.updater_builder().build()?)
 }
 
 #[tauri::command]
@@ -74,29 +74,30 @@ pub async fn check_update<R: Runtime>(
 ) -> Result<Option<UpdateInfo>, UpdateError> {
     let updater = build_updater(&app)?;
 
-    match updater.check().await {
-        Ok(Some(update)) => Ok(Some(UpdateInfo {
-            version: update.version.clone(),
-            current_version: update.current_version.clone(),
-            body: update.body.clone(),
+    let update = updater.check().await?;
+    Ok(update.map(|update| {
+        log::info!(
+            "update available: {} (running {})",
+            update.version,
+            update.current_version
+        );
+        UpdateInfo {
             date: update.date.and_then(|d| d.format(&Rfc3339).ok()),
-        })),
-        Ok(None) => Ok(None),
-        Err(e) => Err(UpdateError::from(e)),
-    }
+            version: update.version,
+            current_version: update.current_version,
+            body: update.body,
+        }
+    }))
 }
 
 #[tauri::command]
 pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdateError> {
     let updater = build_updater(&app)?;
 
-    let update = updater
-        .check()
-        .await
-        .map_err(UpdateError::from)?
-        .ok_or_else(|| {
-            UpdateError::new(UpdateErrorKind::NoUpdateAvailable, "no update available")
-        })?;
+    let update = updater.check().await?.ok_or_else(|| {
+        UpdateError::new(UpdateErrorKind::NoUpdateAvailable, "no update available")
+    })?;
+    log::info!("installing update {}", update.version);
 
     let app_handle = app.clone();
 
@@ -116,7 +117,10 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdateE
             },
         )
         .await
-        .map_err(UpdateError::from)?;
+        // The frontend gets the structured error; the log keeps the full
+        // text of a failed install, which is the one case worth a report.
+        .inspect_err(|e| log::warn!("update install failed: {e}"))?;
 
+    log::info!("update installed, restarting");
     app.restart();
 }

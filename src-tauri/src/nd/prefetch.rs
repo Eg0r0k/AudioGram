@@ -73,6 +73,7 @@ pub async fn nd_prefetch<R: Runtime>(app: AppHandle<R>, song_id: String) -> Resu
         .unwrap_or("audio/mpeg")
         .to_owned();
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    log::debug!("nd_prefetch {song_id}: fetched {} bytes", bytes.len());
 
     if !app
         .state::<NdAudioCache>()
