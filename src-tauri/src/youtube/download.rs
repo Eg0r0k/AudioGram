@@ -59,11 +59,20 @@ struct DownloadHandle {
 impl YtDownloadRegistry {
     /// Registers a spawned download; errors if the id is already in flight.
     fn register(&self, id: &str, child: CommandChild) -> Result<(), YtError> {
-        let mut map = self.0.lock().map_err(|_| YtError::unknown("registry poisoned"))?;
+        let mut map = self
+            .0
+            .lock()
+            .map_err(|_| YtError::unknown("registry poisoned"))?;
         if map.contains_key(id) {
             return Err(YtError::invalid_input("download already in progress"));
         }
-        map.insert(id.to_owned(), DownloadHandle { child: Some(child), cancelled: false });
+        map.insert(
+            id.to_owned(),
+            DownloadHandle {
+                child: Some(child),
+                cancelled: false,
+            },
+        );
         Ok(())
     }
 
@@ -78,8 +87,12 @@ impl YtDownloadRegistry {
 
     /// Marks the download cancelled and kills the child if still running.
     fn cancel(&self, id: &str) -> bool {
-        let Ok(mut map) = self.0.lock() else { return false };
-        let Some(handle) = map.get_mut(id) else { return false };
+        let Ok(mut map) = self.0.lock() else {
+            return false;
+        };
+        let Some(handle) = map.get_mut(id) else {
+            return false;
+        };
         handle.cancelled = true;
         if let Some(child) = handle.child.take() {
             // Tree, not just the bootloader: otherwise the real yt-dlp keeps
@@ -154,7 +167,8 @@ pub async fn yt_download<R: Runtime>(
                     let line = line.trim();
                     if let Some(rest) = line.strip_prefix(PROGRESS_MARKER) {
                         if let Some((downloaded, total)) = parse_progress(rest) {
-                            let _ = on_progress.send(YtDownloadEvent::Progress { downloaded, total });
+                            let _ =
+                                on_progress.send(YtDownloadEvent::Progress { downloaded, total });
                         }
                     } else if line.starts_with("ERROR") {
                         last_error = line.to_owned();
@@ -185,7 +199,9 @@ pub async fn yt_download<R: Runtime>(
 
     let path = cache_dir.join(format!("{id}.{AUDIO_FORMAT}"));
     if !path.exists() {
-        return Err(YtError::unknown("download finished but the output file was not found"));
+        return Err(YtError::unknown(
+            "download finished but the output file was not found",
+        ));
     }
 
     let _ = on_progress.send(YtDownloadEvent::Processing);
@@ -237,10 +253,42 @@ fn parse_progress(rest: &str) -> Option<(u64, Option<u64>)> {
     Some((downloaded, total.or(estimate)))
 }
 
-/// Writes title/artist/cover into the downloaded m4a (MP4 ilst atoms).
+/// Tags written into the downloaded file. `album` is `None` whenever no
+/// source knows a real album: a stand-in (the track title, the video id)
+/// would make the importer key one single-track album per download, since it
+/// groups by artist + album title. Covers survive an absent album — the
+/// import pipeline owns them at track level (`CoverOwnerType::Track`).
+#[derive(Debug, PartialEq, Eq)]
+struct TrackTags {
+    title: String,
+    artist: Option<String>,
+    album: Option<String>,
+}
+
+impl TrackTags {
+    /// Last resort when no lookup answered: the id is at least a stable,
+    /// searchable handle on the file.
+    fn unknown(id: &str) -> Self {
+        Self {
+            title: id.to_owned(),
+            artist: None,
+            album: None,
+        }
+    }
+
+    fn from_meta(meta: YtTrackMeta) -> Self {
+        Self {
+            artist: (!meta.artists.is_empty()).then(|| meta.artists.join(", ")),
+            title: meta.title,
+            album: meta.album,
+        }
+    }
+}
+
+/// Writes title/artist/album/cover into the downloaded m4a (MP4 ilst atoms).
 /// Frontend-supplied `meta` wins (YT Music tracks carry real artist/album);
-/// otherwise metadata falls back to rustypipe `video_details` (not
-/// stream-gated) and the cover to i.ytimg.com.
+/// otherwise metadata is looked up by video id (see {@link fetch_tags}) and
+/// the cover falls back to i.ytimg.com.
 async fn embed_metadata<R: Runtime>(
     app: &AppHandle<R>,
     path: &std::path::Path,
@@ -250,50 +298,36 @@ async fn embed_metadata<R: Runtime>(
     let mut tag = Tag::new(TagType::Mp4Ilst);
     let mut cover_url: Option<String> = None;
 
-    if let Some(meta) = meta {
-        // Album fallback = track title ("single" convention). The library's
-        // data model attaches covers to ALBUMS only (CoverOwnerType has no
-        // "track"), so without an album tag the importer drops the embedded
-        // artwork and the track shows without a cover.
-        tag.set_album(meta.album.unwrap_or_else(|| meta.title.clone()));
-        tag.set_title(meta.title);
-        if !meta.artists.is_empty() {
-            tag.set_artist(meta.artists.join(", "));
-        } else {
-            // Search rows sometimes come without parsed artist names; the
-            // channel name from video_details beats an artist-less file.
-            if let Ok(rp) = yt_client(app).await {
-                if let Ok(details) = rp.query().video_details(id).await {
-                    tag.set_artist(details.channel.name);
+    let tags = match meta {
+        Some(mut meta) => {
+            // SSRF guard: the frontend-provided URL must point at a known host.
+            cover_url = meta.cover_url.take().filter(|url| {
+                tauri::Url::parse(url).is_ok_and(|u| {
+                    u.scheme() == "https" && u.host_str().is_some_and(is_allowed_image_host)
+                })
+            });
+
+            let mut tags = TrackTags::from_meta(meta);
+            if tags.artist.is_none() {
+                // Search rows sometimes come without parsed artist names; the
+                // channel name from video_details beats an artist-less file.
+                if let Ok(rp) = yt_client(app).await {
+                    if let Ok(details) = rp.query().video_details(id).await {
+                        tags.artist = Some(details.channel.name);
+                    }
                 }
             }
+            tags
         }
-        // SSRF guard: the frontend-provided URL must point at a known host.
-        cover_url = meta.cover_url.filter(|url| {
-            tauri::Url::parse(url).is_ok_and(|u| {
-                u.scheme() == "https" && u.host_str().is_some_and(is_allowed_image_host)
-            })
-        });
-    } else {
-        match yt_client(app).await {
-            Ok(rp) => match rp.query().video_details(id).await {
-                Ok(details) => {
-                    tag.set_album(details.name.clone());
-                    tag.set_title(details.name);
-                    tag.set_artist(details.channel.name);
-                }
-                Err(e) => {
-                    log::warn!("video_details for {id} failed, tagging with id only: {e}");
-                    tag.set_title(id.to_owned());
-                    tag.set_album(id.to_owned());
-                }
-            },
-            Err(e) => {
-                log::warn!("rustypipe client unavailable, tagging with id only: {e}");
-                tag.set_title(id.to_owned());
-                tag.set_album(id.to_owned());
-            }
-        }
+        None => fetch_tags(app, id).await,
+    };
+
+    tag.set_title(tags.title);
+    if let Some(artist) = tags.artist {
+        tag.set_artist(artist);
+    }
+    if let Some(album) = tags.album {
+        tag.set_album(album);
     }
 
     if let Ok(http) = http_client(app) {
@@ -315,6 +349,53 @@ async fn embed_metadata<R: Runtime>(
         .map_err(|e| e.to_string())
 }
 
+/// Tags for a download the frontend supplied no metadata for — video search
+/// rows, "Open with" entries, older queue items. YT Music knows the real
+/// artist and album for the auto-generated "- Topic" uploads these rows point
+/// at, so ask it first; `video_details` only knows the channel name and the
+/// video title, and the latter is NOT an album.
+async fn fetch_tags<R: Runtime>(app: &AppHandle<R>, id: &str) -> TrackTags {
+    let rp = match yt_client(app).await {
+        Ok(rp) => rp,
+        Err(e) => {
+            log::warn!("rustypipe client unavailable, tagging {id} with id only: {e}");
+            return TrackTags::unknown(id);
+        }
+    };
+
+    match rp.query().music_details(id).await {
+        Ok(details) => {
+            let track = details.track;
+            return TrackTags {
+                title: track.name,
+                artist: (!track.artists.is_empty()).then(|| {
+                    track
+                        .artists
+                        .iter()
+                        .map(|artist| artist.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }),
+                album: track.album.map(|album| album.name),
+            };
+        }
+        // Plain videos (not mirrored into YT Music) land here; not an error.
+        Err(e) => log::debug!("music_details for {id} unavailable, trying video_details: {e}"),
+    }
+
+    match rp.query().video_details(id).await {
+        Ok(details) => TrackTags {
+            title: details.name,
+            artist: Some(details.channel.name),
+            album: None,
+        },
+        Err(e) => {
+            log::warn!("video_details for {id} failed, tagging with id only: {e}");
+            TrackTags::unknown(id)
+        }
+    }
+}
+
 /// Fetches the cover, preferring the caller-provided (already host-validated)
 /// URL over the i.ytimg fallbacks. MP4 covers only allow JPEG/PNG, so other
 /// content types (lh3 serves webp without the `-rj` suffix) are skipped.
@@ -325,10 +406,7 @@ async fn fetch_cover(
 ) -> Option<(Vec<u8>, MimeType)> {
     let fallbacks = ["maxresdefault", "hqdefault"]
         .map(|name| format!("https://i.ytimg.com/vi/{id}/{name}.jpg"));
-    let urls = preferred
-        .map(str::to_owned)
-        .into_iter()
-        .chain(fallbacks);
+    let urls = preferred.map(str::to_owned).into_iter().chain(fallbacks);
 
     for url in urls {
         let Ok(response) = http.get(&url).send().await else {
@@ -351,4 +429,54 @@ async fn fetch_cover(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TrackTags, YtTrackMeta};
+
+    fn meta(album: Option<&str>, artists: Vec<&str>) -> YtTrackMeta {
+        YtTrackMeta {
+            title: "Зима".into(),
+            artists: artists.into_iter().map(str::to_owned).collect(),
+            album: album.map(str::to_owned),
+            cover_url: None,
+        }
+    }
+
+    #[test]
+    fn a_missing_album_stays_missing() {
+        // Regression: the title used to stand in for an absent album, so a
+        // batch of songs imported as one single-track album each.
+        assert_eq!(
+            TrackTags::from_meta(meta(None, vec!["Ранетки"])).album,
+            None
+        );
+    }
+
+    #[test]
+    fn a_known_album_is_kept() {
+        let tags = TrackTags::from_meta(meta(Some("Ранетки"), vec!["Ранетки"]));
+        assert_eq!(tags.album.as_deref(), Some("Ранетки"));
+        assert_eq!(tags.title, "Зима");
+    }
+
+    #[test]
+    fn artists_join_into_one_tag_and_an_empty_list_is_no_artist() {
+        assert_eq!(
+            TrackTags::from_meta(meta(None, vec!["A", "B"]))
+                .artist
+                .as_deref(),
+            Some("A, B"),
+        );
+        assert_eq!(TrackTags::from_meta(meta(None, vec![])).artist, None);
+    }
+
+    #[test]
+    fn the_id_fallback_invents_no_album() {
+        let tags = TrackTags::unknown("dQw4w9WgXcQ");
+        assert_eq!(tags.title, "dQw4w9WgXcQ");
+        assert_eq!(tags.album, None);
+        assert_eq!(tags.artist, None);
+    }
 }
