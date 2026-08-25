@@ -94,7 +94,9 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdateE
         .check()
         .await
         .map_err(UpdateError::from)?
-        .ok_or_else(|| UpdateError::new(UpdateErrorKind::NoUpdateAvailable, "no update available"))?;
+        .ok_or_else(|| {
+            UpdateError::new(UpdateErrorKind::NoUpdateAvailable, "no update available")
+        })?;
 
     let app_handle = app.clone();
 

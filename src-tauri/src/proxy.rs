@@ -56,7 +56,10 @@ impl ProxyState {
     /// is a refcount bump and every caller shares one connection pool.
     /// Errors are proxy-config errors — they never carry request URLs.
     pub(crate) fn client(&self) -> Result<reqwest::Client, String> {
-        let mut inner = self.0.lock().map_err(|_| "proxy state poisoned".to_string())?;
+        let mut inner = self
+            .0
+            .lock()
+            .map_err(|_| "proxy state poisoned".to_string())?;
         if let Some(client) = &inner.client {
             return Ok(client.clone());
         }
@@ -89,9 +92,7 @@ pub(crate) fn http_client<R: Runtime>(app: &AppHandle<R>) -> Result<reqwest::Cli
 /// Stores the proxy URL for later streaming use. An empty/blank URL clears it.
 #[tauri::command]
 pub async fn set_proxy<R: Runtime>(app: AppHandle<R>, url: Option<String>) {
-    let normalized = url
-        .map(|u| u.trim().to_owned())
-        .filter(|u| !u.is_empty());
+    let normalized = url.map(|u| u.trim().to_owned()).filter(|u| !u.is_empty());
     app.state::<ProxyState>().set(normalized);
     // Drop the cached Innertube client so the next query picks up the new proxy.
     #[cfg(desktop)]
@@ -142,11 +143,17 @@ mod tests {
         assert!(state.0.lock().unwrap().client.is_some());
 
         state.set(Some("socks5://127.0.0.1:1080".into()));
-        assert!(state.0.lock().unwrap().client.is_none(), "proxy change drops the client");
+        assert!(
+            state.0.lock().unwrap().client.is_none(),
+            "proxy change drops the client"
+        );
 
         state.client().expect("proxied client");
         state.set(Some("socks5://127.0.0.1:1080".into()));
-        assert!(state.0.lock().unwrap().client.is_some(), "same url keeps the client");
+        assert!(
+            state.0.lock().unwrap().client.is_some(),
+            "same url keeps the client"
+        );
     }
 
     #[test]

@@ -66,10 +66,7 @@ impl NdAudioCache {
 /// Downloads the whole audio file for the next queue entry into the
 /// in-memory cache. Called by the frontend while the current track plays.
 #[tauri::command]
-pub async fn nd_prefetch<R: Runtime>(
-    app: AppHandle<R>,
-    song_id: String,
-) -> Result<(), String> {
+pub async fn nd_prefetch<R: Runtime>(app: AppHandle<R>, song_id: String) -> Result<(), String> {
     if app.state::<NdAudioCache>().contains(&song_id) {
         return Ok(());
     }
@@ -93,7 +90,9 @@ pub async fn nd_prefetch<R: Runtime>(
     // that insert() then drops would waste the bandwidth every retry.
     if let Some(len) = response.content_length() {
         if len > MAX_PREFETCHED_ND_BYTES as u64 {
-            return Err(format!("prefetch skipped: track is {len} bytes, over the cache cap"));
+            return Err(format!(
+                "prefetch skipped: track is {len} bytes, over the cache cap"
+            ));
         }
     }
 
@@ -105,7 +104,10 @@ pub async fn nd_prefetch<R: Runtime>(
         .to_owned();
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
 
-    if !app.state::<NdAudioCache>().insert(song_id, content_type, bytes) {
+    if !app
+        .state::<NdAudioCache>()
+        .insert(song_id, content_type, bytes)
+    {
         return Err("prefetch skipped: track exceeds the cache cap".into());
     }
     Ok(())
@@ -143,7 +145,10 @@ pub(crate) async fn serve_song(
             }
         };
     if response.status().as_u16() >= 400 {
-        log::warn!("media nd/song/{song_id}: upstream status {}", response.status());
+        log::warn!(
+            "media nd/song/{song_id}: upstream status {}",
+            response.status()
+        );
         return status_response(502, origin);
     }
     response
@@ -155,7 +160,11 @@ mod tests {
     use http_body_util::BodyExt;
 
     fn filled(cache: &NdAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(id.to_owned(), "audio/flac".into(), Bytes::from(vec![0u8; len]))
+        cache.insert(
+            id.to_owned(),
+            "audio/flac".into(),
+            Bytes::from(vec![0u8; len]),
+        )
     }
 
     fn direct() -> reqwest::Client {
@@ -183,7 +192,11 @@ mod tests {
     #[tokio::test]
     async fn serve_song_answers_ranges_from_the_prefetch_cache_before_any_network() {
         let cache = NdAudioCache::default();
-        assert!(cache.insert("s1".into(), "audio/flac".into(), Bytes::from_static(b"0123456789")));
+        assert!(cache.insert(
+            "s1".into(),
+            "audio/flac".into(),
+            Bytes::from_static(b"0123456789")
+        ));
 
         // Config is None: a cache hit must never need the network.
         let resp = serve_song(None, &cache, &direct(), "s1", Some("bytes=4-"), None).await;
@@ -202,13 +215,23 @@ mod tests {
             http::Response::builder()
                 .status(200)
                 .header("Content-Type", "audio/flac")
-                .body(http_body_util::Full::new(bytes::Bytes::from_static(b"flacbody")))
+                .body(http_body_util::Full::new(bytes::Bytes::from_static(
+                    b"flacbody",
+                )))
                 .expect("upstream response")
         })
         .await;
         let cache = NdAudioCache::default();
 
-        let resp = serve_song(Some(test_config(upstream)), &cache, &direct(), "s1", None, None).await;
+        let resp = serve_song(
+            Some(test_config(upstream)),
+            &cache,
+            &direct(),
+            "s1",
+            None,
+            None,
+        )
+        .await;
 
         assert_eq!(resp.status(), 200);
         assert_eq!(resp.headers()["Content-Type"], "audio/flac");
@@ -227,7 +250,15 @@ mod tests {
         .await;
         let cache = NdAudioCache::default();
 
-        let resp = serve_song(Some(test_config(upstream)), &cache, &direct(), "s1", None, None).await;
+        let resp = serve_song(
+            Some(test_config(upstream)),
+            &cache,
+            &direct(),
+            "s1",
+            None,
+            None,
+        )
+        .await;
 
         assert_eq!(resp.status(), 502);
     }

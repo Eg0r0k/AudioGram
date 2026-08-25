@@ -36,12 +36,18 @@ pub(crate) async fn serve_cover(
         Ok(response) => response,
         Err(e) => {
             // reqwest errors can embed the URL (auth token) — never log it.
-            log::warn!("media nd/cover/{cover_id}: request failed: {}", e.without_url());
+            log::warn!(
+                "media nd/cover/{cover_id}: request failed: {}",
+                e.without_url()
+            );
             return status_response(502, origin);
         }
     };
     if response.status().as_u16() != 200 {
-        log::warn!("media nd/cover/{cover_id}: upstream status {}", response.status());
+        log::warn!(
+            "media nd/cover/{cover_id}: upstream status {}",
+            response.status()
+        );
         return status_response(502, origin);
     }
 
@@ -78,9 +84,9 @@ pub(crate) async fn serve_cover(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::BodyExt;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use http_body_util::BodyExt;
 
     fn test_config(base_url: String) -> super::super::config::NdConfig {
         super::super::config::NdConfig {
@@ -136,7 +142,11 @@ mod tests {
         let body = second.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"img");
 
-        assert_eq!(hits.load(Ordering::SeqCst), 2, "no server-side cache left behind");
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            2,
+            "no server-side cache left behind"
+        );
     }
 
     #[tokio::test]

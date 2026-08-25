@@ -99,7 +99,10 @@ impl YtAudioCache {
             return false;
         };
         let (map, order) = &mut *entries;
-        let audio = CachedAudio { content_type, bytes };
+        let audio = CachedAudio {
+            content_type,
+            bytes,
+        };
         if map.insert(id.clone(), audio).is_none() {
             order.push_back(id);
         }
@@ -159,7 +162,10 @@ fn parse_resolve_output(stdout: &str) -> Result<(String, String, Vec<(String, St
         .into_iter()
         .filter(|(name, _)| is_forwardable_header(name))
         .collect();
-    if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("user-agent")) {
+    if !headers
+        .iter()
+        .any(|(name, _)| name.eq_ignore_ascii_case("user-agent"))
+    {
         headers.push(("User-Agent".into(), "Mozilla/5.0".into()));
     }
 
@@ -236,16 +242,17 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
         headers.len()
     );
 
-    let entry = StreamEntry { url: stream_url, headers };
-    app.state::<YtStreamCache>().insert(id.to_owned(), entry.clone());
+    let entry = StreamEntry {
+        url: stream_url,
+        headers,
+    };
+    app.state::<YtStreamCache>()
+        .insert(id.to_owned(), entry.clone());
     Ok(entry)
 }
 
 #[tauri::command]
-pub async fn yt_resolve<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-) -> Result<String, YtError> {
+pub async fn yt_resolve<R: Runtime>(app: AppHandle<R>, id: String) -> Result<String, YtError> {
     let id = validate_id(id).map_err(YtError::invalid_input)?;
 
     // Cache under the id; the frontend plays `stream://localhost/yt/<id>`, which the
@@ -259,10 +266,7 @@ pub async fn yt_resolve<R: Runtime>(
 /// Called by the frontend for the next queue entry while the current track is
 /// still playing.
 #[tauri::command]
-pub async fn yt_prefetch<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-) -> Result<(), YtError> {
+pub async fn yt_prefetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), YtError> {
     let id = validate_id(id).map_err(YtError::invalid_input)?;
     if app.state::<YtAudioCache>().contains(&id) {
         return Ok(());
@@ -283,11 +287,15 @@ pub async fn yt_prefetch<R: Runtime>(
 
     let (status, content_type, bytes) = result;
     if !(200..300).contains(&status) {
-        return Err(YtError::from(format!("prefetch failed: upstream status {status}")));
+        return Err(YtError::from(format!(
+            "prefetch failed: upstream status {status}"
+        )));
     }
 
     if !app.state::<YtAudioCache>().insert(id, content_type, bytes) {
-        return Err(YtError::from("prefetch skipped: track exceeds the cache cap".to_owned()));
+        return Err(YtError::from(
+            "prefetch skipped: track exceeds the cache cap".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -347,8 +355,15 @@ pub(crate) async fn serve_yt<R: Runtime>(
             return status_response(502, origin);
         }
     };
-    match forward_stream(&client, &entry.url, &entry.headers, range, Some(YT_RANGE_SPAN), origin)
-        .await
+    match forward_stream(
+        &client,
+        &entry.url,
+        &entry.headers,
+        range,
+        Some(YT_RANGE_SPAN),
+        origin,
+    )
+    .await
     {
         Ok(response) => {
             if response.status().as_u16() >= 400 {
@@ -397,7 +412,10 @@ async fn fetch_bytes(
             req = req.header(name.as_str(), value.as_str());
         }
         let resp = req
-            .header(reqwest::header::RANGE, format!("bytes={start}-{}", start + chunk - 1))
+            .header(
+                reqwest::header::RANGE,
+                format!("bytes={start}-{}", start + chunk - 1),
+            )
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -414,13 +432,13 @@ async fn fetch_bytes(
             if !(200..300).contains(&status) {
                 return Ok((status, content_type, Bytes::new()));
             }
-        }
-        else if status == 416 {
+        } else if status == 416 {
             // One past the end: a total-less server told us we are done.
             break;
-        }
-        else if !(200..300).contains(&status) {
-            return Err(format!("prefetch chunk failed: upstream status {status} at byte {start}"));
+        } else if !(200..300).contains(&status) {
+            return Err(format!(
+                "prefetch chunk failed: upstream status {status} at byte {start}"
+            ));
         }
 
         if total.is_none() {
@@ -469,13 +487,20 @@ mod tests {
 
     #[test]
     fn parses_the_total_out_of_content_range() {
-        assert_eq!(content_range_total("bytes 0-1048575/157286400"), Some(157_286_400));
+        assert_eq!(
+            content_range_total("bytes 0-1048575/157286400"),
+            Some(157_286_400)
+        );
         assert_eq!(content_range_total("bytes 0-1023/*"), None);
         assert_eq!(content_range_total("garbage"), None);
     }
 
     fn filled(cache: &YtAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(id.to_owned(), "audio/mp4".into(), Bytes::from(vec![0u8; len]))
+        cache.insert(
+            id.to_owned(),
+            "audio/mp4".into(),
+            Bytes::from(vec![0u8; len]),
+        )
     }
 
     #[test]
@@ -511,10 +536,16 @@ mod tests {
         assert_eq!(url, "https://rr3---sn.googlevideo.com/videoplayback?x=1");
         assert_eq!(format_id, "140");
         // The resolving client's identity survives; hop-by-hop headers do not.
-        assert!(headers.iter().any(|(name, value)| name == "User-Agent" && value.starts_with("com.google.ios")));
+        assert!(headers
+            .iter()
+            .any(|(name, value)| name == "User-Agent" && value.starts_with("com.google.ios")));
         assert!(headers.iter().any(|(name, _)| name == "Accept"));
-        assert!(!headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("host")));
-        assert!(!headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("accept-encoding")));
+        assert!(!headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case("host")));
+        assert!(!headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case("accept-encoding")));
     }
 
     #[test]
@@ -536,6 +567,3 @@ mod tests {
         assert!(parse_resolve_output(r#"{"format_id": "140"}"#).is_err());
     }
 }
-
-
-

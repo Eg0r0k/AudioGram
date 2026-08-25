@@ -145,7 +145,11 @@ fn best_thumbnail(thumbnails: &[Thumbnail]) -> Option<String> {
 
 fn validate_id(id: String) -> Result<String, String> {
     let id = id.trim().to_owned();
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err("invalid video id".into());
     }
     Ok(id)
@@ -157,7 +161,9 @@ fn validate_browse_id(id: String) -> Result<String, YtError> {
     let id = id.trim().to_owned();
     if id.is_empty()
         || id.len() > 64
-        || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return Err(YtError::invalid_input("invalid browse id"));
     }

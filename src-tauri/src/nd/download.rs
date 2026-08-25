@@ -87,7 +87,10 @@ fn ext_from_content_type(content_type: &str) -> Option<&'static str> {
 }
 
 fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 fn normalized_suffix(suffix: Option<&str>) -> Option<String> {
@@ -163,10 +166,14 @@ async fn download_to_tmp<R: Runtime>(
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join(DOWNLOAD_TMP_SUBDIR);
-    tokio::fs::create_dir_all(&tmp_dir).await.map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&tmp_dir)
+        .await
+        .map_err(|e| e.to_string())?;
     let path = tmp_dir.join(format!("{song_id}.{ext}"));
 
-    let mut file = tokio::fs::File::create(&path).await.map_err(|e| e.to_string())?;
+    let mut file = tokio::fs::File::create(&path)
+        .await
+        .map_err(|e| e.to_string())?;
     let written = copy_body(&mut resp, &mut file, on_progress, cancelled, total).await;
     // Waits for the blocking pool's in-flight write and closes the handle —
     // Windows refuses to delete a file that is still open.

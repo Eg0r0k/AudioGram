@@ -3,9 +3,7 @@
 
 use tauri::{AppHandle, Runtime};
 
-use rustypipe::model::{
-    AlbumItem, ArtistItem, MusicItem, MusicPlaylistItem, TrackItem, VideoItem,
-};
+use rustypipe::model::{AlbumItem, ArtistItem, MusicItem, MusicPlaylistItem, TrackItem, VideoItem};
 
 use futures_util::future::join_all;
 use rustypipe::client::RustyPipeQuery;
@@ -27,7 +25,12 @@ pub enum YtMusicSearchKind {
 }
 
 fn empty_page<T>() -> YtPage<T> {
-    YtPage { items: Vec::new(), continuation: None, total: None, corrected_query: None }
+    YtPage {
+        items: Vec::new(),
+        continuation: None,
+        total: None,
+        corrected_query: None,
+    }
 }
 
 /// Stripped rows are rare per page, so a handful of parallel lookups covers
@@ -51,9 +54,7 @@ async fn enrich_stripped_tracks(q: &RustyPipeQuery, page: &mut YtPage<YtMusicEnt
         .iter()
         .enumerate()
         .filter_map(|(index, item)| match item {
-            YtMusicEntity::Track(track) if needs_details(track) => {
-                Some((index, track.id.clone()))
-            }
+            YtMusicEntity::Track(track) if needs_details(track) => Some((index, track.id.clone())),
             _ => None,
         })
         .take(MAX_ENRICHED_TRACKS)
@@ -104,26 +105,35 @@ pub async fn yt_music_search<R: Runtime>(
     let (mut page, corrected) = match kind {
         YtMusicSearchKind::All => {
             let result = q.music_search_main(&query).await?;
-            (page_from_paginator(result.items, to_music_entity), result.corrected_query)
+            (
+                page_from_paginator(result.items, to_music_entity),
+                result.corrected_query,
+            )
         }
         YtMusicSearchKind::Tracks => {
             let result = q.music_search_tracks(&query).await?;
             (
-                page_from_paginator(result.items, |t| Some(YtMusicEntity::Track(to_music_track(t)))),
+                page_from_paginator(result.items, |t| {
+                    Some(YtMusicEntity::Track(to_music_track(t)))
+                }),
                 result.corrected_query,
             )
         }
         YtMusicSearchKind::Albums => {
             let result = q.music_search_albums(&query).await?;
             (
-                page_from_paginator(result.items, |a| Some(YtMusicEntity::Album(to_music_album(a)))),
+                page_from_paginator(result.items, |a| {
+                    Some(YtMusicEntity::Album(to_music_album(a)))
+                }),
                 result.corrected_query,
             )
         }
         YtMusicSearchKind::Artists => {
             let result = q.music_search_artists(&query).await?;
             (
-                page_from_paginator(result.items, |a| Some(YtMusicEntity::Artist(to_music_artist(a)))),
+                page_from_paginator(result.items, |a| {
+                    Some(YtMusicEntity::Artist(to_music_artist(a)))
+                }),
                 result.corrected_query,
             )
         }
@@ -219,11 +229,7 @@ pub async fn yt_search_continue<R: Runtime>(
     let rp = yt_client(&app).await?;
     let p = rp
         .query()
-        .continuation::<VideoItem, _>(
-            &token.ctoken,
-            token.endpoint,
-            token.visitor_data.as_deref(),
-        )
+        .continuation::<VideoItem, _>(&token.ctoken, token.endpoint, token.visitor_data.as_deref())
         .await?;
     Ok(page_from_paginator(p, |v| Some(to_search_result(v))))
 }
@@ -266,7 +272,9 @@ pub async fn yt_search<R: Runtime>(
 
     let rp = yt_client(&app).await?;
     let result = rp.query().search::<VideoItem, _>(&query).await?;
-    Ok(page_from_paginator(result.items, |v| Some(to_search_result(v))))
+    Ok(page_from_paginator(result.items, |v| {
+        Some(to_search_result(v))
+    }))
 }
 
 fn to_search_result(item: VideoItem) -> YtSearchResult {
@@ -281,10 +289,14 @@ fn to_search_result(item: VideoItem) -> YtSearchResult {
 
 #[cfg(test)]
 mod tests {
-    use super::needs_details;
     use super::super::dto::{YtArtistRef, YtMusicTrack};
+    use super::needs_details;
 
-    fn track(artists: Vec<YtArtistRef>, duration: Option<u32>, thumbnail: Option<String>) -> YtMusicTrack {
+    fn track(
+        artists: Vec<YtArtistRef>,
+        duration: Option<u32>,
+        thumbnail: Option<String>,
+    ) -> YtMusicTrack {
         YtMusicTrack {
             id: "v1".into(),
             title: "T".into(),
@@ -298,7 +310,10 @@ mod tests {
     }
 
     fn artist() -> YtArtistRef {
-        YtArtistRef { id: Some("a1".into()), name: "A".into() }
+        YtArtistRef {
+            id: Some("a1".into()),
+            name: "A".into(),
+        }
     }
 
     #[test]

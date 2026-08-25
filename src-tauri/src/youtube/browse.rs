@@ -7,7 +7,9 @@ use rustypipe::model::MusicArtist;
 use tauri::{AppHandle, Runtime};
 
 use super::dto::{to_album_detail, to_artist_detail, to_playlist_detail};
-use super::{validate_browse_id, yt_client, YtAlbumDetail, YtArtistDetail, YtError, YtPlaylistDetail};
+use super::{
+    validate_browse_id, yt_client, YtAlbumDetail, YtArtistDetail, YtError, YtPlaylistDetail,
+};
 
 /// Works for `PL…`, `OLAK5uy_…` and `RDCLAK…` playlist ids.
 #[tauri::command]

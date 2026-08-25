@@ -27,7 +27,10 @@ pub struct YtError {
 
 impl YtError {
     pub fn new(kind: YtErrorKind, message: impl Into<String>) -> Self {
-        Self { kind, message: message.into() }
+        Self {
+            kind,
+            message: message.into(),
+        }
     }
 
     pub fn unknown(message: impl Into<String>) -> Self {

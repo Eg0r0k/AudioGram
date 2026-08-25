@@ -93,7 +93,10 @@ pub(crate) fn resolve_range(range: Option<&str>, total: u64) -> RangeOutcome {
     if end < start {
         return RangeOutcome::Full;
     }
-    RangeOutcome::Slice { start, end: end.min(total - 1) }
+    RangeOutcome::Slice {
+        start,
+        end: end.min(total - 1),
+    }
 }
 
 /// Absolute path with no `..` segments and no UNC/device prefix. UNC paths
@@ -110,7 +113,11 @@ pub(crate) fn is_safe_abs_path(path: &str) -> bool {
 }
 
 pub(crate) fn mime_for_path(path: &str) -> &'static str {
-    let ext = path.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+    let ext = path
+        .rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     match ext.as_str() {
         "mp3" => "audio/mpeg",
         "flac" => "audio/flac",
@@ -173,7 +180,10 @@ pub(crate) fn full_body(bytes: bytes::Bytes) -> Body {
 
 /// CORS + Vary on every response; `Vary: Origin` whenever the value depends
 /// on the request's Origin (i.e. the header was present).
-pub(crate) fn cors(builder: http::response::Builder, origin: Option<&str>) -> http::response::Builder {
+pub(crate) fn cors(
+    builder: http::response::Builder,
+    origin: Option<&str>,
+) -> http::response::Builder {
     let builder = builder.header("Access-Control-Allow-Origin", allow_origin(origin));
     if origin.is_some() {
         builder.header("Vary", "Origin")
@@ -197,7 +207,10 @@ fn audio_base(status: u16, content_type: &str, origin: Option<&str>) -> http::re
         .header("Cache-Control", "no-store")
         // Content-Range/Content-Length are not CORS-safelisted; without this
         // a scripted fetch on the webview origin cannot read them.
-        .header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
+        .header(
+            "Access-Control-Expose-Headers",
+            "Content-Range, Accept-Ranges, Content-Length",
+        )
 }
 
 /// Serves a fully in-memory body (prefetch caches) honoring Range. `Bytes`
@@ -296,7 +309,10 @@ pub(crate) async fn forward_stream(
         .unwrap_or("audio/mp4");
 
     let mut builder = audio_base(status, content_type, origin);
-    for name in [reqwest::header::CONTENT_RANGE, reqwest::header::CONTENT_LENGTH] {
+    for name in [
+        reqwest::header::CONTENT_RANGE,
+        reqwest::header::CONTENT_LENGTH,
+    ] {
         if let Some(value) = upstream_headers.get(&name).and_then(|v| v.to_str().ok()) {
             builder = builder.header(name.as_str(), value.to_owned());
         }
@@ -341,12 +357,11 @@ async fn serve_local(
         if let Some(cache) = transcode_cache {
             let src = std::path::PathBuf::from(path.as_ref());
             let cache = cache.to_path_buf();
-            let rendition = tokio::task::spawn_blocking(move || {
-                crate::transcode::rendition_path(&src, &cache)
-            })
-            .await
-            .ok()
-            .flatten();
+            let rendition =
+                tokio::task::spawn_blocking(move || crate::transcode::rendition_path(&src, &cache))
+                    .await
+                    .ok()
+                    .flatten();
             if let Some(rendition) = rendition {
                 path = std::borrow::Cow::Owned(rendition.to_string_lossy().replace('\\', "/"));
             }
@@ -519,7 +534,13 @@ pub(crate) async fn handle<T: RemoteRoutes>(
         .map(str::to_owned);
 
     if let Some(local_path) = rest.strip_prefix("local/") {
-        return serve_local(local_path, range.as_deref(), origin.as_deref(), transcode_cache).await;
+        return serve_local(
+            local_path,
+            range.as_deref(),
+            origin.as_deref(),
+            transcode_cache,
+        )
+        .await;
     }
 
     let query = req.uri().query().map(str::to_owned);
@@ -536,7 +557,13 @@ pub(crate) async fn handle<T: RemoteRoutes>(
 pub fn bind_on_loopback() -> std::io::Result<(std::net::TcpListener, MediaServerState)> {
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
     let port = listener.local_addr()?.port();
-    Ok((listener, MediaServerState { port, token: new_token() }))
+    Ok((
+        listener,
+        MediaServerState {
+            port,
+            token: new_token(),
+        },
+    ))
 }
 
 /// Accept loop: one http1 connection task per client. Runs until the
@@ -631,7 +658,10 @@ pub(crate) mod test_support {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind upstream");
-        let base = format!("http://127.0.0.1:{}", listener.local_addr().expect("addr").port());
+        let base = format!(
+            "http://127.0.0.1:{}",
+            listener.local_addr().expect("addr").port()
+        );
         tokio::spawn(async move {
             loop {
                 let Ok((stream, _addr)) = listener.accept().await else {
@@ -666,29 +696,59 @@ mod tests {
 
     #[test]
     fn open_range_runs_to_the_last_byte() {
-        assert_eq!(resolve_range(Some("bytes=0-"), 100), RangeOutcome::Slice { start: 0, end: 99 });
-        assert_eq!(resolve_range(Some("bytes=40-"), 100), RangeOutcome::Slice { start: 40, end: 99 });
+        assert_eq!(
+            resolve_range(Some("bytes=0-"), 100),
+            RangeOutcome::Slice { start: 0, end: 99 }
+        );
+        assert_eq!(
+            resolve_range(Some("bytes=40-"), 100),
+            RangeOutcome::Slice { start: 40, end: 99 }
+        );
     }
 
     #[test]
     fn explicit_range_is_clamped_to_the_resource() {
-        assert_eq!(resolve_range(Some("bytes=10-49"), 100), RangeOutcome::Slice { start: 10, end: 49 });
-        assert_eq!(resolve_range(Some("bytes=10-500"), 100), RangeOutcome::Slice { start: 10, end: 99 });
+        assert_eq!(
+            resolve_range(Some("bytes=10-49"), 100),
+            RangeOutcome::Slice { start: 10, end: 49 }
+        );
+        assert_eq!(
+            resolve_range(Some("bytes=10-500"), 100),
+            RangeOutcome::Slice { start: 10, end: 99 }
+        );
     }
 
     #[test]
     fn suffix_range_serves_the_tail() {
-        assert_eq!(resolve_range(Some("bytes=-30"), 100), RangeOutcome::Slice { start: 70, end: 99 });
+        assert_eq!(
+            resolve_range(Some("bytes=-30"), 100),
+            RangeOutcome::Slice { start: 70, end: 99 }
+        );
         // A suffix longer than the file is the whole file per RFC 9110.
-        assert_eq!(resolve_range(Some("bytes=-500"), 100), RangeOutcome::Slice { start: 0, end: 99 });
+        assert_eq!(
+            resolve_range(Some("bytes=-500"), 100),
+            RangeOutcome::Slice { start: 0, end: 99 }
+        );
     }
 
     #[test]
     fn start_past_the_end_is_unsatisfiable() {
-        assert_eq!(resolve_range(Some("bytes=100-"), 100), RangeOutcome::Unsatisfiable);
-        assert_eq!(resolve_range(Some("bytes=200-300"), 100), RangeOutcome::Unsatisfiable);
-        assert_eq!(resolve_range(Some("bytes=-0"), 100), RangeOutcome::Unsatisfiable);
-        assert_eq!(resolve_range(Some("bytes=0-"), 0), RangeOutcome::Unsatisfiable);
+        assert_eq!(
+            resolve_range(Some("bytes=100-"), 100),
+            RangeOutcome::Unsatisfiable
+        );
+        assert_eq!(
+            resolve_range(Some("bytes=200-300"), 100),
+            RangeOutcome::Unsatisfiable
+        );
+        assert_eq!(
+            resolve_range(Some("bytes=-0"), 100),
+            RangeOutcome::Unsatisfiable
+        );
+        assert_eq!(
+            resolve_range(Some("bytes=0-"), 0),
+            RangeOutcome::Unsatisfiable
+        );
     }
 
     #[test]
@@ -696,7 +756,10 @@ mod tests {
         assert_eq!(resolve_range(Some("items=0-1"), 100), RangeOutcome::Full);
         assert_eq!(resolve_range(Some("bytes=abc-"), 100), RangeOutcome::Full);
         assert_eq!(resolve_range(Some("bytes=50-10"), 100), RangeOutcome::Full);
-        assert_eq!(resolve_range(Some("bytes=0-1,5-9"), 100), RangeOutcome::Full);
+        assert_eq!(
+            resolve_range(Some("bytes=0-1,5-9"), 100),
+            RangeOutcome::Full
+        );
         assert_eq!(resolve_range(Some("bytes="), 100), RangeOutcome::Full);
     }
 
@@ -737,8 +800,14 @@ mod tests {
 
     #[test]
     fn splits_the_token_off_the_route() {
-        assert_eq!(split_token_route("/abc123/local/C%3A/x.mp3", "abc123"), Some("local/C%3A/x.mp3"));
-        assert_eq!(split_token_route("/abc123/nd/song/s1", "abc123"), Some("nd/song/s1"));
+        assert_eq!(
+            split_token_route("/abc123/local/C%3A/x.mp3", "abc123"),
+            Some("local/C%3A/x.mp3")
+        );
+        assert_eq!(
+            split_token_route("/abc123/nd/song/s1", "abc123"),
+            Some("nd/song/s1")
+        );
     }
 
     #[test]
@@ -764,10 +833,19 @@ mod tests {
 
     #[test]
     fn reflects_known_webview_origins() {
-        assert_eq!(allow_origin(Some("http://tauri.localhost")), "http://tauri.localhost");
-        assert_eq!(allow_origin(Some("https://tauri.localhost")), "https://tauri.localhost");
+        assert_eq!(
+            allow_origin(Some("http://tauri.localhost")),
+            "http://tauri.localhost"
+        );
+        assert_eq!(
+            allow_origin(Some("https://tauri.localhost")),
+            "https://tauri.localhost"
+        );
         assert_eq!(allow_origin(Some("tauri://localhost")), "tauri://localhost");
-        assert_eq!(allow_origin(Some("http://localhost:1420")), "http://localhost:1420");
+        assert_eq!(
+            allow_origin(Some("http://localhost:1420")),
+            "http://localhost:1420"
+        );
     }
 
     #[test]
@@ -812,9 +890,18 @@ mod tests {
     fn passes_through_absent_suffix_and_malformed_specs() {
         assert_eq!(cap_range_span(None, SPAN), None);
         // Suffix ranges ("last N bytes") have no start to cap from.
-        assert_eq!(cap_range_span(Some("bytes=-500".into()), SPAN).as_deref(), Some("bytes=-500"));
-        assert_eq!(cap_range_span(Some("items=0-".into()), SPAN).as_deref(), Some("items=0-"));
-        assert_eq!(cap_range_span(Some("bytes=abc-".into()), SPAN).as_deref(), Some("bytes=abc-"));
+        assert_eq!(
+            cap_range_span(Some("bytes=-500".into()), SPAN).as_deref(),
+            Some("bytes=-500")
+        );
+        assert_eq!(
+            cap_range_span(Some("items=0-".into()), SPAN).as_deref(),
+            Some("items=0-")
+        );
+        assert_eq!(
+            cap_range_span(Some("bytes=abc-".into()), SPAN).as_deref(),
+            Some("bytes=abc-")
+        );
     }
 }
 
@@ -849,7 +936,12 @@ mod integration_tests {
         let base = format!("http://127.0.0.1:{}", state.port);
         let token = state.token.clone();
         let cache = std::env::temp_dir().join(format!("media-server-test-cache-{}", new_token()));
-        tokio::spawn(run_accept_loop(NoRemote, state.token, Some(cache), tokio_listener));
+        tokio::spawn(run_accept_loop(
+            NoRemote,
+            state.token,
+            Some(cache),
+            tokio_listener,
+        ));
         (base, token)
     }
 
@@ -919,15 +1011,31 @@ mod integration_tests {
         let client = reqwest::Client::new();
         let url = format!("{base}/{token}/local/{}", encode_path(&path));
 
-        let explicit = client.get(&url).header("Range", "bytes=5-9").send().await.expect("explicit");
+        let explicit = client
+            .get(&url)
+            .header("Range", "bytes=5-9")
+            .send()
+            .await
+            .expect("explicit");
         assert_eq!(explicit.status(), 206);
         assert_eq!(explicit.headers()["Content-Range"], "bytes 5-9/20");
-        assert_eq!(explicit.bytes().await.expect("body").as_ref(), &FILE_BODY[5..=9]);
+        assert_eq!(
+            explicit.bytes().await.expect("body").as_ref(),
+            &FILE_BODY[5..=9]
+        );
 
-        let suffix = client.get(&url).header("Range", "bytes=-4").send().await.expect("suffix");
+        let suffix = client
+            .get(&url)
+            .header("Range", "bytes=-4")
+            .send()
+            .await
+            .expect("suffix");
         assert_eq!(suffix.status(), 206);
         assert_eq!(suffix.headers()["Content-Range"], "bytes 16-19/20");
-        assert_eq!(suffix.bytes().await.expect("body").as_ref(), &FILE_BODY[16..]);
+        assert_eq!(
+            suffix.bytes().await.expect("body").as_ref(),
+            &FILE_BODY[16..]
+        );
         let _ = std::fs::remove_file(path);
     }
 
@@ -966,25 +1074,37 @@ mod integration_tests {
             .expect("preflight");
 
         assert_eq!(resp.status(), 204);
-        assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
+        assert_eq!(
+            resp.headers()["Access-Control-Allow-Origin"],
+            "http://tauri.localhost"
+        );
         assert_eq!(resp.headers()["Access-Control-Allow-Methods"], "GET");
         assert_eq!(resp.headers()["Access-Control-Allow-Headers"], "Range");
     }
 
     fn fixture(name: &str) -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
     }
 
     #[tokio::test]
     async fn alac_m4a_is_served_as_transcoded_wav() {
         let (base, token) = spawn_test_server().await;
-        let url = format!("{base}/{token}/local/{}", encode_path(&fixture("tiny-alac.m4a")));
+        let url = format!(
+            "{base}/{token}/local/{}",
+            encode_path(&fixture("tiny-alac.m4a"))
+        );
 
         let resp = reqwest::get(&url).await.expect("request");
         assert_eq!(resp.status(), 200);
         assert_eq!(resp.headers()["Content-Type"], "audio/wav");
         assert_eq!(resp.headers()["Accept-Ranges"], "bytes");
-        let total: u64 = resp.headers()["Content-Length"].to_str().unwrap().parse().unwrap();
+        let total: u64 = resp.headers()["Content-Length"]
+            .to_str()
+            .unwrap()
+            .parse()
+            .unwrap();
         let body = resp.bytes().await.expect("body");
         assert_eq!(&body[..4], b"RIFF");
         assert_eq!(body.len() as u64, total);
@@ -1001,13 +1121,19 @@ mod integration_tests {
             tail.headers()["Content-Range"].to_str().unwrap(),
             format!("bytes {}-{}/{}", total - 4, total - 1, total),
         );
-        assert_eq!(tail.bytes().await.expect("body").as_ref(), &body[body.len() - 4..]);
+        assert_eq!(
+            tail.bytes().await.expect("body").as_ref(),
+            &body[body.len() - 4..]
+        );
     }
 
     #[tokio::test]
     async fn ape_is_served_as_transcoded_wav() {
         let (base, token) = spawn_test_server().await;
-        let url = format!("{base}/{token}/local/{}", encode_path(&fixture("tiny-impulse.ape")));
+        let url = format!(
+            "{base}/{token}/local/{}",
+            encode_path(&fixture("tiny-impulse.ape"))
+        );
 
         let resp = reqwest::get(&url).await.expect("request");
         assert_eq!(resp.status(), 200);
@@ -1071,7 +1197,9 @@ mod integration_tests {
         let client = reqwest::Client::new();
 
         let missing = client
-            .get(format!("{base}/{token}/local/C%3A%2Fdoes-not-exist%2Fx.mp3"))
+            .get(format!(
+                "{base}/{token}/local/C%3A%2Fdoes-not-exist%2Fx.mp3"
+            ))
             .send()
             .await
             .expect("missing");
@@ -1115,7 +1243,10 @@ mod integration_tests {
         assert_eq!(resp.headers()["Content-Range"], "bytes 5-9/100");
         assert_eq!(resp.headers()["Accept-Ranges"], "bytes");
         assert_eq!(resp.headers()["Cache-Control"], "no-store");
-        assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
+        assert_eq!(
+            resp.headers()["Access-Control-Allow-Origin"],
+            "http://tauri.localhost"
+        );
         let body = resp.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"56789");
     }
@@ -1161,7 +1292,12 @@ mod integration_tests {
         let uncapped = forward_stream(&client, &upstream, &[], Some("bytes=0-".into()), None, None)
             .await
             .expect("uncapped");
-        let body = uncapped.into_body().collect().await.expect("body").to_bytes();
+        let body = uncapped
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
         assert_eq!(body.as_ref(), b"bytes=0-|none");
     }
 
@@ -1178,7 +1314,10 @@ mod integration_tests {
             .await
             .expect("request");
 
-        assert_eq!(resp.headers()["Access-Control-Allow-Origin"], "http://tauri.localhost");
+        assert_eq!(
+            resp.headers()["Access-Control-Allow-Origin"],
+            "http://tauri.localhost"
+        );
         assert_eq!(resp.headers()["Vary"], "Origin");
         let _ = std::fs::remove_file(path);
     }

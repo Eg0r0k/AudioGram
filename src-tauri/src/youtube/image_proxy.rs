@@ -42,7 +42,16 @@ impl YtImageCache {
             return;
         };
         let (map, order) = &mut *entries;
-        if map.insert(url.clone(), CachedImage { content_type, bytes }).is_none() {
+        if map
+            .insert(
+                url.clone(),
+                CachedImage {
+                    content_type,
+                    bytes,
+                },
+            )
+            .is_none()
+        {
             order.push_back(url);
         }
         while map.len() > MAX_CACHED_IMAGES {
@@ -122,7 +131,11 @@ async fn fetch_image<R: Runtime>(
     let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
 
     if status == 200 {
-        cache.insert(parsed.as_str().to_owned(), content_type.clone(), bytes.clone());
+        cache.insert(
+            parsed.as_str().to_owned(),
+            content_type.clone(),
+            bytes.clone(),
+        );
     }
 
     // The custom-protocol responder needs an owned `Vec` — the one copy.

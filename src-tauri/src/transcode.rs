@@ -32,12 +32,19 @@ use symphonia::core::probe::Hint;
 
 /// Extensions worth probing at all — everything else is served raw.
 pub(crate) fn is_mp4_family(path: &str) -> bool {
-    let ext = path.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+    let ext = path
+        .rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     matches!(ext.as_str(), "m4a" | "mp4" | "m4b")
 }
 
 fn is_ape(path: &str) -> bool {
-    path.rsplit('.').next().unwrap_or_default().eq_ignore_ascii_case("ape")
+    path.rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("ape")
 }
 
 /// Cheap extension gate for the server: paths that may need a WAV rendition.
@@ -51,7 +58,12 @@ fn open_format(src: &Path) -> Result<Box<dyn FormatReader>, String> {
     let mut hint = Hint::new();
     hint.with_extension("m4a");
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| e.to_string())?;
     Ok(probed.format)
 }
@@ -228,17 +240,20 @@ fn decode_to_wav(src: &Path, dst: &Path) -> Result<(), String> {
                 .map_err(|e| e.to_string())?,
             ),
         };
-        let buf = sample_buf.get_or_insert_with(|| {
-            SampleBuffer::new(decoded.capacity() as u64, spec)
-        });
+        let buf =
+            sample_buf.get_or_insert_with(|| SampleBuffer::new(decoded.capacity() as u64, spec));
         buf.copy_interleaved_ref(decoded);
         let shift = 32 - u32::from(out_bits);
         for &sample in buf.samples() {
-            out.write_sample(sample >> shift).map_err(|e| e.to_string())?;
+            out.write_sample(sample >> shift)
+                .map_err(|e| e.to_string())?;
         }
     }
 
-    writer.ok_or("empty audio stream")?.finalize().map_err(|e| e.to_string())
+    writer
+        .ok_or("empty audio stream")?
+        .finalize()
+        .map_err(|e| e.to_string())
 }
 
 /// Decodes a Monkey's Audio file into `dst` as PCM WAV, frame by frame — one
@@ -248,17 +263,18 @@ fn decode_ape_to_wav(src: &Path, dst: &Path) -> Result<(), String> {
     use std::io::Write;
 
     let file = std::fs::File::open(src).map_err(|e| e.to_string())?;
-    let mut decoder = ape_decoder::ApeDecoder::new(std::io::BufReader::new(file))
-        .map_err(|e| e.to_string())?;
+    let mut decoder =
+        ape_decoder::ApeDecoder::new(std::io::BufReader::new(file)).map_err(|e| e.to_string())?;
 
     // RIFF sizes are u32 — a multi-hour album image can exceed them and the
     // header would silently wrap. Refuse; the raw-file fallback applies.
     let info = decoder.info();
-    let pcm_bytes = info.total_samples
-        * u64::from(info.channels)
-        * u64::from(info.bits_per_sample / 8);
+    let pcm_bytes =
+        info.total_samples * u64::from(info.channels) * u64::from(info.bits_per_sample / 8);
     if pcm_bytes + 44 > u64::from(u32::MAX) {
-        return Err(format!("decoded size {pcm_bytes} exceeds the WAV 4 GiB limit"));
+        return Err(format!(
+            "decoded size {pcm_bytes} exceeds the WAV 4 GiB limit"
+        ));
     }
 
     let out = std::fs::File::create(dst).map_err(|e| e.to_string())?;
@@ -441,11 +457,9 @@ fn probe_rendition(src: &Path) -> Rendition {
     // ALAC first: its WAV rendition drops the video track anyway.
     if is_alac(src) {
         Rendition::AlacWav
-    }
-    else if has_video_track(src) {
+    } else if has_video_track(src) {
         Rendition::VideoAac
-    }
-    else {
+    } else {
         Rendition::None
     }
 }
@@ -463,8 +477,9 @@ const PROBE_MEMO_CAP: usize = 1024;
 /// each time cost 30-57ms on a three-hour mp4 against 10-16ms for a plain
 /// file — pure waste, because the answer cannot change unless the file does.
 fn memoized_rendition(src: &Path) -> Rendition {
-    static MEMO: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<ProbeKey, Rendition>>> =
-        std::sync::OnceLock::new();
+    static MEMO: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<ProbeKey, Rendition>>,
+    > = std::sync::OnceLock::new();
 
     let Ok(meta) = std::fs::metadata(src) else {
         // No metadata means no stable key; fall back to probing uncached.
@@ -527,7 +542,9 @@ pub(crate) fn rendition_path(src: &Path, cache_dir: &Path) -> Option<PathBuf> {
     // under the lock — the loser wakes up to a finished WAV. Runs inside
     // spawn_blocking, so blocking here is fine.
     static DECODE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = DECODE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = DECODE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if dst.is_file() {
         log::info!("{prefix} transcode: cache hit for {}", src.display());
         return Some(dst);
@@ -573,11 +590,16 @@ mod tests {
     use super::*;
 
     fn fixture(name: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
     }
 
     fn temp_cache() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("audiogram-transcode-test-{}", crate::media_server::new_token()));
+        let dir = std::env::temp_dir().join(format!(
+            "audiogram-transcode-test-{}",
+            crate::media_server::new_token()
+        ));
         std::fs::create_dir_all(&dir).expect("create temp cache");
         dir
     }
@@ -596,7 +618,10 @@ mod tests {
                 .collect()
         });
 
-        assert!(paths.windows(2).all(|w| w[0] == w[1]), "all callers see one path");
+        assert!(
+            paths.windows(2).all(|w| w[0] == w[1]),
+            "all callers see one path"
+        );
         hound::WavReader::open(&paths[0]).expect("valid wav");
 
         // No half-written tmp files may survive the race.
@@ -637,7 +662,11 @@ mod tests {
         let src = fixture("tiny-impulse.ape");
 
         let wav = rendition_path(&src, &cache).expect("transcoded path");
-        assert!(wav.file_name().unwrap().to_string_lossy().starts_with("ape-"));
+        assert!(wav
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("ape-"));
 
         let reader = hound::WavReader::open(&wav).expect("valid wav");
         let spec = reader.spec();
@@ -710,7 +739,11 @@ mod tests {
 
         let out = rendition_path(&src, &cache).expect("rendition path");
         assert_eq!(out.extension().and_then(|e| e.to_str()), Some("aac"));
-        assert!(out.file_name().unwrap().to_string_lossy().starts_with("aacv-"));
+        assert!(out
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("aacv-"));
 
         let bytes = std::fs::read(&out).expect("readable rendition");
         assert!(!bytes.is_empty(), "rendition must not be empty");
@@ -823,7 +856,10 @@ mod tests {
         assert_eq!(spec.bits_per_sample, 16);
         // 0.2s of 44.1kHz — the fixture's full duration must have survived.
         let frames = reader.duration();
-        assert!((8000..=9000).contains(&frames), "unexpected frame count {frames}");
+        assert!(
+            (8000..=9000).contains(&frames),
+            "unexpected frame count {frames}"
+        );
 
         // Second call hits the cache: same path, no re-transcode (mtime of
         // the wav is untouched because the file is simply found).

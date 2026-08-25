@@ -146,8 +146,8 @@ pub fn run() {
     // non-listening media server. Binding loopback:0 only fails on a broken
     // network stack — without the playback transport the app is useless, so
     // failing fast beats limping on.
-    let (media_listener, media_state) = media_server::bind_on_loopback()
-        .expect("failed to bind the loopback media server");
+    let (media_listener, media_state) =
+        media_server::bind_on_loopback().expect("failed to bind the loopback media server");
     let media_token = media_state.token.clone();
 
     let builder = tauri::Builder::default()

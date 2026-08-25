@@ -210,7 +210,10 @@ fn artist_refs(artists: Vec<rustypipe::model::ArtistId>) -> Vec<YtArtistRef> {
     artists
         .into_iter()
         .filter(|a| !is_type_badge(a.id.as_deref(), &a.name))
-        .map(|a| YtArtistRef { id: a.id, name: a.name })
+        .map(|a| YtArtistRef {
+            id: a.id,
+            name: a.name,
+        })
         .collect()
 }
 
@@ -221,7 +224,10 @@ pub(super) fn to_music_track(item: TrackItem) -> YtMusicTrack {
         id: item.id,
         title: item.name,
         artists: artist_refs(item.artists),
-        album: item.album.map(|a| YtAlbumRef { id: a.id, name: a.name }),
+        album: item.album.map(|a| YtAlbumRef {
+            id: a.id,
+            name: a.name,
+        }),
         duration: item.duration,
         track_nr: item.track_nr,
     }
@@ -324,7 +330,11 @@ pub(super) fn to_artist_detail(artist: MusicArtist) -> YtArtistDetail {
         subscriber_count: artist.subscriber_count,
         top_tracks: artist.tracks.into_iter().map(to_music_track).collect(),
         albums: artist.albums.into_iter().map(to_music_album).collect(),
-        playlists: artist.playlists.into_iter().map(to_music_playlist).collect(),
+        playlists: artist
+            .playlists
+            .into_iter()
+            .map(to_music_playlist)
+            .collect(),
     }
 }
 
@@ -354,7 +364,10 @@ mod tests {
                 id: Some("UCTLkOu1J8aNJhEiWFWbMnVQ".into()),
                 name: "СЕРЕГА ПИРАТ".into(),
             }],
-            album: Some(YtAlbumRef { id: "MPREb_1".into(), name: "Фанат".into() }),
+            album: Some(YtAlbumRef {
+                id: "MPREb_1".into(),
+                name: "Фанат".into(),
+            }),
             duration: Some(163),
             thumbnail: Some("https://lh3.googleusercontent.com/cover=w544-h544".into()),
             is_video: false,
