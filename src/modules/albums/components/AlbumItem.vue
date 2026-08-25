@@ -1,7 +1,8 @@
 <template>
   <div
     v-ripple
-    class="group w-40 shrink-0 select-none cursor-pointer rounded-lg p-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-44"
+    class="group select-none cursor-pointer rounded-lg p-2 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50"
+    :class="fluid ? 'w-full min-w-0' : 'w-40 shrink-0 sm:w-44'"
     data-library-item
     :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
     data-media-context
@@ -12,8 +13,6 @@
     @contextmenu="handleContextMenu"
   >
     <div class="relative aspect-square z-1 overflow-hidden rounded-md bg-muted shadow-sm">
-      <!-- item.image (remote-source cover via the stream:// proxy) wins as
-           the fallback: the Dexie cover query knows nothing about nd: ids. -->
       <EntityCoverImage
         owner-type="album"
         :owner-id="item.id"
@@ -27,7 +26,7 @@
         class="absolute bottom-2 right-2 size-11 rounded-full shadow-lg transition-[opacity,transform,box-shadow] duration-200"
         :class="isActiveSource
           ? 'translate-y-0 opacity-100'
-          : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'"
+          : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100'"
         @click.prevent.stop="handlePlay"
       >
         <IconPause
@@ -74,12 +73,15 @@ import { canOpenLibraryMenu, useLibraryMenu } from "@/modules/library/composable
 import type { LibraryItem } from "@/modules/library/types";
 import type { QueueSource } from "@/modules/queue/types";
 import type { AlbumId } from "@/types/ids";
-import IconPause from "~icons/tabler/player-pause-filled";
-import IconPlay from "~icons/tabler/player-play-filled";
+import IconPause from "~icons/audiogram/pause-rounded";
+import IconPlay from "~icons/audiogram/play-rounded";
 import IconPinFilled from "~icons/tabler/pin-filled";
 
+// A no-hover device (touch) can't reveal the play button, so it stays
+// visible there; `fluid` lets a grid size the card instead of the slider width.
 const props = defineProps<{
   item: LibraryItem;
+  fluid?: boolean;
 }>();
 
 const emit = defineEmits<{
