@@ -3,6 +3,7 @@ export const ROUTE_NAMES = {
   PROFILE: "profile",
   ALBUM: "album",
   ARTIST: "artist",
+  ARTIST_ALBUMS: "artist-albums",
   PLAYLIST: "playlist",
   LIKED: "liked",
   SETTINGS: "settings",

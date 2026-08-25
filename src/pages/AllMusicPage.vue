@@ -169,10 +169,8 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player";
 import { Track } from "@/modules/player/types";
-import { useRouter } from "vue-router";
-import { routeLocation } from "@/app/router/route-locations";
+import { useGoBack } from "@/composables/useGoBack";
 const { t } = useI18n();
-const router = useRouter();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
 const {
@@ -247,17 +245,6 @@ async function handlePlayTrack(index: number) {
   await queueStore.setQueue(all, fullIndex, context);
 }
 
-const fallbackRoute = routeLocation.home();
-
-const goBack = () => {
-  const prevPath = router.options.history.state?.back;
-
-  if (prevPath && typeof prevPath === "string") {
-    router.back();
-  }
-  else {
-    router.push(fallbackRoute);
-  }
-};
+const goBack = useGoBack();
 
 </script>

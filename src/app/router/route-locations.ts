@@ -7,6 +7,7 @@ export const routeLocation = {
   liked: (): RouteLocationRaw => ({ name: ROUTE_NAMES.LIKED }),
   album: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ALBUM, params: { id } }),
   artist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ARTIST, params: { id } }),
+  artistAlbums: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ARTIST_ALBUMS, params: { id } }),
   playlist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.PLAYLIST, params: { id } }),
   settings: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS }),
   settingsGeneral: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_GENERAL }),

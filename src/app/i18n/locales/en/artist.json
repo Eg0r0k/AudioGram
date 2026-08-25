@@ -2,6 +2,8 @@
   "newArtist": "New artist",
   "deleteFailed": "Failed to delete artist",
   "tracks": "Tracks",
+  "albums": "Albums",
+  "noAlbums": "No albums yet",
   "pinArtist": "Pin artist",
   "unpinArtist": "Unpin artist",
   "deleteArtist": "Delete artist"

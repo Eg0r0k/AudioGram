@@ -40,7 +40,6 @@
               @delete="openDeleteDialog"
             >
               <template #actions>
-                <!-- Hidden for a catalog artist: no Dexie row to write into. -->
                 <Button
                   v-if="artist"
                   class="text-white"
@@ -66,6 +65,16 @@
                     {{ $t('common.albums', { count: albumCount }) }}
                   </p>
                 </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="shrink-0 rounded-full px-2"
+                  @click="router.push(routeLocation.artistAlbums(artistId))"
+                >
+                  {{ $t('common.viewAll') }}
+                  <IconChevronRight class="size-4" />
+                </Button>
               </div>
 
               <LibraryContextMenu @delete="deleteLibraryItem">
@@ -76,7 +85,7 @@
                     v-for="albumItem in albumItems"
                     :key="albumItem.id"
                     :item="albumItem"
-                    @play="handlePlayAlbum"
+                    @play="playAlbum"
                   />
                 </ScrollableSlider>
               </LibraryContextMenu>
@@ -130,6 +139,7 @@ import PageErrorState from "@/components/common/PageErrorState.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
+import IconChevronRight from "~icons/tabler/chevron-right";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconPlus from "~icons/tabler/plus";
 
@@ -149,20 +159,16 @@ import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import AlbumItem from "@/modules/albums/components/AlbumItem.vue";
+import { usePlayAlbum } from "@/modules/albums/composables/usePlayAlbum";
 import { ScrollableSlider } from "@/components/ui/scrollable";
 import { routeLocation } from "@/app/router/route-locations";
 import type { LibraryItem } from "@/modules/library/types";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
-import { getAlbumPageData } from "@/queries/album.queries";
 import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
-import { sources } from "@/modules/sources";
-import { sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
-import { getLogger } from "@/lib/logger";
-import type { AlbumId } from "@/types/ids";
 import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 
 const { t } = useI18n();
@@ -170,10 +176,13 @@ const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const route = useRoute();
+const router = useRouter();
 const { openMenu } = useTrackMenu();
 const { isPinned, deleteItem: deleteLibraryItem } = useLibrary();
+const { playAlbum } = usePlayAlbum();
 const shuffleQueue = useQueueShuffle();
 const sortKey = ref<TrackSortKey | null>(null);
+const artistId = computed(() => route.params.id as string);
 
 const {
   artist,
@@ -263,31 +272,6 @@ async function handlePlayTrack(index: number) {
   await queueStore.setQueue(data.tracks, fullIndex, { type: "artist", artistId: artist.value.id });
 }
 
-async function handlePlayAlbum(item: LibraryItem) {
-  const albumId = item.id as AlbumId;
-
-  // Catalog card: no Dexie row behind it — fetch live and queue.
-  if (item.isCatalog) {
-    const kind = sourceKindOf(albumId);
-    if (kind === "local") return;
-    const result = await sources.get(kind).getAlbum(albumId);
-    if (result.isErr()) {
-      getLogger().error(`[Artist] Queueing catalog album ${albumId} failed: ${result.error.message}`);
-      toast.error(t("queue.addFailed"));
-      return;
-    }
-    const tracks = result.value.tracks.map(sourceTrackToDisplay);
-    if (tracks.length === 0) return;
-    await queueStore.setQueue(tracks, 0, { type: "album", albumId });
-    return;
-  }
-
-  const data = await getAlbumPageData(albumId);
-  if (data.tracks.length === 0) return;
-
-  await queueStore.setQueue(data.tracks, 0, { type: "album", albumId });
-}
-
 async function handleShuffle() {
   if (!artist.value) return;
 
@@ -341,7 +325,6 @@ const openAddTracksPanel = () => {
     depth: 1,
   });
 };
-
 
 const scrollableRef = useTemplateRef("scrollableRef");
 // Declared after the page state it reads: the hook evaluates `ready`

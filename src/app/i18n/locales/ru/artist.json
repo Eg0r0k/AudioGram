@@ -2,6 +2,8 @@
   "newArtist": "Новый артист",
   "deleteFailed": "Не удалось удалить артиста",
   "tracks": "Треки",
+  "albums": "Альбомы",
+  "noAlbums": "Альбомов пока нет",
   "pinArtist": "Закрепить артиста",
   "unpinArtist": "Открепить артиста",
   "deleteArtist": "Удалить артиста"

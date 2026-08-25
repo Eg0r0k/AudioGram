@@ -12,4 +12,14 @@ export const artistRoutes: RouteRecordRaw[] = [
       titleKey: "nav.artist",
     },
   },
+  {
+    path: "/artist/:id/albums",
+    name: ROUTE_NAMES.ARTIST_ALBUMS,
+    component: () => import("@/pages/ArtistAlbumsPage.vue"),
+    beforeEnter: requireRouteParam("id"),
+    meta: {
+      titleKey: "artist.albums",
+      depth: 2,
+    },
+  },
 ];

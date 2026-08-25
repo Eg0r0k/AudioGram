@@ -63,10 +63,7 @@ import { Button } from "@/components/ui/button";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconPlay from "~icons/audiogram/play-rounded";
 
-import { useRouter } from "vue-router";
-import { routeLocation } from "@/app/router/route-locations";
-
-const router = useRouter();
+import { useGoBack } from "@/composables/useGoBack";
 
 const props = defineProps<{
   title: string;
@@ -84,18 +81,7 @@ const isScrolled = computed(() => {
   return scrollable.scrollPosition.value > 60;
 });
 
-const fallbackRoute = routeLocation.home();
-
-const goBack = () => {
-  const prevPath = router.options.history.state?.back;
-
-  if (prevPath && typeof prevPath === "string") {
-    router.back();
-  }
-  else {
-    router.push(fallbackRoute);
-  }
-};
+const goBack = useGoBack();
 
 const headerStyle = computed(() => {
   if (!isScrolled.value) {
