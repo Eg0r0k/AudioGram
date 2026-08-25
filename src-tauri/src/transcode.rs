@@ -30,21 +30,15 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
+use crate::media_server::file_extension;
+
 /// Extensions worth probing at all — everything else is served raw.
 pub(crate) fn is_mp4_family(path: &str) -> bool {
-    let ext = path
-        .rsplit('.')
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    matches!(ext.as_str(), "m4a" | "mp4" | "m4b")
+    matches!(file_extension(path).as_deref(), Some("m4a" | "mp4" | "m4b"))
 }
 
 fn is_ape(path: &str) -> bool {
-    path.rsplit('.')
-        .next()
-        .unwrap_or_default()
-        .eq_ignore_ascii_case("ape")
+    file_extension(path).as_deref() == Some("ape")
 }
 
 /// Cheap extension gate for the server: paths that may need a WAV rendition.

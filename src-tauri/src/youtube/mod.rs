@@ -143,29 +143,22 @@ fn best_thumbnail(thumbnails: &[Thumbnail]) -> Option<String> {
         .map(|t| t.url.clone())
 }
 
-fn validate_id(id: String) -> Result<String, String> {
-    let id = id.trim().to_owned();
-    if id.is_empty()
-        || !id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+/// Trims a frontend-supplied video id and checks it is safe to embed in a
+/// watch URL, a sidecar argument and an output file name.
+fn validate_id(id: &str) -> Result<String, String> {
+    let id = id.trim();
+    if !crate::ids::is_plain_id(id) {
         return Err("invalid video id".into());
     }
-    Ok(id)
+    Ok(id.to_owned())
 }
 
 /// Album/playlist/channel browse ids are longer than video ids but share the
 /// same character class.
-fn validate_browse_id(id: String) -> Result<String, YtError> {
-    let id = id.trim().to_owned();
-    if id.is_empty()
-        || id.len() > 64
-        || !id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+fn validate_browse_id(id: &str) -> Result<String, YtError> {
+    let id = id.trim();
+    if id.len() > 64 || !crate::ids::is_plain_id(id) {
         return Err(YtError::invalid_input("invalid browse id"));
     }
-    Ok(id)
+    Ok(id.to_owned())
 }

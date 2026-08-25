@@ -113,13 +113,18 @@ pub(crate) fn is_safe_abs_path(path: &str) -> bool {
     is_absolute && !path.split(['/', '\\']).any(|segment| segment == "..")
 }
 
+/// Lower-cased extension of a path string (`"/a/b.FLAC"` → `"flac"`); `None`
+/// without one. Accepts both separators, since local paths arrive from the
+/// frontend with `/` on every platform.
+pub(crate) fn file_extension(path: &str) -> Option<String> {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .map(str::to_ascii_lowercase)
+}
+
 pub(crate) fn mime_for_path(path: &str) -> &'static str {
-    let ext = path
-        .rsplit('.')
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    match ext.as_str() {
+    match file_extension(path).as_deref().unwrap_or_default() {
         "mp3" => "audio/mpeg",
         "flac" => "audio/flac",
         "ogg" | "oga" | "opus" => "audio/ogg",
@@ -787,7 +792,18 @@ mod tests {
         assert!(!is_safe_abs_path("//./PhysicalDrive0"));
     }
 
-    // ── mime_for_path ────────────────────────────────────────────────
+    // ── file_extension / mime_for_path ───────────────────────────────
+
+    #[test]
+    fn extension_is_lowercased_and_absent_without_a_dot() {
+        assert_eq!(file_extension("/a/b.FLAC").as_deref(), Some("flac"));
+        assert_eq!(
+            file_extension("C:/music/x.y/track.m4a").as_deref(),
+            Some("m4a")
+        );
+        assert_eq!(file_extension("/a/noext"), None);
+        assert_eq!(file_extension("/a/.hidden"), None);
+    }
 
     #[test]
     fn maps_common_audio_extensions() {

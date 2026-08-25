@@ -101,13 +101,6 @@ fn ext_from_content_type(content_type: &str) -> Option<&'static str> {
     }
 }
 
-fn valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
 fn normalized_suffix(suffix: Option<&str>) -> Option<String> {
     let s = suffix?.trim().to_ascii_lowercase();
     if s.is_empty() || s.len() > 8 || !s.chars().all(|c| c.is_ascii_alphanumeric()) {
@@ -127,7 +120,7 @@ pub async fn nd_download<R: Runtime>(
     suffix: Option<String>,
     on_progress: Channel<NdDownloadEvent>,
 ) -> Result<NdDownloadResult, String> {
-    if !valid_id(&song_id) {
+    if !crate::ids::is_plain_id(&song_id) {
         return Err("invalid song id".into());
     }
     let Some(config) = app.state::<NdState>().get() else {

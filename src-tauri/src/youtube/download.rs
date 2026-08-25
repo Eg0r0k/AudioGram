@@ -139,7 +139,7 @@ pub async fn yt_download<R: Runtime>(
     meta: Option<YtTrackMeta>,
     on_progress: Channel<YtDownloadEvent>,
 ) -> Result<YtDownloadResult, YtError> {
-    let id = validate_id(id).map_err(YtError::invalid_input)?;
+    let id = validate_id(&id).map_err(YtError::invalid_input)?;
 
     let cache_dir = app
         .path()
@@ -246,7 +246,7 @@ pub async fn yt_download<R: Runtime>(
 /// Kills an in-flight download. No-op when the id is not downloading.
 #[tauri::command]
 pub async fn yt_download_cancel<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), YtError> {
-    let id = validate_id(id).map_err(YtError::invalid_input)?;
+    let id = validate_id(&id).map_err(YtError::invalid_input)?;
     app.state::<YtDownloadRegistry>().cancel(&id);
     Ok(())
 }

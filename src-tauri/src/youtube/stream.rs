@@ -233,7 +233,7 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
 
 #[tauri::command]
 pub async fn yt_resolve<R: Runtime>(app: AppHandle<R>, id: String) -> Result<String, YtError> {
-    let id = validate_id(id).map_err(YtError::invalid_input)?;
+    let id = validate_id(&id).map_err(YtError::invalid_input)?;
 
     // Cache under the id; the frontend plays `/{token}/yt/<id>` on the media
     // server, which maps it back to this URL (no yt-dlp run per seek).
@@ -247,7 +247,7 @@ pub async fn yt_resolve<R: Runtime>(app: AppHandle<R>, id: String) -> Result<Str
 /// still playing.
 #[tauri::command]
 pub async fn yt_prefetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), YtError> {
-    let id = validate_id(id).map_err(YtError::invalid_input)?;
+    let id = validate_id(&id).map_err(YtError::invalid_input)?;
     if app.state::<YtAudioCache>().contains(&id) {
         return Ok(());
     }
@@ -292,7 +292,7 @@ pub(crate) async fn serve_yt<R: Runtime>(
     range: Option<String>,
     origin: Option<&str>,
 ) -> http::Response<crate::media_server::Body> {
-    if validate_id(id.to_owned()).is_err() {
+    if !crate::ids::is_plain_id(id) {
         return status_response(404, origin);
     }
 

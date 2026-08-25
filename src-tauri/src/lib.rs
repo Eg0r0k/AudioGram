@@ -22,6 +22,8 @@ mod youtube;
 
 mod audio_cache;
 
+mod ids;
+
 mod media_server;
 
 mod nd;

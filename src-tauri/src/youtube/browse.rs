@@ -17,7 +17,7 @@ pub async fn yt_music_playlist<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<YtPlaylistDetail, YtError> {
-    let id = validate_browse_id(id)?;
+    let id = validate_browse_id(&id)?;
     let rp = yt_client(&app).await?;
     let playlist = rp.query().music_playlist(&id).await?;
     Ok(to_playlist_detail(playlist))
@@ -29,7 +29,7 @@ pub async fn yt_music_album<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<YtAlbumDetail, YtError> {
-    let id = validate_browse_id(id)?;
+    let id = validate_browse_id(&id)?;
     let rp = yt_client(&app).await?;
     let album = rp.query().music_album(&id).await?;
     Ok(to_album_detail(album))
@@ -42,7 +42,7 @@ pub async fn yt_music_artist<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<YtArtistDetail, YtError> {
-    let id = validate_browse_id(id)?;
+    let id = validate_browse_id(&id)?;
     let rp = yt_client(&app).await?;
     let mut artist = rp.query().music_artist(&id, false).await?;
     fill_top_track_durations(&rp, &mut artist).await;
