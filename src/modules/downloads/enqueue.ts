@@ -14,13 +14,14 @@ import { useDownloadsStore } from "./store/downloads.store";
 
 /**
  * Search rows can arrive stripped (no duration, no cover, no album id — YT
- * track-tab and top-result shelves); pinning such a DTO saves a timeless,
- * coverless track. The album id matters as much as the cover ref: the cover
- * blob is stored on the shadow ALBUM row, so a DTO without albumId pins a
- * coverless track even when coverRef is present. When any of the three is
- * missing, refetch the full snapshot from the source and keep the row's own
- * values where it had them. Best-effort: an offline or unsupported source
- * pins the DTO as it came.
+ * track-tab and top-result shelves); pinning such a DTO saves a timeless
+ * track with no album to group under. When any of the three is missing,
+ * refetch the full snapshot from the source and keep the row's own values
+ * where it had them — except the artists: `artistIds` and the joined
+ * `artistName` describe the same list and must come from one source, or the
+ * pin cascade ends up with ids it cannot name (a video row knows only the
+ * channel, YT Music knows every credited artist). Best-effort: an offline or
+ * unsupported source pins the DTO as it came.
  */
 export async function completeDtoForPin(dto: SourceTrackDTO): Promise<SourceTrackDTO> {
   if (dto.duration != null && dto.coverRef && dto.albumId) return dto;
@@ -31,10 +32,15 @@ export async function completeDtoForPin(dto: SourceTrackDTO): Promise<SourceTrac
   const result = await provider.getTrack(dto.id);
   if (result.isErr()) return dto;
 
+  const snapshot = result.value;
   const defined = Object.fromEntries(
     Object.entries(dto).filter(([, value]) => value !== undefined),
   );
-  return { ...result.value, ...defined } as SourceTrackDTO;
+  if (snapshot.artistIds?.length) {
+    delete defined.artistName;
+    delete defined.artistIds;
+  }
+  return { ...snapshot, ...defined } as SourceTrackDTO;
 }
 
 /**

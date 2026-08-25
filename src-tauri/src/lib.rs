@@ -141,6 +141,11 @@ pub fn run() {
                 // traces every native call — thousands of lines per second of
                 // audio, drowning app messages and hammering the log file.
                 .level(log::LevelFilter::Info)
+                // rustypipe instruments every client call with a span at
+                // ERROR level (`music_details; video_id=…`) — the tracing→log
+                // bridge prints those on success too. Its real failures reach
+                // this crate as `Err` and are logged with context here.
+                .filter(|metadata| !metadata.target().starts_with("rustypipe::client"))
                 .max_file_size(5 * 1_024 * 1_024) // 5 MB per log file
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .build(),

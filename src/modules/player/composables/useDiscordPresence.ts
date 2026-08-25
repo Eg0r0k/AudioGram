@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { onUnmounted, watch } from "vue";
 import { platformCaps } from "@/lib/environment/platformCaps";
+import { getLogger } from "@/lib/logger";
 import { usePlayerStore } from "../store/player.store";
 import {
   createDiscordActivityPayload,
@@ -11,7 +12,13 @@ const DISCORD_CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID?.trim() ?? "";
 const RETRY_DELAY_MS = 30_000;
 
 export const useDiscordPresence = () => {
-  if (!platformCaps.hasDiscord || !DISCORD_CLIENT_ID) return;
+  if (!platformCaps.hasDiscord) return;
+  if (!DISCORD_CLIENT_ID) {
+    // A build without the id (it ships via .env.production) silently loses
+    // the feature; say so once instead of leaving the log empty.
+    getLogger().warn("[DiscordPresence] disabled: VITE_DISCORD_CLIENT_ID is empty in this build");
+    return;
+  }
 
   const player = usePlayerStore();
 

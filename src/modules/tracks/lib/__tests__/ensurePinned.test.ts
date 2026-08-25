@@ -13,6 +13,7 @@ const uow = vi.hoisted(() => ({ runScoped: vi.fn() }));
 const searchIndex = vi.hoisted(() => ({
   indexImportedTracks: vi.fn(async () => {}),
 }));
+const shadowCover = vi.hoisted(() => ({ ensureShadowCover: vi.fn(async () => {}) }));
 
 vi.mock("@/db", () => ({ db: { tracks: {}, albums: {}, artists: {} } }));
 vi.mock("@/db/repositories", () => ({
@@ -22,6 +23,7 @@ vi.mock("@/db/repositories", () => ({
 }));
 vi.mock("@/db/unit-of-work", () => ({ unitOfWork: uow }));
 vi.mock("@/modules/search/searchIndex", () => searchIndex);
+vi.mock("../shadowAlbumCover", () => shadowCover);
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
@@ -108,6 +110,43 @@ describe("ensurePinned", () => {
     await ensurePinned({ kind: "remote", dto }, { pinned: 0 });
 
     expect(repos.track.upsert.mock.calls[0][0]).toMatchObject({ pinned: 0 });
+  });
+
+  it("looks the existing artists up by the track's own ids when the DTO carries none", async () => {
+    repos.track.findById.mockResolvedValue(ok({
+      id: "nd:song1",
+      title: "Remote Song",
+      artistIds: [ndArtistId("artist1"), ndArtistId("artist2")],
+      albumId: "",
+      pinned: 1,
+    }));
+    repos.artist.findByIds.mockResolvedValue(ok([
+      { id: "nd:artist1", name: "Artist A", pinned: 1, addedAt: 1, updatedAt: 1 },
+      { id: "nd:artist2", name: "Artist B", pinned: 1, addedAt: 1, updatedAt: 1 },
+    ]));
+
+    await ensurePinned({ kind: "remote", dto: { id: ndTrackId("song1"), title: "Remote Song" } }, { pinned: 0 });
+
+    expect(repos.artist.findByIds).toHaveBeenCalledWith([ndArtistId("artist1"), ndArtistId("artist2")]);
+    const upserted = repos.artist.upsertMany.mock.calls[0]?.[0] ?? [];
+    expect(upserted.map((a: { name: string }) => a.name)).toEqual(["Artist A", "Artist B"]);
+  });
+
+  it("stores the cover on the shadow album when there is one", async () => {
+    await ensurePinned({ kind: "remote", dto: { ...dto, coverRef: "https://covers/x.jpg" } });
+
+    expect(shadowCover.ensureShadowCover).toHaveBeenCalledWith("album", "nd:album1", "https://covers/x.jpg");
+  });
+
+  it("stores the cover on the track itself when the DTO has no album", async () => {
+    // A YouTube music video: artists known, no album — the cover must not be
+    // dropped just because there is no album row to hang it on.
+    await ensurePinned({
+      kind: "remote",
+      dto: { ...dto, albumId: undefined, albumTitle: undefined, coverRef: "https://covers/x.jpg" },
+    });
+
+    expect(shadowCover.ensureShadowCover).toHaveBeenCalledWith("track", "nd:song1", "https://covers/x.jpg");
   });
 
   it("propagates a failed transaction", async () => {

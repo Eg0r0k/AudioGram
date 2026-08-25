@@ -121,6 +121,40 @@ describe("buildRemoteShadowEntities", () => {
     expect(rows.artists[1]?.pinned).toBe(0);
   });
 
+  it("never writes an artist row it cannot name — the id is dropped instead", () => {
+    // One display name, two ids: the second has no name to take. An empty
+    // artist row renders as a blank entry in the library and never heals.
+    const rows = buildRemoteShadowEntities(
+      { ...dto, artistName: "NIKER", albumId: undefined, albumTitle: undefined },
+      1,
+      noExisting,
+      NOW,
+    );
+
+    expect(rows.artists.map(a => [a.id, a.name])).toEqual([["nd:artist1", "NIKER"]]);
+    expect(rows.track.artistIds).toEqual(["nd:artist1"]);
+  });
+
+  it("keeps the existing rows' names and links when the DTO carries no artists at all", () => {
+    const existingTrack = buildRemoteShadowEntities(dto, 1, noExisting, 1).track;
+    const existingArtists = buildRemoteShadowEntities(dto, 1, noExisting, 1).artists;
+    const existing: RemotePinExisting = {
+      track: existingTrack,
+      album: undefined,
+      artists: new Map(existingArtists.map(a => [a.id, a])),
+    };
+
+    const rows = buildRemoteShadowEntities(
+      { id: dto.id, title: "Remote Song (replayed)" },
+      0,
+      existing,
+      NOW,
+    );
+
+    expect(rows.track.artistIds).toEqual(["nd:artist1", "nd:artist2"]);
+    expect(rows.artists.map(a => a.name)).toEqual(["Artist A", "Artist B"]);
+  });
+
   it("rejects local ids", () => {
     expect(() =>
       buildRemoteShadowEntities({ id: "plain-uuid" as SourceTrackDTO["id"], title: "X" }, 1, noExisting, NOW),

@@ -58,6 +58,24 @@ describe("completeDtoForPin", () => {
     expect(result.artistName).toBe("СЛАВА КПСС");
   });
 
+  it("takes the snapshot's artistName together with its artistIds — ids and the joined name are one unit", async () => {
+    // A video row knows only the channel ("NIKER"); YT Music knows the track
+    // as "Markul, NIKER" with two artist ids. Keeping the row's single name
+    // next to two ids left the second artist nameless.
+    providerMock.getTrack.mockReturnValue(okAsync({
+      ...fullSnapshot(),
+      artistName: "Markul, NIKER",
+      artistIds: ["yt:UC_markul", "yt:UC_niker"] as SourceTrackDTO["artistIds"],
+    }));
+
+    const result = await completeDtoForPin({ ...strippedDto(), artistName: "NIKER" });
+
+    expect(result.artistIds).toEqual(["yt:UC_markul", "yt:UC_niker"]);
+    expect(result.artistName).toBe("Markul, NIKER");
+    // Everything else still prefers the row's own values.
+    expect(result.title).toBe("Трек");
+  });
+
   it("skips the lookup entirely for complete DTOs", async () => {
     const dto = {
       ...strippedDto(),
@@ -77,14 +95,14 @@ describe("completeDtoForPin", () => {
 
     await completeDtoForPin({ ...strippedDto(), duration: 180 });
     await completeDtoForPin({ ...strippedDto(), coverRef: "https://covers/x.jpg" });
-    // The cover blob is stored on the album row — coverRef without albumId
-    // still pins a coverless track, so the lookup must run.
+    // Without albumId the track pins album-less (cover on the track, no
+    // grouping under its album), so the lookup must run.
     await completeDtoForPin({ ...strippedDto(), duration: 180, coverRef: "https://covers/x.jpg" });
 
     expect(providerMock.getTrack).toHaveBeenCalledTimes(3);
   });
 
-  it("fills the missing albumId so the cover has an album row to live on", async () => {
+  it("fills the missing albumId so the track groups under its album", async () => {
     providerMock.getTrack.mockReturnValue(okAsync(fullSnapshot()));
 
     const result = await completeDtoForPin({

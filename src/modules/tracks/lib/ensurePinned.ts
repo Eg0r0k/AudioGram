@@ -9,8 +9,9 @@ import { buildRemoteShadowEntities, substituteLocalArtists, type RemotePinExisti
 import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackMenuSubject } from "../components/menu/type";
+import { trackCoverOwner } from "@/modules/covers/composables/useTrackCover";
 import { mapTrack } from "./mappers";
-import { ensureShadowAlbumCover } from "./shadowAlbumCover";
+import { ensureShadowCover } from "./shadowAlbumCover";
 
 /**
  * Guarantees a Dexie row for the subject and returns it as a Track: library
@@ -43,9 +44,12 @@ export async function ensurePinned(
         : [];
       const dto = substituteLocalArtists(sourceDto, allArtists);
 
-      const artistIds = dto.artistIds ?? [];
-      const [track, album, artists] = await Promise.all([
-        unwrapResult(trackRepository.findById(dto.id)),
+      const track = await unwrapResult(trackRepository.findById(dto.id));
+      // The cascade falls back to the row's own artists when the DTO carries
+      // none; their current rows must be loaded too, or the upsert would
+      // rebuild them from a DTO that knows no names.
+      const artistIds = dto.artistIds ?? track?.artistIds ?? [];
+      const [album, artists] = await Promise.all([
         dto.albumId ? unwrapResult(albumRepository.findById(dto.albumId)) : Promise.resolve(undefined),
         artistIds.length > 0 ? unwrapResult(artistRepository.findByIds(artistIds)) : Promise.resolve([]),
       ]);
@@ -67,9 +71,12 @@ export async function ensurePinned(
 
   if (result.isErr()) throw result.error;
 
-  // Fetch the shadow album's artwork in the background (best-effort).
-  if (result.value.album && subject.dto.coverRef) {
-    void ensureShadowAlbumCover(result.value.album.id, subject.dto.coverRef);
+  // Fetch the artwork in the background (best-effort). The album owns it when
+  // there is one; an album-less track (a YouTube music video) carries it
+  // under its own id — the same rule the import pipeline applies to files.
+  if (subject.dto.coverRef) {
+    const owner = trackCoverOwner(result.value.track);
+    if (owner) void ensureShadowCover(owner.ownerType, owner.ownerId, subject.dto.coverRef);
   }
 
   // Best-effort: search sync must not fail the action that triggered the pin.

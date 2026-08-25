@@ -70,8 +70,27 @@ export function buildRemoteShadowEntities(
   now: number,
 ): RemotePinRows {
   const source = trackSourceOf(dto);
-  const artistIds = dto.artistIds ?? existing.track?.artistIds ?? [];
   const albumId = dto.albumId ?? existing.track?.albumId ?? AlbumId("");
+
+  const candidateIds = dto.artistIds ?? existing.track?.artistIds ?? [];
+  const names = artistNamesFor(dto, candidateIds);
+  const artists: ArtistEntity[] = [];
+  for (const [index, id] of candidateIds.entries()) {
+    const current = existing.artists.get(id);
+    const name = current?.name || names[index];
+    // No name from any source: an empty artist row renders as a blank entry
+    // in the library and never heals — dropping the id is the lesser evil.
+    if (!name) continue;
+    artists.push({
+      ...current,
+      id,
+      name,
+      pinned: mergePinned(current?.pinned, requestedPinned),
+      addedAt: current?.addedAt ?? now,
+      updatedAt: now,
+    });
+  }
+  const artistIds = artists.map(artist => artist.id);
 
   const track: TrackEntity = {
     ...existing.track,
@@ -104,19 +123,6 @@ export function buildRemoteShadowEntities(
         updatedAt: now,
       }
     : null;
-
-  const names = artistNamesFor(dto, artistIds);
-  const artists: ArtistEntity[] = artistIds.map((id, index) => {
-    const current = existing.artists.get(id);
-    return {
-      ...current,
-      id,
-      name: current?.name || names[index] || "",
-      pinned: mergePinned(current?.pinned, requestedPinned),
-      addedAt: current?.addedAt ?? now,
-      updatedAt: now,
-    };
-  });
 
   return { track, album, artists };
 }
