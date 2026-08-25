@@ -25,6 +25,7 @@ import {
   syncArtistCaches,
   updateCoverCache,
 } from "./cache";
+import { assertValidName } from "@/lib/limits";
 import { sortTracks, unwrapResult, unique } from "./shared";
 import {
   findOfflineCopiesOf,
@@ -202,7 +203,7 @@ export async function createArtistAndSync(
   const now = Date.now();
   const artist: ArtistEntity = {
     id: createArtistId(crypto.randomUUID()),
-    name,
+    name: assertValidName(name, "artist"),
     pinned: 1,
     addedAt: now,
     updatedAt: now,
@@ -254,7 +255,7 @@ export async function updateArtistAndSync(
   const updateData: Partial<ArtistEntity> = {};
 
   if (changes.name && changes.name !== currentArtist.name) {
-    updateData.name = changes.name;
+    updateData.name = assertValidName(changes.name, "artist");
   }
 
   if (changes.bio !== undefined) {

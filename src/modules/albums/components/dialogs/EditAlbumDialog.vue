@@ -19,6 +19,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AlbumEntity } from "@/db/entities";
+import { ALBUM_DESCRIPTION_MAX_LENGTH, NAME_MAX_LENGTH } from "@/lib/limits";
 import EditEntityDialog from "@/components/dialogs/EditEntityDialog.vue";
 import type {
   EditEntityCoverErrorMessages,
@@ -26,9 +27,6 @@ import type {
   EditEntitySubmitPayload,
 } from "@/components/dialogs/editEntityDialog";
 import type { AlbumChanges } from "../../composables/useAlbumPage";
-
-const MAX_TITLE_LENGTH = 100;
-const MAX_DESCRIPTION_LENGTH = 200;
 
 const { t } = useI18n();
 
@@ -51,8 +49,8 @@ const primaryField = computed<EditEntityFieldConfig>(() => ({
   id: "album-title",
   label: t("dialogs.editAlbum.albumTitle"),
   placeholder: t("dialogs.editAlbum.titlePlaceholder"),
-  maxLength: MAX_TITLE_LENGTH,
-  maxLengthMessage: t("dialogs.editAlbum.validation.titleMaxLength", { max: MAX_TITLE_LENGTH }),
+  maxLength: NAME_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editAlbum.validation.titleMaxLength", { max: NAME_MAX_LENGTH }),
   requiredMessage: t("dialogs.editAlbum.validation.titleRequired"),
 }));
 
@@ -60,8 +58,8 @@ const secondaryField = computed<EditEntityFieldConfig>(() => ({
   id: "album-description",
   label: t("dialogs.editAlbum.description"),
   placeholder: t("dialogs.editAlbum.descriptionPlaceholder"),
-  maxLength: MAX_DESCRIPTION_LENGTH,
-  maxLengthMessage: t("dialogs.editAlbum.validation.descriptionMaxLength", { max: MAX_DESCRIPTION_LENGTH }),
+  maxLength: ALBUM_DESCRIPTION_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editAlbum.validation.descriptionMaxLength", { max: ALBUM_DESCRIPTION_MAX_LENGTH }),
 }));
 
 const coverErrorMessages = computed<EditEntityCoverErrorMessages>(() => ({

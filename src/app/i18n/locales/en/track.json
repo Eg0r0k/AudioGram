@@ -117,6 +117,7 @@
       "artistsRequired": "Enter at least one artist",
       "artistMaxLength": "Artist name must be at most {max} characters",
       "albumRequired": "Select an album",
+      "albumMaxLength": "Album title must be at most {max} characters",
       "numberMin": "Number must be a whole number greater than zero"
     }
   },

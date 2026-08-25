@@ -1,5 +1,6 @@
 import type { SidebarFolderEntity, SidebarFolderEntryEntity } from "@/db/entities";
 import { folderRepository } from "@/db/repositories";
+import { assertValidFolderName } from "@/modules/library/lib/folderName";
 import { queryKeys } from "@/queries/query-keys";
 import { SidebarFolderId } from "@/types/ids";
 import type { QueryClient } from "@tanstack/vue-query";
@@ -29,7 +30,7 @@ export async function createFolderAndSync(queryClient: QueryClient, name: string
   const now = Date.now();
   const folder: SidebarFolderEntity = {
     id: SidebarFolderId(crypto.randomUUID()),
-    name: name.trim(),
+    name: assertValidFolderName(name),
     items: [],
     addedAt: now,
     updatedAt: now,
@@ -47,7 +48,7 @@ export async function createFolderAndSync(queryClient: QueryClient, name: string
 
 export async function renameFolderAndSync(queryClient: QueryClient, folderId: SidebarFolderId, name: string) {
   await unwrapResult(folderRepository.update(folderId, {
-    name: name.trim(),
+    name: assertValidFolderName(name),
     updatedAt: Date.now(),
   }));
   await invalidateFolders(queryClient);

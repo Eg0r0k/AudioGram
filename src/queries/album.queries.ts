@@ -20,6 +20,7 @@ import {
   syncAlbumCaches,
   updateCoverCache,
 } from "./cache";
+import { assertValidName } from "@/lib/limits";
 import { sortTracks, unwrapResult, unique } from "./shared";
 import {
   findOfflineCopiesOf,
@@ -181,7 +182,7 @@ export async function createAlbumAndSync(
   const now = Date.now();
   const album: AlbumEntity = {
     id: createAlbumId(crypto.randomUUID()),
-    title,
+    title: assertValidName(title, "album"),
     artistId,
     pinned: 1,
     addedAt: now,
@@ -214,23 +215,20 @@ export async function updateAlbumAndSync(
   }
 
   if (changes.title && changes.title !== currentAlbum.title) {
+    const title = assertValidName(changes.title, "album");
     nextAlbum = {
       ...currentAlbum,
-      title: changes.title,
+      title,
       updatedAt: Date.now(),
     };
 
-    await unwrapResult(albumRepository.update(currentAlbum.id, {
-      title: changes.title,
-    }));
+    await unwrapResult(albumRepository.update(currentAlbum.id, { title }));
 
     const albumTracks = await unwrapResult(trackRepository.findByAlbumId(currentAlbum.id));
     updatedTracks = albumTracks;
 
     for (const track of albumTracks) {
-      await unwrapResult(trackRepository.update(track.id, {
-        albumTitle: changes.title,
-      }));
+      await unwrapResult(trackRepository.update(track.id, { albumTitle: title }));
     }
 
     syncAlbumCaches(queryClient, nextAlbum);

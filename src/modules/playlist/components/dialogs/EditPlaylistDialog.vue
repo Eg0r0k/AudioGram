@@ -19,6 +19,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import type { PlaylistEntity } from "@/db/entities";
+import { NAME_MAX_LENGTH, PLAYLIST_DESCRIPTION_MAX_LENGTH } from "@/lib/limits";
 import EditEntityDialog from "@/components/dialogs/EditEntityDialog.vue";
 import type {
   EditEntityCoverErrorMessages,
@@ -26,9 +27,6 @@ import type {
   EditEntitySubmitPayload,
 } from "@/components/dialogs/editEntityDialog";
 import type { PlaylistChanges } from "../../composables/usePlaylistPage";
-
-const MAX_NAME_LENGTH = 100;
-const MAX_DESCRIPTION_LENGTH = 300;
 
 const { t } = useI18n();
 
@@ -50,8 +48,8 @@ const primaryField = computed<EditEntityFieldConfig>(() => ({
   id: "playlist-name",
   label: t("dialogs.editPlaylist.playlistName"),
   placeholder: t("dialogs.editPlaylist.namePlaceholder"),
-  maxLength: MAX_NAME_LENGTH,
-  maxLengthMessage: t("dialogs.editPlaylist.validation.nameMaxLength", { max: MAX_NAME_LENGTH }),
+  maxLength: NAME_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editPlaylist.validation.nameMaxLength", { max: NAME_MAX_LENGTH }),
   requiredMessage: t("dialogs.editPlaylist.validation.nameRequired"),
 }));
 
@@ -59,8 +57,8 @@ const secondaryField = computed<EditEntityFieldConfig>(() => ({
   id: "playlist-description",
   label: t("dialogs.editPlaylist.description"),
   placeholder: t("dialogs.editPlaylist.descriptionPlaceholder"),
-  maxLength: MAX_DESCRIPTION_LENGTH,
-  maxLengthMessage: t("dialogs.editPlaylist.validation.descriptionMaxLength", { max: MAX_DESCRIPTION_LENGTH }),
+  maxLength: PLAYLIST_DESCRIPTION_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editPlaylist.validation.descriptionMaxLength", { max: PLAYLIST_DESCRIPTION_MAX_LENGTH }),
 }));
 
 const coverErrorMessages = computed<EditEntityCoverErrorMessages>(() => ({

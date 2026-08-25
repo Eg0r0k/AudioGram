@@ -25,6 +25,7 @@ import {
   syncPlaylistTrackRemoval,
   updateCoverCache,
 } from "./cache";
+import { assertValidName } from "@/lib/limits";
 import { sortTracks, unique, unwrapResult } from "./shared";
 import {
   findOfflineCopiesOf,
@@ -181,7 +182,7 @@ export async function createPlaylistAndSync(queryClient: QueryClient, name = "Ne
   const now = Date.now();
   const playlist: PlaylistEntity = {
     id: createPlaylistId(crypto.randomUUID()),
-    name,
+    name: assertValidName(name, "playlist"),
     trackIds: [],
     addedAt: now,
     updatedAt: now,
@@ -217,7 +218,7 @@ export async function updatePlaylistAndSync(
   const updateData: Partial<PlaylistEntity> = {};
 
   if (changes.name && changes.name !== currentPlaylist.name) {
-    updateData.name = changes.name;
+    updateData.name = assertValidName(changes.name, "playlist");
   }
 
   if (changes.description !== undefined) {

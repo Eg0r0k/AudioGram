@@ -218,6 +218,7 @@ import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { Badge } from "@/components/ui/badge";
 import { splitArtistNames } from "@/lib/artist-names";
+import { NAME_MAX_LENGTH } from "@/lib/limits";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -237,9 +238,6 @@ import RightPanelHeader from "../RightPanelHeader.vue";
 import IconDisc from "~icons/tabler/disc";
 import IconPencilOff from "~icons/tabler/pencil-off";
 import IconSave from "~icons/tabler/device-floppy";
-
-const MAX_TITLE_LENGTH = 120;
-const MAX_ARTIST_NAME_LENGTH = 120;
 
 const props = defineProps<{
   payload: RightPanelEditTrackPayload;
@@ -272,18 +270,19 @@ const buildTrackFormSchema = () => {
     title: pipe(
       string(),
       minLength(1, t("track.edit.validation.titleRequired")),
-      maxLength(MAX_TITLE_LENGTH, t("track.edit.validation.titleMaxLength", { max: MAX_TITLE_LENGTH })),
+      maxLength(NAME_MAX_LENGTH, t("track.edit.validation.titleMaxLength", { max: NAME_MAX_LENGTH })),
     ),
     artists: pipe(
       array(pipe(
         string(),
-        maxLength(MAX_ARTIST_NAME_LENGTH, t("track.edit.validation.artistMaxLength", { max: MAX_ARTIST_NAME_LENGTH })),
+        maxLength(NAME_MAX_LENGTH, t("track.edit.validation.artistMaxLength", { max: NAME_MAX_LENGTH })),
       )),
       minLength(1, t("track.edit.validation.artistsRequired")),
     ),
     albumLabel: pipe(
       string(),
       minLength(1, t("track.edit.validation.albumRequired")),
+      maxLength(NAME_MAX_LENGTH, t("track.edit.validation.albumMaxLength", { max: NAME_MAX_LENGTH })),
     ),
     trackNo: positiveInteger(),
     diskNo: positiveInteger(),

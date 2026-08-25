@@ -19,6 +19,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ArtistEntity } from "@/db/entities";
+import { ARTIST_BIO_MAX_LENGTH, NAME_MAX_LENGTH } from "@/lib/limits";
 import EditEntityDialog from "@/components/dialogs/EditEntityDialog.vue";
 import type {
   EditEntityCoverErrorMessages,
@@ -26,9 +27,6 @@ import type {
   EditEntitySubmitPayload,
 } from "@/components/dialogs/editEntityDialog";
 import type { ArtistChanges } from "../../composables/useArtistPage";
-
-const MAX_NAME_LENGTH = 100;
-const MAX_BIO_LENGTH = 500;
 
 const { t } = useI18n();
 
@@ -50,8 +48,8 @@ const primaryField = computed<EditEntityFieldConfig>(() => ({
   id: "artist-name",
   label: t("dialogs.editArtist.artistName"),
   placeholder: t("dialogs.editArtist.namePlaceholder"),
-  maxLength: MAX_NAME_LENGTH,
-  maxLengthMessage: t("dialogs.editArtist.validation.nameMaxLength", { max: MAX_NAME_LENGTH }),
+  maxLength: NAME_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editArtist.validation.nameMaxLength", { max: NAME_MAX_LENGTH }),
   requiredMessage: t("dialogs.editArtist.validation.nameRequired"),
 }));
 
@@ -59,8 +57,8 @@ const secondaryField = computed<EditEntityFieldConfig>(() => ({
   id: "artist-bio",
   label: t("dialogs.editArtist.bio"),
   placeholder: t("dialogs.editArtist.bioPlaceholder"),
-  maxLength: MAX_BIO_LENGTH,
-  maxLengthMessage: t("dialogs.editArtist.validation.bioMaxLength", { max: MAX_BIO_LENGTH }),
+  maxLength: ARTIST_BIO_MAX_LENGTH,
+  maxLengthMessage: t("dialogs.editArtist.validation.bioMaxLength", { max: ARTIST_BIO_MAX_LENGTH }),
 }));
 
 const coverErrorMessages = computed<EditEntityCoverErrorMessages>(() => ({

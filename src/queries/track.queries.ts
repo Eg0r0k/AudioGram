@@ -41,6 +41,7 @@ import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
 import { dedupeArtistNames, identityKey } from "@/lib/artist-names";
+import { assertValidName } from "@/lib/limits";
 
 const PAGE_SIZE = 50;
 
@@ -514,12 +515,9 @@ export async function updateTrackMetadataAndSync(
     throw new Error("Track not found");
   }
 
-  const title = changes.title.trim();
+  const title = assertValidName(changes.title, "track title");
   const artistNames = dedupeArtistNames(changes.artistNames);
-
-  if (!title) {
-    throw new Error("Track title is required");
-  }
+  for (const name of artistNames) assertValidName(name, "artist");
 
   if (artistNames.length === 0) {
     throw new Error("At least one artist is required");
