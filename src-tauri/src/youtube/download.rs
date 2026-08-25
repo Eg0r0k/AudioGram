@@ -56,9 +56,37 @@ struct DownloadHandle {
     cancelled: bool,
 }
 
+/// A registered download. The id leaves the registry when this drops — on
+/// success, error and panic alike — so no code path can leave a track stuck
+/// as "already in progress".
+struct DownloadSlot<'a> {
+    registry: &'a YtDownloadRegistry,
+    id: String,
+}
+
+impl DownloadSlot<'_> {
+    /// Whether `yt_download_cancel` reached this download.
+    fn was_cancelled(&self) -> bool {
+        self.registry
+            .0
+            .lock()
+            .ok()
+            .and_then(|map| map.get(&self.id).map(|handle| handle.cancelled))
+            .unwrap_or(false)
+    }
+}
+
+impl Drop for DownloadSlot<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.registry.0.lock() {
+            map.remove(&self.id);
+        }
+    }
+}
+
 impl YtDownloadRegistry {
     /// Registers a spawned download; errors if the id is already in flight.
-    fn register(&self, id: &str, child: CommandChild) -> Result<(), YtError> {
+    fn register(&self, id: &str, child: CommandChild) -> Result<DownloadSlot<'_>, YtError> {
         let mut map = self
             .0
             .lock()
@@ -73,16 +101,10 @@ impl YtDownloadRegistry {
                 cancelled: false,
             },
         );
-        Ok(())
-    }
-
-    /// Removes the entry, reporting whether the download had been cancelled.
-    fn deregister(&self, id: &str) -> bool {
-        self.0
-            .lock()
-            .ok()
-            .and_then(|mut map| map.remove(id))
-            .is_some_and(|handle| handle.cancelled)
+        Ok(DownloadSlot {
+            registry: self,
+            id: id.to_owned(),
+        })
     }
 
     /// Marks the download cancelled and kills the child if still running.
@@ -154,7 +176,7 @@ pub async fn yt_download<R: Runtime>(
         .map_err(|e| e.to_string())?;
 
     let registry = app.state::<YtDownloadRegistry>();
-    registry.register(&id, child)?;
+    let slot = registry.register(&id, child)?;
 
     let mut last_error = String::new();
     let mut exit_error: Option<String> = None;
@@ -188,7 +210,10 @@ pub async fn yt_download<R: Runtime>(
         }
     }
 
-    let was_cancelled = registry.deregister(&id);
+    // The child has terminated (rx closed), so the flag is final; the slot
+    // goes now rather than at scope end so the id is free while tagging runs.
+    let was_cancelled = slot.was_cancelled();
+    drop(slot);
     if was_cancelled {
         cleanup_partial_files(&cache_dir, &id);
         return Err(YtError::cancelled("download cancelled"));
@@ -287,7 +312,7 @@ impl TrackTags {
 
 /// Writes title/artist/album/cover into the downloaded m4a (MP4 ilst atoms).
 /// Frontend-supplied `meta` wins (YT Music tracks carry real artist/album);
-/// otherwise metadata is looked up by video id (see {@link fetch_tags}) and
+/// otherwise metadata is looked up by video id (see [`fetch_tags`]) and
 /// the cover falls back to i.ytimg.com.
 async fn embed_metadata<R: Runtime>(
     app: &AppHandle<R>,
