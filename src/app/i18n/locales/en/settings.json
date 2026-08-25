@@ -67,6 +67,7 @@
         "enable": "Use proxy",
         "protocol": "Protocol",
         "host": "Host",
+        "hostInvalid": "Host name or IP only — no scheme, port or path",
         "port": "Port",
         "username": "Username",
         "password": "Password",

@@ -21,15 +21,25 @@ export type ProxySettings = InferOutput<typeof ProxySettingsSchema>;
 export const DEFAULT_PROXY_SETTINGS = parse(ProxySettingsSchema, {});
 
 /**
+ * A bare host: a name or IPv4 (`proxy.example`, `127.0.0.1`) or a bracketed
+ * IPv6 (`[::1]`). No scheme, path, port or credentials — those have fields of
+ * their own, and a pasted `http://host` would otherwise become
+ * `http://http://host:port`, which the backend rejects for every request.
+ */
+const PROXY_HOST_PATTERN = /^(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])$/;
+
+export const isValidProxyHost = (host: string): boolean => PROXY_HOST_PATTERN.test(host.trim());
+
+/**
  * Builds the proxy URL (`scheme://[user:pass@]host:port`) passed to the backend,
- * or `null` when the proxy is disabled or has no host. Credentials are
+ * or `null` when the proxy is disabled or has no usable host. Credentials are
  * percent-encoded so `@`/`:` in a username or password don't corrupt the URL.
  */
 export const buildProxyUrl = (settings: ProxySettings): string | null => {
   if (!settings.enabled) return null;
 
   const host = settings.host.trim();
-  if (!host) return null;
+  if (!host || !isValidProxyHost(host)) return null;
 
   const auth = settings.username
     ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
