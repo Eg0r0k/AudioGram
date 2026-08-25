@@ -106,6 +106,22 @@ describe("ensurePinned", () => {
     expect(upsertedArtists.map((artist: { id: string }) => artist.id)).toEqual([localId]);
   });
 
+  it("creates one artist row per credited name, '&' included, when the source knows no ids", async () => {
+    repos.artist.upsertMany.mockResolvedValue(ok([]));
+
+    await ensurePinned({
+      kind: "remote",
+      dto: { id: ndTrackId("song1"), title: "как же он силён", artistName: "СЕРЕГА ПИРАТ & Barikader" },
+    });
+
+    const upserted = repos.artist.upsertMany.mock.calls[0][0];
+    expect(upserted.map((a: { name: string }) => a.name)).toEqual(["СЕРЕГА ПИРАТ", "Barikader"]);
+    expect(repos.track.upsert.mock.calls[0][0]).toMatchObject({
+      artistName: "СЕРЕГА ПИРАТ, Barikader",
+      artistIds: upserted.map((a: { id: string }) => a.id),
+    });
+  });
+
   it("shadow-pins with pinned = 0 when requested", async () => {
     await ensurePinned({ kind: "remote", dto }, { pinned: 0 });
 

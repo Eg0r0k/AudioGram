@@ -5,7 +5,7 @@ import { albumRepository, artistRepository, trackRepository } from "@/db/reposit
 import { unitOfWork } from "@/db/unit-of-work";
 import { getLogger } from "@/lib/logger";
 import { indexImportedTracks } from "@/modules/search/searchIndex";
-import { buildRemoteShadowEntities, substituteLocalArtists, type RemotePinExisting } from "@/services/entity-resolver";
+import { alignArtists, buildRemoteShadowEntities, type RemotePinExisting } from "@/services/entity-resolver";
 import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackMenuSubject } from "../components/menu/type";
@@ -38,11 +38,12 @@ export async function ensurePinned(
   const result = await unitOfWork.runScoped(
     [db.tracks, db.albums, db.artists],
     async () => {
-      // A same-named local artist absorbs the remote track (no duplicates).
-      const allArtists = (sourceDto.artistIds ?? []).length > 0
-        ? await unwrapResult(artistRepository.findAll())
-        : [];
-      const dto = substituteLocalArtists(sourceDto, allArtists);
+      // Every credited name gets exactly one artist row: a same-named local
+      // artist absorbs the remote one, names the source has no id for get a
+      // row of their own.
+      const hasArtists = (sourceDto.artistIds ?? []).length > 0 || !!sourceDto.artistName;
+      const allArtists = hasArtists ? await unwrapResult(artistRepository.findAll()) : [];
+      const dto = alignArtists(sourceDto, allArtists);
 
       const track = await unwrapResult(trackRepository.findById(dto.id));
       // The cascade falls back to the row's own artists when the DTO carries

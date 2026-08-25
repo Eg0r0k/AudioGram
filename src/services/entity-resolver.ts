@@ -48,12 +48,33 @@ function trackSourceOf(dto: SourceTrackDTO): TrackSource {
 }
 
 /**
+ * Splits a joined artist string into names. `,` and `;` are the usual tag
+ * separators; `&` counts too because YT Music files a collab channel as ONE
+ * entity named "A & B", and the library wants A and B. Blank parts and
+ * duplicates are dropped; order is kept.
+ */
+export function splitArtistNames(value: string | undefined): string[] {
+  if (!value) return [];
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const part of value.split(/[,;&]/)) {
+    const name = part.replace(/\s+/g, " ").trim();
+    const key = identityKey(name);
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
+}
+
+/**
  * Best-effort per-artist names: the DTO only carries a joined display string,
  * so split it when the parts line up with the id list; otherwise the first
- * row gets the display name. Revalidate-on-view refreshes them later.
+ * row gets the display name. `alignArtists` makes them line up before the
+ * cascade runs; this fallback covers DTOs that skipped it.
  */
 function artistNamesFor(dto: SourceTrackDTO, ids: ArtistId[]): (string | undefined)[] {
-  const parts = dto.artistName?.split(/,\s*/) ?? [];
+  const parts = splitArtistNames(dto.artistName);
   if (parts.length === ids.length) return parts;
   return ids.map((_, index) => (index === 0 ? dto.artistName : undefined));
 }
@@ -128,34 +149,53 @@ export function buildRemoteShadowEntities(
 }
 
 /**
- * Remote pin cascade, artist identity: a same-named LOCAL artist wins over
- * creating a remote-prefixed shadow row, so downloading a YT/ND album never
- * duplicates an artist the library already has. Matching is the same
- * whitespace/case-insensitive identity the import pipeline uses; only
- * unprefixed (local) rows are candidates — never another source's shadow.
+ * Remote pin cascade, artist identity. The DTO carries a joined display
+ * string and, when the source knows them, artist ids — and the two need not
+ * agree: a video row knows one channel name, YT Music files a collab as one
+ * "A & B" entity, a provider may have no id for a credited artist at all.
+ * Every name from `splitArtistNames` resolves to exactly one id, in order:
+ *
+ * 1. a same-named LOCAL artist — a YT/ND download never duplicates one the
+ *    library already has (matching is the import pipeline's identity);
+ * 2. the source's own id, when the ids line up one-to-one with the names;
+ * 3. a same-named shadow row of the same source (never another source's);
+ * 4. a fresh local row.
+ *
+ * The result has one id per name and the display string re-joined with
+ * ", ", so the cascade and the row's caption agree on who the artists are.
  */
-export function substituteLocalArtists(
+export function alignArtists(
   dto: SourceTrackDTO,
   allArtists: readonly ArtistEntity[],
 ): SourceTrackDTO {
+  const names = splitArtistNames(dto.artistName);
+  if (names.length === 0) return dto;
+
   const remoteIds = dto.artistIds ?? [];
-  if (remoteIds.length === 0) return dto;
+  const paired = remoteIds.length === names.length;
+  const ownPrefix = `${parseTrackRef(dto.id).kind}:`;
 
   const locals = new Map<string, ArtistId>();
+  const ownShadows = new Map<string, ArtistId>();
   for (const artist of allArtists) {
-    if (/^(?:nd|yt):/.test(artist.id)) continue;
+    let bucket: Map<string, ArtistId> | null = locals;
+    if (/^(?:nd|yt):/.test(artist.id)) {
+      bucket = artist.id.startsWith(ownPrefix) ? ownShadows : null;
+    }
+    if (!bucket) continue;
     const key = identityKey(artist.name);
-    if (!locals.has(key)) locals.set(key, artist.id);
+    if (!bucket.has(key)) bucket.set(key, artist.id);
   }
-  if (locals.size === 0) return dto;
 
-  const names = artistNamesFor(dto, [...remoteIds]);
-  const artistIds = remoteIds.map((id, index) => {
-    const name = names[index];
-    return (name && locals.get(identityKey(name))) || id;
+  const artistIds = names.map((name, index) => {
+    const key = identityKey(name);
+    return locals.get(key)
+      ?? (paired ? remoteIds[index] : undefined)
+      ?? ownShadows.get(key)
+      ?? ArtistId(crypto.randomUUID());
   });
 
-  return { ...dto, artistIds };
+  return { ...dto, artistIds, artistName: names.join(", ") };
 }
 
 type AlbumCacheKey = `${ArtistId}::${string}`;
