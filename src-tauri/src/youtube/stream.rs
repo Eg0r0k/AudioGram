@@ -3,9 +3,10 @@
 //! `crate::media_server`; this module only serves `yt/<videoId>` paths.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::Duration;
 
+use bytes::Bytes;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
@@ -62,7 +63,9 @@ const YT_RANGE_SPAN: u64 = 1024 * 1024;
 
 struct CachedAudio {
     content_type: String,
-    bytes: Arc<Vec<u8>>,
+    /// `Bytes`, so a hit and every Range slice served from it are refcounted
+    /// views — never copies of a 100 MB track.
+    bytes: Bytes,
 }
 
 #[derive(Default)]
@@ -71,12 +74,12 @@ pub struct YtAudioCache {
 }
 
 impl YtAudioCache {
-    fn get(&self, id: &str) -> Option<(String, Arc<Vec<u8>>)> {
+    fn get(&self, id: &str) -> Option<(String, Bytes)> {
         let entries = self.entries.lock().ok()?;
         entries
             .0
             .get(id)
-            .map(|audio| (audio.content_type.clone(), Arc::clone(&audio.bytes)))
+            .map(|audio| (audio.content_type.clone(), audio.bytes.clone()))
     }
 
     fn contains(&self, id: &str) -> bool {
@@ -88,7 +91,7 @@ impl YtAudioCache {
 
     /// Returns false when the track is over the per-track cap and was NOT
     /// cached — the command must surface that instead of reporting success.
-    fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) -> bool {
+    fn insert(&self, id: String, content_type: String, bytes: Bytes) -> bool {
         if bytes.len() > MAX_PREFETCHED_YT_BYTES {
             return false;
         }
@@ -96,7 +99,7 @@ impl YtAudioCache {
             return false;
         };
         let (map, order) = &mut *entries;
-        let audio = CachedAudio { content_type, bytes: Arc::new(bytes) };
+        let audio = CachedAudio { content_type, bytes };
         if map.insert(id.clone(), audio).is_none() {
             order.push_back(id);
         }
@@ -265,17 +268,17 @@ pub async fn yt_prefetch<R: Runtime>(
         return Ok(());
     }
 
-    let proxy = app.state::<ProxyState>().get();
+    let client = app.state::<ProxyState>().client()?;
     let entry = match app.state::<YtStreamCache>().get(&id) {
         Some(entry) => entry,
         None => resolve_stream(&app, &id).await?,
     };
 
-    let mut result = fetch_bytes(&entry.url, &entry.headers, proxy.clone()).await?;
+    let mut result = fetch_bytes(&client, &entry.url, &entry.headers).await?;
     if result.0 == 403 {
         // Expired googlevideo URL (app restart, proxy IP change) — one retry.
         let entry = resolve_stream(&app, &id).await?;
-        result = fetch_bytes(&entry.url, &entry.headers, proxy).await?;
+        result = fetch_bytes(&client, &entry.url, &entry.headers).await?;
     }
 
     let (status, content_type, bytes) = result;
@@ -309,14 +312,20 @@ pub(crate) async fn serve_yt<R: Runtime>(
         return memory_range_response(&content_type, &bytes, range.as_deref(), origin);
     }
 
-    let proxy = app.state::<ProxyState>().get();
+    let client = match app.state::<ProxyState>().client() {
+        Ok(client) => client,
+        Err(e) => {
+            log::warn!("media yt/{id}: client: {e}");
+            return status_response(502, origin);
+        }
+    };
 
     if let Some(entry) = app.state::<YtStreamCache>().get(id) {
         match forward_stream(
+            &client,
             &entry.url,
             &entry.headers,
             range.clone(),
-            proxy.clone(),
             Some(YT_RANGE_SPAN),
             origin,
         )
@@ -338,7 +347,7 @@ pub(crate) async fn serve_yt<R: Runtime>(
             return status_response(502, origin);
         }
     };
-    match forward_stream(&entry.url, &entry.headers, range, proxy, Some(YT_RANGE_SPAN), origin)
+    match forward_stream(&client, &entry.url, &entry.headers, range, Some(YT_RANGE_SPAN), origin)
         .await
     {
         Ok(response) => {
@@ -372,18 +381,10 @@ fn content_range_total(value: &str) -> Option<usize> {
 /// that become errors. Over-cap tracks are refused as soon as the first
 /// chunk's Content-Range reveals the total, before the bandwidth is spent.
 async fn fetch_bytes(
+    client: &reqwest::Client,
     url: &str,
     headers: &[(String, String)],
-    proxy: Option<String>,
-) -> Result<(u16, String, Vec<u8>), String> {
-    let mut builder = reqwest::Client::builder();
-    if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
-        if let Ok(proxy) = reqwest::Proxy::all(url) {
-            builder = builder.proxy(proxy);
-        }
-    }
-    let client = builder.build().map_err(|e| e.to_string())?;
-
+) -> Result<(u16, String, Bytes), String> {
     let chunk = YT_RANGE_SPAN as usize;
     let mut buf: Vec<u8> = Vec::new();
     let mut content_type = "audio/mp4".to_owned();
@@ -411,7 +412,7 @@ async fn fetch_bytes(
                 content_type = ct.to_owned();
             }
             if !(200..300).contains(&status) {
-                return Ok((status, content_type, Vec::new()));
+                return Ok((status, content_type, Bytes::new()));
             }
         }
         else if status == 416 {
@@ -440,7 +441,7 @@ async fn fetch_bytes(
         let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
         if status == 200 {
             // Server ignored the range: the body already is the whole file.
-            return Ok((200, content_type, bytes.to_vec()));
+            return Ok((200, content_type, bytes));
         }
 
         let short_chunk = bytes.len() < chunk;
@@ -458,12 +459,13 @@ async fn fetch_bytes(
         }
     }
 
-    Ok((206, content_type, buf))
+    Ok((206, content_type, Bytes::from(buf)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{content_range_total, parse_resolve_output, YtAudioCache, MAX_PREFETCHED_YT_BYTES};
+    use bytes::Bytes;
 
     #[test]
     fn parses_the_total_out_of_content_range() {
@@ -473,7 +475,7 @@ mod tests {
     }
 
     fn filled(cache: &YtAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(id.to_owned(), "audio/mp4".into(), vec![0u8; len])
+        cache.insert(id.to_owned(), "audio/mp4".into(), Bytes::from(vec![0u8; len]))
     }
 
     #[test]

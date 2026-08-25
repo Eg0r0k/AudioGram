@@ -200,10 +200,11 @@ fn audio_base(status: u16, content_type: &str, origin: Option<&str>) -> http::re
         .header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
 }
 
-/// Serves a fully in-memory body (prefetch caches) honoring Range.
+/// Serves a fully in-memory body (prefetch caches) honoring Range. `Bytes`
+/// slices are refcounted views, so neither answer copies the audio.
 pub(crate) fn memory_range_response(
     content_type: &str,
-    bytes: &Arc<Vec<u8>>,
+    bytes: &bytes::Bytes,
     range: Option<&str>,
     origin: Option<&str>,
 ) -> http::Response<Body> {
@@ -215,12 +216,10 @@ pub(crate) fn memory_range_response(
             .unwrap_or_else(|_| status_response(500, origin)),
         RangeOutcome::Slice { start, end } => audio_base(206, content_type, origin)
             .header("Content-Range", format!("bytes {start}-{end}/{total}"))
-            .body(full_body(bytes::Bytes::copy_from_slice(
-                &bytes[start as usize..=end as usize],
-            )))
+            .body(full_body(bytes.slice(start as usize..=end as usize)))
             .unwrap_or_else(|_| status_response(500, origin)),
         RangeOutcome::Full => audio_base(200, content_type, origin)
-            .body(full_body(bytes::Bytes::copy_from_slice(bytes)))
+            .body(full_body(bytes.clone()))
             .unwrap_or_else(|_| status_response(500, origin)),
     }
 }
@@ -254,42 +253,18 @@ pub(crate) fn cap_range_span(range: Option<String>, max_span: u64) -> Option<Str
     Some(capped.unwrap_or(raw))
 }
 
-/// reqwest client honoring the app proxy. Errors are proxy-config errors —
-/// they never carry request URLs.
-/// Reaching the server at all.
-const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
-/// Gap between two reads of the body. NOT a total request timeout: a whole
-/// track legitimately takes minutes to stream, but a source that goes quiet
-/// mid-body must not hang forever — an upstream that stalls after sending its
-/// headers leaves the media element waiting for bytes that never arrive, with
-/// nothing on this side ever giving up. If that happens before the element has
-/// metadata the engine's own readiness timeout eventually errors out; if it
-/// happens mid-playback nothing does, and playback simply stops.
-const UPSTREAM_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-
-pub(crate) fn proxied_client(proxy: Option<String>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder()
-        .connect_timeout(UPSTREAM_CONNECT_TIMEOUT)
-        .read_timeout(UPSTREAM_READ_TIMEOUT);
-    if let Some(url) = proxy.as_deref().filter(|p| !p.is_empty()) {
-        if let Ok(proxy) = reqwest::Proxy::all(url) {
-            builder = builder.proxy(proxy);
-        }
-    }
-    builder.build().map_err(|e| e.to_string())
-}
-
 /// GET `url` forwarding an optional Range header (capped to `max_span` when
 /// given — see [`cap_range_span`]), propagating status, Content-Type,
 /// Content-Range, Content-Length and Accept-Ranges, and passing the upstream
 /// body through AS A STREAM — nothing is buffered on any platform. `headers`
-/// (upstream-required request headers) and `proxy` are per-source concerns.
+/// (upstream-required request headers) are a per-source concern; `client` is
+/// the shared proxy-aware one from [`crate::proxy::ProxyState::client`].
 /// Errors never embed the URL (nd URLs carry auth tokens).
 pub(crate) async fn forward_stream(
+    client: &reqwest::Client,
     url: &str,
     headers: &[(String, String)],
     range: Option<String>,
-    proxy: Option<String>,
     max_span: Option<u64>,
     origin: Option<&str>,
 ) -> Result<http::Response<Body>, String> {
@@ -299,7 +274,6 @@ pub(crate) async fn forward_stream(
         Some(span) => cap_range_span(range, span),
         None => range,
     };
-    let client = proxied_client(proxy)?;
 
     let mut req = client.get(url);
     for (name, value) in headers {
@@ -465,17 +439,29 @@ impl<R: Runtime> RemoteRoutes for AppRoutes<R> {
 
         if let Some(id) = rest.strip_prefix("nd/song/") {
             let config = app.state::<crate::nd::NdState>().get();
-            let proxy = app.state::<crate::proxy::ProxyState>().get();
             let cache = app.state::<crate::nd::NdAudioCache>();
+            let client = match crate::proxy::http_client(app) {
+                Ok(client) => client,
+                Err(e) => {
+                    log::warn!("media nd/song/{id}: client: {e}");
+                    return Some(status_response(502, origin));
+                }
+            };
             return Some(
-                crate::nd::serve_song(config, &cache, proxy, id, range.as_deref(), origin).await,
+                crate::nd::serve_song(config, &cache, &client, id, range.as_deref(), origin).await,
             );
         }
         if let Some(id) = rest.strip_prefix("nd/cover/") {
             let config = app.state::<crate::nd::NdState>().get();
-            let proxy = app.state::<crate::proxy::ProxyState>().get();
+            let client = match crate::proxy::http_client(app) {
+                Ok(client) => client,
+                Err(e) => {
+                    log::warn!("media nd/cover/{id}: client: {e}");
+                    return Some(status_response(502, origin));
+                }
+            };
             return Some(
-                crate::nd::serve_cover(config, proxy, id, query.as_deref(), origin).await,
+                crate::nd::serve_cover(config, &client, id, query.as_deref(), origin).await,
             );
         }
         #[cfg(desktop)]
@@ -1114,10 +1100,10 @@ mod integration_tests {
         .await;
 
         let resp = forward_stream(
+            &reqwest::Client::new(),
             &format!("{upstream}/rest/stream.view"),
             &[],
             Some("bytes=5-9".into()),
-            None,
             None,
             Some("http://tauri.localhost"),
         )
@@ -1158,11 +1144,12 @@ mod integration_tests {
         })
         .await;
 
+        let client = reqwest::Client::new();
         let capped = forward_stream(
+            &client,
             &upstream,
             &[("X-Test".into(), "1".into())],
             Some("bytes=0-".into()),
-            None,
             Some(1024),
             None,
         )
@@ -1171,7 +1158,7 @@ mod integration_tests {
         let body = capped.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"bytes=0-1023|1");
 
-        let uncapped = forward_stream(&upstream, &[], Some("bytes=0-".into()), None, None, None)
+        let uncapped = forward_stream(&client, &upstream, &[], Some("bytes=0-".into()), None, None)
             .await
             .expect("uncapped");
         let body = uncapped.into_body().collect().await.expect("body").to_bytes();

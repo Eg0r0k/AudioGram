@@ -2,8 +2,9 @@
 //! loopback media server.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
+use bytes::Bytes;
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::config::NdState;
@@ -16,18 +17,19 @@ use super::config::NdState;
 const MAX_PREFETCHED_ND_TRACKS: usize = 2;
 const MAX_PREFETCHED_ND_BYTES: usize = 128 * 1024 * 1024;
 
+/// `(content type, audio)` — `Bytes` so a cache hit and every Range slice
+/// served from it are refcounted views, never copies.
+type CachedTrack = (String, Bytes);
+
 #[derive(Default)]
 pub struct NdAudioCache {
-    entries: Mutex<(HashMap<String, (String, Arc<Vec<u8>>)>, VecDeque<String>)>,
+    entries: Mutex<(HashMap<String, CachedTrack>, VecDeque<String>)>,
 }
 
 impl NdAudioCache {
-    fn get(&self, id: &str) -> Option<(String, Arc<Vec<u8>>)> {
+    fn get(&self, id: &str) -> Option<CachedTrack> {
         let entries = self.entries.lock().ok()?;
-        entries
-            .0
-            .get(id)
-            .map(|(content_type, bytes)| (content_type.clone(), Arc::clone(bytes)))
+        entries.0.get(id).cloned()
     }
 
     fn contains(&self, id: &str) -> bool {
@@ -40,7 +42,7 @@ impl NdAudioCache {
     /// Returns false when the track is over the per-track cap and was NOT
     /// cached — the command must surface that instead of reporting success.
     /// `pub(crate)`: the media-server tests seed the cache directly.
-    pub(crate) fn insert(&self, id: String, content_type: String, bytes: Vec<u8>) -> bool {
+    pub(crate) fn insert(&self, id: String, content_type: String, bytes: Bytes) -> bool {
         if bytes.len() > MAX_PREFETCHED_ND_BYTES {
             return false;
         }
@@ -48,7 +50,7 @@ impl NdAudioCache {
             return false;
         };
         let (map, order) = &mut *entries;
-        if map.insert(id.clone(), (content_type, Arc::new(bytes))).is_none() {
+        if map.insert(id.clone(), (content_type, bytes)).is_none() {
             order.push_back(id);
         }
         while map.len() > MAX_PREFETCHED_ND_TRACKS {
@@ -90,7 +92,7 @@ pub async fn nd_prefetch<R: Runtime>(
     // Refuse over-cap tracks BEFORE reading the body — a whole-file download
     // that insert() then drops would waste the bandwidth every retry.
     if let Some(len) = response.content_length() {
-        if len as usize > MAX_PREFETCHED_ND_BYTES {
+        if len > MAX_PREFETCHED_ND_BYTES as u64 {
             return Err(format!("prefetch skipped: track is {len} bytes, over the cache cap"));
         }
     }
@@ -101,7 +103,7 @@ pub async fn nd_prefetch<R: Runtime>(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("audio/mpeg")
         .to_owned();
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
 
     if !app.state::<NdAudioCache>().insert(song_id, content_type, bytes) {
         return Err("prefetch skipped: track exceeds the cache cap".into());
@@ -116,7 +118,7 @@ pub async fn nd_prefetch<R: Runtime>(
 pub(crate) async fn serve_song(
     config: Option<super::config::NdConfig>,
     cache: &NdAudioCache,
-    proxy: Option<String>,
+    client: &reqwest::Client,
     song_id: &str,
     range: Option<&str>,
     origin: Option<&str>,
@@ -133,7 +135,7 @@ pub(crate) async fn serve_song(
 
     let url = config.rest_url("stream.view", song_id, "&format=raw");
     let response =
-        match forward_stream(&url, &[], range.map(str::to_owned), proxy, None, origin).await {
+        match forward_stream(client, &url, &[], range.map(str::to_owned), None, origin).await {
             Ok(response) => response,
             Err(e) => {
                 log::warn!("media nd/song/{song_id}: {e}");
@@ -153,7 +155,11 @@ mod tests {
     use http_body_util::BodyExt;
 
     fn filled(cache: &NdAudioCache, id: &str, len: usize) -> bool {
-        cache.insert(id.to_owned(), "audio/flac".into(), vec![0u8; len])
+        cache.insert(id.to_owned(), "audio/flac".into(), Bytes::from(vec![0u8; len]))
+    }
+
+    fn direct() -> reqwest::Client {
+        reqwest::Client::new()
     }
 
     fn test_config(base_url: String) -> super::super::config::NdConfig {
@@ -169,7 +175,7 @@ mod tests {
     async fn serve_song_unconfigured_is_503() {
         let cache = NdAudioCache::default();
 
-        let resp = serve_song(None, &cache, None, "s1", None, None).await;
+        let resp = serve_song(None, &cache, &direct(), "s1", None, None).await;
 
         assert_eq!(resp.status(), 503);
     }
@@ -177,10 +183,10 @@ mod tests {
     #[tokio::test]
     async fn serve_song_answers_ranges_from_the_prefetch_cache_before_any_network() {
         let cache = NdAudioCache::default();
-        assert!(cache.insert("s1".into(), "audio/flac".into(), b"0123456789".to_vec()));
+        assert!(cache.insert("s1".into(), "audio/flac".into(), Bytes::from_static(b"0123456789")));
 
         // Config is None: a cache hit must never need the network.
-        let resp = serve_song(None, &cache, None, "s1", Some("bytes=4-"), None).await;
+        let resp = serve_song(None, &cache, &direct(), "s1", Some("bytes=4-"), None).await;
 
         assert_eq!(resp.status(), 206);
         assert_eq!(resp.headers()["Content-Type"], "audio/flac");
@@ -202,7 +208,7 @@ mod tests {
         .await;
         let cache = NdAudioCache::default();
 
-        let resp = serve_song(Some(test_config(upstream)), &cache, None, "s1", None, None).await;
+        let resp = serve_song(Some(test_config(upstream)), &cache, &direct(), "s1", None, None).await;
 
         assert_eq!(resp.status(), 200);
         assert_eq!(resp.headers()["Content-Type"], "audio/flac");
@@ -221,7 +227,7 @@ mod tests {
         .await;
         let cache = NdAudioCache::default();
 
-        let resp = serve_song(Some(test_config(upstream)), &cache, None, "s1", None, None).await;
+        let resp = serve_song(Some(test_config(upstream)), &cache, &direct(), "s1", None, None).await;
 
         assert_eq!(resp.status(), 502);
     }

@@ -14,12 +14,12 @@ use http_body_util::{BodyExt, StreamBody};
 /// through without buffering.
 pub(crate) async fn serve_cover(
     config: Option<super::config::NdConfig>,
-    proxy: Option<String>,
+    client: &reqwest::Client,
     cover_id: &str,
     query: Option<&str>,
     origin: Option<&str>,
 ) -> http::Response<crate::media_server::Body> {
-    use crate::media_server::{proxied_client, status_response};
+    use crate::media_server::status_response;
 
     let size = query
         .and_then(|q| q.split('&').find_map(|pair| pair.strip_prefix("size=")))
@@ -32,13 +32,6 @@ pub(crate) async fn serve_cover(
     };
 
     let url = config.rest_url("getCoverArt.view", cover_id, &size);
-    let client = match proxied_client(proxy) {
-        Ok(client) => client,
-        Err(e) => {
-            log::warn!("media nd/cover/{cover_id}: client: {e}");
-            return status_response(502, origin);
-        }
-    };
     let response = match client.get(&url).send().await {
         Ok(response) => response,
         Err(e) => {
@@ -98,9 +91,13 @@ mod tests {
         }
     }
 
+    fn direct() -> reqwest::Client {
+        reqwest::Client::new()
+    }
+
     #[tokio::test]
     async fn serve_cover_unconfigured_is_503() {
-        let resp = serve_cover(None, None, "c1", None, None).await;
+        let resp = serve_cover(None, &direct(), "c1", None, None).await;
 
         assert_eq!(resp.status(), 503);
     }
@@ -125,7 +122,8 @@ mod tests {
         .await;
         let config = test_config(upstream);
 
-        let first = serve_cover(Some(config.clone()), None, "c1", Some("size=300"), None).await;
+        let client = direct();
+        let first = serve_cover(Some(config.clone()), &client, "c1", Some("size=300"), None).await;
         assert_eq!(first.status(), 200);
         assert_eq!(first.headers()["Content-Type"], "image/png");
         assert_eq!(first.headers()["Cache-Control"], "public, max-age=86400");
@@ -133,7 +131,7 @@ mod tests {
         assert_eq!(body.as_ref(), b"img");
 
         // Caching is the webview's job now — the proxy itself stays stateless.
-        let second = serve_cover(Some(config), None, "c1", Some("size=300"), None).await;
+        let second = serve_cover(Some(config), &client, "c1", Some("size=300"), None).await;
         assert_eq!(second.status(), 200);
         let body = second.into_body().collect().await.expect("body").to_bytes();
         assert_eq!(body.as_ref(), b"img");
@@ -151,7 +149,7 @@ mod tests {
         })
         .await;
 
-        let resp = serve_cover(Some(test_config(upstream)), None, "c1", None, None).await;
+        let resp = serve_cover(Some(test_config(upstream)), &direct(), "c1", None, None).await;
 
         assert_eq!(resp.status(), 502);
     }

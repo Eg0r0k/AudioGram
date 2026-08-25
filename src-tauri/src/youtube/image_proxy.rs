@@ -3,6 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 
+use bytes::Bytes;
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::{http_client, status_response};
@@ -16,7 +17,7 @@ const MAX_CACHEABLE_BYTES: usize = 1024 * 1024;
 
 struct CachedImage {
     content_type: String,
-    bytes: Vec<u8>,
+    bytes: Bytes,
 }
 
 #[derive(Default)]
@@ -25,7 +26,7 @@ pub struct YtImageCache {
 }
 
 impl YtImageCache {
-    fn get(&self, url: &str) -> Option<(String, Vec<u8>)> {
+    fn get(&self, url: &str) -> Option<(String, Bytes)> {
         let entries = self.entries.lock().ok()?;
         entries
             .0
@@ -33,7 +34,7 @@ impl YtImageCache {
             .map(|img| (img.content_type.clone(), img.bytes.clone()))
     }
 
-    fn insert(&self, url: String, content_type: String, bytes: Vec<u8>) {
+    fn insert(&self, url: String, content_type: String, bytes: Bytes) {
         if bytes.len() > MAX_CACHEABLE_BYTES {
             return;
         }
@@ -102,7 +103,7 @@ async fn fetch_image<R: Runtime>(
 
     let cache = app.state::<YtImageCache>();
     if let Some((content_type, bytes)) = cache.get(parsed.as_str()) {
-        return image_response(200, &content_type, bytes);
+        return image_response(200, &content_type, bytes.to_vec());
     }
 
     let resp = http_client(app)?
@@ -118,13 +119,14 @@ async fn fetch_image<R: Runtime>(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("image/jpeg")
         .to_owned();
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
 
     if status == 200 {
         cache.insert(parsed.as_str().to_owned(), content_type.clone(), bytes.clone());
     }
 
-    image_response(status, &content_type, bytes)
+    // The custom-protocol responder needs an owned `Vec` — the one copy.
+    image_response(status, &content_type, bytes.to_vec())
 }
 
 fn image_response(

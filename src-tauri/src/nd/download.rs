@@ -2,12 +2,12 @@
 //! temp dir with progress and polled cancellation.
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, Runtime};
+use tokio::io::AsyncWriteExt;
 
 use super::config::{NdConfig, NdState};
 
@@ -163,41 +163,25 @@ async fn download_to_tmp<R: Runtime>(
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join(DOWNLOAD_TMP_SUBDIR);
-    std::fs::create_dir_all(&tmp_dir).map_err(|e| e.to_string())?;
+    tokio::fs::create_dir_all(&tmp_dir).await.map_err(|e| e.to_string())?;
     let path = tmp_dir.join(format!("{song_id}.{ext}"));
 
-    let mut file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
-    let mut downloaded: u64 = 0;
-    let mut last_emitted: u64 = 0;
+    let mut file = tokio::fs::File::create(&path).await.map_err(|e| e.to_string())?;
+    let written = copy_body(&mut resp, &mut file, on_progress, cancelled, total).await;
+    // Waits for the blocking pool's in-flight write and closes the handle —
+    // Windows refuses to delete a file that is still open.
+    drop(file.into_std().await);
 
-    loop {
-        if cancelled.load(Ordering::SeqCst) {
-            drop(file);
-            let _ = std::fs::remove_file(&path);
-            return Err("cancelled".into());
+    // A half-written file must never survive, whatever stopped the copy
+    // (cancellation, a dropped connection, a full disk).
+    let downloaded = match written {
+        Ok(downloaded) => downloaded,
+        Err(e) => {
+            let _ = tokio::fs::remove_file(&path).await;
+            return Err(e);
         }
-        let chunk = match resp.chunk().await {
-            Ok(Some(chunk)) => chunk,
-            Ok(None) => break,
-            Err(e) => {
-                drop(file);
-                let _ = std::fs::remove_file(&path);
-                return Err(format!("download failed: {}", e.without_url()));
-            }
-        };
-        if let Err(e) = file.write_all(&chunk) {
-            drop(file);
-            let _ = std::fs::remove_file(&path);
-            return Err(e.to_string());
-        }
-        downloaded += chunk.len() as u64;
-        if downloaded - last_emitted >= PROGRESS_EMIT_STEP {
-            last_emitted = downloaded;
-            let _ = on_progress.send(NdDownloadEvent::Progress { downloaded, total });
-        }
-    }
+    };
 
-    file.flush().map_err(|e| e.to_string())?;
     let _ = on_progress.send(NdDownloadEvent::Progress {
         downloaded,
         total: Some(downloaded),
@@ -206,6 +190,41 @@ async fn download_to_tmp<R: Runtime>(
         path: path.to_string_lossy().into_owned(),
         ext,
     })
+}
+
+/// Streams the response body into `file`, polling `cancelled` between
+/// chunks. Async fs on purpose: a 250 MB FLAC landing on a slow disk through
+/// `std::fs` would pin a runtime worker for seconds — the same runtime the
+/// loopback media server answers the player from.
+async fn copy_body(
+    resp: &mut reqwest::Response,
+    file: &mut tokio::fs::File,
+    on_progress: &Channel<NdDownloadEvent>,
+    cancelled: &AtomicBool,
+    total: Option<u64>,
+) -> Result<u64, String> {
+    let mut downloaded: u64 = 0;
+    let mut last_emitted: u64 = 0;
+
+    loop {
+        if cancelled.load(Ordering::SeqCst) {
+            return Err("cancelled".into());
+        }
+        let chunk = match resp.chunk().await {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(e) => return Err(format!("download failed: {}", e.without_url())),
+        };
+        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        downloaded += chunk.len() as u64;
+        if downloaded - last_emitted >= PROGRESS_EMIT_STEP {
+            last_emitted = downloaded;
+            let _ = on_progress.send(NdDownloadEvent::Progress { downloaded, total });
+        }
+    }
+
+    file.flush().await.map_err(|e| e.to_string())?;
+    Ok(downloaded)
 }
 
 /// Flags the in-flight download as cancelled; the download loop notices

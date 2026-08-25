@@ -37,7 +37,7 @@ const SIDECAR_YTDLP: &str = "yt-dlp";
 /// (client versions, visitor data).
 const RUSTYPIPE_SUBDIR: &str = "rustypipe";
 
-pub(crate) use crate::proxy::ProxyState;
+pub(crate) use crate::proxy::{http_client, ProxyState};
 
 /// Lazily built RustyPipe (Innertube) client, used for **search only**.
 #[derive(Default)]
@@ -72,10 +72,7 @@ async fn yt_client<R: Runtime>(app: &AppHandle<R>) -> Result<RustyPipe, String> 
             .join(RUSTYPIPE_SUBDIR);
         std::fs::create_dir_all(&storage_dir).map_err(|e| e.to_string())?;
 
-        let mut http = reqwest::Client::builder();
-        if let Some(url) = &proxy {
-            http = http.proxy(reqwest::Proxy::all(url).map_err(|e| e.to_string())?);
-        }
+        let http = crate::proxy::client_builder(proxy.as_deref())?;
 
         let client = RustyPipe::builder()
             .storage_dir(storage_dir)
@@ -137,15 +134,6 @@ fn proxy_args<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
         Some(url) if !url.is_empty() => vec!["--proxy".into(), url],
         _ => Vec::new(),
     }
-}
-
-/// Plain reqwest client honoring the shared proxy state; used for cover fetches.
-fn http_client<R: Runtime>(app: &AppHandle<R>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder();
-    if let Some(url) = app.state::<ProxyState>().get() {
-        builder = builder.proxy(reqwest::Proxy::all(&url).map_err(|e| e.to_string())?);
-    }
-    builder.build().map_err(|e| e.to_string())
 }
 
 fn best_thumbnail(thumbnails: &[Thumbnail]) -> Option<String> {
