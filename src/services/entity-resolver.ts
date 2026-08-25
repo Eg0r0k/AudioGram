@@ -7,6 +7,7 @@ import {
   type PinnedFlag,
   type TrackEntity,
 } from "@/db/entities";
+import { identityKey, splitArtistNames } from "@/lib/artist-names";
 import { AlbumId, ArtistId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 import type { SourceTrackDTO } from "@/types/source-dto";
@@ -20,6 +21,10 @@ import { BaseMetadata } from "@/workers/types";
 // ("nd:<albumId>" / "nd:<artistId>"). Pure derivation lives here; the write
 // itself goes through unitOfWork in ensurePinned.
 //
+
+// The naming rules moved to `@/lib/artist-names`; re-exported so existing
+// importers of this module keep working.
+export { identityKey, splitArtistNames };
 
 export interface RemotePinExisting {
   track?: TrackEntity;
@@ -45,26 +50,6 @@ function trackSourceOf(dto: SourceTrackDTO): TrackSource {
     case "yt": return TrackSource.REMOTE_YT;
     case "local": throw new Error(`Not a remote track id: ${dto.id}`);
   }
-}
-
-/**
- * Splits a joined artist string into names. `,` and `;` are the usual tag
- * separators; `&` counts too because YT Music files a collab channel as ONE
- * entity named "A & B", and the library wants A and B. Blank parts and
- * duplicates are dropped; order is kept.
- */
-export function splitArtistNames(value: string | undefined): string[] {
-  if (!value) return [];
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const part of value.split(/[,;&]/)) {
-    const name = part.replace(/\s+/g, " ").trim();
-    const key = identityKey(name);
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
-  }
-  return names;
 }
 
 /**
@@ -199,33 +184,6 @@ export function alignArtists(
 }
 
 type AlbumCacheKey = `${ArtistId}::${string}`;
-
-// Identity is whitespace-, case- AND unicode-form-insensitive: tags routinely
-// carry stray padding, inconsistent casing ("СЕРЕГА ПИРАТ" vs "Серега Пират"),
-// doubled/non-breaking spaces and NFD-decomposed accents (macOS), and a key
-// that differs on any of these would split one artist/album into several.
-// NFKC additionally folds the full-width/half-width forms common in Japanese
-// tags. The per-letter folds below cover casings toLowerCase() can't round-
-// trip: uppercase tags erase İ/ı, ß→SS and ё→Е distinctions, so both sides
-// fold to one representative. Genuine accents (é, è…) stay significant.
-// Display keeps the first-seen (or already stored) spelling.
-export function identityKey(name: string): string {
-  return name
-    .normalize("NFKC")
-    .toLowerCase()
-    // İ lowercases to "i" + combining dot above; fold to plain i.
-    .replace(/i̇/g, "i")
-    // Turkish dotless ı: caps tags lowercase I to i, losing the distinction.
-    .replace(/ı/g, "i")
-    // Greek final sigma ς == medial σ.
-    .replace(/ς/g, "σ")
-    // ß uppercases to SS, so caps tags come back as "ss".
-    .replace(/ß/g, "ss")
-    // Russian tags use ё and е interchangeably.
-    .replace(/ё/g, "е")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function albumKey(artistId: ArtistId, albumTitle: string): AlbumCacheKey {
   return `${artistId}::${identityKey(albumTitle)}`;

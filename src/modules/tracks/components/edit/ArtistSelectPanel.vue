@@ -48,6 +48,7 @@ import { refDebounced } from "@vueuse/core";
 import { useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import { EntitySelectPanel } from "@/components/entity-select";
+import { identityKey } from "@/lib/artist-names";
 import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import type { ArtistEntity } from "@/db/entities";
@@ -68,12 +69,11 @@ const debouncedSearch = refDebounced(search, 200);
 const normalizedSearch = computed(() => debouncedSearch.value.trim().replace(/\s+/g, " "));
 
 const selectedNames = ref<string[]>([...(props.payload.selectedNames ?? [])]);
-const nameKey = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
-const isSelectedName = (name: string) => selectedNames.value.some(item => nameKey(item) === nameKey(name));
+const isSelectedName = (name: string) => selectedNames.value.some(item => identityKey(item) === identityKey(name));
 
 const toggleName = (name: string) => {
   selectedNames.value = isSelectedName(name)
-    ? selectedNames.value.filter(item => nameKey(item) !== nameKey(name))
+    ? selectedNames.value.filter(item => identityKey(item) !== identityKey(name))
     : [...selectedNames.value, name];
 };
 
@@ -89,7 +89,7 @@ const suggestions = computed(() =>
 
 const canCreate = computed(() =>
   normalizedSearch.value.length > 0
-  && !suggestions.value.some(artist => nameKey(artist.name) === nameKey(normalizedSearch.value)),
+  && !suggestions.value.some(artist => identityKey(artist.name) === identityKey(normalizedSearch.value)),
 );
 
 const handleCreate = (name: string) => {

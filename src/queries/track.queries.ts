@@ -40,7 +40,7 @@ import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
-import { identityKey } from "@/services/entity-resolver";
+import { dedupeArtistNames, identityKey } from "@/lib/artist-names";
 
 const PAGE_SIZE = 50;
 
@@ -86,25 +86,6 @@ async function resolveArtistName(artistIds: ArtistId[]): Promise<string> {
 
   const artists = await unwrapResult(artistRepository.findByIds(artistIds));
   return artists.map(artist => artist.name).join(", ") || "Unknown Artist";
-}
-
-function normalizeArtistNames(names: string[]): string[] {
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-
-  for (const name of names) {
-    const trimmed = name.trim().replace(/\s+/g, " ");
-    const key = trimmed.toLowerCase();
-
-    if (!trimmed || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    normalized.push(trimmed);
-  }
-
-  return normalized;
 }
 
 async function findOrCreateArtists(queryClient: QueryClient, names: string[]) {
@@ -534,7 +515,7 @@ export async function updateTrackMetadataAndSync(
   }
 
   const title = changes.title.trim();
-  const artistNames = normalizeArtistNames(changes.artistNames);
+  const artistNames = dedupeArtistNames(changes.artistNames);
 
   if (!title) {
     throw new Error("Track title is required");

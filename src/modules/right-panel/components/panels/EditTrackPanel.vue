@@ -217,6 +217,7 @@ import type { InferOutput } from "valibot";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { Badge } from "@/components/ui/badge";
+import { splitArtistNames } from "@/lib/artist-names";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -330,23 +331,6 @@ const artistsError = computed<string | undefined>(() => {
 const changeArtistsLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.artists")}`);
 const changeAlbumLabel = computed(() => `${t("common.change")} — ${t("track.edit.fields.album")}`);
 
-const parseArtists = (value: string): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const part of value.split(",")) {
-    const name = part.trim().replace(/\s+/g, " ");
-    const key = name.toLowerCase();
-
-    if (!name || seen.has(key)) continue;
-
-    seen.add(key);
-    result.push(name);
-  }
-
-  return result;
-};
-
 const toOptionalNumber = (value: string | number): number | undefined => {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
 
@@ -381,7 +365,7 @@ const diskNoInput = computed<string | number>({
 const draftFromTrack = (source: Track): TrackEditDraft => ({
   trackId: source.id,
   title: source.title,
-  artists: parseArtists(source.artist),
+  artists: splitArtistNames(source.artist),
   albumId: source.albumId,
   albumLabel: source.albumName,
   newAlbumTitle: null,
@@ -443,7 +427,7 @@ const hasChanges = computed(() => {
   if (!source) return false;
 
   return (title.value?.trim() ?? "") !== source.title
-    || artistChips.value.join("\n") !== parseArtists(source.artist).join("\n")
+    || artistChips.value.join("\n") !== splitArtistNames(source.artist).join("\n")
     || albumId.value !== source.albumId
     || newAlbumTitle.value !== null
     || (trackNo.value ?? null) !== (source.trackNo ?? null)

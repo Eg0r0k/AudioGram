@@ -46,6 +46,7 @@ import { refDebounced } from "@vueuse/core";
 import { useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import { EntitySelectPanel } from "@/components/entity-select";
+import { identityKey } from "@/lib/artist-names";
 import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import type { AlbumEntity } from "@/db/entities";
@@ -75,10 +76,9 @@ const suggestions = computed(() =>
   [...(data.value ?? [])].sort((a, b) => a.title.localeCompare(b.title)),
 );
 
-const titleKey = (title: string) => title.trim().replace(/\s+/g, " ").toLowerCase();
 const canCreate = computed(() =>
   normalizedSearch.value.length > 0
-  && !suggestions.value.some(album => titleKey(album.title) === titleKey(normalizedSearch.value)),
+  && !suggestions.value.some(album => identityKey(album.title) === identityKey(normalizedSearch.value)),
 );
 
 const handleDone = () => {

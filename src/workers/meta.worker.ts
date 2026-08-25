@@ -1,14 +1,15 @@
 import { parseBuffer, type IAudioMetadata, type IOptions } from "music-metadata";
+import { dedupeArtistNames, splitArtistNames } from "@/lib/artist-names";
 import type { BaseMetadata, ParseRequest, ParseResponse } from "./types";
 
 function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+/** Multi-value tags arrive as an array; a single joined string is split. */
 function parseArtists(raw: string | string[] | undefined): string[] {
   if (!raw) return [];
-  if (Array.isArray(raw)) return raw;
-  return raw.split(/[,;&|/]\s*/).map(a => a.trim()).filter(a => a !== "");
+  return Array.isArray(raw) ? dedupeArtistNames(raw) : splitArtistNames(raw);
 }
 
 function ratioToDbtp(ratio: number | undefined): number | undefined {
@@ -63,11 +64,9 @@ export async function parseMetadata(request: ParseRequest): Promise<ParseRespons
 
     const titleFromFile = fileName.replace(/\.[^/.]+$/, "");
     const loudness = extractLoudness(metadata);
-    const artists = parseArtists(metadata.common.artist);
-
     const meta: BaseMetadata = {
       title: metadata.common.title || titleFromFile,
-      artists: artists.map(a => a.trim()).filter(Boolean),
+      artists: parseArtists(metadata.common.artist),
       album: metadata.common.album || "",
       year: metadata.common.year,
       duration: metadata.format.duration || 0,
