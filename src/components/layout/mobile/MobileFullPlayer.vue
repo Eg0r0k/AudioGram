@@ -168,7 +168,7 @@
           @scrub="onScrub"
           @mouseup="onScrubEnd"
         />
-        <div class="flex justify-between text-xs text-white/50 font-medium tabular-nums">
+        <div class="flex justify-between text-sm text-white/60 font-medium tabular-nums">
           <span>{{ timeDisplay.current }}</span>
           <span>{{ timeDisplay.duration }}</span>
         </div>

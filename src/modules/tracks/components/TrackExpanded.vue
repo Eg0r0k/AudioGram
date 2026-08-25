@@ -423,7 +423,7 @@ function handleAlbumClick() {
 
 .index-swap-enter-active,
 .index-swap-leave-active {
-  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
 }
 /* Leave element is taken out of flow so enter/leave crossfade in place
    instead of playing sequentially. */

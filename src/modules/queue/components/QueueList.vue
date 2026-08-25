@@ -29,7 +29,7 @@
                 <span class="shrink-0">{{ t("queue.upNextFrom") }}</span>
                 <Link
                   :to="sourceLink.to"
-                  class="min-w-0 truncate text-primary hover:underline"
+                  class="min-w-0 truncate hover:underline"
                 >
                   {{ sourceLink.label }}
                 </Link>
