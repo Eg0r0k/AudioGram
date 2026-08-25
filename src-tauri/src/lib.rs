@@ -169,6 +169,7 @@ pub fn run() {
         .manage(youtube::YtAudioCache::default())
         .manage(youtube::YtClient::default())
         .manage(youtube::YtDownloadRegistry::default())
+        .manage(youtube::YtDlpUpdater::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let files: Vec<String> = args.into_iter().skip(1).collect();
 
@@ -235,6 +236,14 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::setup_tray(app)?;
+
+                // YouTube outruns any bundled yt-dlp within weeks; refresh
+                // the sidecar in the background before the first track asks
+                // for it (later runs re-check on their own, throttled).
+                let updater_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    youtube::ensure_fresh(&updater_handle, None).await;
+                });
 
                 let files: Vec<String> = std::env::args().skip(1).collect();
                 if !files.is_empty() {

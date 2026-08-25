@@ -162,6 +162,7 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
     ];
     args.extend(proxy_args(app));
 
+    super::ensure_fresh_throttled(app).await;
     let (mut rx, child) = app
         .shell()
         .sidecar(SIDECAR_YTDLP)

@@ -167,6 +167,7 @@ pub async fn yt_download<R: Runtime>(
     ];
     args.extend(proxy_args(&app));
 
+    super::ensure_fresh_throttled(&app).await;
     let (mut rx, child) = app
         .shell()
         .sidecar(SIDECAR_YTDLP)

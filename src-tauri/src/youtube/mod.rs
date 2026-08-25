@@ -17,6 +17,7 @@ mod error;
 mod image_proxy;
 mod music;
 mod stream;
+mod update;
 
 pub use browse::*;
 pub use download::*;
@@ -25,6 +26,7 @@ pub use error::*;
 pub(crate) use image_proxy::*;
 pub use music::*;
 pub use stream::*;
+pub use update::*;
 
 use tauri::{AppHandle, Manager, Runtime};
 
