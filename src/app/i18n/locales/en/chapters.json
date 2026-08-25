@@ -5,6 +5,8 @@
   "untitled": "Untitled",
   "count": "{count} chapters",
   "delete": "Delete chapter",
+  "lineUnrecognized": "Could not read the line: \"{line}\"",
+  "lineBeyondDuration": "Timestamp is past the end of the track ({duration}): \"{line}\"",
   "cueParseEmpty": "CUE file has no entries",
   "cueParseError": "Failed to parse CUE file"
 }

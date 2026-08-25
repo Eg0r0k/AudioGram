@@ -5,6 +5,8 @@
   "untitled": "Без названия",
   "count": "{count} таймкодов",
   "delete": "Удалить таймкод",
+  "lineUnrecognized": "Не удалось распознать строку: «{line}»",
+  "lineBeyondDuration": "Таймкод за пределами трека ({duration}): «{line}»",
   "cueParseEmpty": "CUE-файл не содержит записей",
   "cueParseError": "Не удалось обработать CUE-файл"
 }

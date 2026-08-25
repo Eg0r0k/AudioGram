@@ -112,6 +112,26 @@ describe("ChapterEditor", () => {
     await nextTick();
 
     expect(screen.getByText(/garbage text/)).toBeTruthy();
+    expect(screen.getByText(/Could not read the line/)).toBeTruthy();
+  });
+
+  it("shows error for a timestamp past the end of the track instead of dropping it silently", async () => {
+    const { emitted } = renderWithPlugins(ChapterEditor, {
+      props: {
+        modelValue: [],
+        duration: 500,
+      },
+    });
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    setTextareaValue(textarea, "01:00 - Fine\n99:00 - Too far");
+    await nextTick();
+
+    expect(screen.getByText(/past the end of the track/)).toBeTruthy();
+    expect(screen.getByText(/99:00 - Too far/)).toBeTruthy();
+    // The valid line still reaches the parent; the bad one does not.
+    const last = emitted()["update:modelValue"]?.at(-1)?.[0] as { time: number }[];
+    expect(last.map(c => c.time)).toEqual([60]);
   });
 
   it("sorts chapters by time", async () => {

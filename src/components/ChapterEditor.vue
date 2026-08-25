@@ -34,6 +34,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { array, check, pipe, regex, safeParse, string } from "valibot";
 import { formatDuration } from "@/lib/format/time";
 
 export interface DraftChapter {
@@ -54,7 +55,6 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const textareaRef = ref<HTMLTextAreaElement>();
-const parseError = ref<string | null>(null);
 const textValue = ref(chaptersToText(props.modelValue));
 const internalUpdate = ref(false);
 
@@ -80,56 +80,58 @@ watch(() => props.modelValue, (val) => {
   }
 }, { deep: true });
 
-const linePattern = /^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:\s*[-–]\s*|\s+)(.+)$/;
+// `[H:]MM:SS`, then a space or a dash, then the title. The lookahead demands
+// the separator up front so the greedy `\s*` never has to backtrack into it
+// (the previous `(?:\s*[-–]\s*|\s+)` alternation was super-linear).
+const linePattern = /^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?=[\s\-–])\s*(?:[-–]\s*)?(\S.*)$/;
 
-function parseLine(line: string): { time: number; title: string } | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  const match = trimmed.match(linePattern);
-  if (!match) return null;
-
+/** Seconds encoded by a line that matches `linePattern`. */
+function timeOf(line: string): number {
+  const match = line.match(linePattern);
+  if (!match) return Number.NaN;
   const hours = match[1] ? Number(match[1]) : 0;
-  const minutes = Number(match[2]);
-  const seconds = Number(match[3]);
-  const title = match[4].trim();
-
-  const time = hours * 3600 + minutes * 60 + seconds;
-  if (time > props.duration) return null;
-
-  return { time, title };
+  return hours * 3600 + Number(match[2]) * 60 + Number(match[3]);
 }
 
-watch(textValue, () => {
-  const lines = textValue.value.split("\n");
-  parseError.value = null;
+function parseLine(line: string): { time: number; title: string } | null {
+  const match = line.match(linePattern);
+  if (!match) return null;
+  const time = timeOf(line);
+  if (time > props.duration) return null;
+  return { time, title: match[4].trim() };
+}
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (!trimmed.match(linePattern)) {
-      parseError.value = `Не удалось распознать строку: "${trimmed}"`;
-      break;
-    }
-  }
+// Non-empty lines, trimmed — what both the validator and the parser see.
+const lines = computed(() => textValue.value.split("\n").map(line => line.trim()).filter(Boolean));
+
+// One rule per line: it must have the `[H:]MM:SS title` shape, and its
+// timestamp must fall inside the track. The first offending line is the
+// message; issues carry the input, so the message can quote it.
+const linesSchema = computed(() => array(pipe(
+  string(),
+  regex(linePattern, issue => t("chapters.lineUnrecognized", { line: issue.input })),
+  check(
+    line => timeOf(line) <= props.duration,
+    issue => t("chapters.lineBeyondDuration", { line: issue.input, duration: formatDuration(props.duration) }),
+  ),
+)));
+
+const parseError = computed<string | null>(() => {
+  const result = safeParse(linesSchema.value, lines.value);
+  return result.success ? null : result.issues[0].message;
 });
 
 const parsed = computed(() => {
-  const lines = textValue.value.split("\n");
   const result: { time: number; title: string }[] = [];
-
-  for (const line of lines) {
+  for (const line of lines.value) {
     const entry = parseLine(line);
-    if (entry) {
-      result.push(entry);
-    }
+    if (entry) result.push(entry);
   }
-
   return result.sort((a, b) => a.time - b.time);
 });
 
 const chapters = computed(() =>
-  parsed.value.map((c) => ({ id: crypto.randomUUID(), time: c.time, title: c.title })),
+  parsed.value.map(c => ({ id: crypto.randomUUID(), time: c.time, title: c.title })),
 );
 
 const totalDuration = computed(() => {
