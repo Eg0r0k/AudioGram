@@ -261,11 +261,10 @@ async fn copy_body(
 /// Flags the in-flight download as cancelled; the download loop notices
 /// between chunks. Idempotent — cancelling a finished download is a no-op.
 #[tauri::command]
-pub fn nd_download_cancel<R: Runtime>(app: AppHandle<R>, song_id: String) -> Result<(), String> {
+pub fn nd_download_cancel<R: Runtime>(app: AppHandle<R>, song_id: String) {
     if !app.state::<NdDownloadRegistry>().cancel(&song_id) {
         log::info!("nd_download_cancel {song_id}: not in flight");
     }
-    Ok(())
 }
 
 #[cfg(test)]

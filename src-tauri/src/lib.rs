@@ -122,26 +122,6 @@ async fn import_local_file(
     .map_err(|e| e.to_string())?
 }
 
-#[cfg(test)]
-mod import_target_tests {
-    use super::is_safe_import_target;
-    use std::path::Path;
-
-    #[test]
-    fn accepts_plain_relative_paths() {
-        assert!(is_safe_import_target(Path::new("tracks/a.flac")));
-        assert!(is_safe_import_target(Path::new("offline/nd/x.mp3")));
-    }
-
-    #[test]
-    fn rejects_traversal_roots_and_empty() {
-        assert!(!is_safe_import_target(Path::new("../x")));
-        assert!(!is_safe_import_target(Path::new("tracks/../../x")));
-        assert!(!is_safe_import_target(Path::new("/abs/path")));
-        assert!(!is_safe_import_target(Path::new("")));
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Bound BEFORE any webview exists so the frontend can never observe a
@@ -262,4 +242,24 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod import_target_tests {
+    use super::is_safe_import_target;
+    use std::path::Path;
+
+    #[test]
+    fn accepts_plain_relative_paths() {
+        assert!(is_safe_import_target(Path::new("tracks/a.flac")));
+        assert!(is_safe_import_target(Path::new("offline/nd/x.mp3")));
+    }
+
+    #[test]
+    fn rejects_traversal_roots_and_empty() {
+        assert!(!is_safe_import_target(Path::new("../x")));
+        assert!(!is_safe_import_target(Path::new("tracks/../../x")));
+        assert!(!is_safe_import_target(Path::new("/abs/path")));
+        assert!(!is_safe_import_target(Path::new("")));
+    }
 }

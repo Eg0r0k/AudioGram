@@ -104,9 +104,17 @@ fn is_forwardable_header(name: &str) -> bool {
     )
 }
 
-/// Extracts `(url, format_id, http_headers)` from `yt-dlp -j` stdout —
-/// the last JSON line, in case the extractor chatters before it.
-fn parse_resolve_output(stdout: &str) -> Result<(String, String, Vec<(String, String)>), String> {
+/// What [`parse_resolve_output`] pulls out of `yt-dlp -j`.
+struct ResolvedStream {
+    url: String,
+    /// yt-dlp's format id (`140`, `251`…), for the log line only.
+    format_id: String,
+    headers: Vec<(String, String)>,
+}
+
+/// Extracts the stream URL, format id and request headers from `yt-dlp -j`
+/// stdout — the last JSON line, in case the extractor chatters before it.
+fn parse_resolve_output(stdout: &str) -> Result<ResolvedStream, String> {
     let line = stdout
         .lines()
         .map(str::trim)
@@ -133,7 +141,11 @@ fn parse_resolve_output(stdout: &str) -> Result<(String, String, Vec<(String, St
         headers.push(("User-Agent".into(), "Mozilla/5.0".into()));
     }
 
-    Ok((url, info.format_id.unwrap_or_default(), headers))
+    Ok(ResolvedStream {
+        url,
+        format_id: info.format_id.unwrap_or_default(),
+        headers,
+    })
 }
 
 /// Resolves the best audio stream URL (with its request headers) via the
@@ -200,7 +212,11 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
         return Err(format!("yt-dlp resolve failed: {}", stderr.trim()));
     }
 
-    let (stream_url, format_id, headers) = parse_resolve_output(&stdout)?;
+    let ResolvedStream {
+        url: stream_url,
+        format_id,
+        headers,
+    } = parse_resolve_output(&stdout)?;
     log::info!(
         "yt_resolve {id}: format {format_id}, {} request headers",
         headers.len()
@@ -443,7 +459,7 @@ async fn fetch_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::{content_range_total, parse_resolve_output};
+    use super::{content_range_total, parse_resolve_output, ResolvedStream};
 
     #[test]
     fn parses_the_total_out_of_content_range() {
@@ -463,7 +479,11 @@ mod tests {
             "\n",
         );
 
-        let (url, format_id, headers) = parse_resolve_output(stdout).expect("parsed");
+        let ResolvedStream {
+            url,
+            format_id,
+            headers,
+        } = parse_resolve_output(stdout).expect("parsed");
 
         assert_eq!(url, "https://rr3---sn.googlevideo.com/videoplayback?x=1");
         assert_eq!(format_id, "140");
@@ -484,7 +504,7 @@ mod tests {
     fn falls_back_to_a_browser_ua_when_yt_dlp_sends_no_headers() {
         let stdout = r#"{"url": "https://example.googlevideo.com/v", "format_id": "251"}"#;
 
-        let (_, _, headers) = parse_resolve_output(stdout).expect("parsed");
+        let headers = parse_resolve_output(stdout).expect("parsed").headers;
 
         assert_eq!(
             headers,

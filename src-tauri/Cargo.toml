@@ -54,6 +54,20 @@ tauri-plugin-http = "2.5.9"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
+# CI runs clippy with `-D warnings`, so everything here is effectively deny.
+# `pedantic` stays off: several of its lints fight tauri command signatures
+# (`needless_pass_by_value` on `State`/`AppHandle` parameters).
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+redundant_clone = "warn"
+needless_collect = "warn"
+uninlined_format_args = "warn"
+manual_ok_or = "warn"
+map_unwrap_or = "warn"
+unnecessary_wraps = "warn"
+clone_on_ref_ptr = "warn"
+large_futures = "warn"
+
 # Unoptimized decoders run ~10x slower than what playback UX tolerates
 # (12s/track ALAC, ~8x realtime APE measured); keep them fast in dev builds.
 [profile.dev.package.symphonia-core]

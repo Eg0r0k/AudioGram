@@ -17,7 +17,7 @@ pub fn build_activity(payload: DiscordActivityPayload) -> activity::Activity<'st
         .name("Audiogram")
         .details(title)
         .state(match album {
-            Some(album) => format!("{} - {}", artist, album),
+            Some(album) => format!("{artist} - {album}"),
             None => artist,
         });
 

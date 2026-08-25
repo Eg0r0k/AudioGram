@@ -526,8 +526,7 @@ pub(crate) async fn handle<T: RemoteRoutes>(
     };
     let rest = percent_encoding::percent_decode_str(rest)
         .decode_utf8()
-        .map(|s| s.into_owned())
-        .unwrap_or_else(|_| rest.to_owned());
+        .map_or_else(|_| rest.to_owned(), |s| s.into_owned());
 
     let range = req
         .headers()

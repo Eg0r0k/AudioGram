@@ -46,7 +46,8 @@ pub async fn discord_clear_activity(
 ) -> Result<(), String> {
     let presence = Arc::clone(state.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        presence.lock().map_err(|e| e.to_string())?.clear_activity()
+        presence.lock().map_err(|e| e.to_string())?.clear_activity();
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -71,18 +72,17 @@ impl DiscordPresence {
         }
     }
 
-    fn clear_activity(&mut self) -> Result<(), String> {
+    /// Infallible by design: a failed clear means the IPC socket is gone, and
+    /// dropping the client (so the next set_activity reconnects) is the
+    /// whole recovery.
+    fn clear_activity(&mut self) {
         let Some(client) = self.client.as_mut() else {
-            return Ok(());
+            return;
         };
 
-        match client.clear_activity() {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                self.client = None;
-                self.client_id = None;
-                Ok(())
-            }
+        if client.clear_activity().is_err() {
+            self.client = None;
+            self.client_id = None;
         }
     }
 
