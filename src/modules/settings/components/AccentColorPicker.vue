@@ -68,7 +68,7 @@
           </svg>
           <IconColorPicker
             v-else
-            class="size-4 text-white drop-shadow"
+            class="size-6 text-white drop-shadow"
           />
 
           <span
@@ -98,7 +98,7 @@
 import { computed } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ColorPicker } from "@/components/ui/color-picker";
-import IconColorPicker from "~icons/tabler/color-picker";
+import IconColorPicker from "~icons/tabler/palette-filled";
 import type { AccentColorOption } from "@/modules/settings/accent-colors";
 import { AccentColor } from "../schema/appearance";
 

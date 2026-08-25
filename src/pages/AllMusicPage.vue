@@ -42,7 +42,6 @@
             </InputGroup>
 
             <TrackSortMenu
-              v-if="isMobileLayout"
               v-model:sort-key="sortKey"
             />
           </div>
@@ -160,7 +159,6 @@ import IconArrowLeft from "~icons/tabler/arrow-left";
 
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackSortMenu from "@/modules/library/components/TrackSortMenu.vue";
-import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -175,9 +173,6 @@ import { useRouter } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
 const { t } = useI18n();
 const router = useRouter();
-// LibrarySortHeader drops its column buttons below 620px, so the narrow
-// layout needs the sort menu to reach anything but the default order.
-const { isMobileLayout } = useDeviceLayout();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
 const {

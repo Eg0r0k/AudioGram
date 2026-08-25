@@ -35,6 +35,9 @@ AGENTS.md
 CLAUDE.md
 DESIGN.md
 mcp.json
+.claude
+.agents
+
 
 # CodeGraph index
 .codegraph/
