@@ -57,49 +57,50 @@
           @move-to-folder="openMoveToFolderDialog"
           @remove-from-folder="removeItemFromActiveFolder"
         >
-          <div
-            v-if="listLoading"
-            class="flex-1 gap-2 flex flex-col p-2 min-h-0 overflow-hidden"
-          >
+          <CrossfadeTransition class="flex-1">
             <div
-              v-for="i in 20"
-              :key="i"
-              class="flex items-center gap-3 px-2"
-              :class="isCompact && 'justify-center'"
+              v-if="listLoading"
+              class="flex flex-col gap-2 overflow-hidden p-2"
             >
-              <Skeleton class="size-[54px] rounded-full shrink-0" />
               <div
-                v-if="!isCompact"
-                class="flex flex-col gap-2 w-full"
+                v-for="i in 20"
+                :key="i"
+                class="flex items-center gap-3 px-2"
+                :class="isCompact && 'justify-center'"
               >
-                <Skeleton class="h-3 w-[40%]" />
-                <Skeleton class="h-3 w-[65%]" />
+                <Skeleton class="size-[54px] rounded-full shrink-0" />
+                <div
+                  v-if="!isCompact"
+                  class="flex flex-col gap-2 w-full"
+                >
+                  <Skeleton class="h-3 w-[40%]" />
+                  <Skeleton class="h-3 w-[65%]" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <VirtualScrollable
-            v-else
-            ref="scrollableRef"
-            hide-thumb
-            :padding-top="8"
-            :padding-bottom="8"
-            :items="libraryItems"
-            :item-height="72"
-            :get-item-key="getLibraryItemKey"
-            animate-reorder
-            class="flex-1"
-            @scroll="handleScroll"
-          >
-            <template #default="{ item }">
-              <LibrarySidebarItem
-                :class="isCompact ? 'mx-1' : 'mx-2'"
-                :item="item"
-                :compact="isCompact"
-                @open-folder="openFolder"
-              />
-            </template>
-          </VirtualScrollable>
+            <VirtualScrollable
+              v-else
+              ref="scrollableRef"
+              hide-thumb
+              :padding-top="8"
+              :padding-bottom="8"
+              :items="libraryItems"
+              :item-height="72"
+              :get-item-key="getLibraryItemKey"
+              animate-reorder
+              @scroll="handleScroll"
+            >
+              <template #default="{ item }">
+                <LibrarySidebarItem
+                  :class="isCompact ? 'mx-1' : 'mx-2'"
+                  :item="item"
+                  :compact="isCompact"
+                  @open-folder="openFolder"
+                />
+              </template>
+            </VirtualScrollable>
+          </CrossfadeTransition>
         </LibraryContextMenu>
       </div>
     </SlideTransition>
@@ -167,6 +168,7 @@ import { computed, inject, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import SlideTransition from "@/components/transitions/SlideTransition.vue";
+import CrossfadeTransition from "@/components/transitions/CrossfadeTransition.vue";
 import { Button } from "@/components/ui/button";
 import FloatingButton from "@/components/layout/sidebar/floatingButton/FloatingButton.vue";
 import LibraryFolderItemsDialog from "@/components/layout/sidebar/LibraryFolderItemsDialog.vue";
