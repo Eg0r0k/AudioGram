@@ -1,5 +1,5 @@
-//! Navidrome (Subsonic) configuration state and the nd routes of the
-//! `stream://` proxy.
+//! Navidrome (Subsonic) configuration state and the `nd/…` routes of the
+//! loopback media server.
 //!
 //! The frontend derives `{token, salt}` from the password once per config
 //! change (`nd_set_config`); the raw password never reaches Rust and the
@@ -11,8 +11,8 @@ mod cover;
 mod download;
 mod prefetch;
 
-// Glob re-exports keep `nd::` a drop-in for the old single file — including
-// the hidden `__cmd__*` items `generate_handler!` resolves for commands.
+// Glob re-exports: `generate_handler!` resolves the hidden `__cmd__*` items
+// through `nd::`, which explicit re-exports would have to list by hand.
 pub use config::*;
 pub(crate) use cover::*;
 pub use download::*;

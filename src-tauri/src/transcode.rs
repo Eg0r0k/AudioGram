@@ -332,7 +332,7 @@ fn adts_header(
 /// Rewraps the AAC track of an mp4 as raw ADTS, dropping every other track.
 /// No decoding happens: mp4 already stores the exact AAC frames, they just
 /// lack the per-frame header a bare stream needs. The point is losing the
-/// video track — see {@link has_video_track}.
+/// video track — see [`has_video_track`].
 fn remux_mp4_aac_to_adts(src: &Path, dst: &Path) -> Result<(), String> {
     use std::io::Write;
 
@@ -404,10 +404,6 @@ fn remux_mp4_aac_to_adts(src: &Path, dst: &Path) -> Result<(), String> {
     out.flush().map_err(|e| e.to_string())
 }
 
-/// Returns the WAV rendition of a source the webview cannot decode (ALAC in
-/// mp4, Monkey's Audio), transcoding on first use. `None` when the source
-/// needs no rendition or anything fails — the caller then serves the raw
-/// file exactly as before.
 /// Removes tmp files orphaned by a previous process killed mid-decode.
 /// Called once at server spawn, before any transcode can be in flight.
 pub(crate) fn clean_stale_tmp(cache_dir: &Path) {

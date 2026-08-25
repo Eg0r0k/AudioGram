@@ -856,7 +856,7 @@ mod tests {
         assert_eq!(allow_origin(None), "*");
     }
 
-    // ── cap_range_span (moved verbatim from stream.rs) ───────────────
+    // ── cap_range_span ───────────────────────────────────────────────
 
     const SPAN: u64 = 1024;
 

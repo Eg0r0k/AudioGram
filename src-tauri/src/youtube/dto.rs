@@ -3,7 +3,7 @@
 //!
 //! ID kinds (all pass the `[A-Za-z0-9_-]` character class, so they must be
 //! routed to the right command — never feed a browse id to resolve/download):
-//! - track/video id: 11 chars, plays through `yt_resolve`/`yt_download`/`stream://`
+//! - track/video id: 11 chars, plays through `yt_resolve`/`yt_download`/the `yt/` route
 //! - album browse id: `MPREb_…` → `yt_music_album`
 //! - playlist id: `PL…` / `OLAK5uy_…` / `RDCLAK…` → `yt_music_playlist`
 //! - artist channel id: `UC…` → `yt_music_artist`
@@ -34,7 +34,7 @@ pub struct YtAlbumRef {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YtMusicTrack {
-    /// Regular video id — valid for `yt_resolve`/`yt_download`/`stream://`.
+    /// Regular video id — valid for `yt_resolve`/`yt_download`/the `yt/` route.
     pub id: String,
     pub title: String,
     pub artists: Vec<YtArtistRef>,

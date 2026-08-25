@@ -186,8 +186,7 @@ pub fn run() {
             let files: Vec<String> = args.into_iter().skip(1).collect();
 
             if !files.is_empty() {
-                println!("Second instance files: {:?}", files);
-
+                log::info!("second instance opened with files: {files:?}");
                 let _ = app.emit("files-opened", files);
             }
         }))
@@ -240,15 +239,14 @@ pub fn run() {
     ]);
 
     builder
-        .setup(move |_app| {
+        .setup(move |app| {
             // The config windows are created after setup returns, so the
             // accept loop is live before the first frontend request (and the
             // bound socket's backlog would hold early connections anyway).
-            media_server::spawn(_app.handle().clone(), media_token, media_listener);
+            media_server::spawn(app.handle().clone(), media_token, media_listener);
 
             #[cfg(desktop)]
             {
-                let app = _app;
                 tray::setup_tray(app)?;
 
                 let files: Vec<String> = std::env::args().skip(1).collect();

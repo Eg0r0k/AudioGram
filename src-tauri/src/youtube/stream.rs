@@ -28,7 +28,8 @@ pub struct StreamEntry {
 }
 
 /// In-memory map of video id → resolved stream entry, populated by `yt_resolve`
-/// and consumed by the `stream://` proxy so seeks reuse a single resolution.
+/// and consumed by the media server's `yt/` route so seeks reuse a single
+/// resolution.
 #[derive(Default)]
 pub struct YtStreamCache {
     urls: Mutex<HashMap<String, StreamEntry>>,
@@ -136,7 +137,7 @@ fn parse_resolve_output(stdout: &str) -> Result<(String, String, Vec<(String, St
 }
 
 /// Resolves the best audio stream URL (with its request headers) via the
-/// yt-dlp sidecar and caches it for the `stream://` proxy.
+/// yt-dlp sidecar and caches it for the `yt/` route.
 async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<StreamEntry, String> {
     let url = format!("https://www.youtube.com/watch?v={id}");
     let mut args: Vec<String> = vec![
@@ -218,14 +219,14 @@ async fn resolve_stream<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Stre
 pub async fn yt_resolve<R: Runtime>(app: AppHandle<R>, id: String) -> Result<String, YtError> {
     let id = validate_id(id).map_err(YtError::invalid_input)?;
 
-    // Cache under the id; the frontend plays `stream://localhost/yt/<id>`, which the
-    // proxy resolves back to this URL (avoids re-running yt-dlp on every seek).
+    // Cache under the id; the frontend plays `/{token}/yt/<id>` on the media
+    // server, which maps it back to this URL (no yt-dlp run per seek).
     resolve_stream(&app, &id).await?;
     Ok(id)
 }
 
 /// Downloads the whole audio file for `id` into the in-memory prefetch cache
-/// so the `stream://` proxy answers the upcoming track's requests instantly.
+/// so the `yt/` route answers the upcoming track's requests instantly.
 /// Called by the frontend for the next queue entry while the current track is
 /// still playing.
 #[tauri::command]

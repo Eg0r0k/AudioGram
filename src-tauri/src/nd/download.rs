@@ -25,21 +25,36 @@ const PROGRESS_EMIT_STEP: u64 = 256 * 1024;
 #[derive(Default)]
 pub struct NdDownloadRegistry(Mutex<HashMap<String, Arc<AtomicBool>>>);
 
+/// A registered download. The id leaves the registry when this drops — on
+/// success, error and panic alike — so no code path can leave a track stuck
+/// as "already in progress".
+struct DownloadSlot<'a> {
+    registry: &'a NdDownloadRegistry,
+    id: String,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Drop for DownloadSlot<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.registry.0.lock() {
+            map.remove(&self.id);
+        }
+    }
+}
+
 impl NdDownloadRegistry {
-    fn register(&self, id: &str) -> Result<Arc<AtomicBool>, String> {
+    fn register(&self, id: &str) -> Result<DownloadSlot<'_>, String> {
         let mut map = self.0.lock().map_err(|_| "registry poisoned".to_string())?;
         if map.contains_key(id) {
             return Err("download already in progress".into());
         }
-        let flag = Arc::new(AtomicBool::new(false));
-        map.insert(id.to_owned(), Arc::clone(&flag));
-        Ok(flag)
-    }
-
-    fn deregister(&self, id: &str) {
-        if let Ok(mut map) = self.0.lock() {
-            map.remove(id);
-        }
+        let cancelled = Arc::new(AtomicBool::new(false));
+        map.insert(id.to_owned(), Arc::clone(&cancelled));
+        Ok(DownloadSlot {
+            registry: self,
+            id: id.to_owned(),
+            cancelled,
+        })
     }
 
     fn cancel(&self, id: &str) -> bool {
@@ -119,9 +134,18 @@ pub async fn nd_download<R: Runtime>(
         return Err("nd source is not configured".into());
     };
 
-    let cancelled = app.state::<NdDownloadRegistry>().register(&song_id)?;
-    let result = download_to_tmp(&app, &config, &song_id, suffix, &on_progress, &cancelled).await;
-    app.state::<NdDownloadRegistry>().deregister(&song_id);
+    let registry = app.state::<NdDownloadRegistry>();
+    let slot = registry.register(&song_id)?;
+    let result = download_to_tmp(
+        &app,
+        &config,
+        &song_id,
+        suffix,
+        &on_progress,
+        &slot.cancelled,
+    )
+    .await;
+    drop(slot);
 
     match &result {
         Ok(_) => log::info!("nd_download {song_id}: done"),
@@ -242,4 +266,44 @@ pub fn nd_download_cancel<R: Runtime>(app: AppHandle<R>, song_id: String) -> Res
         log::info!("nd_download_cancel {song_id}: not in flight");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_slot_blocks_a_second_download_of_the_same_id_until_dropped() {
+        let registry = NdDownloadRegistry::default();
+
+        let slot = registry.register("s1").expect("first registration");
+        assert!(registry.register("s1").is_err());
+        assert!(registry.register("s2").is_ok());
+
+        drop(slot);
+        assert!(registry.register("s1").is_ok());
+    }
+
+    #[test]
+    fn cancel_flips_the_slot_flag_and_reports_unknown_ids() {
+        let registry = NdDownloadRegistry::default();
+        let slot = registry.register("s1").expect("registration");
+
+        assert!(registry.cancel("s1"));
+        assert!(slot.cancelled.load(Ordering::SeqCst));
+        assert!(!registry.cancel("nope"));
+    }
+
+    #[test]
+    fn ext_falls_back_from_suffix_to_content_type() {
+        assert_eq!(normalized_suffix(Some(" FLAC ")).as_deref(), Some("flac"));
+        assert_eq!(normalized_suffix(Some("way-too-long")), None);
+        assert_eq!(normalized_suffix(Some("../x")), None);
+        assert_eq!(normalized_suffix(None), None);
+        assert_eq!(
+            ext_from_content_type("audio/flac; charset=binary"),
+            Some("flac")
+        );
+        assert_eq!(ext_from_content_type("text/html"), None);
+    }
 }
