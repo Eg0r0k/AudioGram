@@ -57,6 +57,9 @@ const { FakeWorker, buildAllSearchDocuments, repositories } = vi.hoisted(() => {
 vi.mock("../search.worker?worker", () => ({ default: FakeWorker }));
 vi.mock("../buildDocuments", () => ({ buildAllSearchDocuments }));
 vi.mock("@/db/repositories", () => repositories);
+vi.mock("@/lib/logger", () => ({
+  getLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
+}));
 
 let searchIndex: typeof SearchIndexModule;
 

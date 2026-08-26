@@ -13,6 +13,7 @@ import { countTrackDocuments, trackProjectionMismatch } from "./projectionCheck"
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { Track } from "@/modules/player/types";
 import type { TrackId } from "@/types/ids";
+import { getLogger } from "@/lib/logger";
 
 const SEARCH_TIMEOUT_MS = 10_000;
 
@@ -169,7 +170,7 @@ function getClient(): SearchWorkerClient {
 }
 
 function discardFailedClient(failed: SearchWorkerClient, error: Error): void {
-  console.error(`[Search] worker failed, discarding index: ${error.message}`);
+  getLogger().error(`[Search] worker failed, discarding index: ${error.message}`);
   if (client !== failed) return;
   resetSearchIndex();
 }

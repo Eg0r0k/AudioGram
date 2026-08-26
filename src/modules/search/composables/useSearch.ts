@@ -12,6 +12,7 @@ import {
   rebuildSearchIndex,
   searchDocuments,
 } from "../searchIndex";
+import { getLogger } from "@/lib/logger";
 
 const DEBOUNCE_MS = 150;
 /** YT search fans out to several network requests — pause a bit longer. */
@@ -64,7 +65,7 @@ const debouncedSearch = useDebounceFn(async (q: string, filter: SearchFilter) =>
     results.value = groupResults(response.results);
   }
   catch (err) {
-    console.error("[Search]", err);
+    getLogger().error(`[Search] Query failed: ${String(err)}`);
     results.value = createEmptyResults();
   }
   finally {
