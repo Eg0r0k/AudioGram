@@ -14,8 +14,10 @@ export interface IFileStorageWithNativeSupport extends IFileStorage {
   warmup(folders: string[]): Promise<void>;
   importFile(sourceAbsPath: string, targetRelPath: string): ResultAsync<string, StorageError>;
 
-  readFile(absolutePath: string): ResultAsync<Uint8Array, StorageError>;
-  readBytes(absolutePath: string, length: number): ResultAsync<Uint8Array, StorageError>;
+  // Backed by a plain ArrayBuffer (never shared), so the bytes can go
+  // straight into Blob / crypto.subtle without a copy or a cast.
+  readFile(absolutePath: string): ResultAsync<Uint8Array<ArrayBuffer>, StorageError>;
+  readBytes(absolutePath: string, length: number): ResultAsync<Uint8Array<ArrayBuffer>, StorageError>;
 
   getAppDataDir(): Promise<string>;
   clearCaches(): void;

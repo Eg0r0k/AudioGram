@@ -3,7 +3,7 @@ import { hasNativeSupport, type IFileStorageWithNativeSupport } from "@/db/stora
 
 const FINGERPRINT_READ_SIZE = 64 * 1024;
 
-async function hashToHex(data: Uint8Array): Promise<string> {
+async function hashToHex(data: Uint8Array<ArrayBuffer>): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hashBuffer).slice(0, 16))
     .map(b => b.toString(16).padStart(2, "0"))

@@ -118,14 +118,14 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
     }
   }
 
-  readFile(absolutePath: string): ResultAsync<Uint8Array, StorageError> {
+  readFile(absolutePath: string): ResultAsync<Uint8Array<ArrayBuffer>, StorageError> {
     return fromPromise(
       readFile(absolutePath),
       e => StorageError.readFailed(absolutePath, e),
     );
   }
 
-  readBytes(absolutePath: string, length: number): ResultAsync<Uint8Array, StorageError> {
+  readBytes(absolutePath: string, length: number): ResultAsync<Uint8Array<ArrayBuffer>, StorageError> {
     return fromPromise((async () => {
       const viaServer = await this.readBytesViaMediaServer(absolutePath, length);
       if (viaServer) return viaServer;
@@ -151,7 +151,7 @@ export class TauriStorage implements IFileStorageWithNativeSupport {
    * of magnitude slower. Returns null when the server is unavailable or
    * refuses the path — the caller then falls back to plugin-fs.
    */
-  private async readBytesViaMediaServer(absolutePath: string, length: number): Promise<Uint8Array | null> {
+  private async readBytesViaMediaServer(absolutePath: string, length: number): Promise<Uint8Array<ArrayBuffer> | null> {
     if (length <= 0) return null;
 
     let url: string;
