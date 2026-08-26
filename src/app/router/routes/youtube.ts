@@ -11,7 +11,7 @@ export const youtubeRoutes: RouteRecordRaw[] = [
     beforeEnter: [requireRouteParam("id"), requireYoutube],
     meta: {
       titleKey: "youtube.title",
-      depth: 2,
+      depth: 1,
     },
   },
   {
@@ -21,7 +21,7 @@ export const youtubeRoutes: RouteRecordRaw[] = [
     beforeEnter: [requireRouteParam("id"), requireYoutube],
     meta: {
       titleKey: "youtube.title",
-      depth: 2,
+      depth: 1,
     },
   },
   {
@@ -31,7 +31,7 @@ export const youtubeRoutes: RouteRecordRaw[] = [
     beforeEnter: [requireRouteParam("id"), requireYoutube],
     meta: {
       titleKey: "youtube.title",
-      depth: 2,
+      depth: 1,
     },
   },
 ];

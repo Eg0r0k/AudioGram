@@ -8,6 +8,7 @@ export const profileRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/ProfilePage.vue"),
     meta: {
       titleKey: "nav.profile",
+      depth: 1,
     },
   },
 ];

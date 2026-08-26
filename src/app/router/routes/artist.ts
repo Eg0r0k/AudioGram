@@ -10,6 +10,7 @@ export const artistRoutes: RouteRecordRaw[] = [
     beforeEnter: requireRouteParam("id"),
     meta: {
       titleKey: "nav.artist",
+      depth: 1,
     },
   },
   {

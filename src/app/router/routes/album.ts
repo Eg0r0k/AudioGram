@@ -10,6 +10,7 @@ export const albumRoutes: RouteRecordRaw[] = [
     beforeEnter: requireRouteParam("id"),
     meta: {
       titleKey: "nav.album",
+      depth: 1,
     },
   },
 ];

@@ -12,11 +12,34 @@ import { useRoute } from "vue-router";
 
 const props = defineProps<{
   depth?: number;
+  /**
+   * Break ties between pages of the same depth (album → artist) by the
+   * browser history direction: a push slides in, back/forward slides out.
+   * Depth 0 pages are tab roots and never slide between each other.
+   */
+  historyAware?: boolean;
 }>();
 
 const route = useRoute();
 const transitionName = ref("");
 const hasHash = (fullPath: string) => fullPath.includes("#");
+
+// vue-router stamps its history index onto history.state; the watcher below
+// runs after the entry was pushed/popped, so this already reads the new one.
+const historyPosition = (): number => {
+  const position = typeof history !== "undefined" ? history.state?.position : undefined;
+  return typeof position === "number" ? position : 0;
+};
+let lastPosition = historyPosition();
+
+const resolveByHistory = (): string => {
+  const position = historyPosition();
+  const delta = position - lastPosition;
+  lastPosition = position;
+  if (delta > 0) return "slide-left";
+  if (delta < 0) return "slide-right";
+  return "";
+};
 
 watch(
   [() => props.depth, () => route.fullPath],
@@ -31,12 +54,18 @@ watch(
       return;
     }
 
-    if (newDepth === oldDepth) {
+    if (newDepth !== oldDepth) {
+      lastPosition = historyPosition();
+      transitionName.value = newDepth > oldDepth ? "slide-left" : "slide-right";
+      return;
+    }
+
+    if (!props.historyAware || newDepth === 0) {
       transitionName.value = "";
       return;
     }
 
-    transitionName.value = newDepth > oldDepth ? "slide-left" : "slide-right";
+    transitionName.value = resolveByHistory();
   },
 );
 </script>

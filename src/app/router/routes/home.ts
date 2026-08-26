@@ -17,7 +17,7 @@ export const homeRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/AllMusicPage.vue"),
     meta: {
       titleKey: "nav.allMusic",
-      depth: 1,
+      depth: 0,
     },
   },
 ];

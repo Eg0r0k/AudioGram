@@ -8,7 +8,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/SettingsPage.vue"),
     meta: {
       titleKey: "nav.settings",
-      depth: 3,
+      depth: 1,
     },
   },
   {
@@ -17,7 +17,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/GeneralSettings.vue"),
     meta: {
       titleKey: "settings.general",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -26,7 +26,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/AudioSettings.vue"),
     meta: {
       titleKey: "settings.audio",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -35,7 +35,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/StorageSettings.vue"),
     meta: {
       titleKey: "settings.storage",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -44,7 +44,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/StatsSettings.vue"),
     meta: {
       titleKey: "settings.stats",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -53,7 +53,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/ProxySettings.vue"),
     meta: {
       titleKey: "settings.proxy",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -62,7 +62,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/SourcesSettings.vue"),
     meta: {
       titleKey: "settings.sources",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -71,7 +71,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/LanguageSettings.vue"),
     meta: {
       titleKey: "settings.language",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -80,7 +80,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/NotificationsSettings.vue"),
     meta: {
       titleKey: "settings.notifications",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -89,7 +89,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/AppearanceSettings.vue"),
     meta: {
       titleKey: "settings.appearance",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -98,7 +98,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/AboutSettings.vue"),
     meta: {
       titleKey: "settings.about",
-      depth: 4,
+      depth: 2,
     },
   },
   {
@@ -107,7 +107,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/TermsOfServiceSettings.vue"),
     meta: {
       titleKey: "settings.about.termsOfService",
-      depth: 5,
+      depth: 3,
     },
   },
   {
@@ -116,7 +116,7 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/settings/PrivacyPolicySettings.vue"),
     meta: {
       titleKey: "settings.about.privacyPolicy",
-      depth: 5,
+      depth: 3,
     },
   },
 ];

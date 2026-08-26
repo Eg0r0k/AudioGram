@@ -10,6 +10,7 @@ export const playlistRoutes: RouteRecordRaw[] = [
     beforeEnter: requireRouteParam("id"),
     meta: {
       titleKey: "nav.playlist",
+      depth: 1,
     },
   },
 ];

@@ -1,7 +1,10 @@
 <template>
   <component :is="LayoutComponent">
     <RouterView v-slot="{ Component, route }">
-      <SlideTransition :depth="route.meta.depth">
+      <SlideTransition
+        :depth="route.meta.depth"
+        history-aware
+      >
         <component
           :is="Component"
           :key="route.fullPath"
