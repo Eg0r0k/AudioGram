@@ -7,6 +7,7 @@ import type { TrackId } from "@/types/ids";
 import type { AnalysisRequest, AnalysisResponse } from "../workers/types";
 import EssentiaWorker from "../workers/essentia.worker?worker";
 import { AsyncQueue } from "@/lib/async-queue";
+import { getLogger } from "@/lib/logger";
 
 let worker: Worker | null = null;
 
@@ -43,7 +44,7 @@ function getWorker(): Worker {
   worker = new EssentiaWorker();
   worker.onmessage = handleWorkerMessage;
   worker.onerror = (err) => {
-    console.error("[EssentiaWorker] Error:", err.message);
+    getLogger().error(`[EssentiaWorker] Worker crashed: ${err.message}`);
     for (const [id, p] of pending) {
       p.reject(new Error(`Worker error: ${err.message}`));
       pending.delete(id);
