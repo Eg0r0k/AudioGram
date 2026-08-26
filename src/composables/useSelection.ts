@@ -444,10 +444,17 @@ export function useSelection<T extends Selectable>(
     };
   }
 
+  // Selection survives list updates only for rows that still exist. The
+  // walk is O(n) over the whole list, so skip it while nothing is selected —
+  // the common state during refetches and infinite-query page loads. The
+  // length source catches in-place removals on a mutable ref.
   watch(
-    () => items.value.map(item => item.id),
-    (ids) => {
-      const validIds = new Set(ids);
+    [items, () => items.value.length],
+    () => {
+      if (_selectedIds.value.size === 0 && _lastToggledId.value === null) return;
+
+      const validIds = new Set<string>();
+      for (const item of items.value) validIds.add(item.id);
       const next = new Set<string>();
 
       for (const id of _selectedIds.value) {
