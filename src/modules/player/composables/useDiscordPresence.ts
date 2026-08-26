@@ -64,15 +64,19 @@ export const useDiscordPresence = () => {
     invokeDiscord("discord_set_activity", { payload });
   };
 
+  // Multi-source form on purpose: Vue compares the sources one by one, so
+  // the callback runs only when a bucket boundary is crossed. A single getter
+  // returning an array would count as changed on every timeupdate (fresh
+  // array identity) and push the activity ~4 times a second.
   const stop = watch(
-    () => [
-      player.currentTrack?.id,
-      player.currentTrack?.title,
-      player.currentTrack?.artist,
-      player.currentTrack?.albumName,
-      player.isPlaying,
-      player.duration,
-      getDiscordPositionBucket(player.currentTime),
+    [
+      () => player.currentTrack?.id,
+      () => player.currentTrack?.title,
+      () => player.currentTrack?.artist,
+      () => player.currentTrack?.albumName,
+      () => player.isPlaying,
+      () => player.duration,
+      () => getDiscordPositionBucket(player.currentTime),
     ],
     syncActivity,
     { immediate: true },
