@@ -5,6 +5,10 @@
 @import "@vuelor/picker/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Phone held sideways: the full player has ~300px of height, so it lays the
+   cover and the controls side by side instead of stacking them. Tablets in
+   landscape are tall enough to keep the stacked layout. */
+@custom-variant landscape-short (@media (orientation: landscape) and (max-height: 35rem));
 
 @theme inline {
   --ease-standard: var(--ease-standard);

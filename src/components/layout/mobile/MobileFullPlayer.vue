@@ -55,8 +55,8 @@
       </Button>
     </div>
 
-    <div class="flex min-h-0 flex-1 flex-col w-full mx-auto px-6 pt-4 pb-6 max-w-md">
-      <div class="flex-1 min-h-0 @container-[size] flex items-center justify-center pb-2">
+    <div class="flex min-h-0 flex-1 flex-col w-full mx-auto px-6 pt-4 pb-6 max-w-md landscape-short:max-w-4xl landscape-short:flex-row landscape-short:items-stretch landscape-short:gap-6 landscape-short:px-4 landscape-short:pt-2 landscape-short:pb-4">
+      <div class="flex-1 min-h-0 @container-[size] flex items-center justify-center pb-2 landscape-short:flex-none landscape-short:basis-[45%] landscape-short:pb-0">
         <div
           ref="coverRef"
           class="relative aspect-square w-[min(100cqw,100cqh)] rounded-2xl bg-muted overflow-hidden shadow-lg touch-pan-y"
@@ -85,220 +85,222 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between gap-3 mt-6 h-14">
-        <div class="min-w-0 flex-1">
-          <MarqueeBlock
-            :duration="10"
-            animate-on-overflow-only
-            pause-on-hover
-            gradient
-            gradient-color="transparent"
-            gradient-length="20px"
-          >
-            <span class="text-xl text-white font-semibold leading-tight">{{ currentTrack?.title }}</span>
-          </MarqueeBlock>
-          <MarqueeBlock
-            :duration="6"
-            animate-on-overflow-only
-            pause-on-hover
-            gradient
-            gradient-color="transparent"
-            gradient-length="20px"
-          >
-            <span class="text-base text-white/80 capitalize mt-0.5 block">
-              <template
-                v-for="(artistName, artistIndex) in artistsList"
-                :key="`${artistName}-${artistIndex}`"
-              >
-                <span
-                  v-if="canNavigateArtists"
-                  role="link"
-                  tabindex="0"
-                  class="inline-block cursor-pointer py-1.5 -my-1.5 active:text-white"
-                  @click.stop="goToArtistAt(artistIndex)"
-                  @keypress.enter.stop="goToArtistAt(artistIndex)"
-                >{{ artistName }}</span>
-                <span v-else>{{ artistName }}</span>
-                <span v-if="artistIndex < artistsList.length - 1">, </span>
-              </template>
-            </span>
-          </MarqueeBlock>
+      <div class="flex flex-col landscape-short:min-w-0 landscape-short:flex-1 landscape-short:justify-center">
+        <div class="flex items-center justify-between gap-3 mt-6 h-14 landscape-short:mt-0">
+          <div class="min-w-0 flex-1">
+            <MarqueeBlock
+              :duration="10"
+              animate-on-overflow-only
+              pause-on-hover
+              gradient
+              gradient-color="transparent"
+              gradient-length="20px"
+            >
+              <span class="text-xl text-white font-semibold leading-tight">{{ currentTrack?.title }}</span>
+            </MarqueeBlock>
+            <MarqueeBlock
+              :duration="6"
+              animate-on-overflow-only
+              pause-on-hover
+              gradient
+              gradient-color="transparent"
+              gradient-length="20px"
+            >
+              <span class="text-base text-white/80 capitalize mt-0.5 block">
+                <template
+                  v-for="(artistName, artistIndex) in artistsList"
+                  :key="`${artistName}-${artistIndex}`"
+                >
+                  <span
+                    v-if="canNavigateArtists"
+                    role="link"
+                    tabindex="0"
+                    class="inline-block cursor-pointer py-1.5 -my-1.5 active:text-white"
+                    @click.stop="goToArtistAt(artistIndex)"
+                    @keypress.enter.stop="goToArtistAt(artistIndex)"
+                  >{{ artistName }}</span>
+                  <span v-else>{{ artistName }}</span>
+                  <span v-if="artistIndex < artistsList.length - 1">, </span>
+                </template>
+              </span>
+            </MarqueeBlock>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0">
+            <Button
+              v-if="libraryTrack"
+              variant="ghost"
+              size="icon-lg"
+              class="rounded-full text-white"
+              :aria-label="libraryTrack.isLiked ? $t('player.unlike') : $t('player.like')"
+              @click.stop="toggleLike"
+            >
+              <IconLikedFilled
+                v-if="libraryTrack.isLiked"
+                class="size-6 text-primary"
+              />
+              <IconLike
+                v-else
+                class="size-6"
+              />
+            </Button>
+          </div>
         </div>
 
-        <div class="flex items-center gap-1 shrink-0">
+        <div class="mt-6 flex flex-col gap-2 landscape-short:mt-3">
+          <RangeSelector
+            :model-value="displayProgress"
+            :step="1000 / 60 / 1000"
+            :keyboard-step="5"
+            :min="0"
+            :max="100"
+            :duration="playerStore.duration"
+            :chapters="mobileChapters"
+            :use-transform="true"
+            :with-transition="false"
+            :disable-transition="!isTransitionEnabled"
+            :disabled="!playerStore.canSeek"
+            :show-thumb="true"
+            :show-tooltip="false"
+            allow-marking
+            style="--range-height-hover: 4px; --range-radius: 9999px;"
+            @add-mark="handleAddMark"
+            @mousedown="onScrubStart"
+            @scrub="onScrub"
+            @mouseup="onScrubEnd"
+          />
+          <div class="flex justify-between text-sm text-white/60 font-medium tabular-nums">
+            <span>{{ timeDisplay.current }}</span>
+            <span>{{ timeDisplay.duration }}</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-6 landscape-short:mt-3">
           <Button
-            v-if="libraryTrack"
-            variant="ghost"
             size="icon-lg"
-            class="rounded-full text-white"
-            :aria-label="libraryTrack.isLiked ? $t('player.unlike') : $t('player.like')"
-            @click.stop="toggleLike"
+            variant="ghost"
+            class="rounded-full"
+            :class="queueStore.isShuffled ? 'text-primary' : 'text-white'"
+            :aria-label="$t('player.shuffle')"
+            @click.stop="queueStore.toggleShuffle()"
           >
-            <IconLikedFilled
-              v-if="libraryTrack.isLiked"
-              class="size-6 text-primary"
+            <IconShuffle class="size-6" />
+          </Button>
+          <Button
+            size="icon-lg"
+            variant="ghost"
+            class="rounded-full text-white"
+            :disabled="!queueStore.hasPrevious"
+            :aria-label="$t('player.previousTrack')"
+            @click.stop="queueStore.previous()"
+          >
+            <IconBack class="size-6" />
+          </Button>
+          <PlayButton
+            class="size-15!"
+            @click.stop
+          />
+          <Button
+            size="icon-lg"
+            variant="ghost"
+            class="rounded-full text-white"
+            :disabled="!queueStore.hasNext"
+            :aria-label="$t('player.nextTrack')"
+            @click.stop="queueStore.next()"
+          >
+            <IconForvard class="size-6" />
+          </Button>
+          <Button
+            size="icon-lg"
+            variant="ghost"
+            class="rounded-full"
+            :class="playerStore.repeatMode !== 'off' ? 'text-primary' : 'text-white'"
+            :aria-label="$t('player.repeat')"
+            @click.stop="playerStore.toggleRepeat"
+          >
+            <IconRepeatOnce
+              v-if="playerStore.repeatMode === 'one'"
+              class="size-6"
             />
-            <IconLike
+            <IconRepeat
               v-else
               class="size-6"
             />
           </Button>
         </div>
-      </div>
 
-      <div class="mt-6 flex flex-col gap-2">
-        <RangeSelector
-          :model-value="displayProgress"
-          :step="1000 / 60 / 1000"
-          :keyboard-step="5"
-          :min="0"
-          :max="100"
-          :duration="playerStore.duration"
-          :chapters="mobileChapters"
-          :use-transform="true"
-          :with-transition="false"
-          :disable-transition="!isTransitionEnabled"
-          :disabled="!playerStore.canSeek"
-          :show-thumb="true"
-          :show-tooltip="false"
-          allow-marking
-          style="--range-height-hover: 4px; --range-radius: 9999px;"
-          @add-mark="handleAddMark"
-          @mousedown="onScrubStart"
-          @scrub="onScrub"
-          @mouseup="onScrubEnd"
-        />
-        <div class="flex justify-between text-sm text-white/60 font-medium tabular-nums">
-          <span>{{ timeDisplay.current }}</span>
-          <span>{{ timeDisplay.duration }}</span>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between mt-6">
-        <Button
-          size="icon-lg"
-          variant="ghost"
-          class="rounded-full"
-          :class="queueStore.isShuffled ? 'text-primary' : 'text-white'"
-          :aria-label="$t('player.shuffle')"
-          @click.stop="queueStore.toggleShuffle()"
-        >
-          <IconShuffle class="size-6" />
-        </Button>
-        <Button
-          size="icon-lg"
-          variant="ghost"
-          class="rounded-full text-white"
-          :disabled="!queueStore.hasPrevious"
-          :aria-label="$t('player.previousTrack')"
-          @click.stop="queueStore.previous()"
-        >
-          <IconBack class="size-6" />
-        </Button>
-        <PlayButton
-          class="size-15!"
-          @click.stop
-        />
-        <Button
-          size="icon-lg"
-          variant="ghost"
-          class="rounded-full text-white"
-          :disabled="!queueStore.hasNext"
-          :aria-label="$t('player.nextTrack')"
-          @click.stop="queueStore.next()"
-        >
-          <IconForvard class="size-6" />
-        </Button>
-        <Button
-          size="icon-lg"
-          variant="ghost"
-          class="rounded-full"
-          :class="playerStore.repeatMode !== 'off' ? 'text-primary' : 'text-white'"
-          :aria-label="$t('player.repeat')"
-          @click.stop="playerStore.toggleRepeat"
-        >
-          <IconRepeatOnce
-            v-if="playerStore.repeatMode === 'one'"
-            class="size-6"
-          />
-          <IconRepeat
-            v-else
-            class="size-6"
-          />
-        </Button>
-      </div>
-
-      <div class="flex items-center justify-between mt-6 px-1">
-        <Button
-          v-if="libraryTrack"
-          size="icon"
-          variant="ghost"
-          :class="{ 'text-primary': isChaptersOpen }"
-          :aria-label="$t('player.chapters')"
-          @click.stop="toggleChaptersPanel"
-        >
-          <IconBookmarks class="size-6" />
-        </Button>
-        <Button
-          v-if="libraryTrack"
-          size="icon"
-          variant="ghost"
-          :class="{ 'text-primary': isLyricsOpen }"
-          :aria-label="$t('player.lyrics')"
-          @click.stop="toggleLyricsPanel"
-        >
-          <IconMicrophone2 class="size-6" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          :class="{ 'text-primary': isQueueOpen }"
-          :aria-label="$t('player.queue')"
-          @click.stop="toggleQueuePanel"
-        >
-          <IconPlaylist class="size-6" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              size="icon"
-              variant="ghost"
-              :aria-label="statusText"
-              @click.stop
-            >
-              <IconMoonStars
-                class="size-6"
-                :class="isSleepTimerActive ? 'text-primary' : ''"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            class="w-52"
+        <div class="flex items-center justify-between mt-6 px-1 landscape-short:mt-3">
+          <Button
+            v-if="libraryTrack"
+            size="icon"
+            variant="ghost"
+            :class="{ 'text-primary': isChaptersOpen }"
+            :aria-label="$t('player.chapters')"
+            @click.stop="toggleChaptersPanel"
           >
-            <DropdownMenuLabel class="text-xs text-muted-foreground font-medium">
-              {{ statusText }}
-            </DropdownMenuLabel>
-            <DropdownMenuItem
-              v-for="preset in presets"
-              :key="preset.minutes"
-              @click="setTimer(preset.minutes)"
-            >
-              <IconClockHour4 class="size-5" />
-              {{ $t("common.minutesShort", { count: preset.minutes }) }}
-            </DropdownMenuItem>
-            <template v-if="isSleepTimerActive">
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                @click="cancelSleepTimer()"
+            <IconBookmarks class="size-6" />
+          </Button>
+          <Button
+            v-if="libraryTrack"
+            size="icon"
+            variant="ghost"
+            :class="{ 'text-primary': isLyricsOpen }"
+            :aria-label="$t('player.lyrics')"
+            @click.stop="toggleLyricsPanel"
+          >
+            <IconMicrophone2 class="size-6" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            :class="{ 'text-primary': isQueueOpen }"
+            :aria-label="$t('player.queue')"
+            @click.stop="toggleQueuePanel"
+          >
+            <IconPlaylist class="size-6" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                size="icon"
+                variant="ghost"
+                :aria-label="statusText"
+                @click.stop
               >
-                <IconPlayerStop class="size-5" />
-                {{ $t("player.cancelSleepTimer") }}
+                <IconMoonStars
+                  class="size-6"
+                  :class="isSleepTimerActive ? 'text-primary' : ''"
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              class="w-52"
+            >
+              <DropdownMenuLabel class="text-xs text-muted-foreground font-medium">
+                {{ statusText }}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                v-for="preset in presets"
+                :key="preset.minutes"
+                @click="setTimer(preset.minutes)"
+              >
+                <IconClockHour4 class="size-5" />
+                {{ $t("common.minutesShort", { count: preset.minutes }) }}
               </DropdownMenuItem>
-            </template>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <template v-if="isSleepTimerActive">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  @click="cancelSleepTimer()"
+                >
+                  <IconPlayerStop class="size-5" />
+                  {{ $t("player.cancelSleepTimer") }}
+                </DropdownMenuItem>
+              </template>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <TrackDropdown
