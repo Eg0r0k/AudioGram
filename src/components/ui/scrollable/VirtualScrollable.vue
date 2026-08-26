@@ -269,14 +269,39 @@ const scrollToOffset = (offset: number, options?: { behavior?: "auto" | "smooth"
   virtualizer.value.scrollToOffset(offset, options);
 };
 
-watch(() => props.items.length, (newLength, oldLength) => {
+// `items` changes for many reasons that need no work here: a query refetch
+// or a like toggle hands over a fresh array with the same rows. Only a count
+// change needs a re-measure (measure() drops every cached row size, so it is
+// not free), and only a change in key order needs the FLIP snapshot (a
+// layout read per rendered row, before and after the render).
+let previousKeys: (string | number)[] = [];
+const currentKeys = () => props.items.map((_, index) => props.getItemKey(index));
+const keysChanged = (keys: (string | number)[]) =>
+  keys.length !== previousKeys.length || keys.some((key, index) => key !== previousKeys[index]);
+if (props.animateReorder) previousKeys = currentKeys();
+
+watch([() => props.items, () => props.items.length], ([, newLength], [, oldLength]) => {
+  const lengthChanged = newLength !== oldLength;
   if (newLength < oldLength || newLength === 0) {
     lastLoadMoreItemsCount = -1;
   }
 
+  let reordered = false;
+  if (props.animateReorder) {
+    const keys = currentKeys();
+    reordered = keysChanged(keys);
+    previousKeys = keys;
+    if (reordered) captureFlipSnapshot();
+  }
+
+  if (!lengthChanged && !reordered) return;
+
   nextTick(() => {
-    virtualizer.value.measure();
-    scrollable.updateThumb();
+    if (lengthChanged) {
+      virtualizer.value.measure();
+      scrollable.updateThumb();
+    }
+    if (reordered) playFlip();
   });
 });
 
@@ -345,15 +370,6 @@ const playFlip = () => {
     );
   }
 };
-
-watch(() => props.items, () => {
-  if (props.animateReorder) captureFlipSnapshot();
-  nextTick(() => {
-    virtualizer.value.measure();
-    scrollable.updateThumb();
-    if (props.animateReorder) playFlip();
-  });
-}, { deep: false });
 
 onMounted(() => {
   nextTick(() => {
