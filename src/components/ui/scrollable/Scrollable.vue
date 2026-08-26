@@ -240,6 +240,15 @@ html.custom-scroll .scrollable::-webkit-scrollbar {
   overscroll-behavior-y: contain;
 }
 
+/* MobileLayout sets the inset to the height of the floating mini-player + nav
+   dock so the last rows can scroll out from under it; 0 elsewhere. Only the
+   innermost vertical scroller pads: on nested pages (home wraps the sidebar
+   list) padding the outer one would push the page's own background up and
+   leave a bare strip under the dock. */
+.scrollable-y:not(:has(.scrollable-y)) {
+  padding-bottom: var(--mobile-bottom-inset, 0px);
+}
+
 .scrollable-x {
   position: relative;
   inset: auto;

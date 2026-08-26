@@ -1,25 +1,34 @@
 ﻿<template>
   <div
     ref="dropZoneRef"
-    class="flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
+    class="relative flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
     :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left }"
   >
     <WindowToolbar class="toolbar" />
     <DropOverlay :show="isDragging" />
 
     <main
-      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      class="isolate flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      :style="{ '--mobile-bottom-inset': `${dockHeight}px` }"
     >
       <slot />
     </main>
-    <div class="px-2 py-1">
-      <MiniPlayer
-        v-if="playerStore.currentTrack"
-        @click="isFullPlayerOpen = true"
-      />
-    </div>
 
-    <MobileBottomNav />
+    <div
+      ref="dockRef"
+      class="pointer-events-none absolute z-(--z-mobile-dock) flex flex-col gap-1"
+      :style="{ bottom, left, right }"
+    >
+      <div
+        v-if="playerStore.currentTrack"
+        class="pointer-events-auto px-2"
+      >
+        <MiniPlayer @click="isFullPlayerOpen = true" />
+      </div>
+      <div class="px-2">
+        <MobileBottomNav class="pointer-events-auto" />
+      </div>
+    </div>
 
     <Transition name="full-player">
       <div
@@ -39,8 +48,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { useScreenSafeArea } from "@vueuse/core";
+import { ref, useTemplateRef, watch } from "vue";
+import { useElementSize, useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { registerOverlayBackHandler, useOverlayBackButton } from "@/composables/useOverlayBackButton";
@@ -58,6 +67,15 @@ const playerStore = usePlayerStore();
 const { color: playerColor } = useMobilePlayerColor();
 
 const isFullPlayerOpen = ref(false);
+
+// The mini-player + nav dock floats over the pages instead of taking a strip
+// of the layout. Its measured height goes to `main` as --mobile-bottom-inset,
+// which the scroll containers turn into bottom padding and the FAB into a
+// bottom offset — so content is only covered by the dock until it scrolls.
+// `isolate` on main keeps the page slide transition (z-index 50 while it
+// runs) inside main's own stacking context, below the dock.
+const dockRef = useTemplateRef<HTMLDivElement>("dockRef");
+const { height: dockHeight } = useElementSize(dockRef, undefined, { box: "border-box" });
 
 const closeFullPlayer = () => {
   isFullPlayerOpen.value = false;

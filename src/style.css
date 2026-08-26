@@ -388,6 +388,7 @@ video {
   --z-dropoverlay: 9999;
   --z-fullscreen: 10000;
   --toolbar-height: 0px;
+  --z-mobile-dock: 30;
   --z-mobile-player: 40;
   --z-mobile-right-panel: 50;
   /* Menus and dialogs shared z-50, so which one covered the other came
