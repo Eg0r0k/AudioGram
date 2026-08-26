@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-md h-60">
+    <DialogContent class="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>
       </DialogHeader>
