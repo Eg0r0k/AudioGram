@@ -1,6 +1,6 @@
 [package]
 name = "audiogram"
-version = "0.2.8"
+version = "0.2.9"
 description = "Local Audio Player"
 authors = ["Eg0r0k"]
 edition = "2021"
