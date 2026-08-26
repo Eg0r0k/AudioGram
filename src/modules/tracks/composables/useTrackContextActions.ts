@@ -78,11 +78,6 @@ export const useTrackContextActions = (
     const current = track.value;
     if (!current) return;
     queueStore.addToQueue(current);
-    toast.success(t("queue.added"), {
-      action: {
-        label: t("queue.goToQueue"),
-      },
-    });
   };
 
   /**
