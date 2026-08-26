@@ -39,7 +39,7 @@ export const useDiscordPresence = () => {
   const clearActivity = () => {
     if (lastSignature === "clear") return;
     lastSignature = "clear";
-    void invokeDiscord("discord_clear_activity");
+    invokeDiscord("discord_clear_activity");
   };
 
   const syncActivity = () => {
@@ -61,7 +61,7 @@ export const useDiscordPresence = () => {
     if (signature === lastSignature) return;
 
     lastSignature = signature;
-    void invokeDiscord("discord_set_activity", { payload });
+    invokeDiscord("discord_set_activity", { payload });
   };
 
   const stop = watch(

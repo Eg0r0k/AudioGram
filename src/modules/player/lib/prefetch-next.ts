@@ -152,7 +152,7 @@ export const createNextTrackPrefetcher = (
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      void run();
+      run();
     }, debounceMs);
   };
 

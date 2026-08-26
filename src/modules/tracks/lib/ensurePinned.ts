@@ -77,12 +77,12 @@ export async function ensurePinned(
   // under its own id — the same rule the import pipeline applies to files.
   if (subject.dto.coverRef) {
     const owner = trackCoverOwner(result.value.track);
-    if (owner) void ensureShadowCover(owner.ownerType, owner.ownerId, subject.dto.coverRef);
+    if (owner) ensureShadowCover(owner.ownerType, owner.ownerId, subject.dto.coverRef);
   }
 
   // Best-effort: search sync must not fail the action that triggered the pin.
   if (requestedPinned === 1) {
-    void indexImportedTracks([result.value.track.id]).catch((error) => {
+    indexImportedTracks([result.value.track.id]).catch((error) => {
       getLogger().warn(`[Search] Indexing pinned ${result.value.track.id} failed: ${String(error)}`);
     });
   }

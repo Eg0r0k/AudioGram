@@ -13,7 +13,7 @@ export const useNdSourceSync = () => {
   watch(
     ndConfig,
     (config) => {
-      void applyNdConfig(config);
+      applyNdConfig(config);
     },
     { immediate: true },
   );

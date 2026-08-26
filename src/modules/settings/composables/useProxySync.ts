@@ -13,7 +13,7 @@ export const useProxySync = () => {
   watch(
     proxyUrl,
     (url) => {
-      void applyProxy(url);
+      applyProxy(url);
     },
     { immediate: true },
   );

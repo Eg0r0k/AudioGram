@@ -305,7 +305,7 @@ export function useWatchedFolders() {
   }
 
   function invalidateLibrary() {
-    void invalidateLibraryData(queryClient);
+    invalidateLibraryData(queryClient);
   }
 
   async function relinkFolder(folderId: string) {

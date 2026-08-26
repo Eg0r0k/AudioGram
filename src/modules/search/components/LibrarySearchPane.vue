@@ -127,7 +127,7 @@ function navigate(item: SearchResultItem) {
       router.push(routeLocation.playlist(item.entityId));
       break;
     case "track":
-      void playTracksByIds([item.entityId as TrackId], 0);
+      playTracksByIds([item.entityId as TrackId], 0);
       break;
   }
 }

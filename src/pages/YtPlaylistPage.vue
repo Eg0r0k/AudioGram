@@ -39,7 +39,7 @@ const queryError = computed(() => (error.value as unknown as YoutubeError) ?? nu
 
 function onLoadMore() {
   if (hasNextPage.value && !isFetchingNextPage.value) {
-    void fetchNextPage();
+    fetchNextPage();
   }
 }
 </script>

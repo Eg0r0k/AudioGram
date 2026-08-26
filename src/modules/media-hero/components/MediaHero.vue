@@ -175,7 +175,7 @@ provideMediaContext({
   canManage,
   canDownloadOffline,
   downloadOffline: () => {
-    void startOfflineDownload();
+    startOfflineDownload();
   },
 });
 

@@ -30,8 +30,7 @@ export async function promoteTrackToLibrary(trackId: TrackId): Promise<void> {
   );
   if (result.isErr()) throw result.error;
 
-  // Best-effort: search sync must not fail the add-to-library action.
-  void indexImportedTracks([trackId]).catch((error) => {
+  indexImportedTracks([trackId]).catch((error) => {
     getLogger().warn(`[Search] Indexing promoted ${trackId} failed: ${String(error)}`);
   });
 }
@@ -88,7 +87,7 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
   );
   if (result.isErr()) throw result.error;
 
-  void removeSearchDocuments([`track:${trackId}`, ...result.value]).catch((error) => {
+  removeSearchDocuments([`track:${trackId}`, ...result.value]).catch((error) => {
     getLogger().warn(`[Search] De-indexing removed ${trackId} failed: ${String(error)}`);
   });
 

@@ -138,7 +138,7 @@ const errorText = computed(() =>
 
 function onLoadMore() {
   if (hasNextPage.value && !isFetchingNextPage.value) {
-    void fetchNextPage();
+    fetchNextPage();
   }
 }
 </script>

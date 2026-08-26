@@ -208,7 +208,7 @@ export const useMediaSession = () => {
         break;
       case "like": {
         const track = player.currentTrack;
-        if (track && isLibraryTrack(track)) void toggleTrackLike(track);
+        if (track && isLibraryTrack(track)) toggleTrackLike(track);
         break;
       }
     }

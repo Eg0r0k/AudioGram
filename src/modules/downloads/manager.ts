@@ -84,7 +84,7 @@ export async function enqueueTrackDownload(trackId: TrackId, batchId?: string): 
   const store = useDownloadsStore();
   store.upsert(runtimeOf(job));
   if (batchId) store.growBatch(batchId);
-  void pump();
+  pump();
   return job.id;
 }
 
@@ -132,7 +132,7 @@ export async function initDownloadManager(): Promise<void> {
   const queued = await unwrapResult(downloadJobRepository.findByStatus("queued"));
   for (const job of queued) store.upsert(runtimeOf(job));
 
-  void pump();
+  pump();
 }
 
 /**
@@ -163,7 +163,7 @@ function scheduleRetryPump(): void {
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    void pump();
+    pump();
   }, delay);
 }
 
@@ -187,7 +187,7 @@ async function pump(): Promise<void> {
     limit(() => runJob(job.id))
       .finally(() => {
         inFlight.delete(job.id);
-        void pump();
+        pump();
       })
       .catch(error => getLogger().error(`[Downloads] Job ${job.id} crashed: ${String(error)}`));
   }

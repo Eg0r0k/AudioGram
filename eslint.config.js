@@ -67,6 +67,7 @@ export default typescript.config(
       "vue/multi-word-component-names": "off",
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/ban-ts-comment": "warn",
+      "no-void": "error",
 
       "vue/max-attributes-per-line": [
         "warn",

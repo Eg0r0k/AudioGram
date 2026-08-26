@@ -63,7 +63,7 @@ export async function initLogging(): Promise<AppLogger> {
 
   _detachConsole = await attachConsole();
   await initConsoleTransport();
-  cleanup().match(() => void 0, () => void 0);
+  cleanup().match(() => undefined, () => undefined);
 
   _logger = createTauriLogger();
   return _logger;
