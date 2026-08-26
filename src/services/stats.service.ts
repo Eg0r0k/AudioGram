@@ -3,6 +3,7 @@ import { trackRepository } from "@/db/repositories";
 import { statsRepository } from "@/db/repositories/stats.repository";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { createEventHook } from "@vueuse/core";
+import { getLogger } from "@/lib/logger";
 
 const MIN_LISTEN_SECONDS = 10;
 const COMPLETE_THRESHOLD = 0.8;
@@ -48,10 +49,10 @@ class StatsService {
       trackRepository.update(pending.trackId, {
         playCount: ((await db.tracks.get(pending.trackId))?.playCount ?? 0) + 1,
         lastPlayedAt: pending.startedAt,
-      }).catch(console.error);
+      }).catch(error => getLogger().error(`[Stats] Play count update failed for ${pending.trackId}: ${String(error)}`));
     }
 
-    this._changed.trigger().catch(console.error);
+    this._changed.trigger().catch(error => getLogger().error(`[Stats] Change hook failed: ${String(error)}`));
   }
 
   startListening(
@@ -61,7 +62,7 @@ class StatsService {
     trackDuration: number,
   ): void {
     if (this._pendingEvent) {
-      this._finalizePending(0, true).catch(console.error);
+      this._finalizePending(0, true).catch(error => getLogger().error(`[Stats] Finalizing pending event failed: ${String(error)}`));
     }
 
     const eventId = crypto.randomUUID();
@@ -77,7 +78,7 @@ class StatsService {
       trackDuration,
       completed: false,
       skipped: false,
-    }).then(() => this._changed.trigger()).catch(console.error);
+    }).then(() => this._changed.trigger()).catch(error => getLogger().error(`[Stats] Recording listen event for ${trackId} failed: ${String(error)}`));
 
     this._pendingEvent = {
       eventId,

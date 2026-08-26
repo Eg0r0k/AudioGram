@@ -85,6 +85,7 @@ import type { StatsPeriod } from "./components/stats/period";
 import { periodSince } from "./components/stats/period";
 import { statsQueries } from "@/queries/stats.queries";
 import { statsService } from "@/services/stats.service";
+import { getLogger } from "@/lib/logger";
 
 const { t } = useI18n();
 
@@ -110,7 +111,7 @@ async function handleClearConfirm() {
     toast.success(t("settings.stats.cleared"));
   }
   catch (error) {
-    console.error("Failed to clear listening history", error);
+    getLogger().error(`[Stats] Clearing listening history failed: ${String(error)}`);
     toast.error(t("errors.unknown"));
   }
   finally {
