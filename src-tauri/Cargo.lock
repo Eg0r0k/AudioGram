@@ -312,6 +312,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-util",
+ "windows 0.61.3",
 ]
 
 [[package]]

@@ -44,6 +44,7 @@ import { useWatchedFolders } from "@/modules/watched-folders/composables/useWatc
 import { useGlobalHotKeys } from "@/modules/hotkeys";
 import { useMediaSession } from "@/modules/player/composables/useMediaSession";
 import { useDiscordPresence } from "@/modules/player/composables/useDiscordPresence";
+import { useTaskbarThumbbar } from "@/modules/player/composables/useTaskbarThumbbar";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { useAppUpdates } from "@/modules/update/composables/useAppUpdates";
 import { useChangelogOnStartup } from "@/modules/update/composables/useChangelogOnStartup";
@@ -136,6 +137,7 @@ useAudioSettings();
 useGlobalHotKeys();
 useMediaSession();
 useDiscordPresence();
+useTaskbarThumbbar();
 useNowPlayingTitle();
 
 useExternalLinkInterceptor();

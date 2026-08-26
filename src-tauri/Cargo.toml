@@ -54,9 +54,6 @@ tauri-plugin-http = "2.5.9"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
-# CI runs clippy with `-D warnings`, so everything here is effectively deny.
-# `pedantic` stays off: several of its lints fight tauri command signatures
-# (`needless_pass_by_value` on `State`/`AppHandle` parameters).
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 redundant_clone = "warn"
@@ -89,4 +86,15 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2.10.0"
 tauri-plugin-window-state = "2"
+
+[target.'cfg(windows)'.dependencies]
+# Taskbar thumbnail toolbar (ITaskbarList3) — the same crate version tauri
+# already pulls in, so the HWND types line up without conversion.
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
 

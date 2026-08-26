@@ -9,6 +9,8 @@ use tauri::Emitter;
 mod updater;
 
 #[cfg(desktop)]
+mod thumbbar;
+#[cfg(desktop)]
 mod tray;
 
 #[cfg(desktop)]
@@ -190,6 +192,7 @@ pub fn run() {
         media_server::media_server_base,
         discord::discord_set_activity,
         discord::discord_clear_activity,
+        thumbbar::thumbbar_set_state,
         updater::check_update,
         updater::install_update,
         youtube::yt_search,
@@ -236,6 +239,7 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 tray::setup_tray(app)?;
+                thumbbar::setup(app)?;
 
                 // YouTube outruns any bundled yt-dlp within weeks; refresh
                 // the sidecar in the background before the first track asks

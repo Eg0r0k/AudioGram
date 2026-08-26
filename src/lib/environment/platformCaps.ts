@@ -1,4 +1,4 @@
-import { IS_MOBILE, IS_TAURI } from "./userAgent";
+import { IS_MOBILE, IS_TAURI, IS_WINDOWS } from "./userAgent";
 
 // Platform capabilities — what this runtime can do, not what it is. Gate
 // features on these instead of raw IS_TAURI checks; UI cosmetics may keep
@@ -19,6 +19,8 @@ export const platformCaps = {
   hasAppUpdater: IS_TAURI,
   /** Webview zoom control (desktop webviews only). */
   hasZoom: IS_TAURI && !IS_MOBILE,
+  /** Windows taskbar thumbnail toolbar (like / prev / play-pause / next). */
+  hasTaskbarThumbbar: IS_TAURI && !IS_MOBILE && IS_WINDOWS,
 } as const;
 
 export type PlatformCaps = typeof platformCaps;

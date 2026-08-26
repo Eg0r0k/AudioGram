@@ -4,7 +4,7 @@ import type { YoutubeError } from "../types";
 
 const apiMock = vi.hoisted(() => ({ downloadYoutube: vi.fn() }));
 
-vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true, IS_MOBILE: false }));
+vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true, IS_MOBILE: false, IS_WINDOWS: false }));
 vi.mock("@/modules/youtube/api/youtubeApi", () => ({
   cancelYoutubeDownload: vi.fn(),
   continueYoutubeMusic: vi.fn(),

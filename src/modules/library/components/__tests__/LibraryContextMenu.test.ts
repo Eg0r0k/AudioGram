@@ -25,7 +25,7 @@ vi.mock("@/modules/library/composables/useLibraryContextActions", () => ({
     downloadCatalog: vi.fn(),
   }),
 }));
-vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true, IS_MOBILE: false }));
+vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: true, IS_MOBILE: false, IS_WINDOWS: false }));
 
 function mountMenu() {
   const i18n = createI18n({

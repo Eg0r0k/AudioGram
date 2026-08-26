@@ -37,6 +37,8 @@ export const IS_MOBILE
       /iOS|iPhone OS|Android|BlackBerry|BB10|Series ?[64]0|J2ME|MIDP|opera mini|opera mobi|mobi.+Gecko|Windows Phone/i,
     ) != -1;
 
+export const IS_WINDOWS = /Windows/.test(navigator.userAgent);
+
 export const IS_TAURI = isTauri();
 
 export const IS_PWA = window.matchMedia("(display-mode: standalone)").matches;
