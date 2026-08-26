@@ -18,7 +18,7 @@
       class="min-w-52"
     >
       <DropdownMenuLabel>{{ t('library.sortBy') }}</DropdownMenuLabel>
-
+      <DropdownMenuSeparator />
       <DropdownMenuItem
         v-for="field in SORT_FIELDS"
         :key="field.value"
@@ -47,17 +47,13 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import IconChevronDown from "~icons/tabler/chevron-down";
 import IconSort from "~icons/tabler/arrows-sort";
 import { getNextTrackSortKey, getTrackSortDirection, type TrackSortField } from "../lib/trackSort";
 
-/**
- * The sort affordance for layouts too narrow for LibrarySortHeader, whose
- * columns (and with them their sort buttons) collapse away. Same three-state
- * cycle as the header — asc → desc → back to the list's default order.
- */
 const SORT_FIELDS: readonly { value: TrackSortField; labelKey: string }[] = [
   { value: "title", labelKey: "library.sortColumn.title" },
   { value: "artist", labelKey: "library.sortColumn.artist" },
