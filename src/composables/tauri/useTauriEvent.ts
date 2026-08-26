@@ -1,6 +1,7 @@
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import type { Event } from "@tauri-apps/api/event";
 import { tryOnScopeDispose } from "@vueuse/core";
+import { getLogger } from "@/lib/logger";
 
 /**
  * Composable for subscribing to Tauri events with automatic cleanup.
@@ -64,7 +65,7 @@ export default function useTauriEvent<T>(
       removeListener = await listen<T>(name, callback);
     }
     catch (error) {
-      console.error(`[useTauriEvent] Failed to listen to "${name}":`, error);
+      getLogger().error(`[useTauriEvent] Failed to listen to "${name}": ${String(error)}`);
     }
   };
 

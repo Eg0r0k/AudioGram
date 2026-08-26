@@ -1,6 +1,7 @@
 import vRipple from "@/directives/ripple";
 import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
 import { App, Component, createApp, ref, shallowRef } from "vue";
+import { getLogger } from "@/lib/logger";
 
 export interface PipOptions {
   width?: number;
@@ -96,7 +97,7 @@ export const usePictureInPicture = () => {
       return true;
     }
     catch (e) {
-      console.error("[PIP] Failed to open:", e);
+      getLogger().error(`[PIP] Failed to open: ${String(e)}`);
       return false;
     }
   };
@@ -121,7 +122,7 @@ export const usePictureInPicture = () => {
       }
     }
     catch (e) {
-      console.error("[PIP] Restore error:", e);
+      getLogger().error(`[PIP] Restore failed: ${String(e)}`);
     }
   };
   const close = (): void => {
@@ -147,7 +148,7 @@ export const usePictureInPicture = () => {
       currentOptions = null;
     }
     catch (e) {
-      console.error("[PIP] Failed to close:", e);
+      getLogger().error(`[PIP] Failed to close: ${String(e)}`);
     }
   };
 

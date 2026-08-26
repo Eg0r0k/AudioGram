@@ -7,6 +7,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { TAURI_ONLY_KEYS } from "../schema/general";
 import { DEFAULT_LOCALE, isSupportedLocale, setHtmlLangAttribute } from "@/app/i18n/utils";
 import { autostartService } from "../services/autostart";
+import { getLogger } from "@/lib/logger";
 
 export interface LanguageOption {
   code: SupportedLanguage;
@@ -93,7 +94,10 @@ export const useGeneralSettings = () => {
 
     result.match(
       () => store.updateGeneral({ launchAtStartup: value }),
-      err => console.error("[autostart]", err.message, err.cause),
+      (err) => {
+        const cause = err.cause ? ` (${String(err.cause)})` : "";
+        getLogger().error(`[autostart] ${value ? "enable" : "disable"} failed: ${err.message}${cause}`);
+      },
     );
   };
 

@@ -3,6 +3,7 @@ import { filterFilesByExtension } from "@/lib/files/filterFiles";
 import { getFilesFromEvent } from "@/lib/files/getFilesFromEvent";
 import { ref, onMounted } from "vue";
 import { useTauriDragDrop } from "./tauri/useTauriDragDrop";
+import { getLogger } from "@/lib/logger";
 
 export interface UseFileDropOptions {
   acceptedExtensions?: string[];
@@ -51,7 +52,7 @@ export function useFileDrop(options?: UseFileDropOptions) {
               }
             }
             catch (e) {
-              console.error("Error reading directory:", e);
+              getLogger().error(`[FileDrop] Reading directory ${dirPath} failed: ${String(e)}`);
             }
             return files;
           };
@@ -69,7 +70,7 @@ export function useFileDrop(options?: UseFileDropOptions) {
                 }
               }
               catch (e) {
-                console.error("Error processing path:", e);
+                getLogger().error(`[FileDrop] Processing path ${path} failed: ${String(e)}`);
               }
             }
             return result;

@@ -2,6 +2,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 import { Event } from "@tauri-apps/api/event";
 import type { DragDropEvent } from "@tauri-apps/api/webviewWindow";
 import { tryOnScopeDispose } from "@vueuse/core";
+import { getLogger } from "@/lib/logger";
 
 export type DragDropPayload = Event<DragDropEvent>["payload"];
 
@@ -23,7 +24,7 @@ export function useTauriDragDrop(callback: DragDropCallback) {
       });
     }
     catch (error) {
-      console.error("[useTauriDragDrop] Failed to setup drag-drop listener:", error);
+      getLogger().error(`[useTauriDragDrop] Failed to setup drag-drop listener: ${String(error)}`);
     }
   };
 
