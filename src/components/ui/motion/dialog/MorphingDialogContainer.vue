@@ -9,6 +9,7 @@ import {
   AnimatePresence,
   Motion,
 } from "motion-v";
+import { useEventListener } from "@vueuse/core";
 
 import { MorphingDialogKey } from "./context";
 
@@ -25,6 +26,21 @@ const mounted = ref(false);
 onMounted(() => {
   mounted.value = true;
 });
+
+// The content shares a layout-id with the trigger, so closing is a layout
+// morph back into it. A viewport resize while open (maximizing via the
+// titlebar double-click, snapping) leaves motion's projection tree with
+// pre-resize measurements: the exit morph then never completes, the
+// backdrop fades out on its own, and the content stays as an orphan nothing
+// can close. Re-keying the presence drops the whole tree synchronously — no
+// exit animation, no orphan. A cover preview is not worth one after a resize.
+const presenceKey = ref(0);
+
+useEventListener(window, "resize", () => {
+  if (!dialog.isOpen.value) return;
+  presenceKey.value++;
+  dialog.setIsOpen(false);
+});
 </script>
 
 <template>
@@ -33,6 +49,7 @@ onMounted(() => {
     to="body"
   >
     <AnimatePresence
+      :key="presenceKey"
       :initial="false"
       mode="sync"
     >

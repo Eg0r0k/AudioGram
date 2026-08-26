@@ -33,6 +33,8 @@ function handleKeyDown(event: KeyboardEvent) {
   }
 }
 
+// Mounted only while open, so without `immediate` the open branch (Escape
+// handler, scroll lock, initial focus) would never run.
 watch(dialog.isOpen, async (value) => {
   if (value) {
     document.body.classList.add("overflow-hidden");
@@ -65,7 +67,7 @@ watch(dialog.isOpen, async (value) => {
       handleKeyDown,
     );
   }
-});
+}, { immediate: true });
 
 onClickOutside(containerRef, () => {
   if (dialog.isOpen.value) {
@@ -74,6 +76,9 @@ onClickOutside(containerRef, () => {
 });
 
 onUnmounted(() => {
+  // An instant close (presence re-keyed on resize) unmounts without the
+  // close branch above; release the scroll lock here as well.
+  document.body.classList.remove("overflow-hidden");
   document.removeEventListener(
     "keydown",
     handleKeyDown,
