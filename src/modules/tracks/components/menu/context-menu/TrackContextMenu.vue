@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef, useTemplateRef } from "vue";
+import { computed, useTemplateRef } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCloseBridge } from "@/components/ui/context-menu";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
@@ -77,7 +77,7 @@ useTrackMenuAutoClose(localOpen, {
 const contextComponent = computed(() => trackContextComponents[props.context]);
 
 const actions = useTrackContextActions(activeTrack, {
-  playlistId: toRef(props, "playlistId"),
+  playlistId: () => props.playlistId,
   queueIndex: activeIndex,
   queueItemId: activeQueueItemId,
   subject: activeSubject,

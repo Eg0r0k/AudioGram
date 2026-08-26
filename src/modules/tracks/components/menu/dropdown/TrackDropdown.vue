@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed } from "vue";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -98,9 +98,8 @@ const contextComponent = computed(() => trackContextComponents[props.context]);
 
 const actions = useTrackContextActions(
   activeTrack,
-  // toRef(props, "context"),
   {
-    playlistId: toRef(props, "playlistId"),
+    playlistId: () => props.playlistId,
     queueIndex: activeIndex,
     queueItemId: activeQueueItemId,
     subject: activeSubject,

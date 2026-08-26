@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { getLogger } from "@/lib/logger";
 import { useI18n } from "vue-i18n";
-import type { Ref } from "vue";
+import { toValue, type MaybeRefOrGetter } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
@@ -37,18 +37,14 @@ import {
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { statsService } from "@/services/stats.service";
 
-interface RefLike<T> {
-  value: T;
-}
-
 export const useTrackContextActions = (
-  track: Ref<PlayerTrack | null>,
+  track: MaybeRefOrGetter<PlayerTrack | null>,
   options: {
-    playlistId?: RefLike<PlaylistId | undefined>;
-    queueIndex?: RefLike<number | null>;
-    queueItemId?: RefLike<QueueItemId | null>;
+    playlistId?: MaybeRefOrGetter<PlaylistId | undefined>;
+    queueIndex?: MaybeRefOrGetter<number | null>;
+    queueItemId?: MaybeRefOrGetter<QueueItemId | null>;
     /** Menu subject — lets DB-bound actions pin remote DTOs on demand. */
-    subject?: RefLike<TrackMenuSubject | null>;
+    subject?: MaybeRefOrGetter<TrackMenuSubject | null>;
     onNavigate?: () => void;
   } = {},
 ): ContextActions => {
@@ -63,19 +59,19 @@ export const useTrackContextActions = (
   const { toggleTrackLike } = useToggleTrackLike();
 
   const play = () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!current) return;
     playerStore.playPlayerTrack(current);
   };
 
   const playNext = () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!current) return;
     queueStore.insertNext(current);
   };
 
   const addToQueue = () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!current) return;
     queueStore.addToQueue(current);
   };
@@ -86,10 +82,10 @@ export const useTrackContextActions = (
    * just works). Null when the subject has no library identity (ephemeral).
    */
   const resolveDbTrack = async (): Promise<Track | null> => {
-    const current = track.value;
+    const current = toValue(track);
     if (isLibraryTrack(current)) return current;
 
-    const subject = options.subject?.value;
+    const subject = toValue(options.subject);
     if (subject?.kind !== "remote") return null;
     try {
       const pinned = await ensurePinned(subject);
@@ -111,7 +107,7 @@ export const useTrackContextActions = (
   };
 
   const showDetails = () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!isLibraryTrack(current)) return;
 
     rightPanelStore.openTrackInfo({ track: current }, {
@@ -142,14 +138,14 @@ export const useTrackContextActions = (
   };
 
   const removeFromQueue = () => {
-    const queueItemId = options.queueItemId?.value;
+    const queueItemId = toValue(options.queueItemId);
     if (!queueItemId) return;
     queueStore.removeFromQueue(queueItemId);
   };
 
   const removeFromPlaylist = async () => {
-    const current = track.value;
-    const playlistId = options.playlistId?.value;
+    const current = toValue(track);
+    const playlistId = toValue(options.playlistId);
     if (!isLibraryTrack(current) || !playlistId) return;
     try {
       await removeTrackFromPlaylistAndSync(queryClient, playlistId, current.id);
@@ -160,7 +156,7 @@ export const useTrackContextActions = (
   };
 
   const removeFromHistory = async () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!isLibraryTrack(current)) return;
     try {
       await statsService.removeFromHistory(current.id);
@@ -176,7 +172,7 @@ export const useTrackContextActions = (
   };
 
   const goToAlbum = () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!isLibraryTrack(current)) return;
     router.push(routeLocation.album(current.albumId));
     options.onNavigate?.();
@@ -196,7 +192,7 @@ export const useTrackContextActions = (
   };
 
   const exportFile = async () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!isLibraryTrack(current)) return;
 
     const sourcePath = await resolveExportPath(current);
@@ -257,15 +253,16 @@ export const useTrackContextActions = (
 
   /** The id downloads key on: the library row id or the remote DTO id. */
   const subjectTrackId = (): TrackId | null => {
-    const subject = options.subject?.value;
+    const subject = toValue(options.subject);
     if (subject?.kind === "remote") return subject.dto.id;
-    const current = track.value;
+    const current = toValue(track);
     return isLibraryTrack(current) ? (current.id as TrackId) : null;
   };
 
   const downloadOffline = async () => {
-    const subject = options.subject?.value
-      ?? (isLibraryTrack(track.value) ? { kind: "library" as const, track: track.value } : null);
+    const current = toValue(track);
+    const subject = toValue(options.subject)
+      ?? (isLibraryTrack(current) ? { kind: "library" as const, track: current } : null);
     if (!subject || subject.kind === "ephemeral") return;
     try {
       await downloadSubject(subject);
@@ -296,12 +293,12 @@ export const useTrackContextActions = (
 
   const addToLibrary = async () => {
     try {
-      const subject = options.subject?.value;
+      const subject = toValue(options.subject);
       if (subject?.kind === "remote") {
         await ensurePinned(subject);
       }
       else {
-        const current = track.value;
+        const current = toValue(track);
         if (!isLibraryTrack(current) || !isRemoteTrack(current)) return;
         await promoteTrackToLibrary(current.id);
       }
@@ -315,7 +312,7 @@ export const useTrackContextActions = (
   };
 
   const removeFromLibrary = async () => {
-    const current = track.value;
+    const current = toValue(track);
     if (!isLibraryTrack(current) || !isRemoteTrack(current)) return;
     try {
       await removeTrackFromLibrary(current.id);
@@ -330,13 +327,13 @@ export const useTrackContextActions = (
 
   /** yt → the watch page; nd → the server page (wired with ND settings, M2). */
   const externalUrl = (): string | null => {
-    const subject = options.subject?.value;
+    const subject = toValue(options.subject);
     if (subject?.kind === "ephemeral" && subject.track.source.type === "url") {
       const videoId = ytVideoIdFromStreamUrl(subject.track.source.url);
       return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
     }
 
-    const current = track.value;
+    const current = toValue(track);
     let id = null;
     if (subject?.kind === "remote") id = subject.dto.id;
     else if (isLibraryTrack(current)) id = current.id;
