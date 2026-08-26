@@ -78,6 +78,27 @@ describe("useMediaSession (android bridge)", () => {
     getCoverBlobMock.mockResolvedValue(null);
   });
 
+  it("never reports paused to the notification while a track switch is loading", async () => {
+    mountSession();
+    const player = usePlayerStore();
+    player.currentTrack = createLibraryTrack("t1", "album-a");
+    player.status = "playing";
+    await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(true));
+    bridge.setPlaybackState.mockClear();
+
+    player.status = "loading";
+    player.currentTrack = createLibraryTrack("t2", "album-a");
+    await Promise.resolve();
+    player.status = "playing";
+    await vi.waitFor(() => expect(bridge.setPlaybackState).toHaveBeenCalled());
+
+    const reported = bridge.setPlaybackState.mock.calls.map(call => call[0]);
+    expect(reported).not.toContain(false);
+
+    player.status = "paused";
+    await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(false));
+  });
+
   it("reports the seek target immediately instead of the stale store position", async () => {
     mountSession();
     const player = usePlayerStore();

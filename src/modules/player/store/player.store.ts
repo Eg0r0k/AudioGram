@@ -73,6 +73,14 @@ export const usePlayerStore = defineStore("player", () => {
   const isPlaying = computed(
     () => status.value === "playing" || status.value === "buffering",
   );
+  // What transport controls outside the app (media session, notification,
+  // taskbar toolbar) should show. A track switch passes through "loading"
+  // on its way to play() — every "loading" here ends in playback — and
+  // reporting that gap as "paused" makes the play/pause button flicker on
+  // each skip. The in-app button keeps using `isPlaying` + its own loader.
+  const isPlaybackIntended = computed(
+    () => isPlaying.value || status.value === "loading",
+  );
   const isLoading = computed(() => status.value === "loading");
 
   // Local tracks (OPFS/FS) load in tens of milliseconds, so a spinner bound
@@ -685,6 +693,7 @@ export const usePlayerStore = defineStore("player", () => {
     isMuted,
     playbackRate,
     isPlaying,
+    isPlaybackIntended,
     isLoading,
     showLoadingIndicator,
     repeatMode,

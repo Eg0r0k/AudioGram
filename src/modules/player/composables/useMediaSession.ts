@@ -132,7 +132,7 @@ export const useMediaSession = () => {
     const canLike = isLibraryTrack(track);
 
     androidBridge.setPlaybackState(
-      player.isPlaying,
+      player.isPlaybackIntended,
       positionOverrideMs ?? Math.max(0, player.currentTime * 1000),
       Math.max(0, player.duration * 1000),
       player.canSeek,
@@ -391,7 +391,7 @@ export const useMediaSession = () => {
   );
 
   watch(
-    () => player.isPlaying,
+    () => player.isPlaybackIntended,
     (isPlaying) => {
       if (isSupported) {
         navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
