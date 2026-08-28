@@ -100,6 +100,9 @@ export const queryKeys = {
   },
   stats: {
     all: () => ["stats"] as const,
+    /** Raw listen events of a period — the shared read behind the aggregates below. */
+    events: (since?: number) => ["stats", "events", since] as const,
+    sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     topTracks: (limit: number, since?: number) =>
       ["stats", "topTracks", limit, since] as const,
     topTracksMeta: (ids: readonly string[]) =>
@@ -109,7 +112,6 @@ export const queryKeys = {
     artistPlays: (artistId: string) =>
       ["stats", "artistPlays", artistId] as const,
     topGenres: (limit: number, since?: number) => ["stats", "topGenres", limit, since] as const,
-    sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     totalTime: (since?: number) => ["stats", "totalTime", since] as const,
     dailyActivity: (days: number) => ["stats", "dailyActivity", days] as const,
     recentHistory: (limit: number) => ["stats", "recentHistory", limit] as const,

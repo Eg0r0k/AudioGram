@@ -1,8 +1,17 @@
 import { statsRepository } from "@/db/repositories/stats.repository";
 import {
+  aggregateHourly,
+  aggregateRecords,
+  aggregateSummary,
+  aggregateTopArtists,
+  aggregateTopTracks,
+  aggregateTotalSeconds,
+} from "@/db/repositories/stats.aggregate";
+import {
   artistRepository,
   trackRepository,
 } from "@/db/repositories";
+import type { ListenEventEntity } from "@/db/entities";
 import { queryKeys } from "@/queries/query-keys";
 import type { TrackId, ArtistId } from "@/types/ids";
 import { keepPreviousData, queryOptions } from "@tanstack/vue-query";
@@ -28,14 +37,27 @@ export interface TopTrackEntry {
 
 const STATS_STALE_TIME = 5 * 60 * 1000;
 
+// The stats page mounts ~8 aggregates for one period. Each aggregate query
+// resolves the period's events through the shared `events` query (one
+// listenEvents read, deduped by TanStack) and reduces them in memory.
+const eventsQuery = (since?: number) =>
+  queryOptions({
+    queryKey: queryKeys.stats.events(since),
+    queryFn: (): Promise<ListenEventEntity[]> => unwrapResult(statsRepository.eventsSince(since)),
+    staleTime: STATS_STALE_TIME,
+  });
+
+const eventsOf = (client: QueryClient, since?: number) => client.ensureQueryData(eventsQuery(since));
+
 export const statsQueries = {
+  events: eventsQuery,
   // Ряды топов собираются одним запросом (события + метаданные), чтобы при
   // смене периода не было второй волны загрузки на meta-ключе.
   topTracks: (limit: number, since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.topTracks(limit, since),
-      queryFn: async (): Promise<TopTrackEntry[]> => {
-        const entries = await unwrapResult(statsRepository.topTracks(limit, since));
+      queryFn: async ({ client }): Promise<TopTrackEntry[]> => {
+        const entries = aggregateTopTracks(await eventsOf(client, since), limit);
         const tracks = await unwrapResult(
           trackRepository.findByIds(entries.map(entry => entry.id as TrackId)),
         );
@@ -61,8 +83,8 @@ export const statsQueries = {
   topArtists: (limit: number, since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.topArtists(limit, since),
-      queryFn: async () => {
-        const entries = await unwrapResult(statsRepository.topArtists(limit, since));
+      queryFn: async ({ client }) => {
+        const entries = aggregateTopArtists(await eventsOf(client, since), limit);
         const artists = await unwrapResult(
           artistRepository.findByIds(entries.map(entry => entry.id as ArtistId)),
         );
@@ -86,7 +108,8 @@ export const statsQueries = {
   topGenres: (limit: number, since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.topGenres(limit, since),
-      queryFn: () => unwrapResult(statsRepository.topGenres(limit, since)),
+      queryFn: async ({ client }) =>
+        unwrapResult(statsRepository.topGenresOf(await eventsOf(client, since), limit)),
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
@@ -100,7 +123,7 @@ export const statsQueries = {
   totalTime: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.totalTime(since),
-      queryFn: () => unwrapResult(statsRepository.totalListeningSeconds(since)),
+      queryFn: async ({ client }) => aggregateTotalSeconds(await eventsOf(client, since)),
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
@@ -115,21 +138,21 @@ export const statsQueries = {
   summary: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.summary(since),
-      queryFn: () => unwrapResult(statsRepository.summary(since)),
+      queryFn: async ({ client }) => aggregateSummary(await eventsOf(client, since)),
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
   hourlyActivity: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.hourlyActivity(since),
-      queryFn: () => unwrapResult(statsRepository.hourlyActivity(since)),
+      queryFn: async ({ client }) => aggregateHourly(await eventsOf(client, since)),
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
   records: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.records(since),
-      queryFn: () => unwrapResult(statsRepository.records(since)),
+      queryFn: async ({ client }) => aggregateRecords(await eventsOf(client, since)),
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
