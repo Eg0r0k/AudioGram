@@ -163,13 +163,13 @@ export async function persistTracks(
     [db.tracks, db.artists, db.albums, db.covers],
     async () => {
       if (artistsToCreate.size > 0) {
-        await artistRepository.createMany([...artistsToCreate.values()]);
+        await unwrapResult(artistRepository.createMany([...artistsToCreate.values()]));
       }
       if (albumsToCreate.size > 0) {
-        await albumRepository.createMany([...albumsToCreate.values()]);
+        await unwrapResult(albumRepository.createMany([...albumsToCreate.values()]));
       }
       if (coversToCreate.length > 0) {
-        await coverRepository.createMany(
+        await unwrapResult(coverRepository.createMany(
           coversToCreate.map(c => ({
             id: crypto.randomUUID(),
             ownerType: c.ownerType,
@@ -179,10 +179,10 @@ export async function persistTracks(
             addedAt: now,
             updatedAt: now,
           })),
-        );
+        ));
       }
       if (tracksToCreate.length > 0) {
-        await trackRepository.createMany(tracksToCreate);
+        await unwrapResult(trackRepository.createMany(tracksToCreate));
       }
     });
 
