@@ -1,6 +1,7 @@
 import pLimit from "p-limit";
 import { ok, err, Result } from "neverthrow";
 import { db } from "@/db";
+import { DbError } from "@/db/errors/db.errors";
 import { unitOfWork } from "@/db/unit-of-work";
 import { storageService } from "@/db/storage";
 import {
@@ -252,7 +253,8 @@ export class FolderSyncService {
     const resolver = new EntityResolver();
     await resolver.resolve(parsed.map(p => p.meta));
 
-    for (const batch of chunk(parsed, DB_BATCH_SIZE)) {
+    const batches = chunk(parsed, DB_BATCH_SIZE);
+    for (const [index, batch] of batches.entries()) {
       try {
         const saved = await persistTracks(batch, resolver);
         result.added += saved.length;
@@ -261,6 +263,14 @@ export class FolderSyncService {
         result.failed += batch.length;
         result.errors.push({ path: folderPath, message: `DB batch failed: ${String(e)}` });
         getLogger().error(`[FolderSync] DB batch of ${batch.length} tracks failed: ${String(e)}`);
+
+        if (e instanceof DbError && e.code === "QUOTA") {
+          const remaining = batches.slice(index + 1).flat().length;
+          result.failed += remaining;
+          result.errors.push({ path: folderPath, message: `Storage quota exceeded — ${remaining} files not attempted` });
+          advance(batch.length + remaining);
+          return;
+        }
       }
       advance(batch.length);
     }

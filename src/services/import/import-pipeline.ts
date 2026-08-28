@@ -28,8 +28,18 @@ import { persistTracks } from "./track-persister";
 import { isCancelled, yieldToEventLoop } from "./shared";
 import { chunk } from "@/lib/math";
 import { sniffAudioExtension } from "@/lib/files/sniffAudioType";
+import { DbError } from "@/db/errors/db.errors";
 
 type FailedImport = { fileName: string; error: ImportError };
+
+interface PersistOutcome {
+  cancelled: boolean;
+  /** Storage quota hit: further writes (and file copies) would fail the same way. */
+  storageFull: boolean;
+}
+
+const isQuotaError = (error: ImportError): boolean =>
+  error.cause instanceof DbError && error.cause.code === "QUOTA";
 
 interface BatchOutcome {
   tracksToSave: TrackToSave[];
@@ -78,7 +88,8 @@ export class ImportPipeline {
     // Shared across batches so a duplicate in batch N is caught by batch 1's import.
     const knownFingerprints = await unwrapResult(trackRepository.getAllFingerprints());
 
-    for (const batch of chunk(items, PIPELINE_BATCH_SIZE)) {
+    const batches = chunk(items, PIPELINE_BATCH_SIZE);
+    for (const [index, batch] of batches.entries()) {
       if (await isCancelled(control)) {
         cancelled = true;
         break;
@@ -100,8 +111,15 @@ export class ImportPipeline {
         break;
       }
 
-      cancelled = await this.persistOutcome(outcome.tracksToSave, successful, failed, control);
+      const persisted = await this.persistOutcome(outcome.tracksToSave, successful, failed, control);
+      cancelled = persisted.cancelled;
       if (cancelled) break;
+
+      if (persisted.storageFull) {
+        processed += this.failUnattempted(batches.slice(index + 1).flat(), failed);
+        onProgress?.(processed, total);
+        break;
+      }
     }
 
     if (total > 0) {
@@ -122,43 +140,70 @@ export class ImportPipeline {
     };
   }
 
-  /** Persists parsed tracks in DB-sized chunks. Returns whether the run was cancelled mid-way. */
+  /**
+   * Storage quota hit: copying and parsing the rest would only fail the same
+   * way, so the untouched items are reported failed without being attempted.
+   * Returns how many were written off.
+   */
+  private failUnattempted(items: ImportItem[], failed: FailedImport[]): number {
+    const quota = new DbError("QUOTA", "Storage quota exceeded");
+    for (const item of items) {
+      failed.push({ fileName: item.name, error: ImportError.databaseFailed(item.name, quota) });
+    }
+    if (items.length > 0) {
+      getLogger().error(`[Import] Storage quota exceeded — ${items.length} remaining items not attempted`);
+    }
+    return items.length;
+  }
+
+  /**
+   * Persists parsed tracks in DB-sized chunks. Stops early when the run is
+   * cancelled or the storage quota is hit (the remaining DB batches are
+   * reported failed without being attempted).
+   */
   private async persistOutcome(
     tracksToSave: TrackToSave[],
     successful: ImportSuccess[],
     failed: FailedImport[],
     control?: ImportControl,
-  ): Promise<boolean> {
+  ): Promise<PersistOutcome> {
     // Own resolver per batch — safe from concurrent runs.
     const resolver = new EntityResolver();
     await resolver.resolve(tracksToSave.map(t => t.meta));
 
-    for (const dbBatch of chunk(tracksToSave, DB_BATCH_SIZE)) {
-      if (await isCancelled(control)) return true;
+    const dbBatches = chunk(tracksToSave, DB_BATCH_SIZE);
+    for (const [index, dbBatch] of dbBatches.entries()) {
+      if (await isCancelled(control)) return { cancelled: true, storageFull: false };
 
       const dbResult = await ResultAsync.fromPromise(
         persistTracks(dbBatch, resolver),
         e => ImportError.databaseFailed("batch", e),
       );
 
-      dbResult.match(
-        (saved) => {
-          successful.push(...saved);
-          if (saved.length > 0) {
-            this.deps.onTracksImported?.(saved.map(s => s.trackId));
+      if (dbResult.isOk()) {
+        successful.push(...dbResult.value);
+        if (dbResult.value.length > 0) {
+          this.deps.onTracksImported?.(dbResult.value.map(s => s.trackId));
+        }
+      }
+      else {
+        const error = dbResult.error;
+        getLogger().error(`[Import] DB batch of ${dbBatch.length} tracks failed: ${error.message}`);
+        dbBatch.forEach(item => failed.push({ fileName: item.fileName, error }));
+
+        if (isQuotaError(error)) {
+          for (const item of dbBatches.slice(index + 1).flat()) {
+            failed.push({ fileName: item.fileName, error });
           }
-        },
-        (error) => {
-          getLogger().error(`[Import] DB batch of ${dbBatch.length} tracks failed: ${error.message}`);
-          dbBatch.forEach(item => failed.push({ fileName: item.fileName, error }));
-        },
-      );
+          return { cancelled: false, storageFull: true };
+        }
+      }
 
       // Yield to the event loop so UI progress updates stay responsive.
       await yieldToEventLoop();
     }
 
-    return false;
+    return { cancelled: false, storageFull: false };
   }
 
   private async processBatch(

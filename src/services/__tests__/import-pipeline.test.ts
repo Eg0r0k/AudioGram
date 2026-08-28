@@ -14,6 +14,7 @@ import { ImportErrorCode, type ImportControl, type ImportItem } from "../types";
 import type { ImportItemIO } from "../import/item-io";
 import type { MetadataParser } from "../import/metadata-parser";
 import type { BaseMetadata } from "@/workers/types";
+import { DbError } from "@/db/errors/db.errors";
 
 const {
   mockGetAllFingerprints,
@@ -347,6 +348,25 @@ describe("ImportPipeline", () => {
       expect(result.successful).toHaveLength(count);
       // 100-item pipeline batch → 2 transactions, then 5 → 1 more.
       expect(mockUnitOfWorkRunScoped).toHaveBeenCalledTimes(3);
+    });
+
+    it("stops persisting after a quota failure and fails the remaining items", async () => {
+      const count = DB_BATCH_SIZE * 3;
+      const items = nativeItems(...Array.from({ length: count }, (_, i) => `s${i}.mp3`));
+      mockUnitOfWorkRunScoped.mockResolvedValue({
+        isOk: () => false,
+        isErr: () => true,
+        error: new DbError("QUOTA", "storage full"),
+      });
+
+      const result = await makePipeline(fakes).run(items);
+
+      // The first transaction hit the quota; retrying the next two would
+      // only fail the same way, so they are never attempted.
+      expect(mockUnitOfWorkRunScoped).toHaveBeenCalledTimes(1);
+      expect(result.successful).toHaveLength(0);
+      expect(result.failed).toHaveLength(count);
+      expect(result.failed.every(f => f.error.code === ImportErrorCode.DATABASE_FAILED)).toBe(true);
     });
 
     it("processes more items than one pipeline batch", async () => {
