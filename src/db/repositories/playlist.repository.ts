@@ -4,6 +4,7 @@ import type { PlaylistId, TrackId } from "@/types/ids";
 import type { UpdateSpec } from "dexie";
 import { Result, ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
   constructor() {
@@ -20,7 +21,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -33,7 +34,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(playlist);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -47,7 +48,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(playlists);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -65,7 +66,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -81,7 +82,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -97,7 +98,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -116,7 +117,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
       return ok({ trackIds, total: playlist.trackIds.length });
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

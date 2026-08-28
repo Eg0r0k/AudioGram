@@ -20,6 +20,7 @@ import { statsService } from "@/services/stats.service";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
 import { onAllDataCleared } from "@/services/storage-info.service";
 import { resetSearchIndex } from "@/modules/search/searchIndex";
+import { openDatabase } from "@/db";
 
 await initLogging();
 
@@ -30,6 +31,15 @@ await initLogging();
 await initMediaServerBase().catch(error =>
   getLogger().error(`[MediaServer] base init failed: ${String(error)}`),
 );
+
+// Open IndexedDB once, up front, so an upgrade/quota failure is classified
+// and logged with its code instead of surfacing as an opaque error on the
+// first query. Startup continues either way (Dexie auto-opens on use); the
+// user-facing screen for a dead database is a separate follow-up.
+const dbOpen = await openDatabase();
+if (dbOpen.isErr()) {
+  getLogger().error(`[DB] open failed (${dbOpen.error.code}): ${dbOpen.error.message}`);
+}
 
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);

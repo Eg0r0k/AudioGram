@@ -1,6 +1,7 @@
 import { err, ok, Result } from "neverthrow";
 import { db } from ".";
 import { Table } from "dexie";
+import { toDbError } from "@/db/errors/db.errors";
 
 type RwCallback<T> = () => Promise<T>;
 
@@ -11,7 +12,7 @@ export class UnitOfWork {
       return ok(result);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -24,7 +25,7 @@ export class UnitOfWork {
       return ok(result);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

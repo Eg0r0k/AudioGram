@@ -3,6 +3,7 @@ import type { SidebarFolderEntity, SidebarFolderEntryEntity } from "@/db/entitie
 import type { SidebarFolderId } from "@/types/ids";
 import { err, ok, Result } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 function folderItemKey(item: SidebarFolderEntryEntity) {
   return `${item.type}:${item.id}`;
@@ -59,7 +60,7 @@ class FolderRepository extends BaseRepository<SidebarFolderEntity, SidebarFolder
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -81,7 +82,7 @@ class FolderRepository extends BaseRepository<SidebarFolderEntity, SidebarFolder
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

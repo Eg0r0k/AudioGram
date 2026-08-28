@@ -4,6 +4,7 @@ import type { AlbumId, ArtistId } from "@/types/ids";
 import type { UpdateSpec } from "dexie";
 import { Result, ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
   constructor() {
@@ -20,7 +21,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -33,7 +34,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(albums.reverse());
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -46,7 +47,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(albums);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -60,7 +61,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(albums);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -76,7 +77,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -95,7 +96,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
       return ok(all.slice(offset, offset + limit));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import type { DownloadJobEntity, DownloadJobStatus } from "@/db/entities";
 import type { TrackId } from "@/types/ids";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
   constructor() {
@@ -15,7 +16,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(jobs);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -25,7 +26,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(jobs);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -40,7 +41,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(job);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -55,7 +56,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(deleted);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -73,7 +74,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(modified === 1);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -87,7 +88,7 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
       return ok(modified);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

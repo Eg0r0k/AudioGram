@@ -4,6 +4,7 @@ import type { ArtistId } from "@/types/ids";
 import type { UpdateSpec } from "dexie";
 import { Result, ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class ArtistRepository extends BaseRepository<ArtistEntity, ArtistId> {
   constructor() {
@@ -20,7 +21,7 @@ class ArtistRepository extends BaseRepository<ArtistEntity, ArtistId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -33,7 +34,7 @@ class ArtistRepository extends BaseRepository<ArtistEntity, ArtistId> {
       return ok(artist);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -46,7 +47,7 @@ class ArtistRepository extends BaseRepository<ArtistEntity, ArtistId> {
       return ok(artists);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

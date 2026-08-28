@@ -5,6 +5,7 @@ import type { AlbumId, ArtistId, TagId, TrackId } from "@/types/ids";
 import type { Collection } from "dexie";
 import { Result, ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
   constructor() {
@@ -82,7 +83,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -99,7 +100,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -117,7 +118,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -133,7 +134,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(all);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -146,7 +147,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -159,7 +160,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -172,7 +173,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -185,7 +186,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -205,7 +206,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(counts);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -220,7 +221,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -246,7 +247,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(counts);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -260,7 +261,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(total);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -274,7 +275,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(total);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -291,7 +292,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(total);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -306,7 +307,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(ids.flatMap(id => map.get(id) ? [map.get(id)!] : []));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -322,7 +323,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -332,7 +333,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -357,7 +358,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -367,7 +368,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -380,7 +381,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(total);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -393,7 +394,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -406,7 +407,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -421,7 +422,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(nextLikedAt);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -434,7 +435,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -448,7 +449,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(total);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -464,7 +465,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -477,7 +478,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -497,7 +498,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -515,7 +516,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -528,7 +529,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -548,7 +549,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(all.slice(offset, offset + limit));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -568,7 +569,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -578,7 +579,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(track);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -588,7 +589,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(count > 0);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -598,7 +599,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(new Set(keys as string[]));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -608,7 +609,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(tracks);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -618,7 +619,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       return ok(ids);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

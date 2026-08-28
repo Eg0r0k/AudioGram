@@ -3,6 +3,7 @@ import type { TagEntity } from "@/db/entities";
 import { TagId, TrackId } from "@/types/ids";
 import { Result, ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class TagRepository extends BaseRepository<TagEntity, TagId> {
   constructor() {
@@ -19,7 +20,7 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
       return ok(ids.flatMap(id => map.get(id) ? [map.get(id)!] : []));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -34,7 +35,7 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
       return ok(track.tagIds.flatMap(id => map.get(id) ? [map.get(id)!] : []));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -54,7 +55,7 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
       return ok({ ...tag, id: addedId as TagId });
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

@@ -15,7 +15,10 @@ import {
   TrackEntity,
 } from "./entities";
 import { upgradeToV10 } from "./migrations";
+import { DbError, toDbError } from "./errors/db.errors";
+import { getLogger } from "@/lib/logger";
 import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
+import { err, ok, type Result } from "neverthrow";
 
 export class AppDatabase extends Dexie {
   tracks!: Table<TrackEntity, TrackId>;
@@ -76,3 +79,30 @@ export class AppDatabase extends Dexie {
 }
 
 export const db = new AppDatabase();
+
+/**
+ * Explicit open so a failure is classified once, at startup, instead of
+ * surfacing as an opaque error on the first query. Dexie still auto-opens
+ * on first use, so callers that skip this keep working.
+ */
+export const openDatabase = async (): Promise<Result<void, DbError>> => {
+  try {
+    await db.open();
+    return ok(undefined);
+  }
+  catch (error) {
+    return err(toDbError(error));
+  }
+};
+
+// Another connection (a second window/instance) is upgrading the schema.
+// Dexie's default just closes this connection, after which every query dies
+// with DatabaseClosedError; reloading picks up the new schema instead.
+db.on("versionchange", () => {
+  db.close();
+  if (typeof window !== "undefined") window.location.reload();
+});
+
+db.on("blocked", () => {
+  getLogger().warn("[DB] open() is blocked by another connection that has not closed yet");
+});

@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import type { ListenEventEntity } from "@/db/entities";
 import type { TagId, TrackId } from "@/types/ids";
+import { toDbError } from "@/db/errors/db.errors";
 import { err, ok, type Result } from "neverthrow";
 
 export interface TopEntry {
@@ -62,7 +63,7 @@ async function runSafe<T>(fn: () => Promise<T>): Promise<Result<T, Error>> {
     return ok(await fn());
   }
   catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
+    return err(toDbError(error));
   }
 }
 

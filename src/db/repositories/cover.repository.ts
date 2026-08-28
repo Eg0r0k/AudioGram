@@ -2,6 +2,7 @@ import { db } from "@/db";
 import type { CoverEntity, CoverOwnerType } from "@/db/entities";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import { err, ok, type Result } from "neverthrow";
+import { toDbError } from "@/db/errors/db.errors";
 
 class CoverRepository {
   async findByOwner(
@@ -17,7 +18,7 @@ class CoverRepository {
       return ok(cover);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -77,7 +78,7 @@ class CoverRepository {
       return ok(id);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -108,7 +109,7 @@ class CoverRepository {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -129,7 +130,7 @@ class CoverRepository {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 

@@ -1,5 +1,6 @@
 import type { Table, UpdateSpec } from "dexie";
 import { Result, ok, err } from "neverthrow";
+import { toDbError } from "@/db/errors/db.errors";
 
 export abstract class BaseRepository<TEntity, TId> {
   constructor(protected table: Table<TEntity, TId>) {}
@@ -10,7 +11,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(entity);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -20,7 +21,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(entities);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -31,7 +32,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(entities);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -41,7 +42,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(id as TId);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -51,7 +52,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -61,7 +62,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -71,7 +72,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(ids as TId[]);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -80,7 +81,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok((await this.table.put(entity)) as TId);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -90,7 +91,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(ids as TId[]);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -102,7 +103,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -112,7 +113,7 @@ export abstract class BaseRepository<TEntity, TId> {
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

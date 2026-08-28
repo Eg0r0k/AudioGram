@@ -3,6 +3,7 @@ import type { TrackChapterEntity, TrackChapterMark } from "@/db/entities";
 import type { TrackId } from "@/types/ids";
 import { err, ok, type Result } from "neverthrow";
 import { BaseRepository } from "./base.repository";
+import { toDbError } from "@/db/errors/db.errors";
 
 class TrackChaptersRepository extends BaseRepository<TrackChapterEntity, TrackId> {
   constructor() {
@@ -26,7 +27,7 @@ class TrackChaptersRepository extends BaseRepository<TrackChapterEntity, TrackId
       return ok(undefined);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }

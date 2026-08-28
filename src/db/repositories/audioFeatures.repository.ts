@@ -3,6 +3,7 @@ import type { AudioFeaturesEntity } from "@/db/entities";
 import { BaseRepository } from "./base.repository";
 import { TrackId } from "@/types/ids";
 import { err, ok, Result } from "neverthrow";
+import { toDbError } from "@/db/errors/db.errors";
 
 export const CURRENT_ALGORITHM_VERSION = 1;
 
@@ -27,7 +28,7 @@ class AudioFeaturesRepository extends BaseRepository<AudioFeaturesEntity, TrackI
       return ok(allTrackIds.filter(id => !analyzedSet.has(id)));
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -40,7 +41,7 @@ class AudioFeaturesRepository extends BaseRepository<AudioFeaturesEntity, TrackI
       return ok(count);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 
@@ -54,7 +55,7 @@ class AudioFeaturesRepository extends BaseRepository<AudioFeaturesEntity, TrackI
       return ok(results);
     }
     catch (error) {
-      return err(error as Error);
+      return err(toDbError(error));
     }
   }
 }
