@@ -7,6 +7,7 @@
     :get-key="libraryItemKey"
     :confirm-count="selectedCount"
     :show-back="true"
+    header-class="pt-0! min-h-0!"
     @confirm="handleConfirm"
     @back="emit('back')"
   >
@@ -29,7 +30,13 @@
               class="text-base font-medium mb-0.5 gap-1.5"
             >
               <span>{{ chip.label }}</span>
-              <span class="tabular-nums text-muted-foreground">{{ chip.count }}</span>
+              <Badge
+                variant="secondary"
+                size="md"
+                class="h-5 min-w-5 px-1 py-0 tabular-nums"
+              >
+                {{ chip.count }}
+              </Badge>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -86,6 +93,7 @@
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { EntitySelectPanel } from "@/components/entity-select";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";

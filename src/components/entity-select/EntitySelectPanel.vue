@@ -7,6 +7,7 @@
       :title="title"
       :description="null"
       :show-back="showBack"
+      :class="headerClass"
       @back="emit('back')"
       @close="emit('close')"
     />
@@ -36,6 +37,8 @@
         </InputGroupAddon>
       </InputGroup>
     </div>
+
+    <slot name="before-list" />
 
     <div
       ref="listEl"
@@ -108,6 +111,8 @@ const props = withDefaults(defineProps<{
   /** Overrides the "count > 0" rule for pickers whose pending change is not a count (a single album, a detach). */
   showConfirm?: boolean;
   showBack?: boolean;
+  /** Extra classes for the header row, e.g. to drop its top padding when the host already provides one. */
+  headerClass?: string;
 }>(), {
   isLoading: false,
   itemHeight: 64,
@@ -116,6 +121,7 @@ const props = withDefaults(defineProps<{
   confirmCount: 0,
   showConfirm: undefined,
   showBack: true,
+  headerClass: undefined,
 });
 
 const emit = defineEmits<{
