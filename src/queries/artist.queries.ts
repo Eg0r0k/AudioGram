@@ -334,11 +334,12 @@ export async function deleteArtistAndSync(
 
   const trackUpdates = affectedTracks.map((track) => {
     const nextArtistIds = track.artistIds.filter(id => id !== artistEntity.id);
+    // "" not undefined: both fields are indexed (see TrackEntity).
     const nextArtistName = nextArtistIds
       .map(id => remainingArtistNameById.get(id))
       .filter(Boolean)
-      .join(", ") || undefined;
-    const nextAlbumTitle = deletedAlbumIds.has(track.albumId) ? undefined : track.albumTitle;
+      .join(", ");
+    const nextAlbumTitle = deletedAlbumIds.has(track.albumId) ? "" : track.albumTitle;
 
     return {
       key: track.id,

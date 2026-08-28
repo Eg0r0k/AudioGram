@@ -260,6 +260,6 @@ describe("deletion transactionality (integration)", () => {
     expect(await db.albums.count()).toBe(0);
     const track = await db.tracks.get(TrackId("t-1"));
     expect(track?.artistIds).toEqual([]);
-    expect(track?.albumTitle).toBeUndefined();
+    expect(track?.albumTitle).toBe("");
   });
 });

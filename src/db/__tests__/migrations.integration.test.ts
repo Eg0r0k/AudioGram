@@ -50,13 +50,35 @@ describe("v9 → v10 upgrade (integration)", () => {
     // cleanup must drop this row and keep real ones.
     await legacy.table("trackChapters").add({ trackId: "", chapters: [{ time: 1770 }], updatedAt: 1 });
     await legacy.table("trackChapters").add({ trackId: "t1", chapters: [{ time: 10 }], updatedAt: 1 });
+    // A track whose denormalized names were cleared to undefined by an old
+    // cascade — v12 must backfill "" so it stays visible in indexed sorts.
+    await legacy.table("tracks").add({
+      id: "t2",
+      title: "Detached",
+      artistIds: [],
+      albumId: "",
+      tagIds: [],
+      source: "local_internal",
+      storagePath: "tracks/detached.mp3",
+      state: 0,
+      duration: 50,
+      format: {},
+      playCount: 0,
+      likedAt: 43,
+      addedAt: 2,
+    });
+    // Duplicate covers for one owner — v12 keeps the newest so the unique
+    // [ownerType+ownerId] index of v13 can be created.
+    await legacy.table("covers").add({ id: "c-old", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1 });
+    await legacy.table("covers").add({ id: "c-new", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 2, updatedAt: 2 });
+    await legacy.table("covers").add({ id: "c-other", ownerType: "artist", ownerId: "ar1", blob: new Blob(), mimeType: "image/webp", addedAt: 3, updatedAt: 3 });
     legacy.close();
 
     // The production database class, opened over the seeded v9 data.
     const { db } = await import("@/db");
     await db.open();
 
-    expect(db.verno).toBe(11);
+    expect(db.verno).toBe(13);
 
     const track = await db.tracks.get("t1" as never);
     expect(track).toMatchObject({ id: "t1", pinned: 1, likedAt: 42, playCount: 3 });
@@ -72,8 +94,35 @@ describe("v9 → v10 upgrade (integration)", () => {
     expect(await db.trackChapters.get("t1" as never)).toMatchObject({ trackId: "t1" });
 
     // New indexes are queryable.
-    expect(await db.tracks.where("pinned").equals(1).count()).toBe(1);
-    expect(await db.tracks.where("source").equals("local_internal").count()).toBe(1);
+    expect(await db.tracks.where("pinned").equals(1).count()).toBe(2);
+
+    // v12: names backfilled to "" so the row is in the artistName/albumTitle
+    // indexes and in the liked compound index.
+    const detached = await db.tracks.get("t2" as never);
+    expect(detached).toMatchObject({ artistName: "", albumTitle: "" });
+    expect((await db.tracks.orderBy("artistName").primaryKeys())).toContain("t2");
+    expect((await db.tracks.where("[artistName+likedAt]").between(["", 1], ["￿", Infinity]).primaryKeys())).toContain("t2");
+
+    // v12: cover duplicates collapsed to the newest; v13: the key is unique.
+    expect(await db.covers.count()).toBe(2);
+    expect((await db.covers.where("[ownerType+ownerId]").equals(["album", "al1"]).first())?.id).toBe("c-new");
+    expect(db.covers.schema.indexes.find(i => i.name === "[ownerType+ownerId]")?.unique).toBe(true);
+    await expect(db.covers.add({ id: "c-dup", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 9, updatedAt: 9 }))
+      .rejects.toThrow();
+
+    // v13: download-job lookup by track, pinned on albums/artists, dead
+    // indexes gone.
+    await db.downloadJobs.add({ id: "j1", trackId: "t1" as never, status: "queued", attempts: 0, addedAt: 1 });
+    expect(await db.downloadJobs.where("[trackId+status]").equals(["t1", "queued"]).count()).toBe(1);
+    expect(await db.albums.where("[artistId+pinned]").equals(["ar1", 1]).count()).toBe(1);
+    expect(await db.artists.where("pinned").equals(1).count()).toBe(1);
+    expect(await db.tracks.where("[albumId+pinned]").equals(["al1", 1]).count()).toBe(1);
+    const indexNames = (name: keyof typeof db) => (db[name] as { schema: { indexes: { name: string }[] } }).schema.indexes.map(i => i.name);
+    expect(indexNames("tracks")).not.toContain("state");
+    expect(indexNames("tracks")).not.toContain("source");
+    expect(indexNames("albums")).not.toContain("[artistId+year]");
+    expect(indexNames("downloadJobs")).not.toContain("batchId");
+    expect(indexNames("folders")).toEqual([]);
 
     db.close();
   });

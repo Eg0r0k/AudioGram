@@ -14,7 +14,7 @@ import {
   TrackChapterEntity,
   TrackEntity,
 } from "./entities";
-import { upgradeToV10 } from "./migrations";
+import { upgradeToV10, upgradeToV12 } from "./migrations";
 import { DbError, toDbError } from "./errors/db.errors";
 import { getLogger } from "@/lib/logger";
 import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
@@ -60,6 +60,34 @@ export class AppDatabase extends Dexie {
 
     this.version(11).stores({}).upgrade(async (tx) => {
       await tx.table("trackChapters").delete("");
+    });
+
+    // Data normalization only — see upgradeToV12 for why it precedes v13.
+    this.version(12).stores({}).upgrade(upgradeToV12);
+
+    // Index-only change. A listed table gets its complete new index list;
+    // tags / offlineCopies / radioStations are untouched.
+    //   tracks:       - state, - source (never queried); + [albumId+pinned]
+    //   artists:      - updatedAt; + pinned
+    //   albums:       - year, updatedAt, [artistId+year], [title+artistId]; + pinned, [artistId+pinned]
+    //   playlists:    - updatedAt, addedAt
+    //   folders:      - name, updatedAt, addedAt
+    //   listenEvents: - albumId
+    //   covers:       - ownerId, updatedAt; [ownerType+ownerId] becomes unique
+    //   audioFeatures:- analyzedAt
+    //   trackChapters:- updatedAt
+    //   downloadJobs: - batchId; + trackId, [trackId+status]
+    this.version(13).stores({
+      tracks: "&id, title, artistName, albumTitle, *artistIds, albumId, *tagIds, likedAt, addedAt, duration, playCount, storagePath, fingerprint, pinned, [albumId+pinned], [title+likedAt], [addedAt+likedAt], [duration+likedAt], [artistName+likedAt], [albumTitle+likedAt], [playCount+likedAt]",
+      artists: "&id, name, pinned",
+      albums: "&id, title, artistId, pinned, [artistId+pinned]",
+      playlists: "&id, name",
+      folders: "&id",
+      listenEvents: "&id, trackId, artistId, startedAt",
+      covers: "&id, ownerType, &[ownerType+ownerId]",
+      audioFeatures: "&trackId, algorithmVersion",
+      trackChapters: "&trackId",
+      downloadJobs: "&id, status, trackId, [trackId+status]",
     });
 
     this.tracks = this.table("tracks");

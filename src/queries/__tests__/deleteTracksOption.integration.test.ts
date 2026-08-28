@@ -136,7 +136,7 @@ describe("deleteTracks option (integration)", () => {
     const tracks = await db.tracks.toArray();
     expect(tracks).toHaveLength(2);
     expect(tracks.every(track => track.artistIds.length === 0)).toBe(true);
-    expect(tracks.every(track => track.albumTitle === undefined)).toBe(true);
+    expect(tracks.every(track => track.albumTitle === "")).toBe(true);
     expect(await db.albums.count()).toBe(0);
     expect(await db.artists.count()).toBe(0);
   });

@@ -100,7 +100,7 @@ describe("deleteAlbumAndSync cascade (integration)", () => {
 
     const track = await db.tracks.get(ytTrackId("v1"));
     expect(track?.albumId).toBe("");
-    expect(track?.albumTitle).toBeUndefined();
+    expect(track?.albumTitle).toBe("");
     expect(await db.offlineCopies.count()).toBe(1);
     expect(await db.albums.count()).toBe(0);
     // The tracks still credit them, so the artist is not orphaned.
@@ -134,7 +134,7 @@ describe("deleteAlbumAndSync cascade (integration)", () => {
 
     const track = await db.tracks.get(TrackId("t-1"));
     expect(track).toBeDefined();
-    expect(track?.albumTitle).toBeUndefined();
+    expect(track?.albumTitle).toBe("");
     expect(track?.albumId).toBe("");
     expect(await db.albums.count()).toBe(0);
     expect(storageMock.deleteFile).not.toHaveBeenCalled();

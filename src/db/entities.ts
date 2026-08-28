@@ -80,8 +80,13 @@ export interface SidebarFolderEntity {
 export interface TrackEntity {
   id: TrackId;
   title: string;
-  artistName?: string;
-  albumTitle?: string;
+  /**
+   * Denormalized display names. "" when there is no artist / album — never
+   * undefined: both are indexed (plain and inside the [x+likedAt] compounds)
+   * and a row whose key is undefined silently drops out of the index.
+   */
+  artistName: string;
+  albumTitle: string;
   artistIds: ArtistId[];
   albumId: AlbumId;
   tagIds: TagId[];

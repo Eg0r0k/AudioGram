@@ -285,7 +285,7 @@ export async function deleteAlbumAndSync(
         // Detach fully — a dangling albumId would keep pointing at a dead row.
         await unwrapResult(trackRepository.updateMany(rawTracks.map(track => ({
           key: track.id,
-          changes: { albumTitle: undefined, albumId: createAlbumId("") },
+          changes: { albumTitle: "", albumId: createAlbumId("") },
         }))));
       }
 
