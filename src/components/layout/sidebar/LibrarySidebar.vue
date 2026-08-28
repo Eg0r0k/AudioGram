@@ -62,7 +62,6 @@
             @open-folder="openFolder"
             @add-to-folder="openFolderPicker"
             @rename-folder="openRenameFolderDialog"
-            @move-to-folder="openMoveToFolderDialog"
             @remove-from-folder="removeItemFromActiveFolder"
           >
             <CrossfadeTransition class="flex-1">
@@ -156,13 +155,6 @@
       :title="folderNameDialogTitle"
       @submit="submitFolderName"
     />
-
-    <LibraryMoveToFolderDialog
-      v-model:open="isMoveToFolderDialogOpen"
-      :folders="folders"
-      :item="itemToMove"
-      @move="moveItemToFolder"
-    />
   </div>
 </template>
 
@@ -176,7 +168,6 @@ import { Button } from "@/components/ui/button";
 import FloatingButton from "@/components/layout/sidebar/floatingButton/FloatingButton.vue";
 import LibraryFolderAddPanel from "@/components/layout/sidebar/LibraryFolderAddPanel.vue";
 import LibraryFolderNameDialog from "@/components/layout/sidebar/LibraryFolderNameDialog.vue";
-import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveToFolderDialog.vue";
 import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
 import LibrarySidebarItem from "@/components/layout/sidebar/library-item/LibrarySidebarItem.vue";
 import SearchPanel from "@/modules/search/components/SearchPanel.vue";
@@ -228,13 +219,9 @@ const {
   folderNameDialogTitle,
   isFolderNameDialogOpen,
   isFolderPickerOpen,
-  isMoveToFolderDialogOpen,
-  itemToMove,
-  moveItemToFolder,
   openCreateFolderDialog,
   openFolder,
   openFolderPicker,
-  openMoveToFolderDialog,
   openRenameFolderDialog,
   removeItemFromActiveFolder,
   renameActiveFolder,

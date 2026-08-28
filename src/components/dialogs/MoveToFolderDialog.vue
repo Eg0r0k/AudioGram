@@ -1,10 +1,13 @@
 <template>
-  <Dialog v-model:open="isOpen">
+  <Dialog
+    :open="open"
+    @update:open="value => emit('update:open', value)"
+  >
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ $t("library.folder.moveToFolder") }}</DialogTitle>
         <DialogDescription>
-          {{ item?.title }}
+          {{ item.title }}
         </DialogDescription>
       </DialogHeader>
 
@@ -15,7 +18,7 @@
           type="button"
           variant="ghost"
           class="justify-start"
-          @click="emit('move', folder.id)"
+          @click="resolve(folder.id)"
         >
           <IconFolder class="size-5" />
           {{ folder.name }}
@@ -41,28 +44,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import { useSummonedDialog } from "@/components/dialogs/summon";
 import type { SidebarFolderEntity } from "@/db/entities";
 import type { LibraryItem } from "@/modules/library/types";
 import IconFolder from "~icons/tabler/folder";
 import IconFolderOff from "~icons/tabler/folder-off";
 
-const props = defineProps<{
+// Summoned via summonDialog<string>(MoveToFolderDialog, { item, folders }):
+// resolves with the picked folder id, or undefined when dismissed.
+defineProps<{
   open: boolean;
+  item: LibraryItem;
   folders: SidebarFolderEntity[];
-  item: LibraryItem | null;
 }>();
 
 const emit = defineEmits<{
   "update:open": [open: boolean];
-  "move": [folderId: string];
 }>();
 
-const isOpen = computed({
-  get: () => props.open,
-  set: value => emit("update:open", value),
-});
+const { resolve } = useSummonedDialog<string>();
 </script>

@@ -33,8 +33,6 @@ export function useLibrarySidebarFolders({
   const editingFolderId = ref<string | null>(null);
   const isFolderPickerOpen = ref(false);
   const { expandLeftSidebar } = useSidebar();
-  const isMoveToFolderDialogOpen = ref(false);
-  const itemToMove = ref<LibraryItem | null>(null);
 
   const activeFolder = computed(() =>
     folders.value.find((folder: SidebarFolderEntity) => folder.id === activeFolderId.value) ?? null,
@@ -123,24 +121,6 @@ export function useLibrarySidebarFolders({
     isFolderPickerOpen.value = false;
   };
 
-  function openMoveToFolderDialog(item: LibraryItem) {
-    itemToMove.value = item;
-    isMoveToFolderDialogOpen.value = true;
-  }
-
-  async function moveItemToFolder(folderId: string) {
-    if (!itemToMove.value || !canMoveToFolder(itemToMove.value)) return;
-
-    const folder = folders.value.find((folder: SidebarFolderEntity) => folder.id === folderId);
-    if (!folder) return;
-
-    await setFolderItems(folderId, [
-      ...folder.items,
-      { type: itemToMove.value.type, id: itemToMove.value.id },
-    ]);
-    isMoveToFolderDialogOpen.value = false;
-  }
-
   async function deleteSidebarFolder(folderId: string) {
     await deleteFolder(folderId);
     if (activeFolderId.value === folderId) closeFolder();
@@ -166,13 +146,9 @@ export function useLibrarySidebarFolders({
     folderNameDialogTitle,
     isFolderNameDialogOpen,
     isFolderPickerOpen,
-    isMoveToFolderDialogOpen,
-    itemToMove,
-    moveItemToFolder,
     openCreateFolderDialog,
     openFolder,
     openFolderPicker,
-    openMoveToFolderDialog,
     openRenameFolderDialog,
     removeItemFromActiveFolder,
     renameActiveFolder,

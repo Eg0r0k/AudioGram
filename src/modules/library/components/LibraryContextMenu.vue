@@ -54,7 +54,7 @@ const props = withDefaults(defineProps<{
 
 const { activeItem, menuFlavor, isContextMenuOpen } = useLibraryMenu();
 
-const { togglePin, createPlaylist } = useLibrary();
+const { togglePin, createPlaylist, moveToFolder } = useLibrary();
 const { addToQueue, addCatalogToQueue, downloadCatalog } = useLibraryContextActions();
 
 const contexts: Record<LibraryItem["type"], Component> = {
@@ -169,7 +169,6 @@ const emit = defineEmits<{
   openFolder: [folderId: string];
   addToFolder: [folderId: string];
   renameFolder: [folderId: string];
-  moveToFolder: [item: LibraryItem];
   removeFromFolder: [item: LibraryItem];
 }>();
 
@@ -193,9 +192,9 @@ const handleRenameFolder = () => {
   emit("renameFolder", activeItem.value.id);
 };
 
-const handleMoveToFolder = () => {
-  if (!activeItem.value || activeItem.value.type === "liked" || activeItem.value.type === "allMedia" || activeItem.value.type === "folder") return;
-  emit("moveToFolder", activeItem.value);
+const handleMoveToFolder = async () => {
+  if (!activeItem.value) return;
+  await moveToFolder(activeItem.value);
 };
 
 const handleRemoveFromFolder = () => {

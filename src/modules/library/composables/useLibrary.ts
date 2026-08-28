@@ -25,6 +25,7 @@ import {
   deletePlaylistAndSync,
 } from "@/queries/playlist.queries";
 import DeleteConfirmDialog from "@/components/dialogs/DeleteConfirmDialog.vue";
+import MoveToFolderDialog from "@/components/dialogs/MoveToFolderDialog.vue";
 import { summonDialog } from "@/components/dialogs/summon";
 import type { DeleteConfirmData, DeleteConfirmResult } from "@/components/dialogs/deleteConfirm";
 import { sourceKindOf } from "@/modules/sources/lib/display";
@@ -342,6 +343,25 @@ export const useLibrary = () => {
     await invalidateLibraryData(queryClient);
   };
 
+  // Summoned like the delete confirm so the action works from every
+  // LibraryContextMenu host (sidebar, artist pages, search), not only the
+  // sidebar that used to own the dialog. The repository strips the entry
+  // from any other folder on write, so appending is a move.
+  const moveToFolder = async (item: LibraryItem) => {
+    if (item.type !== "artist" && item.type !== "album" && item.type !== "playlist") return;
+
+    const folderId = await summonDialog<string>(MoveToFolderDialog, {
+      item,
+      folders: folders.value,
+    }, { key: `move-to-folder:${item.type}:${item.id}` });
+    if (!folderId) return;
+
+    const folder = folders.value.find(folder => folder.id === folderId);
+    if (!folder) return;
+
+    await setFolderItems(folderId, [...folder.items, { type: item.type, id: item.id }]);
+  };
+
   const deleteItem = async (item: LibraryItem) => {
     if (item.type === "liked" || item.type === "allMedia") return;
 
@@ -416,6 +436,7 @@ export const useLibrary = () => {
     getFolderItems,
     invalidateLibrary,
     deleteItem,
+    moveToFolder,
     clearLibrary,
   };
 };
