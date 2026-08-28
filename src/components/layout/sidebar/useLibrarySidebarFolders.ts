@@ -1,5 +1,6 @@
 import { computed, ref, type ComputedRef } from "vue";
 import { useI18n } from "vue-i18n";
+import { useSidebar } from "@/composables/useSidebar";
 import type { SidebarFolderEntity } from "@/db/entities";
 import { normalizeFolderName, validateFolderName } from "@/modules/library/lib/folderName";
 import type { FolderLibraryItemType, LibraryFolderEntry, LibraryItem } from "@/modules/library/types";
@@ -30,9 +31,8 @@ export function useLibrarySidebarFolders({
   /** What the name dialog opens with; the dialog owns the edited value. */
   const folderName = ref("");
   const editingFolderId = ref<string | null>(null);
-  const isManageFolderDialogOpen = ref(false);
-  const managingFolderId = ref<string | null>(null);
-  const selectedFolderItemKeys = ref<string[]>([]);
+  const isFolderPickerOpen = ref(false);
+  const { expandLeftSidebar } = useSidebar();
   const isMoveToFolderDialogOpen = ref(false);
   const itemToMove = ref<LibraryItem | null>(null);
 
@@ -45,13 +45,19 @@ export function useLibrarySidebarFolders({
     : t("library.folder.create"),
   );
 
+  const folderDepth = computed<0 | 1 | 2>(() => {
+    if (!activeFolder.value) return 0;
+    return isFolderPickerOpen.value ? 2 : 1;
+  });
+
   function openFolder(folderId: string) {
     activeFolderId.value = folderId;
   }
 
-  function closeFolder() {
+  const closeFolder = () => {
+    isFolderPickerOpen.value = false;
     activeFolderId.value = null;
-  }
+  };
 
   function openCreateFolderDialog() {
     editingFolderId.value = null;
@@ -92,21 +98,30 @@ export function useLibrarySidebarFolders({
     await renameFolder(activeFolder.value.id, normalizeFolderName(rawName));
   }
 
-  function openManageFolderDialog(folderId: string) {
+  /**
+   * The picker lives inside the sidebar, so in the icon-only compact layout
+   * it would not fit: opening it expands the sidebar and leaves it expanded.
+   */
+  const openFolderPicker = (folderId: string) => {
     const folder = folders.value.find((folder: SidebarFolderEntity) => folder.id === folderId);
     if (!folder) return;
 
-    managingFolderId.value = folderId;
-    selectedFolderItemKeys.value = folder.items.map(item => `${item.type}:${item.id}`);
-    isManageFolderDialogOpen.value = true;
-  }
+    activeFolderId.value = folderId;
+    isFolderPickerOpen.value = true;
+    expandLeftSidebar();
+  };
 
-  async function submitManageFolder(items: LibraryFolderEntry[]) {
-    if (!managingFolderId.value) return;
+  const closeFolderPicker = () => {
+    isFolderPickerOpen.value = false;
+  };
 
-    await setFolderItems(managingFolderId.value, items);
-    isManageFolderDialogOpen.value = false;
-  }
+  /** Appending is enough: the repository strips the entries from other folders. */
+  const addItemsToActiveFolder = async (entries: LibraryFolderEntry[]) => {
+    if (!activeFolder.value) return;
+
+    await setFolderItems(activeFolder.value.id, [...activeFolder.value.items, ...entries]);
+    isFolderPickerOpen.value = false;
+  };
 
   function openMoveToFolderDialog(item: LibraryItem) {
     itemToMove.value = item;
@@ -142,24 +157,25 @@ export function useLibrarySidebarFolders({
 
   return {
     activeFolder,
+    addItemsToActiveFolder,
+    closeFolder,
+    closeFolderPicker,
+    deleteSidebarFolder,
+    folderDepth,
     folderName,
     folderNameDialogTitle,
     isFolderNameDialogOpen,
-    isManageFolderDialogOpen,
+    isFolderPickerOpen,
     isMoveToFolderDialogOpen,
     itemToMove,
-    selectedFolderItemKeys,
-    closeFolder,
-    deleteSidebarFolder,
     moveItemToFolder,
     openCreateFolderDialog,
     openFolder,
-    openManageFolderDialog,
+    openFolderPicker,
     openMoveToFolderDialog,
     openRenameFolderDialog,
     removeItemFromActiveFolder,
     renameActiveFolder,
     submitFolderName,
-    submitManageFolder,
   };
 }
