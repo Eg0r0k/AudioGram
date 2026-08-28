@@ -42,16 +42,8 @@
     "addTo": "Add to \"{name}\"",
     "inFolder": "in \"{name}\"",
     "nothingToAdd": "Nothing to add — everything is already in a folder",
-    "manageItems": "Manage items",
-    "manageDescription": "Choose artists, albums, and playlists to show in this folder.",
     "itemCount": "{count} items",
-    "noFolders": "Create a folder first",
-    "selectAllArtists": "Select all artists",
-    "deselectAllArtists": "Deselect all artists",
-    "selectAllAlbums": "Select all albums",
-    "deselectAllAlbums": "Deselect all albums",
-    "selectAllPlaylists": "Select all playlists",
-    "deselectAllPlaylists": "Deselect all playlists"
+    "noFolders": "Create a folder first"
   },
   "contextMenu": {
     "pinAlbum": "Pin album",

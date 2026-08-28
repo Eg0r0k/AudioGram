@@ -42,16 +42,8 @@
     "addTo": "Добавить в «{name}»",
     "inFolder": "в папке «{name}»",
     "nothingToAdd": "Нечего добавить — всё уже в папках",
-    "manageItems": "Управление элементами",
-    "manageDescription": "Выберите исполнителей, альбомы и плейлисты, которые будут отображаться в этой папке.",
     "itemCount": "Элементов: {count}",
-    "noFolders": "Сначала создайте папку",
-    "selectAllArtists": "Выбрать всех исполнителей",
-    "deselectAllArtists": "Снять выбор с исполнителей",
-    "selectAllAlbums": "Выбрать все альбомы",
-    "deselectAllAlbums": "Снять выбор с альбомов",
-    "selectAllPlaylists": "Выбрать все плейлисты",
-    "deselectAllPlaylists": "Снять выбор с плейлистов"
+    "noFolders": "Сначала создайте папку"
   },
   "contextMenu": {
     "pinAlbum": "Закрепить альбом",
