@@ -76,7 +76,7 @@
 
       <AddFloatingButton
         :count="confirmCount ?? 0"
-        :show="(confirmCount ?? 0) > 0"
+        :show="showConfirm ?? (confirmCount ?? 0) > 0"
         @click="emit('confirm')"
       />
     </div>
@@ -105,6 +105,8 @@ const props = withDefaults(defineProps<{
   canCreate?: boolean;
   createLabel?: string;
   confirmCount?: number;
+  /** Overrides the "count > 0" rule for pickers whose pending change is not a count (a single album, a detach). */
+  showConfirm?: boolean;
   showBack?: boolean;
 }>(), {
   isLoading: false,
@@ -112,6 +114,7 @@ const props = withDefaults(defineProps<{
   canCreate: false,
   createLabel: undefined,
   confirmCount: 0,
+  showConfirm: undefined,
   showBack: true,
 });
 
