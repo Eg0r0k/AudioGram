@@ -70,6 +70,31 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
     }
   }
 
+  /** Appends the ids not yet in the playlist with one row write; returns the appended ids in order. */
+  async addTracks(playlistId: PlaylistId, trackIds: TrackId[]): Promise<Result<TrackId[], Error>> {
+    try {
+      let added: TrackId[] = [];
+      await this.table
+        .where("id")
+        .equals(playlistId)
+        .modify((playlist) => {
+          const seen = new Set(playlist.trackIds);
+          added = trackIds.filter((id) => {
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+          if (added.length === 0) return;
+          playlist.trackIds = [...playlist.trackIds, ...added];
+          playlist.updatedAt = Date.now();
+        });
+      return ok(added);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async removeTrack(playlistId: PlaylistId, trackId: TrackId): Promise<Result<number, Error>> {
     try {
       const count = await this.table

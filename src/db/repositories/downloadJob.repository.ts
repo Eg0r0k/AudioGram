@@ -20,23 +20,12 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
     }
   }
 
-  async findByBatchId(batchId: string): Promise<Result<DownloadJobEntity[], Error>> {
-    try {
-      const jobs = await db.downloadJobs.where("batchId").equals(batchId).sortBy("addedAt");
-      return ok(jobs);
-    }
-    catch (error) {
-      return err(toDbError(error));
-    }
-  }
-
   /** Queued or running job for a track — the enqueue dedupe check. */
   async findActiveByTrackId(trackId: TrackId): Promise<Result<DownloadJobEntity | undefined, Error>> {
     try {
       const job = await db.downloadJobs
-        .where("status")
-        .anyOf("queued", "running")
-        .filter(candidate => candidate.trackId === trackId)
+        .where("[trackId+status]")
+        .anyOf([[trackId, "queued"], [trackId, "running"]])
         .first();
       return ok(job);
     }
@@ -49,9 +38,8 @@ class DownloadJobRepository extends BaseRepository<DownloadJobEntity, string> {
   async deleteErrorsByTrackId(trackId: TrackId): Promise<Result<number, Error>> {
     try {
       const deleted = await db.downloadJobs
-        .where("status")
-        .equals("error")
-        .filter(job => job.trackId === trackId)
+        .where("[trackId+status]")
+        .equals([trackId, "error"])
         .delete();
       return ok(deleted);
     }

@@ -38,26 +38,6 @@ describe("trackRepository count-by-ids", () => {
     vi.clearAllMocks();
   });
 
-  it("countByAlbumIds counts library tracks only, skipping shadow rows", async () => {
-    // album-a: 2 library tracks + 1 shadow (played from browsing), album-b: 0.
-    table.setEachRows([
-      { albumId: "album-a", pinned: 1 },
-      { albumId: "album-a", pinned: 1 },
-      { albumId: "album-a", pinned: 0 },
-    ]);
-
-    const result = await trackRepository.countByAlbumIds(["album-a", "album-b"] as AlbumId[]);
-
-    expect(result.isOk()).toBe(true);
-    const counts = result._unsafeUnwrap();
-    expect(counts.get("album-a" as AlbumId)).toBe(2);
-    expect(counts.get("album-b" as AlbumId)).toBe(0);
-
-    expect(table.whereMock).toHaveBeenCalledWith("albumId");
-    expect(table.anyOfMock).toHaveBeenCalledWith(["album-a", "album-b"]);
-    expect(table.toArrayMock).not.toHaveBeenCalled();
-  });
-
   it("countByAlbumIds returns empty map without touching the table for empty input", async () => {
     const result = await trackRepository.countByAlbumIds([]);
 

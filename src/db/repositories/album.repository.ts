@@ -25,6 +25,17 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
     }
   }
 
+  /** Library members only; shadow rows (pinned = 0) come from remote browsing. */
+  async findPinned(): Promise<Result<AlbumEntity[], Error>> {
+    try {
+      const albums = await this.table.where("pinned").equals(1).toArray();
+      return ok(albums);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async findByArtistId(artistId: ArtistId): Promise<Result<AlbumEntity[], Error>> {
     try {
       const albums = await this.table
@@ -70,9 +81,8 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
   async countByArtistId(artistId: ArtistId): Promise<Result<number, Error>> {
     try {
       const count = await this.table
-        .where("artistId")
-        .equals(artistId)
-        .and(album => album.pinned !== 0)
+        .where("[artistId+pinned]")
+        .equals([artistId, 1])
         .count();
       return ok(count);
     }
@@ -87,10 +97,11 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
     limit: number,
   ): Promise<Result<AlbumEntity[], Error>> {
     try {
+      // `year` is optional, so a compound [artistId+year] index would miss
+      // undated albums; sort in memory instead (an artist has few albums).
       const all = await this.table
-        .where("artistId")
-        .equals(artistId)
-        .and(album => album.pinned !== 0)
+        .where("[artistId+pinned]")
+        .equals([artistId, 1])
         .sortBy("year");
       all.reverse();
       return ok(all.slice(offset, offset + limit));

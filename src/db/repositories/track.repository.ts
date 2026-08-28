@@ -196,10 +196,9 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       for (const albumId of albumIds) counts.set(albumId, 0);
       if (albumIds.length > 0) {
         await this.table
-          .where("albumId")
-          .anyOf(albumIds)
+          .where("[albumId+pinned]")
+          .anyOf(albumIds.map(id => [id, 1]))
           .each((track) => {
-            if (!this.isLibraryMember(track)) return;
             counts.set(track.albumId, (counts.get(track.albumId) ?? 0) + 1);
           });
       }
@@ -296,21 +295,6 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     }
   }
 
-  async findByIds(ids: TrackId[]): Promise<Result<TrackEntity[], Error>> {
-    try {
-      const tracks = await this.table
-        .where("id")
-        .anyOf(ids)
-        .toArray();
-
-      const map = new Map(tracks.map(track => [track.id, track]));
-      return ok(ids.flatMap(id => map.get(id) ? [map.get(id)!] : []));
-    }
-    catch (error) {
-      return err(toDbError(error));
-    }
-  }
-
   async findPaginated(offset: number, limit: number): Promise<Result<TrackEntity[], Error>> {
     try {
       const tracks = await this.table
@@ -392,6 +376,36 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       });
 
       return ok(undefined);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
+  /** Likes every listed track that is not liked yet, in one operation; returns how many changed. */
+  async likeMany(ids: TrackId[], likedAt: number): Promise<Result<number, Error>> {
+    try {
+      if (ids.length === 0) return ok(0);
+      const count = await this.table
+        .where("id")
+        .anyOf(ids)
+        .and(track => !track.likedAt)
+        .modify({ likedAt });
+      return ok(count);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
+  /** Rewrites the denormalized album title on every track of the album. */
+  async setAlbumTitleByAlbumId(albumId: AlbumId, albumTitle: string): Promise<Result<number, Error>> {
+    try {
+      const count = await this.table
+        .where("albumId")
+        .equals(albumId)
+        .modify({ albumTitle });
+      return ok(count);
     }
     catch (error) {
       return err(toDbError(error));
@@ -484,17 +498,18 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async addTagToTrack(trackId: TrackId, tagId: TagId): Promise<Result<void, Error>> {
     try {
-      const track = await this.table.get(trackId);
-      if (!track) {
+      // modify() runs read + write in one transaction, so two tag additions
+      // racing on the same track cannot overwrite each other.
+      const modified = await this.table
+        .where("id")
+        .equals(trackId)
+        .modify((track) => {
+          const current = track.tagIds ?? [];
+          if (!current.includes(tagId)) track.tagIds = [...current, tagId];
+        });
+      if (modified === 0) {
         return err(new Error(`Track not found: ${trackId}`));
       }
-      const currentTagIds = track.tagIds ?? [];
-      if (currentTagIds.includes(tagId)) {
-        return ok(undefined);
-      }
-      await this.table.update(trackId, {
-        tagIds: [...currentTagIds, tagId],
-      });
       return ok(undefined);
     }
     catch (error) {
@@ -504,15 +519,15 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async removeTagFromTrack(trackId: TrackId, tagId: TagId): Promise<Result<void, Error>> {
     try {
-      const track = await this.table.get(trackId);
-      if (!track) {
+      const modified = await this.table
+        .where("id")
+        .equals(trackId)
+        .modify((track) => {
+          track.tagIds = (track.tagIds ?? []).filter(id => id !== tagId);
+        });
+      if (modified === 0) {
         return err(new Error(`Track not found: ${trackId}`));
       }
-      const currentTagIds = track.tagIds ?? [];
-      const newTagIds = currentTagIds.filter(id => id !== tagId);
-      await this.table.update(trackId, {
-        tagIds: newTagIds,
-      });
       return ok(undefined);
     }
     catch (error) {

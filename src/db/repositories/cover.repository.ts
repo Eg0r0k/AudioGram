@@ -46,33 +46,33 @@ class CoverRepository {
     blob: Blob,
   ): Promise<Result<string, Error>> {
     try {
-      const now = Date.now();
+      // find + write inside one transaction: two concurrent upserts for the
+      // same owner would otherwise both miss and the second add() would hit
+      // the unique [ownerType+ownerId] key.
+      const id = await db.transaction("rw", db.covers, async () => {
+        const now = Date.now();
+        const mimeType = blob.type || "image/jpeg";
+        const existing = await db.covers
+          .where("[ownerType+ownerId]")
+          .equals([ownerType, ownerId])
+          .first();
 
-      const existing = await db.covers
-        .where("[ownerType+ownerId]")
-        .equals([ownerType, ownerId])
-        .first();
+        if (existing) {
+          await db.covers.update(existing.id, { blob, mimeType, updatedAt: now });
+          return existing.id;
+        }
 
-      if (existing) {
-        await db.covers.update(existing.id, {
+        const freshId = crypto.randomUUID();
+        await db.covers.add({
+          id: freshId,
+          ownerType,
+          ownerId,
           blob,
-          mimeType: blob.type || "image/jpeg",
+          mimeType,
+          addedAt: now,
           updatedAt: now,
         });
-
-        return ok(existing.id);
-      }
-
-      const id = crypto.randomUUID();
-
-      await db.covers.add({
-        id,
-        ownerType,
-        ownerId,
-        blob,
-        mimeType: blob.type || "image/jpeg",
-        addedAt: now,
-        updatedAt: now,
+        return freshId;
       });
 
       return ok(id);

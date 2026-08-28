@@ -63,8 +63,7 @@ export async function removeTrackFromLibrary(trackId: TrackId): Promise<void> {
       const demotedDocIds: string[] = [];
       if (track?.albumId && parseTrackRef(track.albumId as unknown as TrackId).kind !== "local") {
         const stillPinned = await db.tracks
-          .where("albumId").equals(track.albumId)
-          .and(candidate => candidate.pinned === 1)
+          .where("[albumId+pinned]").equals([track.albumId, 1])
           .count();
         if (stillPinned === 0) {
           await db.albums.update(track.albumId, { pinned: 0 });

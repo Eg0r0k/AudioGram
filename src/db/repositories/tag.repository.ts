@@ -10,29 +10,14 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
     super(db.tags);
   }
 
-  async findByIds(ids: TagId[]): Promise<Result<TagEntity[], Error>> {
-    try {
-      if (ids.length === 0) {
-        return ok([]);
-      }
-      const tags = await this.table.where("id").anyOf(ids).toArray();
-      const map = new Map(tags.map(t => [t.id, t]));
-      return ok(ids.flatMap(id => map.get(id) ? [map.get(id)!] : []));
-    }
-    catch (error) {
-      return err(toDbError(error));
-    }
-  }
-
   async findByTrackId(trackId: TrackId): Promise<Result<TagEntity[], Error>> {
     try {
       const track = await db.tracks.get(trackId);
       if (!track || !track.tagIds || track.tagIds.length === 0) {
         return ok([]);
       }
-      const tags = await this.table.where("id").anyOf(track.tagIds).toArray();
-      const map = new Map(tags.map(t => [t.id, t]));
-      return ok(track.tagIds.flatMap(id => map.get(id) ? [map.get(id)!] : []));
+      const tags = await this.table.bulkGet(track.tagIds);
+      return ok(tags.filter((tag): tag is TagEntity => tag !== undefined));
     }
     catch (error) {
       return err(toDbError(error));
@@ -42,17 +27,17 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
   async findOrCreate(name: string): Promise<Result<TagEntity, Error>> {
     try {
       const normalizedName = name.trim().toLowerCase();
-      const existing = await this.table.where("name").equals(normalizedName).first();
-      if (existing) {
-        return ok(existing);
-      }
-      const id = TagId(crypto.randomUUID());
-      const tag: TagEntity = {
-        id,
-        name: normalizedName,
-      };
-      const addedId = await this.table.add(tag);
-      return ok({ ...tag, id: addedId as TagId });
+      // Lookup and insert in one transaction: `name` is a unique index, so
+      // two concurrent calls for a new name would otherwise race into a
+      // ConstraintError on the second add().
+      const tag = await db.transaction("rw", db.tags, async () => {
+        const existing = await this.table.where("name").equals(normalizedName).first();
+        if (existing) return existing;
+        const created: TagEntity = { id: TagId(crypto.randomUUID()), name: normalizedName };
+        await this.table.add(created);
+        return created;
+      });
+      return ok(tag);
     }
     catch (error) {
       return err(toDbError(error));

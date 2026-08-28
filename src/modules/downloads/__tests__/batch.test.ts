@@ -130,7 +130,7 @@ describe("batch downloads", () => {
 
     const batchId = await enqueueLocalPlaylistDownload(PlaylistId("pl-local"));
 
-    const jobs = await db.downloadJobs.where("batchId").equals(batchId!).toArray();
+    const jobs = await db.downloadJobs.filter(job => job.batchId === batchId).toArray();
     expect(jobs.map(job => job.trackId)).toEqual([ndTrackId("shadow")]);
     expect((await db.tracks.get(ndTrackId("shadow")))?.pinned).toBe(1);
 

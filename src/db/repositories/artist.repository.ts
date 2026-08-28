@@ -25,6 +25,17 @@ class ArtistRepository extends BaseRepository<ArtistEntity, ArtistId> {
     }
   }
 
+  /** Library members only; shadow rows (pinned = 0) come from remote browsing. */
+  async findPinned(): Promise<Result<ArtistEntity[], Error>> {
+    try {
+      const artists = await this.table.where("pinned").equals(1).toArray();
+      return ok(artists);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async findByName(name: string): Promise<Result<ArtistEntity | undefined, Error>> {
     try {
       const artist = await this.table

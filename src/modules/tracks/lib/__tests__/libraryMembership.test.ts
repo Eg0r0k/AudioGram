@@ -15,7 +15,7 @@ const dexie = vi.hoisted(() => {
   return {
     albums: { update: vi.fn() },
     artists: { update: vi.fn() },
-    tracks: { where: vi.fn(() => ({ equals: vi.fn(() => ({ and: vi.fn(() => ({ count })) })) })) },
+    tracks: { where: vi.fn(() => ({ equals: vi.fn(() => ({ and: vi.fn(() => ({ count })), count })) })) },
     pinnedCount: count,
   };
 });
