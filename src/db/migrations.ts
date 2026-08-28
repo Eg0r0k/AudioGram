@@ -90,3 +90,48 @@ export const upgradeToV12 = async (tx: UpgradeTransaction): Promise<void> => {
   );
 };
 
+/**
+ * v14: albums that were pinned without a title. They came from YT/ND DTOs
+ * carrying an album id but no name (the resolver now refuses to create
+ * those). Each such album is dissolved: its tracks become album-less, its
+ * cover moves to the tracks that have none of their own (album-less tracks
+ * own their artwork), then the album and its cover row go.
+ */
+export const upgradeToV14 = async (tx: UpgradeTransaction): Promise<void> => {
+  const blankAlbumIds = (await tx.table("albums").where("title").equals("").primaryKeys()) as string[];
+  if (blankAlbumIds.length === 0) return;
+
+  // Only the plain `ownerType` index is used here: [ownerType+ownerId] was
+  // re-created (made unique) by v13 in this same versionchange transaction,
+  // and querying a just-re-created index in that transaction is not reliable
+  // across IndexedDB implementations.
+  const coversOf = (ownerType: string, ownerIds: ReadonlySet<string>) =>
+    tx.table("covers").where("ownerType").equals(ownerType).filter(cover => ownerIds.has(cover.ownerId));
+
+  const now = Date.now();
+  for (const albumId of blankAlbumIds) {
+    const trackIds = (await tx.table("tracks").where("albumId").equals(albumId).primaryKeys()) as string[];
+    const albumCover = await coversOf("album", new Set([albumId])).first();
+
+    if (albumCover) {
+      const owned = new Set(
+        (await coversOf("track", new Set(trackIds)).toArray()).map(cover => cover.ownerId as string),
+      );
+      await tx.table("covers").bulkAdd(
+        trackIds.filter(id => !owned.has(id)).map(id => ({
+          id: crypto.randomUUID(),
+          ownerType: "track",
+          ownerId: id,
+          blob: albumCover.blob,
+          mimeType: albumCover.mimeType,
+          addedAt: now,
+          updatedAt: now,
+        })),
+      );
+      await tx.table("covers").delete(albumCover.id);
+    }
+
+    await tx.table("tracks").where("albumId").equals(albumId).modify({ albumId: "", albumTitle: "" });
+  }
+  await tx.table("albums").bulkDelete(blankAlbumIds);
+};

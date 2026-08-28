@@ -72,13 +72,33 @@ describe("v9 → v10 upgrade (integration)", () => {
     await legacy.table("covers").add({ id: "c-old", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1 });
     await legacy.table("covers").add({ id: "c-new", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 2, updatedAt: 2 });
     await legacy.table("covers").add({ id: "c-other", ownerType: "artist", ownerId: "ar1", blob: new Blob(), mimeType: "image/webp", addedAt: 3, updatedAt: 3 });
+    // A shadow album that was pinned without ever getting a title (YT/ND DTO
+    // with an id but no name) — v14 detaches its track, hands the cover to
+    // the track and drops the row.
+    await legacy.table("albums").add({ id: "al-blank", title: "", artistId: "ar1", addedAt: 1, updatedAt: 1 });
+    await legacy.table("tracks").add({
+      id: "t3",
+      title: "Orphaned by blank album",
+      artistIds: ["ar1"],
+      albumId: "al-blank",
+      albumTitle: "",
+      artistName: "Artist",
+      tagIds: [],
+      source: "remote_yt",
+      state: 0,
+      duration: 10,
+      format: {},
+      playCount: 0,
+      addedAt: 3,
+    });
+    await legacy.table("covers").add({ id: "c-blank", ownerType: "album", ownerId: "al-blank", blob: new Blob(), mimeType: "image/webp", addedAt: 1, updatedAt: 1 });
     legacy.close();
 
     // The production database class, opened over the seeded v9 data.
     const { db } = await import("@/db");
     await db.open();
 
-    expect(db.verno).toBe(13);
+    expect(db.verno).toBe(14);
 
     const track = await db.tracks.get("t1" as never);
     expect(track).toMatchObject({ id: "t1", pinned: 1, likedAt: 42, playCount: 3 });
@@ -94,7 +114,7 @@ describe("v9 → v10 upgrade (integration)", () => {
     expect(await db.trackChapters.get("t1" as never)).toMatchObject({ trackId: "t1" });
 
     // New indexes are queryable.
-    expect(await db.tracks.where("pinned").equals(1).count()).toBe(2);
+    expect(await db.tracks.where("pinned").equals(1).count()).toBe(3);
 
     // v12: names backfilled to "" so the row is in the artistName/albumTitle
     // indexes and in the liked compound index.
@@ -104,11 +124,17 @@ describe("v9 → v10 upgrade (integration)", () => {
     expect((await db.tracks.where("[artistName+likedAt]").between(["", 1], ["￿", Infinity]).primaryKeys())).toContain("t2");
 
     // v12: cover duplicates collapsed to the newest; v13: the key is unique.
-    expect(await db.covers.count()).toBe(2);
+    expect(await db.covers.count()).toBe(3);
     expect((await db.covers.where("[ownerType+ownerId]").equals(["album", "al1"]).first())?.id).toBe("c-new");
     expect(db.covers.schema.indexes.find(i => i.name === "[ownerType+ownerId]")?.unique).toBe(true);
     await expect(db.covers.add({ id: "c-dup", ownerType: "album", ownerId: "al1", blob: new Blob(), mimeType: "image/webp", addedAt: 9, updatedAt: 9 }))
       .rejects.toThrow();
+
+    // v14: blank-titled albums are gone, their tracks detached, the cover re-owned.
+    expect(await db.albums.get("al-blank" as never)).toBeUndefined();
+    expect(await db.tracks.get("t3" as never)).toMatchObject({ albumId: "", albumTitle: "" });
+    expect(await db.covers.where("[ownerType+ownerId]").equals(["album", "al-blank"]).count()).toBe(0);
+    expect(await db.covers.where("[ownerType+ownerId]").equals(["track", "t3"]).count()).toBe(1);
 
     // v13: download-job lookup by track, pinned on albums/artists, dead
     // indexes gone.

@@ -66,6 +66,31 @@ describe("buildRemoteShadowEntities", () => {
     expect(rows.artists).toEqual([]);
   });
 
+  it("never writes an album row it cannot title — the track stays album-less instead", () => {
+    // YT/ND can hand over an album id with an empty (or missing) title; a
+    // blank album row would show up as an empty entry in the album picker.
+    const untitled: SourceTrackDTO = { ...dto, albumTitle: "" };
+
+    const rows = buildRemoteShadowEntities(untitled, 1, noExisting, NOW);
+
+    expect(rows.album).toBeNull();
+    expect(rows.track.albumId).toBe(AlbumId(""));
+    expect(rows.track.albumTitle).toBe("");
+  });
+
+  it("keeps the album when the DTO lacks a title but the existing row has one", () => {
+    const existing: RemotePinExisting = {
+      ...noExisting,
+      album: { id: ndAlbumId("album1"), title: "Known", artistId: ndArtistId("artist1"), pinned: 0, addedAt: 1, updatedAt: 1 },
+    };
+
+    const rows = buildRemoteShadowEntities({ ...dto, albumTitle: undefined }, 1, existing, NOW);
+
+    expect(rows.album?.title).toBe("Known");
+    expect(rows.track.albumId).toBe("nd:album1");
+    expect(rows.track.albumTitle).toBe("Known");
+  });
+
   it("preserves user state on the existing row and refreshes the snapshot", () => {
     const existingTrack: TrackEntity = {
       id: ndTrackId("song1"),

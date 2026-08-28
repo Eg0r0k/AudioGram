@@ -14,7 +14,7 @@ import {
   TrackChapterEntity,
   TrackEntity,
 } from "./entities";
-import { upgradeToV10, upgradeToV12 } from "./migrations";
+import { upgradeToV10, upgradeToV12, upgradeToV14 } from "./migrations";
 import { DbError, toDbError } from "./errors/db.errors";
 import { getLogger } from "@/lib/logger";
 import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
@@ -89,6 +89,8 @@ export class AppDatabase extends Dexie {
       trackChapters: "&trackId",
       downloadJobs: "&id, status, trackId, [trackId+status]",
     });
+
+    this.version(14).stores({}).upgrade(upgradeToV14);
 
     this.tracks = this.table("tracks");
     this.artists = this.table("artists");

@@ -76,7 +76,11 @@ export function buildRemoteShadowEntities(
   now: number,
 ): RemotePinRows {
   const source = trackSourceOf(dto);
-  const albumId = dto.albumId ?? existing.track?.albumId ?? AlbumId("");
+  // Same rule as for artists below: an album row we cannot title would show
+  // up as a blank entry in the album picker, so the track stays album-less.
+  const requestedAlbumId = dto.albumId ?? existing.track?.albumId ?? AlbumId("");
+  const albumTitle = dto.albumTitle || existing.album?.title || existing.track?.albumTitle || "";
+  const albumId = albumTitle ? requestedAlbumId : AlbumId("");
 
   const candidateIds = dto.artistIds ?? existing.track?.artistIds ?? [];
   const names = artistNamesFor(dto, candidateIds);
@@ -103,7 +107,7 @@ export function buildRemoteShadowEntities(
     id: dto.id,
     title: dto.title,
     artistName: dto.artistName ?? existing.track?.artistName ?? "",
-    albumTitle: dto.albumTitle ?? existing.track?.albumTitle ?? "",
+    albumTitle,
     artistIds,
     albumId,
     tagIds: existing.track?.tagIds ?? [],
@@ -118,11 +122,11 @@ export function buildRemoteShadowEntities(
     addedAt: existing.track?.addedAt ?? now,
   };
 
-  const album: AlbumEntity | null = dto.albumId
+  const album: AlbumEntity | null = dto.albumId && albumId
     ? {
         ...existing.album,
         id: dto.albumId,
-        title: dto.albumTitle ?? existing.album?.title ?? "",
+        title: albumTitle,
         artistId: existing.album?.artistId ?? artistIds[0] ?? ArtistId(""),
         pinned: mergePinned(existing.album?.pinned, requestedPinned),
         addedAt: existing.album?.addedAt ?? now,
