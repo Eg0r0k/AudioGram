@@ -268,13 +268,19 @@ useScrollRestoration(scrollableRef, {
   deps: () => libraryItems.value.length,
 });
 
+// The tab strip these swipes drive is only visible at depth 0 — inside a
+// folder or the folder picker, `rootRef` also wraps the picker's horizontal
+// chip scroller and rows, so an unconditional swipe would hijack their
+// gestures and switch the (hidden) library tabs underneath.
 useSwipeControl(rootRef, {
   onSwipeLeft: () => {
+    if (folderDepth.value !== 0) return;
     const idx = availableFilters.value.indexOf(activeFilter.value);
     const next = availableFilters.value[idx + 1];
     if (next) setFilter(next);
   },
   onSwipeRight: () => {
+    if (folderDepth.value !== 0) return;
     const idx = availableFilters.value.indexOf(activeFilter.value);
     const prev = availableFilters.value[idx - 1];
     if (prev) setFilter(prev);

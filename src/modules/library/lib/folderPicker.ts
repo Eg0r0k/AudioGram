@@ -37,7 +37,7 @@ export const buildFolderPickerItems = (
     .filter(item => !targetKeys.has(libraryItemKey(item)))
     .map((item): FolderPickerItem => {
       const folderName = folderNameByKey.get(libraryItemKey(item));
-      return folderName ? { ...item, folderName } : { ...item };
+      return folderName ? { ...item, folderName } : item;
     })
     .sort((a, b) => a.title.localeCompare(b.title));
 };

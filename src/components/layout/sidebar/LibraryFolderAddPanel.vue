@@ -39,6 +39,12 @@
               </Badge>
             </TabsTrigger>
           </TabsList>
+          <TabsContent
+            v-for="chip in chips"
+            :key="chip.value"
+            :value="chip.value"
+            class="hidden"
+          />
         </Tabs>
       </Scrollable>
     </template>
@@ -46,8 +52,9 @@
     <template #row="{ item, index }">
       <Item
         v-ripple
-        role="button"
+        role="checkbox"
         tabindex="0"
+        :aria-checked="isSelected(libraryItemKey(item))"
         :data-item-key="libraryItemKey(item)"
         :data-item-index="index"
         class="h-16 w-full cursor-pointer gap-3 px-2 py-2 flex-nowrap"
@@ -99,7 +106,7 @@ import { Empty, EmptyDescription } from "@/components/ui/empty";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Scrollable } from "@/components/ui/scrollable";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSelection } from "@/composables/useSelection";
 import type { SidebarFolderEntity } from "@/db/entities";
 import { libraryItemKey, parseFolderEntryKey } from "@/modules/library/lib/folderEntryKey";
@@ -162,6 +169,9 @@ const emptyLabel = computed(() => {
 
 // Selection is keyed by "<type>:<id>" so useSelection ranges/drag work over
 // the visible (filtered) order, exactly like AddTracksPanel over tracks.
+// `selectable` follows `visibleItems`, and useSelection's own watch prunes
+// any selected id that drops out of it, so the FAB count and the confirmed
+// entries are always exactly the checked rows currently on screen.
 const selectable = computed(() => visibleItems.value.map(item => ({ id: libraryItemKey(item) })));
 const {
   selectedIds,

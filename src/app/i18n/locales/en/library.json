@@ -39,8 +39,8 @@
     "moveToFolder": "Move to folder",
     "removeFromFolder": "Remove from folder",
     "addItems": "Add to folder",
-    "addTo": "Add to \"{name}\"",
-    "inFolder": "in \"{name}\"",
+    "addTo": "Add to “{name}”",
+    "inFolder": "in “{name}”",
     "nothingToAdd": "Nothing to add — everything is already in a folder",
     "itemCount": "{count} items",
     "noFolders": "Create a folder first"

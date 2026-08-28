@@ -19,7 +19,11 @@ const VirtualScrollableStub = {
 };
 
 const stubs = {
-  RightPanelHeader: { props: ["title"], template: `<h2 data-testid="title">{{ title }}</h2>` },
+  RightPanelHeader: {
+    props: ["title"],
+    emits: ["back"],
+    template: `<h2 data-testid="title" @click="$emit('back')">{{ title }}</h2>`,
+  },
   VirtualScrollable: VirtualScrollableStub,
   EntityCoverImage: true,
   AddFloatingButton: {
@@ -98,5 +102,31 @@ describe("LibraryFolderAddPanel", () => {
   it("renders the empty state when there is nothing to add", () => {
     const { container } = renderPanel({ items: [] });
     expect(container.textContent).toContain(i18n.global.t("library.folder.nothingToAdd"));
+  });
+
+  it("switching the type chip drops selections that are no longer visible", async () => {
+    const { container, getAllByRole, getByTestId, emitted } = renderPanel();
+    const [artist, album] = rows(container);
+    await fireEvent.click(artist);
+    await fireEvent.click(album);
+    expect(getByTestId("fab").textContent).toBe("2");
+
+    const albumsLabel = i18n.global.t("library.filterAlbums").toLowerCase();
+    const albumsTab = getAllByRole("tab").find(t => t.textContent?.includes("1") && t.textContent?.toLowerCase().includes(albumsLabel))!;
+    await fireEvent.mouseDown(albumsTab, { button: 0 });
+    expect(getByTestId("fab").textContent).toBe("1");
+
+    await fireEvent.click(getByTestId("fab"));
+    expect(emitted("confirm")).toEqual([[[{ type: "album", id: "al1" }]]]);
+  });
+
+  it("back emits without confirm", async () => {
+    const { container, getByTestId, emitted } = renderPanel();
+    const [artist] = rows(container);
+    await fireEvent.click(artist);
+
+    await fireEvent.click(getByTestId("title"));
+    expect(emitted("back")).toHaveLength(1);
+    expect(emitted("confirm")).toBeUndefined();
   });
 });
