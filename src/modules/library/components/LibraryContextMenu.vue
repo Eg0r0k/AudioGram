@@ -98,7 +98,7 @@ const contextProps = computed(() => {
     case "folder":
       return {
         openFolder: handleOpenFolder,
-        manageFolder: handleManageFolder,
+        addToFolder: handleAddToFolder,
         renameFolder: handleRenameFolder,
         deleteFolder: handleDelete,
       };
@@ -167,7 +167,7 @@ const handleCatalogDownload = async () => {
 const emit = defineEmits<{
   delete: [item: LibraryItem];
   openFolder: [folderId: string];
-  manageFolder: [folderId: string];
+  addToFolder: [folderId: string];
   renameFolder: [folderId: string];
   moveToFolder: [item: LibraryItem];
   removeFromFolder: [item: LibraryItem];
@@ -183,9 +183,9 @@ const handleOpenFolder = () => {
   emit("openFolder", activeItem.value.id);
 };
 
-const handleManageFolder = () => {
+const handleAddToFolder = () => {
   if (!activeItem.value || activeItem.value.type !== "folder") return;
-  emit("manageFolder", activeItem.value.id);
+  emit("addToFolder", activeItem.value.id);
 };
 
 const handleRenameFolder = () => {

@@ -10,102 +10,112 @@
         :key="transitionKey"
         class="flex-1 flex flex-col min-h-0 bg-card"
       >
-        <LibrarySidebarFolderHeader
-          v-if="activeFolder"
+        <LibraryFolderAddPanel
+          v-if="activeFolder && isFolderPickerOpen"
           :folder="activeFolder"
-          :compact="isCompact"
-          @close="closeFolder"
-          @manage="openManageFolderDialog"
-          @rename="renameActiveFolder"
+          :items="pickerItems"
+          @confirm="addItemsToActiveFolder"
+          @back="closeFolderPicker"
         />
 
-        <Scrollable
-          v-else-if="!isCompact"
-          direction="horizontal"
-          hide-thumb
-          class="shrink-0 border-b dark:border-background border-border"
-        >
-          <Tabs
-            :model-value="activeFilter"
-            @update:model-value="setFilter($event as LibraryFilter)"
-          >
-            <TabsList class="inline-flex items-center gap-0 px-4">
-              <TabsTrigger
-                v-for="filter in visibleFilters"
-                :key="filter"
-                :value="filter"
-                class="text-base font-medium mb-0.5"
-              >
-                {{ filterLabel(filter) }}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent
-              v-for="filter in visibleFilters"
-              :key="filterContentKey(filter)"
-              :value="filter"
-              class="hidden"
-            />
-          </Tabs>
-        </Scrollable>
+        <template v-else>
+          <LibrarySidebarFolderHeader
+            v-if="activeFolder"
+            :folder="activeFolder"
+            :compact="isCompact"
+            @close="closeFolder"
+            @rename="renameActiveFolder"
+          />
 
-        <LibraryContextMenu
-          :inside-folder="!!activeFolder"
-          @delete="handleDeleteItem"
-          @open-folder="openFolder"
-          @manage-folder="openManageFolderDialog"
-          @rename-folder="openRenameFolderDialog"
-          @move-to-folder="openMoveToFolderDialog"
-          @remove-from-folder="removeItemFromActiveFolder"
-        >
-          <CrossfadeTransition class="flex-1">
-            <div
-              v-if="listLoading"
-              class="flex flex-col gap-2 overflow-hidden p-2"
+          <Scrollable
+            v-else-if="!isCompact"
+            direction="horizontal"
+            hide-thumb
+            class="shrink-0 border-b dark:border-background border-border"
+          >
+            <Tabs
+              :model-value="activeFilter"
+              @update:model-value="setFilter($event as LibraryFilter)"
             >
-              <div
-                v-for="i in 20"
-                :key="i"
-                class="flex items-center gap-3 px-2"
-                :class="isCompact && 'justify-center'"
-              >
-                <Skeleton class="size-[54px] rounded-full shrink-0" />
-                <div
-                  v-if="!isCompact"
-                  class="flex flex-col gap-2 w-full"
+              <TabsList class="inline-flex items-center gap-0 px-4">
+                <TabsTrigger
+                  v-for="filter in visibleFilters"
+                  :key="filter"
+                  :value="filter"
+                  class="text-base font-medium mb-0.5"
                 >
-                  <Skeleton class="h-3 w-[40%]" />
-                  <Skeleton class="h-3 w-[65%]" />
+                  {{ filterLabel(filter) }}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent
+                v-for="filter in visibleFilters"
+                :key="filterContentKey(filter)"
+                :value="filter"
+                class="hidden"
+              />
+            </Tabs>
+          </Scrollable>
+
+          <LibraryContextMenu
+            :inside-folder="!!activeFolder"
+            @delete="handleDeleteItem"
+            @open-folder="openFolder"
+            @add-to-folder="openFolderPicker"
+            @rename-folder="openRenameFolderDialog"
+            @move-to-folder="openMoveToFolderDialog"
+            @remove-from-folder="removeItemFromActiveFolder"
+          >
+            <CrossfadeTransition class="flex-1">
+              <div
+                v-if="listLoading"
+                class="flex flex-col gap-2 overflow-hidden p-2"
+              >
+                <div
+                  v-for="i in 20"
+                  :key="i"
+                  class="flex items-center gap-3 px-2"
+                  :class="isCompact && 'justify-center'"
+                >
+                  <Skeleton class="size-[54px] rounded-full shrink-0" />
+                  <div
+                    v-if="!isCompact"
+                    class="flex flex-col gap-2 w-full"
+                  >
+                    <Skeleton class="h-3 w-[40%]" />
+                    <Skeleton class="h-3 w-[65%]" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <VirtualScrollable
-              v-else
-              ref="scrollableRef"
-              hide-thumb
-              :padding-top="8"
-              :padding-bottom="8"
-              :items="libraryItems"
-              :item-height="72"
-              :get-item-key="getLibraryItemKey"
-              animate-reorder
-              @scroll="handleScroll"
-            >
-              <template #default="{ item }">
-                <LibrarySidebarItem
-                  :class="isCompact ? 'mx-1' : 'mx-2'"
-                  :item="item"
-                  :compact="isCompact"
-                  @open-folder="openFolder"
-                />
-              </template>
-            </VirtualScrollable>
-          </CrossfadeTransition>
-        </LibraryContextMenu>
+              <VirtualScrollable
+                v-else
+                ref="scrollableRef"
+                hide-thumb
+                :padding-top="8"
+                :padding-bottom="8"
+                :items="libraryItems"
+                :item-height="72"
+                :get-item-key="getLibraryItemKey"
+                animate-reorder
+                @scroll="handleScroll"
+              >
+                <template #default="{ item }">
+                  <LibrarySidebarItem
+                    :class="isCompact ? 'mx-1' : 'mx-2'"
+                    :item="item"
+                    :compact="isCompact"
+                    @open-folder="openFolder"
+                  />
+                </template>
+              </VirtualScrollable>
+            </CrossfadeTransition>
+          </LibraryContextMenu>
+        </template>
       </div>
     </SlideTransition>
 
     <div
+      v-if="!isFolderPickerOpen"
       class="pointer-events-none absolute bottom-[calc(1rem+var(--mobile-bottom-inset,0px))] z-50 flex gap-2"
       :class="isCompact
         ? 'inset-x-0 flex-col items-center'
@@ -131,7 +141,7 @@
       >
         <Button
           class="size-12 rounded-full shadow-lg"
-          @click="openManageFolderDialog(activeFolder.id)"
+          @click="openFolderPicker(activeFolder.id)"
         >
           <IconPlus class="size-6" />
         </Button>
@@ -145,13 +155,6 @@
       :initial-name="folderName"
       :title="folderNameDialogTitle"
       @submit="submitFolderName"
-    />
-
-    <LibraryFolderItemsDialog
-      v-model:open="isManageFolderDialogOpen"
-      v-model:selected-keys="selectedFolderItemKeys"
-      :items="movableItems"
-      @save="submitManageFolder"
     />
 
     <LibraryMoveToFolderDialog
@@ -171,7 +174,7 @@ import SlideTransition from "@/components/transitions/SlideTransition.vue";
 import CrossfadeTransition from "@/components/transitions/CrossfadeTransition.vue";
 import { Button } from "@/components/ui/button";
 import FloatingButton from "@/components/layout/sidebar/floatingButton/FloatingButton.vue";
-import LibraryFolderItemsDialog from "@/components/layout/sidebar/LibraryFolderItemsDialog.vue";
+import LibraryFolderAddPanel from "@/components/layout/sidebar/LibraryFolderAddPanel.vue";
 import LibraryFolderNameDialog from "@/components/layout/sidebar/LibraryFolderNameDialog.vue";
 import LibraryMoveToFolderDialog from "@/components/layout/sidebar/LibraryMoveToFolderDialog.vue";
 import LibrarySidebarFolderHeader from "@/components/layout/sidebar/LibrarySidebarFolderHeader.vue";
@@ -189,6 +192,7 @@ import { useSwipeControl } from "@/composables/useSwipeControl";
 import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
+import { buildFolderPickerItems } from "@/modules/library/lib/folderPicker";
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
@@ -215,25 +219,26 @@ const {
 
 const {
   activeFolder,
+  addItemsToActiveFolder,
   closeFolder,
+  closeFolderPicker,
   deleteSidebarFolder,
+  folderDepth,
   folderName,
   folderNameDialogTitle,
   isFolderNameDialogOpen,
-  isManageFolderDialogOpen,
+  isFolderPickerOpen,
   isMoveToFolderDialogOpen,
   itemToMove,
   moveItemToFolder,
   openCreateFolderDialog,
   openFolder,
-  openManageFolderDialog,
+  openFolderPicker,
   openMoveToFolderDialog,
   openRenameFolderDialog,
   removeItemFromActiveFolder,
   renameActiveFolder,
-  selectedFolderItemKeys,
   submitFolderName,
-  submitManageFolder,
 } = useLibrarySidebarFolders({
   folders,
   createFolder,
@@ -245,8 +250,11 @@ const {
 // Hardware back leaves an open sidebar folder before falling through to the
 // router. Inert on desktop: the coordinator only runs in MobileLayout.
 registerOverlayBackHandler({
-  depth: () => (activeFolder.value ? 1 : 0),
-  back: closeFolder,
+  depth: () => folderDepth.value,
+  back: () => {
+    if (isFolderPickerOpen.value) closeFolderPicker();
+    else closeFolder();
+  },
 });
 
 const { t } = useI18n();
@@ -315,8 +323,14 @@ function getLibraryItemKey(index: number) {
   return item ? `${item.type}:${item.id}` : index;
 }
 
-const folderDepth = computed(() => activeFolder.value ? 1 : 0);
-const transitionKey = computed(() => activeFolder.value ? `folder-${activeFolder.value.id}` : "main");
+const transitionKey = computed(() => {
+  if (!activeFolder.value) return "main";
+  return isFolderPickerOpen.value ? `picker-${activeFolder.value.id}` : `folder-${activeFolder.value.id}`;
+});
+
+const pickerItems = computed(() => activeFolder.value
+  ? buildFolderPickerItems(movableItems.value, folders.value, activeFolder.value.id)
+  : []);
 
 const isButtonVisible = ref(true);
 let lastScrollTop = 0;

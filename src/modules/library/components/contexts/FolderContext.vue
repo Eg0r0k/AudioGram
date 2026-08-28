@@ -4,9 +4,9 @@
     {{ $t("library.folder.open") }}
   </ContextMenuItem>
 
-  <ContextMenuItem @select="props.manageFolder">
+  <ContextMenuItem @select="props.addToFolder">
     <IconFolderPlus class="size-5" />
-    {{ $t("library.folder.manageItems") }}
+    {{ $t("library.folder.addItems") }}
   </ContextMenuItem>
 
   <ContextMenuItem @select="props.renameFolder">
@@ -32,7 +32,7 @@ import IconTrash from "~icons/tabler/trash";
 
 const props = defineProps<{
   openFolder: () => void;
-  manageFolder: () => void;
+  addToFolder: () => void;
   renameFolder: () => void;
   deleteFolder: () => void;
 }>();

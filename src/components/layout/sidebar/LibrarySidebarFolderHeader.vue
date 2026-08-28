@@ -47,7 +47,6 @@ defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  manage: [folderId: string];
   rename: [name: string];
 }>();
 </script>
