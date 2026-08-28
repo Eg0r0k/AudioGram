@@ -80,13 +80,12 @@ async function loadTrackRelations(tracks: TrackEntity[]): Promise<Track[]> {
   return mapTracks(tracks, artists, albums);
 }
 
-async function resolveArtistName(artistIds: ArtistId[]): Promise<string> {
-  if (artistIds.length === 0) {
-    return "Unknown Artist";
-  }
+const joinArtistNames = (artistIds: readonly ArtistId[], nameById: ReadonlyMap<ArtistId, string>): string =>
+  artistIds.map(id => nameById.get(id)).filter(Boolean).join(", ") || "Unknown Artist";
 
-  const artists = await unwrapResult(artistRepository.findByIds(artistIds));
-  return artists.map(artist => artist.name).join(", ") || "Unknown Artist";
+async function loadArtistNames(artistIds: readonly ArtistId[]): Promise<Map<ArtistId, string>> {
+  const artists = await unwrapResult(artistRepository.findByIds(unique([...artistIds])));
+  return new Map(artists.map(artist => [artist.id, artist.name]));
 }
 
 async function findOrCreateArtists(queryClient: QueryClient, names: string[]) {
@@ -334,27 +333,34 @@ export async function addTracksToAlbumAndSync(
   const trackMap = new Map(currentTracks.map(track => [track.id, track]));
 
   for (const trackId of trackIds) {
-    const currentTrack = trackMap.get(trackId);
-
-    if (!currentTrack) {
+    if (!trackMap.has(trackId)) {
       throw new Error(`Track not found: ${trackId}`);
     }
+  }
 
+  const nameById = await loadArtistNames([album.artistId, ...currentTracks.flatMap(track => track.artistIds)]);
+  const updates = currentTracks.flatMap((currentTrack) => {
     const nextArtistIds = currentTrack.artistIds.includes(album.artistId)
       ? currentTrack.artistIds
       : [album.artistId, ...currentTrack.artistIds];
-    const nextArtistName = await resolveArtistName(nextArtistIds);
 
     if (currentTrack.albumId === albumId && nextArtistIds.length === currentTrack.artistIds.length) {
-      continue;
+      return [];
     }
 
-    await unwrapResult(trackRepository.update(trackId, {
-      albumId,
-      albumTitle: album.title,
-      artistIds: nextArtistIds,
-      artistName: nextArtistName,
-    }));
+    return [{
+      key: currentTrack.id,
+      changes: {
+        albumId,
+        albumTitle: album.title,
+        artistIds: nextArtistIds,
+        artistName: joinArtistNames(nextArtistIds, nameById),
+      },
+    }];
+  });
+
+  if (updates.length > 0) {
+    await unwrapResult(trackRepository.updateMany(updates));
   }
 
   const updatedTracks = await unwrapResult(trackRepository.findByIds(trackIds));
@@ -376,23 +382,25 @@ export async function addTracksToArtistAndSync(
   const trackMap = new Map(currentTracks.map(track => [track.id, track]));
 
   for (const trackId of trackIds) {
-    const currentTrack = trackMap.get(trackId);
-
-    if (!currentTrack) {
+    if (!trackMap.has(trackId)) {
       throw new Error(`Track not found: ${trackId}`);
     }
+  }
 
+  const nameById = await loadArtistNames([artistId, ...currentTracks.flatMap(track => track.artistIds)]);
+  const updates = currentTracks.flatMap((currentTrack) => {
     if (currentTrack.artistIds.includes(artistId)) {
-      continue;
+      return [];
     }
-
     const nextArtistIds = [...currentTrack.artistIds, artistId];
-    const nextArtistName = await resolveArtistName(nextArtistIds);
+    return [{
+      key: currentTrack.id,
+      changes: { artistIds: nextArtistIds, artistName: joinArtistNames(nextArtistIds, nameById) },
+    }];
+  });
 
-    await unwrapResult(trackRepository.update(trackId, {
-      artistIds: nextArtistIds,
-      artistName: nextArtistName,
-    }));
+  if (updates.length > 0) {
+    await unwrapResult(trackRepository.updateMany(updates));
   }
 
   const updatedTracks = await unwrapResult(trackRepository.findByIds(trackIds));
@@ -407,15 +415,9 @@ export async function favoriteTracksAndSync(
   tracks: Track[],
 ) {
   const trackIds = unique(tracks.map(track => track.id as TrackId));
-  const currentTracks = await unwrapResult(trackRepository.findByIds(trackIds));
 
-  for (const track of currentTracks) {
-    if (track.likedAt) {
-      continue;
-    }
-
-    await unwrapResult(trackRepository.setLiked(track.id, true));
-  }
+  // Rows already liked keep their original likedAt.
+  await unwrapResult(trackRepository.likeMany(trackIds, Date.now()));
 
   await invalidateTrackRelations(queryClient);
 }

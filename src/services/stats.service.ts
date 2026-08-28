@@ -1,5 +1,4 @@
 ﻿import { db } from "@/db";
-import { trackRepository } from "@/db/repositories";
 import { statsRepository } from "@/db/repositories/stats.repository";
 import { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { createEventHook } from "@vueuse/core";
@@ -46,10 +45,16 @@ class StatsService {
     });
 
     if (!isSkipped && secondsListened >= MIN_LISTEN_SECONDS) {
-      trackRepository.update(pending.trackId, {
-        playCount: ((await db.tracks.get(pending.trackId))?.playCount ?? 0) + 1,
-        lastPlayedAt: pending.startedAt,
-      }).catch(error => getLogger().error(`[Stats] Play count update failed for ${pending.trackId}: ${String(error)}`));
+      // Read-modify-write inside one modify() so a concurrent writer cannot
+      // clobber the increment.
+      db.tracks
+        .where("id")
+        .equals(pending.trackId)
+        .modify((track) => {
+          track.playCount = (track.playCount ?? 0) + 1;
+          track.lastPlayedAt = pending.startedAt;
+        })
+        .catch(error => getLogger().error(`[Stats] Play count update failed for ${pending.trackId}: ${String(error)}`));
     }
 
     this._changed.trigger().catch(error => getLogger().error(`[Stats] Change hook failed: ${String(error)}`));

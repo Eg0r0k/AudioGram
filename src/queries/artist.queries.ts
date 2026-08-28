@@ -5,6 +5,7 @@ import {
   coverRepository,
   trackRepository,
 } from "@/db/repositories";
+import { db } from "@/db";
 import { unitOfWork } from "@/db/unit-of-work";
 import { queryKeys } from "@/queries/query-keys";
 import {
@@ -57,8 +58,7 @@ async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey 
 }
 
 export async function getArtists() {
-  const artists = await unwrapResult(artistRepository.findAll());
-  return artists.filter(artist => artist.pinned !== 0);
+  return unwrapResult(artistRepository.findPinned());
 }
 
 export async function getArtistByIdOrThrow(artistId: ArtistId) {
@@ -111,7 +111,7 @@ export async function getArtistTracksPaginated(
     unwrapResult(trackRepository.countByArtistId(artistId)),
   ]);
 
-  const total = countResult ?? 0;
+  const total = countResult;
 
   if (total === 0) {
     return { tracks: [], nextOffset: null, total };
@@ -157,7 +157,7 @@ export async function getArtistAlbumsPaginated(
     unwrapResult(albumRepository.countByArtistId(artistId)),
   ]);
 
-  const total = countResult ?? 0;
+  const total = countResult;
   const nextOffset = offset + limit < total ? offset + limit : null;
 
   return {
@@ -216,6 +216,7 @@ export async function createArtistAndSync(
   return artist;
 }
 
+/** Recomputes the denormalized artistName of the artist's tracks. Dexie-only: safe inside a transaction. */
 async function syncTrackArtistNames(artistId: ArtistId, nextArtistName: string) {
   const tracks = await unwrapResult(trackRepository.findByArtistId(artistId));
 
@@ -228,14 +229,15 @@ async function syncTrackArtistNames(artistId: ArtistId, nextArtistName: string) 
   const artistNameById = new Map(artists.map(artist => [artist.id, artist.name]));
   artistNameById.set(artistId, nextArtistName);
 
-  for (const track of tracks) {
-    const artistName = track.artistIds
-      .map(id => artistNameById.get(id))
-      .filter(Boolean)
-      .join(", ") || "Unknown Artist";
-
-    await unwrapResult(trackRepository.update(track.id, { artistName }));
-  }
+  await unwrapResult(trackRepository.updateMany(tracks.map(track => ({
+    key: track.id,
+    changes: {
+      artistName: track.artistIds
+        .map(id => artistNameById.get(id))
+        .filter(Boolean)
+        .join(", ") || "Unknown Artist",
+    },
+  }))));
 }
 
 export async function updateArtistAndSync(
@@ -269,11 +271,14 @@ export async function updateArtistAndSync(
   };
 
   if (Object.keys(updateData).length > 0) {
-    await unwrapResult(artistRepository.update(currentArtist.id, updateData));
-
-    if (updateData.name) {
-      await syncTrackArtistNames(currentArtist.id, nextArtist.name);
-    }
+    // Artist row and its tracks' denormalized names move together.
+    const txResult = await unitOfWork.runScoped([db.artists, db.tracks], async () => {
+      await unwrapResult(artistRepository.update(currentArtist.id, updateData));
+      if (updateData.name) {
+        await syncTrackArtistNames(currentArtist.id, nextArtist.name);
+      }
+    });
+    if (txResult.isErr()) throw txResult.error;
 
     syncArtistCaches(queryClient, nextArtist);
 

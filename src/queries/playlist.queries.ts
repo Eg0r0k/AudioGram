@@ -351,21 +351,18 @@ export async function addTracksToPlaylistAndSync(
   tracks: Track[],
 ) {
   const playlist = await getPlaylistByIdOrThrow(playlistId);
-  const nextTrackIds = [...playlist.trackIds];
 
+  // One row write for the whole batch; the repository reports which ids
+  // were actually appended so the caches only get those.
+  const added = await unwrapResult(playlistRepository.addTracks(playlistId, tracks.map(track => track.id)));
+  const addedSet = new Set(added);
   for (const track of tracks) {
-    await unwrapResult(playlistRepository.addTrack(playlistId, track.id));
-
-    if (!nextTrackIds.includes(track.id)) {
-      nextTrackIds.push(track.id);
-    }
-
-    syncPlaylistTrackAddition(queryClient, playlistId, track);
+    if (addedSet.has(track.id)) syncPlaylistTrackAddition(queryClient, playlistId, track);
   }
 
   const nextPlaylist: PlaylistEntity = {
     ...playlist,
-    trackIds: nextTrackIds,
+    trackIds: [...playlist.trackIds, ...added],
     updatedAt: Date.now(),
   };
 

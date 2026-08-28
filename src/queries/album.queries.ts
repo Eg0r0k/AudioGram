@@ -5,6 +5,7 @@ import {
   coverRepository,
   trackRepository,
 } from "@/db/repositories";
+import { db } from "@/db";
 import { unitOfWork } from "@/db/unit-of-work";
 import { queryKeys } from "@/queries/query-keys";
 import { buildAlbumDocFromDb, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
@@ -40,8 +41,7 @@ export interface AlbumChanges {
 }
 
 export async function getAlbums() {
-  const albums = await unwrapResult(albumRepository.findAll());
-  return albums.filter(album => album.pinned !== 0);
+  return unwrapResult(albumRepository.findPinned());
 }
 
 export async function getAlbumByIdOrThrow(albumId: AlbumId) {
@@ -96,7 +96,7 @@ export async function getAlbumTracksPaginated(
     getAlbumByIdOrThrow(albumId),
   ]);
 
-  const total = countResult ?? 0;
+  const total = countResult;
 
   if (total === 0) {
     return { tracks: [], nextOffset: null, total };
@@ -222,14 +222,14 @@ export async function updateAlbumAndSync(
       updatedAt: Date.now(),
     };
 
-    await unwrapResult(albumRepository.update(currentAlbum.id, { title }));
+    // The album row and its tracks' denormalized title change together.
+    const txResult = await unitOfWork.runScoped([db.albums, db.tracks], async () => {
+      await unwrapResult(albumRepository.update(currentAlbum.id, { title }));
+      await unwrapResult(trackRepository.setAlbumTitleByAlbumId(currentAlbum.id, title));
+    });
+    if (txResult.isErr()) throw txResult.error;
 
-    const albumTracks = await unwrapResult(trackRepository.findByAlbumId(currentAlbum.id));
-    updatedTracks = albumTracks;
-
-    for (const track of albumTracks) {
-      await unwrapResult(trackRepository.update(track.id, { albumTitle: title }));
-    }
+    updatedTracks = await unwrapResult(trackRepository.findByAlbumId(currentAlbum.id));
 
     syncAlbumCaches(queryClient, nextAlbum);
     didUpdateAlbum = true;

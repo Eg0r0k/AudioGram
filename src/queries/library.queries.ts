@@ -12,17 +12,15 @@ import { unwrapResult } from "./shared";
 import type { LibrarySummaryData } from "./types";
 
 export async function getLibrarySummary(): Promise<LibrarySummaryData> {
-  const [allArtists, allAlbums, playlists, folders, likedTracks] = await Promise.all([
-    unwrapResult(artistRepository.findAll()),
-    unwrapResult(albumRepository.findAll()),
+  // Playing from ND/YT browsing must not grow the library — shadow rows
+  // (pinned = 0) are excluded by the pinned index.
+  const [artists, albums, playlists, folders, likedTracks] = await Promise.all([
+    unwrapResult(artistRepository.findPinned()),
+    unwrapResult(albumRepository.findPinned()),
     unwrapResult(playlistRepository.findAll()),
     unwrapResult(folderRepository.findAll()),
     unwrapResult(trackRepository.findLiked()),
   ]);
-
-  // Playing from ND/YT browsing must not grow the library (shadow rows).
-  const artists = allArtists.filter(artist => artist.pinned !== 0);
-  const albums = allAlbums.filter(album => album.pinned !== 0);
 
   const [albumTrackCounts, artistTrackCounts] = await Promise.all([
     unwrapResult(trackRepository.countByAlbumIds(albums.map(a => a.id))),
