@@ -20,11 +20,19 @@ vi.mock("@/services/stats.service", () => ({
   },
 }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
+const mockToast = vi.hoisted(() => ({ warning: vi.fn(), error: vi.fn() }));
+vi.mock("vue-sonner", () => ({ toast: mockToast }));
+vi.mock("@/app/i18n", () => ({
+  i18n: { global: { t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) } },
+}));
 vi.mock("../lib/prefetch-next", () => ({ initNextTrackPrefetch: vi.fn(() => () => {}) }));
 
 import { useEventBus } from "@vueuse/core";
 import { initPlayerLifecycle } from "../player-lifecycle";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
+import { playbackStalledEvent, trackSkippedEvent } from "@/modules/queue/lib/queue-events";
+import { TrackSource } from "@/db/entities";
+import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 import { initNextTrackPrefetch } from "../lib/prefetch-next";
 import { statsService } from "@/services/stats.service";
 import type { PlayerTrack } from "../types";
@@ -109,6 +117,38 @@ describe("player lifecycle", () => {
     trackEndedBus.emit();
 
     expect(mockPlayer.sleepAfterCurrentTrack).toBe(false);
+  });
+
+  it("tells the user about a skipped track, except for quiet storage failures", () => {
+    const bus = useEventBus(trackSkippedEvent);
+    const track = { ...libraryTrack, title: "Song", source: TrackSource.LOCAL_INTERNAL } as unknown as PlayerTrack;
+
+    bus.emit({ track, error: { kind: "source", cause: { kind: "NETWORK", message: "down" } } });
+    expect(mockToast.warning).toHaveBeenLastCalledWith('queue.trackSkipped:{"title":"Song"}');
+
+    bus.emit({ track, error: { kind: "storage", cause: StorageError.readFailed("/x") } });
+    expect(mockToast.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it("points at the watched folder when its file is gone", () => {
+    const track = { ...libraryTrack, title: "Song", source: TrackSource.LOCAL_EXTERNAL } as unknown as PlayerTrack;
+
+    useEventBus(trackSkippedEvent).emit({
+      track,
+      error: { kind: "storage", cause: new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone") },
+    });
+
+    expect(mockToast.warning).toHaveBeenLastCalledWith("watchedFolders.trackPathMissing");
+  });
+
+  it("reports a stalled queue as an error", () => {
+    useEventBus(playbackStalledEvent).emit({
+      track: libraryTrack,
+      error: { kind: "timeout", phase: "loading" },
+      failures: 3,
+    });
+
+    expect(mockToast.error).toHaveBeenCalledWith('queue.playbackStalled:{"count":3}');
   });
 
   it("still advances the queue for non-library tracks without touching stats", () => {

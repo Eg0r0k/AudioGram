@@ -56,6 +56,15 @@ export const describePlaybackError = (error: PlaybackError, track: PlayerTrack):
   }
 };
 
+/**
+ * Worth one more attempt: a stream URL that failed to resolve or an engine
+ * that choked on the load may well succeed a second later (remote tracks
+ * re-resolve on every play). A timeout already waited long enough; a broken,
+ * missing or unsupported source will not change.
+ */
+export const isRetryablePlaybackError = (error: PlaybackError): boolean =>
+  error.kind === "source" || error.kind === "engine";
+
 /** Wraps whatever the engine threw so every failure leaving the store carries a kind. */
 export const toPlaybackFailure = (thrown: unknown, track: PlayerTrack): PlaybackFailure => {
   if (thrown instanceof PlaybackFailure) return thrown;

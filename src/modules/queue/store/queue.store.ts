@@ -1,10 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef } from "vue";
-import { toast } from "vue-sonner";
-import { i18n } from "@/app/i18n";
-import { TrackSource } from "@/db/entities";
-import { StorageErrorCode } from "@/db/errors/storage.errors";
-import { PlaybackFailure } from "@/modules/player/service/playback-resolver.service";
+import { useEventBus } from "@vueuse/core";
+import { ok, err, type Result } from "neverthrow";
+import { toPlaybackFailure, type PlaybackError } from "@/modules/player/service/playback-resolver.service";
 import { trackRepository } from "@/db/repositories";
 import { QueueItemId } from "@/types/ids";
 import {
@@ -24,8 +22,13 @@ import { migrateProxyUrl } from "@/lib/stream-url";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { getLogger } from "@/lib/logger";
 import { buildPlaybackQueue, getItemsByOrder, moveItem } from "../lib/queue-order";
+import { playbackStalledEvent, trackSkippedEvent } from "../lib/queue-events";
 
 const RESTART_THRESHOLD = 3;
+// Transient failures in a row that mean the environment is broken, not the
+// tracks: stop there instead of burning through the whole queue while the
+// network is down.
+const MAX_CONSECUTIVE_TRANSIENT_FAILURES = 3;
 const AUTOPLAY_RECOMMENDATION_LIMIT = 5;
 const QUEUE_STORAGE_KEY = "audiogram-queue-v1";
 
@@ -177,6 +180,9 @@ export const useQueueStore = defineStore("queue", () => {
   // deep-proxying a thousand queue entries is pure overhead.
   const state = shallowRef<QueueState>(EMPTY_STATE);
   const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
+  const trackSkippedBus = useEventBus(trackSkippedEvent);
+  const playbackStalledBus = useEventBus(playbackStalledEvent);
+  let _transientFailures = 0;
   // What happens after a track ends — loop it, loop the queue, or stop — is
   // a queue decision, not an engine one.
   const repeatMode = ref<RepeatMode>("off");
@@ -477,48 +483,80 @@ export const useQueueStore = defineStore("queue", () => {
     player.clearCurrentTrack();
   }
 
-  function handlePlaybackError(track: PlayerTrack, err: unknown): void {
-    if (!isEphemeralTrack(track)
-      && track.source === TrackSource.LOCAL_EXTERNAL
-      && err instanceof PlaybackFailure
-      && err.error.kind === "storage"
-      && err.error.cause.code === StorageErrorCode.FILE_NOT_FOUND) {
-      toast.warning(i18n.global.t("watchedFolders.trackPathMissing"));
-    }
-  }
-
-  async function playAtIndex(index: number): Promise<boolean> {
+  async function playAtIndex(index: number): Promise<Result<void, PlaybackError>> {
     const item = queue.value[index];
-    if (!item) return false;
+    if (!item) return err({ kind: "unavailable", reason: `no queue entry at index ${index}` });
 
     commit({ currentItemId: item.id });
 
     try {
       await usePlayerStore().playPlayerTrack(item.track);
-      return true;
+      _transientFailures = 0;
+      return ok(undefined);
     }
-    catch (err) {
-      getLogger().error(`[Queue] Failed to play "${item.track.title}": ${String(err)}`);
-      handlePlaybackError(item.track, err);
-      return false;
+    catch (thrown) {
+      const { error } = toPlaybackFailure(thrown, item.track);
+      getLogger().error(`[Queue] Failed to play "${item.track.title}" (${error.kind}): ${String(thrown)}`);
+      return err(error);
     }
   }
 
-  async function skipToNextPlayable(maxAttempts: number = queue.value.length): Promise<void> {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const nextIdx = currentIndex.value + 1;
-
-      if (nextIdx >= queue.value.length) {
-        if (repeatMode.value === "all") {
-          const success = await playAtIndex(0);
-          if (success) return;
+  /**
+   * What the queue does about an entry that failed, by kind. Returns false
+   * when the queue must stop advancing. Every kind is already logged by
+   * playAtIndex; what the user gets to see is decided by the subscribers of
+   * the events (player-lifecycle.ts).
+   */
+  const reactToFailure = (track: PlayerTrack, error: PlaybackError): boolean => {
+    switch (error.kind) {
+      case "broken":
+        // Known bad and flagged as such in the library: nothing to say.
+        return true;
+      case "storage":
+      case "unavailable":
+        trackSkippedBus.emit({ track, error });
+        return true;
+      case "source":
+      case "timeout":
+      case "engine":
+        _transientFailures++;
+        trackSkippedBus.emit({ track, error });
+        if (_transientFailures >= MAX_CONSECUTIVE_TRANSIENT_FAILURES) {
+          playbackStalledBus.emit({ track, error, failures: _transientFailures });
+          _transientFailures = 0;
+          return false;
         }
-        resetPlaybackSelection();
-        return;
-      }
+        return true;
+    }
+  };
 
-      const success = await playAtIndex(nextIdx);
-      if (success) return;
+  /** Plays one entry; a failure is reported but the queue stays where it is. */
+  async function playSingle(index: number): Promise<void> {
+    const item = queue.value[index];
+    if (!item) return;
+    const result = await playAtIndex(index);
+    if (result.isErr()) reactToFailure(item.track, result.error);
+  }
+
+  /**
+   * Plays the entry at `startIndex`, moving forward past entries that fail
+   * (wrapping to the head under repeat-all) until one plays, the attempts
+   * run out, or a run of transient failures says the environment is down.
+   */
+  async function playFrom(startIndex: number, maxAttempts: number = queue.value.length): Promise<void> {
+    let index = startIndex;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (index >= queue.value.length) {
+        if (repeatMode.value !== "all") break;
+        index = 0;
+      }
+      const item = queue.value[index];
+      if (!item) break;
+
+      const result = await playAtIndex(index);
+      if (result.isOk()) return;
+      if (!reactToFailure(item.track, result.error)) break;
+      index++;
     }
 
     resetPlaybackSelection();
@@ -545,10 +583,10 @@ export const useQueueStore = defineStore("queue", () => {
       currentItemId: null,
     });
 
-    const success = await playAtIndex(playbackQueue.playbackIndex);
-    if (!success) {
-      await skipToNextPlayable(Math.max(playbackQueue.items.length - playbackQueue.playbackIndex, 1));
-    }
+    await playFrom(
+      playbackQueue.playbackIndex,
+      Math.max(playbackQueue.items.length - playbackQueue.playbackIndex, 1),
+    );
   }
 
   async function restorePersistedQueue(): Promise<void> {
@@ -727,28 +765,28 @@ export const useQueueStore = defineStore("queue", () => {
     if (queue.value.length === 0) return;
 
     if (repeatMode.value === "one") {
-      // A transient failure (remote tracks re-resolve on every loop) gets one
-      // retry; after that give up explicitly instead of leaving playback in a
-      // silent half-error state with the selection intact.
-      let restarted = await playAtIndex(currentIndex.value);
-      if (!restarted) restarted = await playAtIndex(currentIndex.value);
-      if (!restarted) resetPlaybackSelection();
+      // The player retries a transient failure itself; if the restart still
+      // fails, give up explicitly instead of leaving playback in a silent
+      // half-error state with the selection intact.
+      const item = currentItem.value;
+      const result = await playAtIndex(currentIndex.value);
+      if (result.isErr()) {
+        if (item) reactToFailure(item.track, result.error);
+        resetPlaybackSelection();
+      }
       return;
     }
 
     if (currentIndex.value < queue.value.length - 1) {
-      const success = await playAtIndex(currentIndex.value + 1);
-      if (!success) await skipToNextPlayable();
+      await playFrom(currentIndex.value + 1);
     }
     else if (repeatMode.value === "all") {
-      const success = await playAtIndex(0);
-      if (!success) await skipToNextPlayable();
+      await playFrom(0);
     }
     else {
       const appendedRecommendations = await ensureAutoplayRecommendations();
       if (appendedRecommendations) {
-        const success = await playAtIndex(currentIndex.value + 1);
-        if (!success) await skipToNextPlayable();
+        await playFrom(currentIndex.value + 1);
         return;
       }
 
@@ -768,10 +806,10 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     if (currentIndex.value > 0) {
-      await playAtIndex(currentIndex.value - 1);
+      await playSingle(currentIndex.value - 1);
     }
     else if (repeatMode.value === "all") {
-      await playAtIndex(queue.value.length - 1);
+      await playSingle(queue.value.length - 1);
     }
     else {
       player.seekTo(0);
@@ -780,21 +818,21 @@ export const useQueueStore = defineStore("queue", () => {
 
   async function jumpTo(index: number): Promise<void> {
     if (index < 0 || index >= queue.value.length) return;
-    await playAtIndex(index);
+    await playSingle(index);
   }
 
   async function jumpToId(id: QueueItemId): Promise<void> {
     const index = queue.value.findIndex(item => item.id === id);
     if (index >= 0) {
-      await playAtIndex(index);
+      await playSingle(index);
     }
   }
 
-  function removeFromQueue(id: QueueItemId): void {
-    removeMultiple([id]);
+  function removeFromQueue(id: QueueItemId): Promise<void> {
+    return removeMultiple([id]);
   }
 
-  function removeMultiple(ids: QueueItemId[]): void {
+  async function removeMultiple(ids: QueueItemId[]): Promise<void> {
     const idSet = new Set(ids);
     if (!queue.value.some(item => idSet.has(item.id))) return;
 
@@ -820,11 +858,12 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     if (wasCurrentRemoved) {
+      // The successor may be unplayable too: keep going, as next() would.
       const successorIndex = Math.min(
         Math.max(oldIndex - removedBeforeCurrent, 0),
         queue.value.length - 1,
       );
-      playAtIndex(successorIndex);
+      await playFrom(successorIndex);
     }
   }
 

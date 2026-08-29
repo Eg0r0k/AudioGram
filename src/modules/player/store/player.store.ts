@@ -21,6 +21,7 @@ import {
   type PlaybackSource,
   PlaybackFailure,
   toPlaybackFailure,
+  isRetryablePlaybackError,
   checkPlayable,
   isStreamingTrack,
   resolvePlaybackSource,
@@ -380,7 +381,8 @@ export const usePlayerStore = defineStore("player", () => {
    * The one path from a track to audible playback: claim a request, resolve
    * the source, load it, start. Used both for a track switch and for a cold
    * start (a session restored after reload, or a switch interrupted mid-load).
-   * Throws on failure with the store settled into "error".
+   * A transient failure gets one retry on a fresh engine; then the store
+   * settles into "error" and the failure is thrown.
    */
   const loadAndPlay = async (track: PlayerTrack, options: { resumeAt?: number } = {}) => {
     const requestId = ++_playRequestId;
@@ -389,9 +391,41 @@ export const usePlayerStore = defineStore("player", () => {
     // from the zeroed duration) visible while the source URL resolves.
     // Opening the switch also abandons any fade in flight.
     setState({ kind: "resolving", requestId });
+
+    for (let retry = 0; ; retry++) {
+      try {
+        await attemptLoadAndPlay(track, requestId, options);
+        return;
+      }
+      catch (err) {
+        if (requestId !== _playRequestId) return;
+        const failure = toPlaybackFailure(err, track);
+        discardEngine();
+        if (retry < 1 && isRetryablePlaybackError(failure.error)) {
+          getLogger().warn(`[Player] Retrying "${track.title}" after a ${failure.error.kind} failure`);
+          setState({ kind: "resolving", requestId });
+          continue;
+        }
+        setState({ kind: "error" });
+        // A source that cannot be resolved at all, or a file that is gone, is
+        // not worth keeping on screen; other failures keep the track so the UI
+        // can show what failed.
+        if (failure.error.kind === "unavailable" || failure.error.kind === "storage") {
+          clearCurrentTrack();
+        }
+        throw failure;
+      }
+    }
+  };
+
+  const attemptLoadAndPlay = async (
+    track: PlayerTrack,
+    requestId: number,
+    options: { resumeAt?: number },
+  ) => {
     const e = ensureEngine();
 
-    try {
+    {
       const resolved = await withTimeout(
         resolvePlaybackSource(track),
         RESOLVE_TIMEOUT_MS,
@@ -424,19 +458,6 @@ export const usePlayerStore = defineStore("player", () => {
       if (options.resumeAt && options.resumeAt > 0) e.seek(options.resumeAt);
       await fades.start();
       useAudioSettingsStore().pushToGraph();
-    }
-    catch (err) {
-      if (requestId !== _playRequestId) return;
-      const failure = toPlaybackFailure(err, track);
-      setState({ kind: "error" });
-      discardEngine();
-      // A source that cannot be resolved at all, or a file that is gone, is
-      // not worth keeping on screen; other failures keep the track so the UI
-      // can show what failed.
-      if (failure.error.kind === "unavailable" || failure.error.kind === "storage") {
-        clearCurrentTrack();
-      }
-      throw failure;
     }
   };
 

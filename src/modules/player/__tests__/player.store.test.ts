@@ -1586,7 +1586,9 @@ describe("player.store", () => {
     it("settles into error instead of throwing when the restored load fails", async () => {
       const store = usePlayerStore();
       store.currentTrack = createLibraryTrack();
-      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+      mockPlayerMethods.load
+        .mockRejectedValueOnce(new Error("decode failed"))
+        .mockRejectedValueOnce(new Error("decode failed"));
 
       // play() is called from UI handlers: it must not reject.
       await expect(store.play()).resolves.toBeUndefined();
@@ -1598,9 +1600,13 @@ describe("player.store", () => {
   });
 
   describe("playPlayerTrack error handling", () => {
-    it("marks error state and rethrows when the engine load fails", async () => {
+    it("marks error state and rethrows when the engine load keeps failing", async () => {
       const store = usePlayerStore();
-      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+      // Both attempts fail (the store retries once); no persistent
+      // implementation, or it would leak into later tests.
+      mockPlayerMethods.load
+        .mockRejectedValueOnce(new Error("decode failed"))
+        .mockRejectedValueOnce(new Error("decode failed"));
 
       const failure = await store.playPlayerTrack(createLibraryTrack()).then(() => null, (e: unknown) => e);
       expect(failure).toBeInstanceOf(PlaybackFailure);
@@ -1611,6 +1617,46 @@ describe("player.store", () => {
       expect(store.player).toBeNull();
       // Non-storage errors keep the track so the UI can show what failed.
       expect(store.currentTrack).not.toBeNull();
+      // One retry on a fresh engine, then give up.
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(2);
+      expect(mockPlayerMethods.dispose).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries a transient engine failure once and plays on success", async () => {
+      const store = usePlayerStore();
+      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+
+      await store.playPlayerTrack(createLibraryTrack());
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(2);
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+      expect(store.playbackState.kind).toBe("starting");
+    });
+
+    it("retries a failed stream resolution once", async () => {
+      const resolveStreamUrl = vi.fn()
+        .mockReturnValueOnce(errAsync({ kind: "NETWORK", message: "upstream down" }))
+        .mockReturnValueOnce(okAsync("stream://localhost/yt/x"));
+      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
+      offlineCopyMock.findById.mockResolvedValue(ok(undefined));
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "yt:x" as never, source: TrackSource.REMOTE_YT, storagePath: "" }));
+
+      expect(resolveStreamUrl).toHaveBeenCalledTimes(2);
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("stream://localhost/yt/x");
+    });
+
+    it("does not retry a missing file or a broken track", async () => {
+      const store = usePlayerStore();
+      storageMock.getAudioUrl.mockReturnValueOnce(
+        errAsync(new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone")),
+      );
+
+      await store.playPlayerTrack(createLibraryTrack()).catch(() => null);
+
+      expect(storageMock.getAudioUrl).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
     });
   });
 

@@ -10,6 +10,9 @@ import { getRecommendations } from "@/modules/recommendations/service/recommende
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import type { Track } from "@/modules/player/types";
 import { setMediaServerBaseForTests } from "@/lib/stream-url";
+import { useEventBus } from "@vueuse/core";
+import { PlaybackFailure } from "@/modules/player/service/playback-resolver.service";
+import { playbackStalledEvent, trackSkippedEvent } from "../lib/queue-events";
 import { useQueueStore } from "../store/queue.store";
 
 vi.mock("@/lib/logger", () => ({
@@ -1640,22 +1643,20 @@ describe("queue.store", () => {
     });
 
     describe("repeat-one restart failures", () => {
-      it("retries once and recovers when the restart succeeds", async () => {
+      it("restarts with a single call — retrying a transient failure is the player's job", async () => {
         const store = useQueueStore();
         const playerStore = usePlayerStore();
-        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
-          .mockRejectedValueOnce(new Error("transient"))
-          .mockResolvedValue(undefined);
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
         seedQueue(store, ["1"], 0);
         playerStore.repeatMode = "one";
 
         await store.next();
 
-        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(playSpy).toHaveBeenCalledTimes(1);
         expect(store.currentIndex).toBe(0);
       });
 
-      it("resets the selection when the restart keeps failing", async () => {
+      it("resets the selection when the restart fails", async () => {
         const store = useQueueStore();
         const playerStore = usePlayerStore();
         const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
@@ -1665,8 +1666,129 @@ describe("queue.store", () => {
 
         await store.next();
 
-        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(playSpy).toHaveBeenCalledTimes(1);
         expect(store.currentIndex).toBe(-1);
+      });
+    });
+
+    describe("failures by kind", () => {
+      const failWith = (error: unknown) => {
+        const playerStore = usePlayerStore();
+        return vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(error);
+      };
+      const listen = () => {
+        const skipped = vi.fn();
+        const stalled = vi.fn();
+        const offSkipped = useEventBus(trackSkippedEvent).on(skipped);
+        const offStalled = useEventBus(playbackStalledEvent).on(stalled);
+        return { skipped, stalled, off: () => { offSkipped(); offStalled(); } };
+      };
+
+      it("skips a broken track silently and plays the next one", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValueOnce(new PlaybackFailure({ kind: "broken", trackId: "1" }, createTrack("1")))
+          .mockResolvedValue(undefined);
+        const events = listen();
+        seedQueue(store, ["1", "2", "3"], -1);
+
+        await store.next();
+
+        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(store.currentTrack?.id).toBe("2");
+        expect(events.skipped).not.toHaveBeenCalled();
+        events.off();
+      });
+
+      it("announces a skipped unavailable track", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValueOnce(new PlaybackFailure({ kind: "unavailable", reason: "no FS" }, createTrack("1")))
+          .mockResolvedValue(undefined);
+        const events = listen();
+        seedQueue(store, ["1", "2"], -1);
+
+        await store.next();
+
+        expect(events.skipped).toHaveBeenCalledTimes(1);
+        expect(events.skipped.mock.calls[0][0]).toMatchObject({
+          track: { id: "1" },
+          error: { kind: "unavailable", reason: "no FS" },
+        });
+        expect(store.currentTrack?.id).toBe("2");
+        events.off();
+      });
+
+      it("stops the queue after three transient failures in a row instead of draining it", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+        const playSpy = failWith(new PlaybackFailure({ kind: "source", cause: { kind: "NETWORK", message: "down" } }, createTrack("x")));
+        const events = listen();
+        seedQueue(store, ["1", "2", "3", "4", "5"], -1);
+
+        await store.next();
+
+        expect(playSpy).toHaveBeenCalledTimes(3);
+        expect(events.skipped).toHaveBeenCalledTimes(3);
+        expect(events.stalled).toHaveBeenCalledTimes(1);
+        expect(events.stalled.mock.calls[0][0]).toMatchObject({ failures: 3, error: { kind: "source" } });
+        expect(stopSpy).toHaveBeenCalled();
+        expect(store.currentIndex).toBe(-1);
+        events.off();
+      });
+
+      it("counts transient failures across calls and resets the count on success", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const engineFailure = () => new PlaybackFailure({ kind: "engine", cause: new Error("x") }, createTrack("x"));
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValueOnce(engineFailure())
+          .mockRejectedValueOnce(engineFailure())
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(engineFailure())
+          .mockRejectedValueOnce(engineFailure())
+          .mockResolvedValue(undefined);
+        const events = listen();
+        seedQueue(store, ["1", "2", "3", "4", "5", "6"], -1);
+
+        await store.next(); // 1 fails, 2 fails, 3 plays — the run is broken
+        await store.next(); // 4 fails, 5 fails, 6 plays — still no stall
+
+        expect(playSpy).toHaveBeenCalledTimes(6);
+        expect(events.stalled).not.toHaveBeenCalled();
+        expect(store.currentTrack?.id).toBe("6");
+        events.off();
+      });
+
+      it("removing the current entry skips past an unplayable successor", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
+          .mockRejectedValueOnce(new PlaybackFailure({ kind: "broken", trackId: "2" }, createTrack("2")))
+          .mockResolvedValue(undefined);
+        seedQueue(store, ["1", "2", "3"], 0);
+
+        await store.removeFromQueue("item-1" as any);
+
+        expect(playSpy).toHaveBeenCalledTimes(2);
+        expect(store.currentTrack?.id).toBe("3");
+      });
+
+      it("reports a failed jump without moving on", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        failWith(new PlaybackFailure({ kind: "unavailable", reason: "no FS" }, createTrack("2")));
+        const events = listen();
+        seedQueue(store, ["1", "2", "3"], 0);
+
+        await store.jumpTo(1);
+
+        expect(events.skipped).toHaveBeenCalledTimes(1);
+        expect(store.currentIndex).toBe(1);
+        events.off();
       });
     });
   });

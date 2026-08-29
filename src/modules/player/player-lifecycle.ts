@@ -1,7 +1,12 @@
 import { until, useEventBus } from "@vueuse/core";
+import { toast } from "vue-sonner";
+import { i18n } from "@/app/i18n";
+import { TrackSource } from "@/db/entities";
+import { StorageErrorCode } from "@/db/errors/storage.errors";
 import { usePlayerStore } from "./store/player.store";
 import { useLyricsStore } from "./store/lyrics.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { playbackStalledEvent, trackSkippedEvent } from "@/modules/queue/lib/queue-events";
 import { isLibraryTrack } from "./types";
 import { trackChangedEvent, trackEndedEvent } from "./lib/player-events";
 import { initNextTrackPrefetch } from "./lib/prefetch-next";
@@ -44,6 +49,25 @@ export function initPlayerLifecycle(): void {
     }
 
     useQueueStore().next();
+  });
+
+  // The queue decides whether to skip or stop; what the user sees is decided
+  // here. A watched-folder file that vanished gets a pointer to the fix;
+  // any other storage failure is skipped quietly (the queue logged it).
+  useEventBus(trackSkippedEvent).on(({ track, error }) => {
+    if (error.kind === "storage") {
+      if (isLibraryTrack(track)
+        && track.source === TrackSource.LOCAL_EXTERNAL
+        && error.cause.code === StorageErrorCode.FILE_NOT_FOUND) {
+        toast.warning(i18n.global.t("watchedFolders.trackPathMissing"));
+      }
+      return;
+    }
+    toast.warning(i18n.global.t("queue.trackSkipped", { title: track.title }));
+  });
+
+  useEventBus(playbackStalledEvent).on(({ failures }) => {
+    toast.error(i18n.global.t("queue.playbackStalled", { count: failures }));
   });
 
   // The persisted queue restores asynchronously and no event announces it —
