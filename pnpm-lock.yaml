@@ -183,6 +183,9 @@ importers:
       '@iconify/vue':
         specifier: ^5.0.0
         version: 5.0.0(vue@3.5.25(typescript@5.9.3))
+      '@pinia/testing':
+        specifier: ^1.0.3
+        version: 1.0.3(pinia@3.0.4(typescript@5.9.3)(vue@3.5.25(typescript@5.9.3)))
       '@stylistic/eslint-plugin':
         specifier: ^5.6.1
         version: 5.6.1(eslint@9.39.1(jiti@2.6.1))
@@ -1339,6 +1342,11 @@ packages:
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
+
+  '@pinia/testing@1.0.3':
+    resolution: {integrity: sha512-g+qR49GNdI1Z8rZxKrQC3GN+LfnGTNf5Kk8Nz5Cz6mIGva5WRS+ffPXQfzhA0nu6TveWzPNYTjGl4nJqd3Cu9Q==}
+    peerDependencies:
+      pinia: '>=3.0.4'
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -6997,6 +7005,10 @@ snapshots:
     optional: true
 
   '@one-ini/wasm@0.1.1': {}
+
+  '@pinia/testing@1.0.3(pinia@3.0.4(typescript@5.9.3)(vue@3.5.25(typescript@5.9.3)))':
+    dependencies:
+      pinia: 3.0.4(typescript@5.9.3)(vue@3.5.25(typescript@5.9.3))
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

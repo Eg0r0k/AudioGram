@@ -25,6 +25,7 @@ import type {
   RightPanelChaptersPayload,
   RightPanelEditTrackPayload,
   RightPanelEntitySelectPayload,
+  RightPanelFolderAddPayload,
   RightPanelTrackInfoPayload,
   RightPanelView,
 } from "@/modules/right-panel/types";
@@ -37,6 +38,7 @@ import AddTracksPanel from "@/modules/tracks/components/tracks-sheet/AddTracksPa
 import ChaptersPanel from "./panels/ChaptersPanel.vue";
 import DownloadsPanel from "./panels/DownloadsPanel.vue";
 import EntitySelectView from "./panels/EntitySelectView.vue";
+import FolderAddPanel from "./panels/FolderAddPanel.vue";
 const { isMobileLayout } = useDeviceLayout();
 const rightPanel = useRightPanelStore();
 const player = usePlayerStore();
@@ -77,6 +79,8 @@ const activeComponent = computed(() => {
       return DownloadsPanel;
     case "entity-select":
       return EntitySelectView;
+    case "folder-add":
+      return FolderAddPanel;
     default:
       return QueuePanel;
   }
@@ -95,6 +99,8 @@ const activeProps = computed(() => {
       return { payload: rightPanel.payload as RightPanelAddTracksPayload };
     case "entity-select":
       return { payload: rightPanel.payload as RightPanelEntitySelectPayload };
+    case "folder-add":
+      return { payload: rightPanel.payload as RightPanelFolderAddPayload };
     case "queue":
       return {};
     case "chapters": {
