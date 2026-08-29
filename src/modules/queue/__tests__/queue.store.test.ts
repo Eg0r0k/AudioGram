@@ -1760,6 +1760,34 @@ describe("queue.store", () => {
       expect(snapshot.currentIndex).toBe(store.currentIndex);
     });
 
+    it("keeps the persisted snapshot in step with every mutation without a manual sync", async () => {
+      const store = await seeded();
+      const expectSnapshotMatches = () => {
+        const snapshot = store.persistedSnapshot!;
+        expect(snapshot.queue.map(item => item.id)).toEqual(store.queue.map(item => item.id));
+        expect(snapshot.originalQueueOrder).toEqual(store.originalQueue.map(item => item.id));
+        expect(snapshot.currentItemId).toBe(store.currentItem?.id);
+        expect(snapshot.isShuffled).toBe(store.isShuffled);
+      };
+
+      store.addToQueue(createTrack("5"));
+      expectSnapshotMatches();
+      store.moveTrack(0, 2);
+      expectSnapshotMatches();
+      store.shuffle();
+      expectSnapshotMatches();
+      store.insertNext(createTrack("6"));
+      expectSnapshotMatches();
+      store.removeFromQueue(store.queue[2].id);
+      expectSnapshotMatches();
+      store.syncTrackMetadata({ ...createTrack("5"), title: "Renamed" });
+      expectSnapshotMatches();
+      store.unshuffle();
+      expectSnapshotMatches();
+      await store.jumpTo(0);
+      expectSnapshotMatches();
+    });
+
     it("an empty shuffle is still a shuffle, and is persisted as one", () => {
       const store = useQueueStore();
 

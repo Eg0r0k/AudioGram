@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import { TrackSource } from "@/db/entities";
@@ -55,6 +55,24 @@ interface PersistedQueueSnapshot {
   isShuffled: boolean;
 }
 
+/**
+ * Canonical queue state — the only thing a mutation writes. Everything the
+ * UI reads (queue, currentIndex, currentItem, isShuffled, ...) derives from
+ * it, so there is no second copy to keep in sync.
+ *
+ * `items` is the queue in the order tracks were added; `playbackOrder` is
+ * null while unshuffled and otherwise a permutation of every item id;
+ * `currentItemId` identifies the playing entry by identity, so removing or
+ * reordering around it cannot move the selection.
+ */
+interface QueueState {
+  items: readonly QueueItem[];
+  playbackOrder: readonly QueueItemId[] | null;
+  currentItemId: QueueItemId | null;
+}
+
+const EMPTY_STATE: QueueState = { items: [], playbackOrder: null, currentItemId: null };
+
 const insertAt = <T>(list: readonly T[], index: number, ...values: T[]): T[] => [
   ...list.slice(0, index),
   ...values,
@@ -98,34 +116,49 @@ const rehydrateQueueItem = (
   };
 };
 
+// Dev-only: the canonical state is small enough to check exhaustively after
+// every commit, and a broken permutation would otherwise surface as a
+// silently shorter queue.
+const assertQueueInvariants = (state: QueueState) => {
+  if (!import.meta.env.DEV) return;
+  const order = state.playbackOrder;
+  if (order) {
+    const ids = new Set(state.items.map(item => item.id));
+    const isPermutation = order.length === ids.size
+      && new Set(order).size === order.length
+      && order.every(id => ids.has(id));
+    if (!isPermutation) {
+      throw new Error("[Queue] invariant violated: playbackOrder is not a permutation of items");
+    }
+  }
+  if (state.currentItemId !== null && !state.items.some(item => item.id === state.currentItemId)) {
+    throw new Error("[Queue] invariant violated: currentItemId points at no item");
+  }
+};
+
 export const useQueueStore = defineStore("queue", () => {
   const playerStore = usePlayerStore();
 
-  // Canonical state — the only three things a mutation writes. Everything
-  // the UI reads (queue, currentIndex, currentItem, isShuffled, ...) derives
-  // from them, so there is no second copy to keep in sync. Mutations
-  // reassign whole arrays rather than splicing in place.
-  //
-  // `items` is the queue in the order tracks were added; `playbackOrder` is
-  // null while unshuffled and otherwise a permutation of every item id;
-  // `currentItemId` identifies the playing entry by identity, so removing or
-  // reordering around it cannot move the selection.
-  const items = ref<QueueItem[]>([]);
-  const playbackOrder = ref<QueueItemId[] | null>(null);
-  const currentItemId = ref<QueueItemId | null>(null);
+  // One shallow ref rather than three: a mutation that touches several
+  // fields lands atomically, so no reader (and no invariant check) ever
+  // sees items from one state and an order from another. Shallow because
+  // items are never edited in place — every change is a new array — and
+  // deep-proxying a thousand queue entries is pure overhead.
+  const state = shallowRef<QueueState>(EMPTY_STATE);
   const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
 
-  // Bumped by every queue mutation. restorePersistedQueue captures it before
-  // its async DB read and refuses to commit when the user acted in that gap
+  // Bumped by every commit. restorePersistedQueue captures it before its
+  // async DB read and refuses to commit when the user acted in that gap
   // (open-with launch, an early click) — their state wins over yesterday's.
   let _mutationEpoch = 0;
-  const markQueueMutation = () => {
-    _mutationEpoch++;
-  };
 
   let autoplayRecommendationsPromise: Promise<boolean> | null = null;
 
-  const originalQueue = computed<QueueItem[]>(() => items.value);
+  const items = computed(() => state.value.items);
+  const playbackOrder = computed(() => state.value.playbackOrder);
+  const currentItemId = computed(() => state.value.currentItemId);
+
+  const originalQueue = computed<QueueItem[]>(() => items.value as QueueItem[]);
 
   // The three derived fields below stay writable for the existing tests,
   // which seed state through them. Writing one settles the canonical state
@@ -133,15 +166,16 @@ export const useQueueStore = defineStore("queue", () => {
   // (and, while shuffled, becomes the playback order), `currentIndex` picks
   // the entry at that position, `isShuffled` freezes or drops the order.
   const queue = computed<QueueItem[]>({
-    get: () => playbackOrder.value
+    get: () => (playbackOrder.value
       ? getItemsByOrder(items.value, playbackOrder.value)
-      : items.value,
+      : items.value) as QueueItem[],
     set: (list) => {
-      items.value = list;
-      if (playbackOrder.value) playbackOrder.value = list.map(item => item.id);
-      if (currentItemId.value !== null && !list.some(item => item.id === currentItemId.value)) {
-        currentItemId.value = null;
-      }
+      const keepsCurrent = currentItemId.value !== null && list.some(item => item.id === currentItemId.value);
+      commit({
+        items: list,
+        playbackOrder: playbackOrder.value ? list.map(item => item.id) : null,
+        currentItemId: keepsCurrent ? currentItemId.value : null,
+      });
     },
   });
 
@@ -149,7 +183,7 @@ export const useQueueStore = defineStore("queue", () => {
     get: () => playbackOrder.value !== null,
     set: (shuffled) => {
       if (shuffled === (playbackOrder.value !== null)) return;
-      playbackOrder.value = shuffled ? queue.value.map(item => item.id) : null;
+      commit({ playbackOrder: shuffled ? queue.value.map(item => item.id) : null });
     },
   });
 
@@ -159,7 +193,7 @@ export const useQueueStore = defineStore("queue", () => {
       return queue.value.findIndex(item => item.id === currentItemId.value);
     },
     set: (index) => {
-      currentItemId.value = queue.value[index]?.id ?? null;
+      commit({ currentItemId: queue.value[index]?.id ?? null });
     },
   });
 
@@ -198,26 +232,6 @@ export const useQueueStore = defineStore("queue", () => {
     return queue.value.slice(0, currentIndex.value);
   });
 
-  // Dev-only: the canonical state is small enough to check exhaustively
-  // after every mutation, and a broken permutation would otherwise surface
-  // as a silently shorter queue.
-  const assertQueueInvariants = () => {
-    if (!import.meta.env.DEV) return;
-    const order = playbackOrder.value;
-    if (order) {
-      const ids = new Set(items.value.map(item => item.id));
-      const isPermutation = order.length === ids.size
-        && new Set(order).size === order.length
-        && order.every(id => ids.has(id));
-      if (!isPermutation) {
-        throw new Error("[Queue] invariant violated: playbackOrder is not a permutation of items");
-      }
-    }
-    if (currentItemId.value !== null && !items.value.some(item => item.id === currentItemId.value)) {
-      throw new Error("[Queue] invariant violated: currentItemId points at no item");
-    }
-  };
-
   function createItem(track: PlayerTrack, source: QueueSource, cover?: string | null): QueueItem {
     return {
       id: QueueItemId(crypto.randomUUID()),
@@ -229,9 +243,9 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function patchQueueItem(
-    list: QueueItem[],
+    list: readonly QueueItem[],
     nextTrack: PlayerTrack,
-  ): QueueItem[] {
+  ): readonly QueueItem[] {
     const index = list.findIndex(item => item.track.id === nextTrack.id);
     if (index === -1) return list;
 
@@ -246,41 +260,6 @@ export const useQueueStore = defineStore("queue", () => {
     };
 
     return nextList;
-  }
-
-  function syncTrackMetadata(nextTrack: PlayerTrack): void {
-    if (isEphemeralTrack(nextTrack)) return;
-
-    markQueueMutation();
-    items.value = patchQueueItem(items.value, nextTrack);
-    const playing = playerStore.currentTrack;
-    if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
-      playerStore.currentTrack = { ...playing, ...nextTrack };
-    }
-    syncPersistedSnapshot();
-  }
-
-  /**
-   * Import-from-player (M3): every queue entry holding the ephemeral track
-   * becomes the freshly imported library track — item identity (id, source,
-   * addedAt) survives. If the current entry swaps, the player's track
-   * reference is updated directly; the audio element keeps playing the
-   * already-loaded file, so playback never restarts.
-   */
-  function swapEphemeralForLibrary(ephemeralTrackId: string, libraryTrack: PlayerTrack): void {
-    markQueueMutation();
-    let swappedCurrent = false;
-
-    items.value = items.value.map((item) => {
-      if (!isEphemeralTrack(item.track) || item.track.id !== ephemeralTrackId) return item;
-      if (item.id === currentItemId.value) swappedCurrent = true;
-      return { ...item, track: libraryTrack };
-    });
-
-    if (swappedCurrent) {
-      playerStore.currentTrack = libraryTrack;
-    }
-    syncPersistedSnapshot();
   }
 
   function getTrackQueueKey(track: PlayerTrack): string {
@@ -351,9 +330,59 @@ export const useQueueStore = defineStore("queue", () => {
     };
   }
 
-  function syncPersistedSnapshot(): void {
-    assertQueueInvariants();
-    persistedSnapshot.value = buildPersistedQueueSnapshot();
+  /**
+   * The single writer. Every mutation lands here, so the epoch, the
+   * invariant check and the persisted snapshot can never be forgotten by a
+   * new code path (the old mark-mutation / sync-snapshot pair had to be
+   * called by hand in every function, and shuffle() already missed one).
+   * A `watch` on the state could do the same, but an explicit call is
+   * synchronous by construction and lets the one caller that must NOT touch
+   * the stored snapshot — a failed restore — say so. Cost per commit is one
+   * snapshot build plus the invariant check: 0.5–1.0 ms per mutation on a
+   * 1000-item queue (vitest/happy-dom, add/move/insert/remove, shuffled and
+   * not), far under the 5 ms budget, so there is nothing to batch.
+   */
+  const commit = (patch: Partial<QueueState>, options: { persist?: boolean } = {}) => {
+    const next = { ...state.value, ...patch };
+    assertQueueInvariants(next);
+    state.value = next;
+    _mutationEpoch++;
+    if (options.persist !== false) {
+      persistedSnapshot.value = buildPersistedQueueSnapshot();
+    }
+  };
+
+  function syncTrackMetadata(nextTrack: PlayerTrack): void {
+    if (isEphemeralTrack(nextTrack)) return;
+
+    commit({ items: patchQueueItem(items.value, nextTrack) });
+    const playing = playerStore.currentTrack;
+    if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
+      playerStore.currentTrack = { ...playing, ...nextTrack };
+    }
+  }
+
+  /**
+   * Import-from-player (M3): every queue entry holding the ephemeral track
+   * becomes the freshly imported library track — item identity (id, source,
+   * addedAt) survives. If the current entry swaps, the player's track
+   * reference is updated directly; the audio element keeps playing the
+   * already-loaded file, so playback never restarts.
+   */
+  function swapEphemeralForLibrary(ephemeralTrackId: string, libraryTrack: PlayerTrack): void {
+    let swappedCurrent = false;
+
+    commit({
+      items: items.value.map((item) => {
+        if (!isEphemeralTrack(item.track) || item.track.id !== ephemeralTrackId) return item;
+        if (item.id === currentItemId.value) swappedCurrent = true;
+        return { ...item, track: libraryTrack };
+      }),
+    });
+
+    if (swappedCurrent) {
+      playerStore.currentTrack = libraryTrack;
+    }
   }
 
   function createQueueItems(tracks: PlayerTrack[], source: QueueSource): QueueItem[] {
@@ -410,8 +439,7 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function resetPlaybackSelection(): void {
-    markQueueMutation();
-    currentItemId.value = null;
+    commit({ currentItemId: null });
     playerStore.stop();
     playerStore.clearCurrentTrack();
   }
@@ -429,12 +457,10 @@ export const useQueueStore = defineStore("queue", () => {
     const item = queue.value[index];
     if (!item) return false;
 
-    markQueueMutation();
-    currentItemId.value = item.id;
+    commit({ currentItemId: item.id });
 
     try {
       await playerStore.playPlayerTrack(item.track);
-      syncPersistedSnapshot();
       return true;
     }
     catch (err) {
@@ -475,20 +501,20 @@ export const useQueueStore = defineStore("queue", () => {
       return;
     }
 
-    markQueueMutation();
     const nextItems = createQueueItems(tracks, source);
     const shouldShuffle = options?.shuffled ?? isShuffled.value;
     const playbackQueue = buildPlaybackQueue(nextItems, startIndex, shouldShuffle);
 
-    items.value = nextItems;
-    playbackOrder.value = shouldShuffle ? playbackQueue.items.map(item => item.id) : null;
-    currentItemId.value = null;
+    commit({
+      items: nextItems,
+      playbackOrder: shouldShuffle ? playbackQueue.items.map(item => item.id) : null,
+      currentItemId: null,
+    });
 
     const success = await playAtIndex(playbackQueue.playbackIndex);
     if (!success) {
       await skipToNextPlayable(Math.max(playbackQueue.items.length - playbackQueue.playbackIndex, 1));
     }
-    syncPersistedSnapshot();
   }
 
   async function restorePersistedQueue(): Promise<void> {
@@ -542,11 +568,13 @@ export const useQueueStore = defineStore("queue", () => {
       // queue; the positional index is only a fallback for older v1 snapshots.
       const restoredCurrentId = snapshot.currentItemId ?? snapshot.queue[snapshot.currentIndex]?.id ?? null;
 
-      items.value = restoredItems;
-      playbackOrder.value = snapshot.isShuffled ? restoredQueue.map(item => item.id) : null;
-      currentItemId.value = restoredCurrentId !== null && restoredQueue.some(item => item.id === restoredCurrentId)
-        ? restoredCurrentId
-        : null;
+      commit({
+        items: restoredItems,
+        playbackOrder: snapshot.isShuffled ? restoredQueue.map(item => item.id) : null,
+        currentItemId: restoredCurrentId !== null && restoredQueue.some(item => item.id === restoredCurrentId)
+          ? restoredCurrentId
+          : null,
+      });
 
       // If playback already started this session (cold play of the persisted
       // track), the player owns its current track — don't reassign or clear
@@ -560,16 +588,12 @@ export const useQueueStore = defineStore("queue", () => {
           playerStore.clearCurrentTrack();
         }
       }
-
-      syncPersistedSnapshot();
     }
     catch (error) {
       getLogger().error(`[Queue] Failed to restore persisted queue: ${String(error)}`);
       // Infrastructure failure (DB hiccup): reset memory but keep the stored
       // snapshot untouched so the next healthy launch can still restore it.
-      items.value = [];
-      playbackOrder.value = null;
-      currentItemId.value = null;
+      commit(EMPTY_STATE, { persist: false });
     }
   }
 
@@ -584,13 +608,13 @@ export const useQueueStore = defineStore("queue", () => {
     tracks: PlayerTrack[],
     source: QueueSource = { type: "manual" },
   ): void {
-    markQueueMutation();
     const added = tracks.map(t => createItem(t, source));
-    items.value = [...items.value, ...added];
-    if (playbackOrder.value) {
-      playbackOrder.value = [...playbackOrder.value, ...added.map(item => item.id)];
-    }
-    syncPersistedSnapshot();
+    commit({
+      items: [...items.value, ...added],
+      playbackOrder: playbackOrder.value
+        ? [...playbackOrder.value, ...added.map(item => item.id)]
+        : null,
+    });
   }
 
   async function appendAutoplayRecommendations(): Promise<boolean> {
@@ -659,20 +683,20 @@ export const useQueueStore = defineStore("queue", () => {
     track: PlayerTrack,
     source: QueueSource = { type: "manual" },
   ): void {
-    markQueueMutation();
     const item = createItem(track, source);
     const current = currentItem.value;
 
     const originalAt = current
       ? items.value.findIndex(candidate => candidate.id === current.id) + 1
       : 0;
-    items.value = insertAt(items.value, originalAt, item);
+    const playbackAt = currentIndex.value >= 0 ? currentIndex.value + 1 : 0;
 
-    if (playbackOrder.value) {
-      const playbackAt = currentIndex.value >= 0 ? currentIndex.value + 1 : 0;
-      playbackOrder.value = insertAt(playbackOrder.value, playbackAt, item.id);
-    }
-    syncPersistedSnapshot();
+    commit({
+      items: insertAt(items.value, originalAt, item),
+      playbackOrder: playbackOrder.value
+        ? insertAt(playbackOrder.value, playbackAt, item.id)
+        : null,
+    });
   }
 
   async function next(): Promise<void> {
@@ -749,7 +773,6 @@ export const useQueueStore = defineStore("queue", () => {
     const idSet = new Set(ids);
     if (!queue.value.some(item => idSet.has(item.id))) return;
 
-    markQueueMutation();
     const oldIndex = currentIndex.value;
     const wasCurrentRemoved = currentItemId.value !== null && idSet.has(currentItemId.value);
     // The successor is whatever now sits where the current entry was: its
@@ -758,14 +781,16 @@ export const useQueueStore = defineStore("queue", () => {
       .filter((item, index) => index < oldIndex && idSet.has(item.id))
       .length;
 
-    items.value = items.value.filter(item => !idSet.has(item.id));
-    if (playbackOrder.value) {
-      playbackOrder.value = playbackOrder.value.filter(itemId => !idSet.has(itemId));
-    }
+    commit({
+      items: items.value.filter(item => !idSet.has(item.id)),
+      playbackOrder: playbackOrder.value
+        ? playbackOrder.value.filter(itemId => !idSet.has(itemId))
+        : null,
+      currentItemId: wasCurrentRemoved ? null : currentItemId.value,
+    });
 
     if (items.value.length === 0) {
       resetPlaybackSelection();
-      syncPersistedSnapshot();
       return;
     }
 
@@ -776,7 +801,6 @@ export const useQueueStore = defineStore("queue", () => {
       );
       playAtIndex(successorIndex);
     }
-    syncPersistedSnapshot();
   }
 
   function moveTrack(fromIndex: number, toIndex: number): void {
@@ -784,37 +808,32 @@ export const useQueueStore = defineStore("queue", () => {
     if (fromIndex < 0 || fromIndex >= queue.value.length) return;
     if (toIndex < 0 || toIndex >= queue.value.length) return;
 
-    markQueueMutation();
     // A drag reorders whichever order is on screen; the selection follows
     // its item by identity, so nothing about currentIndex needs fixing up.
     if (playbackOrder.value) {
-      playbackOrder.value = moveItem(playbackOrder.value, fromIndex, toIndex);
+      commit({ playbackOrder: moveItem(playbackOrder.value, fromIndex, toIndex) });
     }
     else {
-      items.value = moveItem(items.value, fromIndex, toIndex);
+      commit({ items: moveItem(items.value, fromIndex, toIndex) });
     }
-    syncPersistedSnapshot();
   }
 
   function shuffle(): void {
-    markQueueMutation();
     const current = currentItem.value;
     const currentOriginalIndex = current
       ? items.value.findIndex(item => item.id === current.id)
       : null;
 
-    playbackOrder.value = buildPlaybackQueue(items.value, currentOriginalIndex, true)
-      .items
-      .map(item => item.id);
-    syncPersistedSnapshot();
+    commit({
+      playbackOrder: buildPlaybackQueue(items.value, currentOriginalIndex, true)
+        .items
+        .map(item => item.id),
+    });
   }
 
   function unshuffle(): void {
     if (!isShuffled.value) return;
-
-    markQueueMutation();
-    playbackOrder.value = null;
-    syncPersistedSnapshot();
+    commit({ playbackOrder: null });
   }
 
   function toggleShuffle(): void {
@@ -827,11 +846,9 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function clear(): void {
-    markQueueMutation();
-    items.value = [];
-    playbackOrder.value = null;
-    resetPlaybackSelection();
-    syncPersistedSnapshot();
+    commit(EMPTY_STATE);
+    playerStore.stop();
+    playerStore.clearCurrentTrack();
   }
 
   return {
