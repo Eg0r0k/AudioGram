@@ -4,51 +4,60 @@
       class="bg-card"
       :show-close="true"
       :show-back="rightPanel.depth > 0 && !isEditing"
-      :title="'В этом треке'"
+      :title="t('chapters.inThisTrack')"
       @close="rightPanel.close()"
       @back="rightPanel.back()"
     >
       <template #trailing>
-        <Button
-          v-if="!isEditing"
-          variant="ghost"
-          size="icon"
-          class="shrink-0 rounded-full"
-          :disabled="isImporting"
-          @click="openCueDialog()"
-        >
-          <IconUpload
-            v-if="isImporting"
-            class="size-6 animate-pulse"
-          />
-          <IconUpload
-            v-else
-            class="size-6"
-          />
-        </Button>
+        <template v-if="isEditing">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="shrink-0 rounded-full"
+            :aria-label="t('chapters.cancelEdit')"
+            :disabled="isSaving"
+            @click="cancelEditing()"
+          >
+            <IconX class="size-6" />
+          </Button>
 
-        <Button
-          v-if="isEditing"
-          variant="ghost"
-          size="icon"
-          class="shrink-0 rounded-full"
-          :disabled="!isFormValid"
-          @click="handleSave()"
-        >
-          <IconCheck
-            class="size-6 text-primary"
-          />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="shrink-0 rounded-full"
+            :aria-label="t('chapters.save')"
+            :disabled="!isFormValid || isSaving"
+            @click="handleSave()"
+          >
+            <IconCheck class="size-6 text-primary" />
+          </Button>
+        </template>
 
-        <Button
-          v-else
-          variant="ghost"
-          size="icon"
-          class="shrink-0 rounded-full"
-          @click="isEditing = true"
-        >
-          <IconPencil class="size-6" />
-        </Button>
+        <template v-else>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="shrink-0 rounded-full"
+            :aria-label="t('chapters.importCue')"
+            :disabled="isImporting"
+            @click="openCueDialog()"
+          >
+            <IconUpload
+              class="size-6"
+              :class="{ 'animate-pulse': isImporting }"
+            />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            class="shrink-0 rounded-full"
+            :aria-label="t('chapters.edit')"
+            @click="isEditing = true"
+          >
+            <IconPencil class="size-6" />
+          </Button>
+        </template>
       </template>
     </RightPanelHeader>
 
@@ -151,6 +160,7 @@ import IconBookmarkOff from "~icons/tabler/bookmark-off";
 import IconCheck from "~icons/tabler/check";
 import IconPencil from "~icons/tabler/pencil";
 import IconUpload from "~icons/tabler/upload";
+import IconX from "~icons/tabler/x";
 import IconPlay from "~icons/audiogram/play-rounded";
 import IconTrash from "~icons/tabler/trash";
 import { parseCueSheet } from "@/lib/cue/parseCueSheet";
@@ -159,6 +169,7 @@ import { object, number, string, pipe, minValue, maxValue, safeParse } from "val
 import { usePlayerStore } from "@/modules/player";
 import { useSaveTrackChapters, useTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
 import type { Track } from "@/modules/player/types";
+import type { TrackChapterMark } from "@/db/entities";
 import ChapterEditor, { DraftChapter } from "@/components/ChapterEditor.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
@@ -193,38 +204,53 @@ const activeChapterIndex = computed(() => {
 
 const isEditing = ref(false);
 const draft = ref<DraftChapter[]>([]);
+const isSaving = saveMutation.isPending;
 const isImporting = ref(false);
 const importError = ref<string | null>(null);
+// The list as it was when editing started — what "cancel" puts back, since
+// the autosave below may already have written the draft.
+let editSnapshot: TrackChapterMark[] = [];
 
 const chapterSchema = object({
   time: pipe(number(), minValue(0), maxValue(props.track.duration)),
   title: string(),
 });
 
-const isFormValid = computed(() => {
-  if (draft.value.length === 0) return false;
-  return draft.value.every(ch => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success);
-});
+const isFormValid = computed(() =>
+  draft.value.every(ch => safeParse(chapterSchema, { time: ch.time, title: ch.title }).success),
+);
+
+const toPayload = (list: DraftChapter[]): TrackChapterMark[] => [...list]
+  .sort((a, b) => a.time - b.time)
+  .map(c => ({ time: c.time, title: c.title.trim() || undefined }));
+
+const sameChapters = (a: TrackChapterMark[], b: TrackChapterMark[]): boolean =>
+  a.length === b.length
+  && a.every((c, i) => c.time === b[i].time && (c.title ?? "") === (b[i].title ?? ""));
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+const clearAutoSave = (): void => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+};
+
 watch(isEditing, (editing) => {
   if (!editing) return;
+  editSnapshot = chapters.value.map(c => ({ time: c.time, title: c.title }));
   draft.value = chapters.value.map(c => ({ id: crypto.randomUUID(), time: c.time, title: c.title ?? "" }));
 });
 
 watch(draft, () => {
   if (!isEditing.value) return;
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  clearAutoSave();
   autoSaveTimer = setTimeout(() => {
-    const payload = [...draft.value]
-      .sort((a, b) => a.time - b.time)
-      .map(c => ({ time: c.time, title: c.title.trim() || undefined }));
-    saveMutation.mutate({ trackId: props.track.id, chapters: payload });
+    saveMutation.mutate({ trackId: props.track.id, chapters: toPayload(draft.value) });
   }, 1500);
 }, { deep: true });
 
 watch(trackId, () => {
+  clearAutoSave();
   isEditing.value = false;
   importError.value = null;
 });
@@ -273,12 +299,19 @@ async function removeSavedChapter(index: number): Promise<void> {
 }
 
 async function handleSave(): Promise<void> {
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  const payload = [...draft.value]
-    .sort((a, b) => a.time - b.time)
-    .map(c => ({ time: c.time, title: c.title.trim() || undefined }));
-
-  await saveMutation.mutateAsync({ trackId: props.track.id, chapters: payload });
+  clearAutoSave();
+  const payload = toPayload(draft.value);
+  if (!sameChapters(payload, chapters.value)) {
+    await saveMutation.mutateAsync({ trackId: props.track.id, chapters: payload });
+  }
   isEditing.value = false;
+}
+
+async function cancelEditing(): Promise<void> {
+  clearAutoSave();
+  isEditing.value = false;
+  if (!sameChapters(chapters.value, editSnapshot)) {
+    await saveMutation.mutateAsync({ trackId: props.track.id, chapters: editSnapshot });
+  }
 }
 </script>

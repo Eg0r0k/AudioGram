@@ -3,7 +3,6 @@ import { ROUTE_NAMES } from "@/app/router/route-names";
 
 export const routeLocation = {
   home: (): RouteLocationRaw => ({ name: ROUTE_NAMES.HOME }),
-  profile: (): RouteLocationRaw => ({ name: ROUTE_NAMES.PROFILE }),
   liked: (): RouteLocationRaw => ({ name: ROUTE_NAMES.LIKED }),
   album: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ALBUM, params: { id } }),
   artist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ARTIST, params: { id } }),

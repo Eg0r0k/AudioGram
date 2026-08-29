@@ -10,5 +10,6 @@
   "drag": "Drag to reorder",
   "clear": "Clear queue",
   "showQueue": "Show queue",
-  "historyEmpty": "Your listening history is empty"
+  "historyEmpty": "Your listening history is empty",
+  "remove": "Remove from queue"
 }

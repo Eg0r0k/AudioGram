@@ -48,8 +48,11 @@ const PAGE_SIZE = 50;
 export interface TrackMetadataChanges {
   title: string;
   artistNames: string[];
+  // At most one of albumId/albumTitle: an id picks an existing album, a title
+  // finds-or-creates one under the first artist, neither detaches the track
+  // from any album (albumId "" — the same shape album-less imports get).
   albumId?: AlbumId;
-  albumTitle?: string; // exactly one of albumId/albumTitle must be provided
+  albumTitle?: string;
   // undefined = leave unchanged, null = clear the stored value, number = set it.
   trackNo?: number | null;
   diskNo?: number | null;
@@ -479,11 +482,11 @@ const resolveAlbumForChanges = async (
   queryClient: QueryClient,
   changes: TrackMetadataChanges,
   firstArtistId: ArtistId,
-): Promise<AlbumEntity> => {
+): Promise<AlbumEntity | null> => {
   if (changes.albumId) return getAlbumByIdOrThrow(changes.albumId);
 
   const title = changes.albumTitle?.trim().replace(/\s+/g, " ");
-  if (!title) throw new Error("Album is required");
+  if (!title) return null;
 
   const artistAlbums = await unwrapResult(albumRepository.findByArtistId(firstArtistId));
   const existing = artistAlbums.find(album => identityKey(album.title) === identityKey(title));
@@ -531,14 +534,17 @@ export async function updateTrackMetadataAndSync(
   const nextArtistName = artists.map(artist => artist.name).join(", ");
   const nextTrackNo = resolveNullableNumber(changes.trackNo, currentTrack.trackNo);
   const nextDiskNo = resolveNullableNumber(changes.diskNo, currentTrack.diskNo);
+  const nextAlbumId = album?.id ?? createAlbumId("");
+  // "" not undefined: albumTitle is indexed (see entities.ts).
+  const nextAlbumTitle = album?.title ?? "";
 
   const nextTrackEntity: TrackEntity = {
     ...currentTrack,
     title,
     artistIds: nextArtistIds,
     artistName: nextArtistName,
-    albumId: album.id,
-    albumTitle: album.title,
+    albumId: nextAlbumId,
+    albumTitle: nextAlbumTitle,
     trackNo: nextTrackNo,
     diskNo: nextDiskNo,
   };
@@ -547,8 +553,8 @@ export async function updateTrackMetadataAndSync(
     title,
     artistIds: nextArtistIds,
     artistName: nextArtistName,
-    albumId: album.id,
-    albumTitle: album.title,
+    albumId: nextAlbumId,
+    albumTitle: nextAlbumTitle,
     trackNo: nextTrackNo,
     diskNo: nextDiskNo,
   }));
@@ -556,7 +562,7 @@ export async function updateTrackMetadataAndSync(
   // An album-less track resolves its cover from its own id; once it joins an
   // album that owner stops being consulted, so the embedded art must follow —
   // to the album when it has none, otherwise the track row is just retired.
-  if (!currentTrack.albumId && album.id) {
+  if (!currentTrack.albumId && album) {
     const trackCover = await unwrapResult(coverRepository.findByOwner("track", currentTrack.id));
     if (trackCover) {
       const albumCover = await unwrapResult(coverRepository.findByOwner("album", album.id));
@@ -569,13 +575,27 @@ export async function updateTrackMetadataAndSync(
     }
   }
 
+  // The reverse move: leaving an album makes the track its own cover owner,
+  // so it takes a copy of the album art along unless it already has its own.
+  // The album keeps its cover — other tracks may still live there.
+  if (currentTrack.albumId && !album) {
+    const trackCover = await unwrapResult(coverRepository.findByOwner("track", currentTrack.id));
+    if (!trackCover) {
+      const albumCover = await unwrapResult(coverRepository.findByOwner("album", currentTrack.albumId));
+      if (albumCover) {
+        await unwrapResult(coverRepository.upsertOwnerCover("track", currentTrack.id, albumCover.blob));
+        updateCoverCache(queryClient, "track", currentTrack.id, albumCover.blob);
+      }
+    }
+  }
+
   const nextTrack: Track = {
     ...track,
     title,
     artist: nextArtistName,
     artistIds: nextArtistIds,
-    albumId: album.id,
-    albumName: album.title,
+    albumId: nextAlbumId,
+    albumName: nextAlbumTitle,
     trackNo: nextTrackEntity.trackNo,
     diskNo: nextTrackEntity.diskNo,
   };
@@ -587,7 +607,7 @@ export async function updateTrackMetadataAndSync(
   await invalidateForTrackMutation(queryClient, {
     kind: "metadata",
     artistIds: unique([...currentTrack.artistIds, ...nextArtistIds]),
-    albumIds: unique([currentTrack.albumId, album.id]),
+    albumIds: unique([currentTrack.albumId, nextAlbumId].filter(Boolean)),
   });
 
   return nextTrack;

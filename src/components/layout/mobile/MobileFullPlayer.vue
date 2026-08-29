@@ -1,8 +1,7 @@
 <template>
   <div
     ref="rootRef"
-    class="flex h-full min-h-0 flex-col"
-    :style="{ paddingTop: safeTop, paddingBottom: safeBottom }"
+    class="flex h-full min-h-0 flex-col pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
   >
     <div class="flex items-center justify-between px-4 pt-2 h-14 shrink-0">
       <Button
@@ -312,7 +311,6 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue";
-import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
@@ -369,7 +367,6 @@ const emit = defineEmits<{
 }>();
 
 const rootRef = useTemplateRef<HTMLDivElement>("rootRef");
-const { top: safeTop, bottom: safeBottom } = useScreenSafeArea();
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const rightPanelStore = useRightPanelStore();

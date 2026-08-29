@@ -8,5 +8,9 @@
   "lineUnrecognized": "Не удалось распознать строку: «{line}»",
   "lineBeyondDuration": "Таймкод за пределами трека ({duration}): «{line}»",
   "cueParseEmpty": "CUE-файл не содержит записей",
-  "cueParseError": "Не удалось обработать CUE-файл"
+  "cueParseError": "Не удалось обработать CUE-файл",
+  "edit": "Редактировать таймкоды",
+  "save": "Сохранить таймкоды",
+  "cancelEdit": "Отменить редактирование",
+  "importCue": "Импортировать CUE-файл"
 }

@@ -33,7 +33,7 @@
             gradient-length="20px"
           >
             <span class="text-sm font-medium leading-snug text-white">
-              {{ currentTrack?.title ?? $t("player.nothing_playing") }}
+              {{ currentTrack?.title ?? $t("player.nothingPlayingTitle") }}
             </span>
           </MarqueeBlock>
           <MarqueeBlock

@@ -38,10 +38,6 @@ export function useTopGenres(limit: MaybeRefOrGetter<number> = 8, since: MaybeSi
   return useQuery(computed(() => statsQueries.topGenres(toValue(limit), toValue(since))));
 }
 
-export function useSonicProfile(since: MaybeSince = undefined) {
-  return useQuery(computed(() => statsQueries.sonicProfile(toValue(since))));
-}
-
 export function useStatsSummary(since: MaybeSince = undefined) {
   return useQuery(computed(() => statsQueries.summary(toValue(since))));
 }

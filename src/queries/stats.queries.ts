@@ -113,13 +113,6 @@ export const statsQueries = {
       staleTime: STATS_STALE_TIME,
       placeholderData: keepPreviousData,
     }),
-  sonicProfile: (since?: number) =>
-    queryOptions({
-      queryKey: queryKeys.stats.sonicProfile(since),
-      queryFn: () => unwrapResult(statsRepository.sonicProfile(since)),
-      staleTime: STATS_STALE_TIME,
-      placeholderData: keepPreviousData,
-    }),
   totalTime: (since?: number) =>
     queryOptions({
       queryKey: queryKeys.stats.totalTime(since),

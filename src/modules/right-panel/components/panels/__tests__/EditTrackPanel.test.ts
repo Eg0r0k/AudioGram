@@ -9,6 +9,7 @@ import type { Track } from "@/modules/player/types";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { RightPanelEntitySelectPayload } from "@/modules/right-panel/types";
 import { useTrackEditDraft } from "@/modules/tracks/composables/useTrackEditDraft";
+import { updateTrackMetadataAndSync } from "@/queries/track.queries";
 import EditTrackPanel from "../EditTrackPanel.vue";
 
 vi.mock("@/queries/track.queries", () => ({
@@ -96,6 +97,32 @@ describe("EditTrackPanel", () => {
 
     expect(screen.getByText("Fresh Album")).toBeInTheDocument();
     expect(screen.getByText("A new album will be created")).toBeInTheDocument();
+  });
+
+  it("clears the album when the picker reports none and saves the track album-less", async () => {
+    const track = { ...libraryTrack(), albumName: "Some Album" };
+    const first = renderPanel(track);
+    const rightPanel = useRightPanelStore();
+
+    await userEvent.click(screen.getByRole("button", { name: /Album/ }));
+    const payload = rightPanel.payload as RightPanelEntitySelectPayload;
+
+    payload.onConfirm({});
+    payload.onDone?.();
+
+    first.unmount();
+    const { container } = renderPanel(track);
+
+    expect(screen.queryByText("Some Album")).toBeNull();
+    expect(screen.getByText("No album")).toBeInTheDocument();
+
+    vi.mocked(updateTrackMetadataAndSync).mockClear();
+    await fireEvent.submit(container.querySelector("form") as HTMLFormElement);
+
+    await vi.waitFor(() => expect(updateTrackMetadataAndSync).toHaveBeenCalledTimes(1));
+    const changes = vi.mocked(updateTrackMetadataAndSync).mock.calls[0][2];
+    expect(changes).not.toHaveProperty("albumId");
+    expect(changes).not.toHaveProperty("albumTitle");
   });
 
   it("drops the draft when the whole panel is closed from the picker", async () => {

@@ -2,5 +2,8 @@
   "newPlaylist": "New playlist",
   "addTracks": "Add tracks",
   "deleteFailed": "Failed to delete playlist",
-  "updateFailed": "Failed to update playlist"
+  "updateFailed": "Failed to update playlist",
+  "addTrackFailed": "Failed to add the track to the playlist",
+  "createFailed": "Failed to create playlist",
+  "removeTrackFailed": "Failed to remove the track from the playlist"
 }

@@ -1,6 +1,5 @@
 export const ROUTE_NAMES = {
   HOME: "home",
-  PROFILE: "profile",
   ALBUM: "album",
   ARTIST: "artist",
   ARTIST_ALBUMS: "artist-albums",

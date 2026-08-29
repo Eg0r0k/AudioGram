@@ -6,6 +6,7 @@
     "invalidFormat": "Invalid image format",
     "readFailed": "Failed to read the file",
     "cropFailed": "Failed to crop the image",
-    "createFailed": "Failed to create the image"
+    "createFailed": "Failed to create the image",
+    "fileTooLarge": "The file is too large ({fileSize}), the maximum is {maxSize} MB"
   }
 }

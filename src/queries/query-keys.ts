@@ -102,7 +102,6 @@ export const queryKeys = {
     all: () => ["stats"] as const,
     /** Raw listen events of a period — the shared read behind the aggregates below. */
     events: (since?: number) => ["stats", "events", since] as const,
-    sonicProfile: (since?: number) => ["stats", "sonicProfile", since] as const,
     topTracks: (limit: number, since?: number) =>
       ["stats", "topTracks", limit, since] as const,
     topTracksMeta: (ids: readonly string[]) =>

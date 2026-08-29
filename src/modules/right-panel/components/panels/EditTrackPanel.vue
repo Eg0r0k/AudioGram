@@ -279,9 +279,9 @@ const buildTrackFormSchema = () => {
       )),
       minLength(1, t("track.edit.validation.artistsRequired")),
     ),
+    // Empty = no album: the track stays album-less, like an import without album tags.
     albumLabel: pipe(
       string(),
-      minLength(1, t("track.edit.validation.albumRequired")),
       maxLength(NAME_MAX_LENGTH, t("track.edit.validation.albumMaxLength", { max: NAME_MAX_LENGTH })),
     ),
     trackNo: positiveInteger(),
@@ -365,7 +365,7 @@ const draftFromTrack = (source: Track): TrackEditDraft => ({
   trackId: source.id,
   title: source.title,
   artists: splitArtistNames(source.artist),
-  albumId: source.albumId,
+  albumId: source.albumId || null,
   albumLabel: source.albumName,
   newAlbumTitle: null,
   trackNo: source.trackNo ?? null,
@@ -427,17 +427,17 @@ const hasChanges = computed(() => {
 
   return (title.value?.trim() ?? "") !== source.title
     || artistChips.value.join("\n") !== splitArtistNames(source.artist).join("\n")
-    || albumId.value !== source.albumId
+    || albumId.value !== (source.albumId || null)
     || newAlbumTitle.value !== null
     || (trackNo.value ?? null) !== (source.trackNo ?? null)
     || (diskNo.value ?? null) !== (source.diskNo ?? null);
 });
 
-const albumChange = computed<Pick<TrackMetadataChanges, "albumId" | "albumTitle"> | null>(() => {
+const albumChange = computed<Pick<TrackMetadataChanges, "albumId" | "albumTitle">>(() => {
   if (newAlbumTitle.value) return { albumTitle: newAlbumTitle.value };
   if (albumId.value) return { albumId: albumId.value as AlbumId };
 
-  return null;
+  return {};
 });
 
 const isUnsavedDialogOpen = computed<boolean>({
@@ -516,12 +516,10 @@ const openAlbumPicker = (): void => {
         return;
       }
 
-      if (!albumTitle) return;
-
       patchDraft(trackId, {
         albumId: null,
-        albumLabel: albumTitle,
-        newAlbumTitle: albumTitle,
+        albumLabel: albumTitle ?? "",
+        newAlbumTitle: albumTitle ?? null,
       });
     },
     onDone: () => rightPanel.openEditTrack({ track: editTrack }, { depth: 2 }),
@@ -546,13 +544,10 @@ const { mutateAsync: updateTrack, isPending } = useMutation({
 const onSubmit = handleSubmit(async (values) => {
   if (!track.value || !hasChanges.value) return;
 
-  const album = albumChange.value;
-  if (!album) return;
-
   const nextTrack = await updateTrack({
     title: values.title,
     artistNames: values.artists,
-    ...album,
+    ...albumChange.value,
     trackNo: values.trackNo ?? null,
     diskNo: values.diskNo ?? null,
   }).catch(() => null);

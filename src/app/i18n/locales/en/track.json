@@ -103,7 +103,7 @@
     "selectArtists": "Select artists",
     "selectAlbum": "Select album",
     "noArtists": "No artists selected",
-    "noAlbum": "No album selected",
+    "noAlbum": "No album",
     "newAlbumHint": "A new album will be created",
     "unsavedTitle": "Unsaved changes",
     "unsavedDescription": "Your changes will be lost. Leave without saving?",
@@ -116,7 +116,6 @@
       "titleMaxLength": "Title must be at most {max} characters",
       "artistsRequired": "Enter at least one artist",
       "artistMaxLength": "Artist name must be at most {max} characters",
-      "albumRequired": "Select an album",
       "albumMaxLength": "Album title must be at most {max} characters",
       "numberMin": "Number must be a whole number greater than zero"
     }
@@ -130,5 +129,8 @@
   },
   "downloadSuccess": "File downloaded",
   "downloadFailed": "Failed to download file",
-  "removeDownloadFailed": "Failed to remove download"
+  "removeDownloadFailed": "Failed to remove download",
+  "favorite": {
+    "addTracks": "Add tracks"
+  }
 }

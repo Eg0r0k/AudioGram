@@ -50,5 +50,6 @@
   "sleepTimerScheduledIn": "Will stop in {time}",
   "nothingPlaying": "Nothing is playing right now.",
   "upNextLabel": "Up Next",
-  "moreOptions": "More options"
+  "moreOptions": "More options",
+  "nothingPlayingTitle": "Nothing playing"
 }

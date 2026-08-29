@@ -18,14 +18,6 @@ import {
 
 export { SESSION_GAP_MS, type StatsRecords, type StatsSummary, type TopEntry } from "./stats.aggregate";
 
-export interface SonicProfile {
-  trackCount: number;
-  avgBpm: number;
-  avgEnergy: number;
-  avgDanceability: number;
-  majorRatio: number;
-}
-
 export interface TopGenreEntry {
   id: TagId | "other";
   name: string;
@@ -151,40 +143,6 @@ class StatsRepository {
         }
       }
       return [...map.values()].sort((a, b) => b.secondsListened - a.secondsListened).slice(0, limit);
-    });
-  }
-
-  async sonicProfile(since?: number): Promise<Result<SonicProfile, Error>> {
-    return runSafe(async () => {
-      const events = since
-        ? await db.listenEvents.where("startedAt").aboveOrEqual(since).toArray()
-        : await db.listenEvents.toArray();
-
-      const trackIds = [...new Set(events.filter(e => !e.skipped).map(e => e.trackId))];
-      const empty: SonicProfile = { trackCount: 0, avgBpm: 0, avgEnergy: 0, avgDanceability: 0, majorRatio: 0 };
-      if (trackIds.length === 0) return empty;
-
-      const features = await db.audioFeatures.where("trackId").anyOf(trackIds).toArray();
-      if (features.length === 0) return empty;
-
-      const sum = features.reduce(
-        (acc, f) => ({
-          bpm: acc.bpm + f.bpm,
-          energy: acc.energy + f.energy,
-          danceability: acc.danceability + f.danceability,
-          major: acc.major + (f.mode === 1 ? 1 : 0),
-        }),
-        { bpm: 0, energy: 0, danceability: 0, major: 0 },
-      );
-
-      const n = features.length;
-      return {
-        trackCount: n,
-        avgBpm: sum.bpm / n,
-        avgEnergy: sum.energy / n,
-        avgDanceability: sum.danceability / n,
-        majorRatio: sum.major / n,
-      };
     });
   }
 

@@ -50,5 +50,6 @@
   "sleepTimerScheduledIn": "Остановится через {time}",
   "nothingPlaying": "Сейчас ничего не играет.",
   "upNextLabel": "Далее",
-  "moreOptions": "Ещё"
+  "moreOptions": "Ещё",
+  "nothingPlayingTitle": "Ничего не играет"
 }
