@@ -6,25 +6,23 @@ import { useAudioSettingsStore } from "@/modules/settings/store/audio";
 import {
   type PlayerTrack,
   isLibraryTrack,
-  isEphemeralTrack,
-  type EphemeralTrack,
-  type Track,
   type RepeatMode,
 } from "../types";
-import { TrackSource, TrackState } from "@/db/entities";
-import { StorageError } from "@/db/errors/storage.errors";
-import { platformCaps } from "@/lib/environment/platformCaps";
-import { storageService } from "@/db/storage";
-import { offlineCopyRepository } from "@/db/repositories";
-import { sources } from "@/modules/sources";
 import { statsService } from "@/services/stats.service";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { createListenSession } from "../lib/listen-session";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
+import {
+  type PlaybackSource,
+  PlaybackFailure,
+  toPlaybackFailure,
+  checkPlayable,
+  isStreamingTrack,
+  resolvePlaybackSource,
+} from "../service/playback-resolver.service";
 import {
   type PlaybackStatus,
   isSwitching as isSwitchingStatus,
@@ -65,7 +63,6 @@ export const usePlayerStore = defineStore("player", () => {
   // request waking up after an await could still call load() *after* the
   // newer one and win by "last call" semantics — the token drops it first.
   let _playRequestId = 0;
-  let _activeBlobUrl: string | null = null;
 
   // The one place the player's state lives — see playback-status.ts for the
   // variants. shallowRef: the fadingOut variant carries an AbortController
@@ -136,13 +133,7 @@ export const usePlayerStore = defineStore("player", () => {
     // While a source is still loading, duration is 0 because it's *unknown*,
     // not because the stream is endless — don't flag live until it settles.
     if (isLoading.value) return false;
-    if (isEphemeralTrack(track) && track.source.type === "url") {
-      return dur <= 0;
-    }
-    if (isLibraryTrack(track) && track.source === TrackSource.REMOTE_HLS) {
-      return dur <= 0;
-    }
-    return false;
+    return isStreamingTrack(track) && dur <= 0;
   });
 
   const canSeek = computed(() => {
@@ -177,10 +168,6 @@ export const usePlayerStore = defineStore("player", () => {
     // Clearing the track mid-switch releases the event filter: whatever the
     // engine does next has to reach the store again.
     if (isSwitchingTrack()) setState({ kind: "idle" });
-    if (_activeBlobUrl) {
-      URL.revokeObjectURL(_activeBlobUrl);
-      _activeBlobUrl = null;
-    }
     currentTrack.value = null;
     currentTime.value = 0;
     duration.value = 0;
@@ -325,93 +312,6 @@ export const usePlayerStore = defineStore("player", () => {
     return newPlayer;
   };
 
-  /**
-   * Resolves the audio URL/source for any PlayerTrack — the single resolution
-   * point for playback.
-   *
-   * Library tracks:
-   *   1. local file (LOCAL_INTERNAL/LOCAL_EXTERNAL) → storageService.getAudioUrl
-   *   2. remote with an offline copy → storageService.getAudioUrl(copy path)
-   *   3. remote otherwise → sources.forTrack(id).resolveStreamUrl(id)
-   *   (REMOTE_HLS: storagePath IS the stream URL — folds into sources in M6)
-   *
-   * Ephemeral tracks:
-   *   file → createObjectURL (web drag-and-drop / file picker)
-   *   path → storageService.getAudioUrl (Tauri "Open with", no import)
-   *   url  → used directly (radio, YT stream proxy)
-   */
-  const resolvePlayback = async (track: PlayerTrack): Promise<string | null> => {
-    if (isEphemeralTrack(track)) return resolveEphemeralPlayback(track);
-    return resolveLibraryPlayback(track);
-  };
-
-  const resolveEphemeralPlayback = async (track: EphemeralTrack): Promise<string | null> => {
-    switch (track.source.type) {
-      case "file": {
-        if (_activeBlobUrl) {
-          URL.revokeObjectURL(_activeBlobUrl);
-        }
-        _activeBlobUrl = URL.createObjectURL(track.source.file);
-        return _activeBlobUrl;
-      }
-
-      case "path": {
-        if (!platformCaps.hasFs) {
-          getLogger().warn("[Player] path-based ephemeral tracks require native FS");
-          return null;
-        }
-        const result = await storageService.getAudioUrl(track.source.path);
-        if (result.isErr()) throw result.error;
-        return result.value;
-      }
-
-      case "url":
-        return track.source.url;
-    }
-  };
-
-  const resolveLibraryPlayback = async (track: Track): Promise<string | null> => {
-    if (track.source === TrackSource.REMOTE_HLS) {
-      return track.storagePath || null;
-    }
-
-    const isRemote = track.source === TrackSource.REMOTE_SUBSONIC
-      || track.source === TrackSource.REMOTE_YT;
-
-    if (!isRemote) {
-      if (track.source === TrackSource.LOCAL_EXTERNAL && !platformCaps.hasFs) {
-        getLogger().warn("[Player] LOCAL_EXTERNAL tracks require native FS");
-        return null;
-      }
-      const result = await storageService.getAudioUrl(track.storagePath);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    }
-
-    // Playing from live browsing shadow-pins the row (pinned = 0) so
-    // history, stats and queue persistence have valid FKs. Fire-and-forget:
-    // playback must not wait for the cascade.
-    if (track.sourceDto) {
-      ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
-        getLogger().warn(`[Player] Shadow-pin failed for ${track.id}: ${String(error)}`);
-      });
-    }
-
-    const copyResult = await offlineCopyRepository.findById(track.id);
-    const copy = copyResult.isOk() ? copyResult.value : undefined;
-    if (copy) {
-      const result = await storageService.getAudioUrl(copy.storagePath);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    }
-
-    const streamResult = await sources.forTrack(track.id).resolveStreamUrl(track.id);
-    if (streamResult.isErr()) {
-      throw new Error(`[${streamResult.error.kind}] ${streamResult.error.message}`);
-    }
-    return streamResult.value;
-  };
-
   const applyLoudnessMetadata = (p: Player, track: PlayerTrack) => {
     if (isLibraryTrack(track) && typeof track.integratedLufs === "number") {
       p.setLoudnessMetadata({
@@ -424,26 +324,26 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
-  const loadUrl = async (p: Player, url: string, allowCorsFallback = false) => {
-    const isHls = url.includes(".m3u8")
-      || url.includes("application/vnd.apple.mpegurl");
-
-    if (isHls) {
-      await p.load({ url, type: "hls" });
+  const loadSource = async (p: Player, source: PlaybackSource) => {
+    switch (source.kind) {
+      case "file":
+        await p.load(source.file);
+        break;
+      case "hls":
+        await p.load({ url: source.url, type: "hls" });
+        break;
+      case "url":
+        if (source.corsFallback) await p.load(source.url, { corsFallback: true });
+        else await p.load(source.url);
+        break;
     }
-    else if (allowCorsFallback) {
-      await p.load(url, { corsFallback: true });
-    }
-    else {
-      await p.load(url);
-    }
+    // load() resets the element's playbackRate to 1; re-apply the persisted rate.
     p.setPlaybackRate(playbackRate.value);
   };
 
-  const throwIfBroken = (track: PlayerTrack) => {
-    if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
-      throw new Error(`Track is marked as broken: "${track.title}"`);
-    }
+  const throwIfUnplayable = (track: PlayerTrack) => {
+    const playable = checkPlayable(track);
+    if (playable.isErr()) throw new PlaybackFailure(playable.error, track);
   };
 
   /**
@@ -461,21 +361,13 @@ export const usePlayerStore = defineStore("player", () => {
     setState({ kind: "resolving", requestId });
     const p = ensurePlayer();
 
-    let url: string | null = null;
     try {
-      url = await resolvePlayback(track);
+      const resolved = await resolvePlaybackSource(track);
       if (requestId !== _playRequestId) return;
-      if (!url) throw new Error(`Cannot resolve audio source for: "${track.title}"`);
+      if (resolved.isErr()) throw new PlaybackFailure(resolved.error, track);
 
       setState({ kind: "loading", requestId });
-      if (isEphemeralTrack(track) && track.source.type === "file") {
-        await p.load(track.source.file);
-        // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
-        p.setPlaybackRate(playbackRate.value);
-      }
-      else {
-        await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      }
+      await loadSource(p, resolved.value);
 
       // A superseded load() resolves silently (lyra cancels it internally);
       // playing now would fight the newer request.
@@ -497,15 +389,16 @@ export const usePlayerStore = defineStore("player", () => {
     }
     catch (err) {
       if (requestId !== _playRequestId) return;
+      const failure = toPlaybackFailure(err, track);
       setState({ kind: "error" });
       discardPlayer();
       // A source that cannot be resolved at all, or a file that is gone, is
       // not worth keeping on screen; other failures keep the track so the UI
       // can show what failed.
-      if (!url || err instanceof StorageError) {
+      if (failure.error.kind === "unavailable" || failure.error.kind === "storage") {
         clearCurrentTrack();
       }
-      throw err;
+      throw failure;
     }
   };
 
@@ -521,7 +414,7 @@ export const usePlayerStore = defineStore("player", () => {
     const track = currentTrack.value;
     if (!track) return;
     try {
-      throwIfBroken(track);
+      throwIfUnplayable(track);
       await loadAndPlay(track, { resumeAt: currentTime.value });
     }
     catch (err) {
@@ -645,10 +538,11 @@ export const usePlayerStore = defineStore("player", () => {
 
   /**
    * Main entry point for playing any track.
-   * Throws on failure — queue.store uses this to skip to next.
+   * Throws a PlaybackFailure on failure — queue.store uses this to skip to
+   * next, and the failure's `error.kind` says whether that is the right move.
    */
   const playPlayerTrack = async (track: PlayerTrack): Promise<void> => {
-    throwIfBroken(track);
+    throwIfUnplayable(track);
 
     // A pending listen still open at this point means the previous track was
     // cut short by this switch — on a natural end the trackEnded handler has

@@ -74,7 +74,7 @@ vi.mock("@/modules/settings/store/audio", () => ({
 }));
 
 const storageMock = vi.hoisted(() => ({
-  getAudioUrl: vi.fn(() => Promise.resolve({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" })),
+  getAudioUrl: vi.fn(() => okAsync("blob:mock-audio-url")),
 }));
 
 vi.mock("@/db/storage", () => ({
@@ -127,9 +127,10 @@ const loggerMock = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.f
 vi.mock("@/lib/logger", () => ({ getLogger: () => loggerMock }));
 
 import { useEventBus } from "@vueuse/core";
-import { ok, okAsync, errAsync } from "neverthrow";
+import { ok, okAsync, errAsync, ResultAsync } from "neverthrow";
 import { usePlayerStore } from "../store/player.store";
 import { trackEndedEvent } from "../lib/player-events";
+import { PlaybackFailure } from "../service/playback-resolver.service";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
 function createLibraryTrack(overrides: Partial<Track> = {}): Track {
@@ -610,9 +611,10 @@ describe("player.store", () => {
       const store = usePlayerStore();
       const brokenTrack = createLibraryTrack({ state: TrackState.BROKEN });
 
-      await expect(store.playPlayerTrack(brokenTrack)).rejects.toThrow(
-        'Track is marked as broken: "Test Track"',
-      );
+      const failure = await store.playPlayerTrack(brokenTrack).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe('Track is marked as broken: "Test Track"');
+      expect((failure as PlaybackFailure).error).toEqual({ kind: "broken", trackId: "track-1" });
       expect(store.currentTrack).toBeNull();
       expect(store.status).toBe("idle");
     });
@@ -750,7 +752,10 @@ describe("player.store", () => {
       });
       const store = usePlayerStore();
 
-      await expect(store.playPlayerTrack(remoteTrack())).rejects.toThrow("[NETWORK] upstream down");
+      const failure = await store.playPlayerTrack(remoteTrack()).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe("[NETWORK] upstream down");
+      expect((failure as PlaybackFailure).error).toMatchObject({ kind: "source", cause: { kind: "NETWORK" } });
     });
 
     it("never touches offline copies or sources for local tracks", async () => {
@@ -1609,7 +1614,10 @@ describe("player.store", () => {
       const store = usePlayerStore();
       mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
 
-      await expect(store.playPlayerTrack(createLibraryTrack())).rejects.toThrow("decode failed");
+      const failure = await store.playPlayerTrack(createLibraryTrack()).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe("decode failed");
+      expect((failure as PlaybackFailure).error).toMatchObject({ kind: "engine" });
 
       expect(store.status).toBe("error");
       expect(store.player).toBeNull();
@@ -1775,9 +1783,9 @@ describe("player.store", () => {
 
     it("walks a track switch through resolving → loading → starting", async () => {
       const store = usePlayerStore();
-      let resolveUrl!: (v: { isOk: () => boolean; isErr: () => boolean; value: string }) => void;
+      let resolveUrl!: (url: string) => void;
       storageMock.getAudioUrl.mockImplementationOnce(
-        () => new Promise((resolve) => { resolveUrl = resolve; }),
+        () => new ResultAsync(new Promise((resolve) => { resolveUrl = url => resolve(ok(url)); })),
       );
       let finishLoad!: () => void;
       mockPlayerMethods.load.mockImplementationOnce(
@@ -1789,7 +1797,7 @@ describe("player.store", () => {
       expect(store.isLoading).toBe(true);
       expect(store.isPlaybackIntended).toBe(true);
 
-      resolveUrl({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" });
+      resolveUrl("blob:mock-audio-url");
       await flushPromises();
       expect(store.playbackState.kind).toBe("loading");
 
@@ -1822,12 +1830,17 @@ describe("player.store", () => {
     it("settles into error and discards the engine when source resolution throws", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never }));
-      storageMock.getAudioUrl.mockRejectedValueOnce(
-        new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone"),
+      storageMock.getAudioUrl.mockReturnValueOnce(
+        errAsync(new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone")),
       );
 
-      await expect(store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never })))
-        .rejects.toBeInstanceOf(StorageError);
+      const failure = await store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never }))
+        .then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).error).toMatchObject({
+        kind: "storage",
+        cause: { code: StorageErrorCode.FILE_NOT_FOUND },
+      });
 
       // Not stuck in "resolving" with the event filter latched.
       expect(store.playbackState.kind).toBe("error");
