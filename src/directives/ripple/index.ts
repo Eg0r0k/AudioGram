@@ -19,7 +19,7 @@ interface RippleOptions {
 
 interface RippleHTMLElement extends HTMLElement {
   _ripple?: {
-    container: HTMLElement;
+    container: HTMLElement | null;
     waves: Map<number, Wave>;
     waveId: number;
     options: RippleOptions;
@@ -123,17 +123,23 @@ function scheduleHide(el: RippleHTMLElement, waveId: number): void {
   }
 }
 
+const ensureContainer = (el: RippleHTMLElement): HTMLElement => {
+  const ripple = el._ripple!;
+  if (ripple.container) return ripple.container;
+
+  if (window.getComputedStyle(el).position === "static") {
+    el.style.position = "relative";
+  }
+  const container = createRippleContainer();
+  el.appendChild(container);
+  ripple.container = container;
+  return container;
+};
+
 function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
   if (el._ripple) return;
 
   const options = parseBinding(binding);
-  const computedStyle = window.getComputedStyle(el);
-  if (computedStyle.position === "static") {
-    el.style.position = "relative";
-  }
-
-  const container = createRippleContainer();
-  el.appendChild(container);
 
   const handlers = {
     pointerdown(e: PointerEvent) {
@@ -158,7 +164,7 @@ function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
       const waveId = ripple.waveId++;
       const waveElement = createWaveElement(x, y, size, ripple.options);
 
-      ripple.container.appendChild(waveElement);
+      ensureContainer(el).appendChild(waveElement);
       ripple.currentWaveId = waveId;
 
       ripple.waves.set(waveId, {
@@ -190,7 +196,7 @@ function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
   };
 
   el._ripple = {
-    container,
+    container: null,
     waves: new Map(),
     waveId: 0,
     options,
@@ -217,7 +223,7 @@ function cleanupRipple(el: RippleHTMLElement): void {
   el.removeEventListener("pointercancel", ripple.handlers.pointercancel);
   el.removeEventListener("pointerleave", ripple.handlers.pointerleave);
 
-  ripple.container.remove();
+  ripple.container?.remove();
 
   delete el._ripple;
 }
