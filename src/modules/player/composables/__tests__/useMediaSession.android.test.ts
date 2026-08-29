@@ -103,7 +103,9 @@ describe("useMediaSession (android bridge)", () => {
     mountSession();
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1", "album-a");
-    player.player = { seek: vi.fn() } as any;
+    // Stand in for a loaded engine: the bridge only forwards a seek when the
+    // store says it can seek. The store's own seekTo no-ops without an engine.
+    Object.defineProperty(player, "canSeek", { get: () => true, configurable: true });
     player.duration = 200;
     player.currentTime = 30;
 

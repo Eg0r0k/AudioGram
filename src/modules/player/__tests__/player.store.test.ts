@@ -74,7 +74,7 @@ vi.mock("@/modules/settings/store/audio", () => ({
 }));
 
 const storageMock = vi.hoisted(() => ({
-  getAudioUrl: vi.fn(() => Promise.resolve({ isOk: () => true, isErr: () => false, value: "blob:mock-audio-url" })),
+  getAudioUrl: vi.fn(() => okAsync("blob:mock-audio-url")),
 }));
 
 vi.mock("@/db/storage", () => ({
@@ -122,10 +122,16 @@ vi.mock("@/lib/environment/userAgent", () => ({
   IS_TAURI: false,
 }));
 
+const loggerMock = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }));
+
+vi.mock("@/lib/logger", () => ({ getLogger: () => loggerMock }));
+
 import { useEventBus } from "@vueuse/core";
-import { ok, okAsync, errAsync } from "neverthrow";
+import { ok, okAsync, errAsync, ResultAsync } from "neverthrow";
 import { usePlayerStore } from "../store/player.store";
 import { trackEndedEvent } from "../lib/player-events";
+import { PlaybackFailure } from "../service/playback-resolver.service";
+import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
 function createLibraryTrack(overrides: Partial<Track> = {}): Track {
   return {
@@ -296,15 +302,16 @@ describe("player.store", () => {
       expect(store.progress).toBe(0);
     });
 
-    it("should compute canPlay when player is ready", () => {
+    it("should compute canPlay when player is ready", async () => {
       const store = usePlayerStore();
-      store.player = { isReady: true } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       expect(store.canPlay).toBe(true);
     });
 
-    it("should compute canPlay when player is not ready", () => {
+    it("should compute canPlay when player is not ready", async () => {
       const store = usePlayerStore();
-      store.player = { isReady: false } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
+      Object.defineProperty(mockPlayer, "isReady", { get: () => false });
       expect(store.canPlay).toBe(false);
     });
 
@@ -313,10 +320,10 @@ describe("player.store", () => {
       expect(store.canPlay).toBe(false);
     });
 
-    it("should compute canSeek correctly", () => {
+    it("should compute canSeek correctly", async () => {
       const store = usePlayerStore();
 
-      store.player = {} as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.duration = 100;
       expect(store.canSeek).toBe(true);
 
@@ -329,9 +336,10 @@ describe("player.store", () => {
       expect(store.canSeek).toBe(false);
     });
 
-    it("should not allow seek for live streams", () => {
+    it("should not allow seek for live streams", async () => {
       const store = usePlayerStore();
-      store.player = {} as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
+      store.status = "playing";
       store.duration = 0;
       store.currentTrack = {
         kind: "ephemeral", id: "stream-1", title: "Live Stream",
@@ -421,81 +429,74 @@ describe("player.store", () => {
       expect(store.isMuted).toBe(false);
     });
 
-    it("should call player method when setVolume", () => {
+    it("should call player method when setVolume", async () => {
       const store = usePlayerStore();
-      const mockSetVolumeFn = vi.fn();
-      store.player = { setVolume: mockSetVolumeFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
 
       store.setVolume(0.8);
-      expect(mockSetVolumeFn).toHaveBeenCalledWith(0.8);
+      expect(mockPlayerMethods.setVolume).toHaveBeenCalledWith(0.8);
     });
 
-    it("should call player method when setMuted", () => {
+    it("should call player method when setMuted", async () => {
       const store = usePlayerStore();
-      const mockSetMutedFn = vi.fn();
-      store.player = { setMuted: mockSetMutedFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
 
       store.setMuted(true);
-      expect(mockSetMutedFn).toHaveBeenCalledWith(true);
+      expect(mockPlayerMethods.setMuted).toHaveBeenCalledWith(true);
     });
 
-    it("should call player toggleMute", () => {
+    it("should call player toggleMute", async () => {
       const store = usePlayerStore();
-      const mockToggleMuteFn = vi.fn();
-      store.player = { toggleMute: mockToggleMuteFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
 
       store.toggleMute();
-      expect(mockToggleMuteFn).toHaveBeenCalled();
+      expect(mockPlayerMethods.toggleMute).toHaveBeenCalled();
     });
   });
 
   describe("seek controls", () => {
-    it("should seek to specific time when allowed", () => {
+    it("should seek to specific time when allowed", async () => {
       const store = usePlayerStore();
-      const mockSeekFn = vi.fn();
-      store.player = { seek: mockSeekFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.duration = 100;
 
       store.seekTo(50);
-      expect(mockSeekFn).toHaveBeenCalledWith(50);
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(50);
     });
 
-    it("should not seek when canSeek is false", () => {
+    it("should not seek when canSeek is false", async () => {
       const store = usePlayerStore();
-      const mockSeekFn = vi.fn();
-      store.player = { seek: mockSeekFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.duration = 0;
 
       store.seekTo(50);
-      expect(mockSeekFn).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.seek).not.toHaveBeenCalled();
     });
 
     it("should not seek when player is null", () => {
       const store = usePlayerStore();
-      const mockSeekFn = vi.fn();
+      store.duration = 100;
 
       store.seekTo(50);
-      expect(mockSeekFn).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.seek).not.toHaveBeenCalled();
     });
 
-    it("should seek by percent", () => {
+    it("should seek by percent", async () => {
       const store = usePlayerStore();
-      const mockSeekPercentFn = vi.fn();
-      store.player = { seekPercent: mockSeekPercentFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.duration = 100;
 
       store.seekPercent(50);
-      expect(mockSeekPercentFn).toHaveBeenCalledWith(0.5);
+      expect(mockPlayerMethods.seekPercent).toHaveBeenCalledWith(0.5);
     });
 
-    it("should not seekPercent when canSeek is false", () => {
+    it("should not seekPercent when canSeek is false", async () => {
       const store = usePlayerStore();
-      const mockSeekPercentFn = vi.fn();
-      store.player = { seekPercent: mockSeekPercentFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.duration = 0;
 
       store.seekPercent(50);
-      expect(mockSeekPercentFn).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.seekPercent).not.toHaveBeenCalled();
     });
   });
 
@@ -556,17 +557,13 @@ describe("player.store", () => {
   });
 
   describe("stop functionality", () => {
-    it("should stop player and reset time when player exists", () => {
+    it("should stop player and reset time when player exists", async () => {
       const store = usePlayerStore();
-      const mockStopFn = vi.fn();
-      store.player = {
-        stop: mockStopFn,
-        fadeOut: vi.fn().mockResolvedValue(undefined),
-      } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.currentTime = 50;
 
       store.stop();
-      expect(mockStopFn).toHaveBeenCalled();
+      expect(mockPlayerMethods.stop).toHaveBeenCalled();
       expect(store.currentTime).toBe(0);
     });
 
@@ -605,9 +602,10 @@ describe("player.store", () => {
       const store = usePlayerStore();
       const brokenTrack = createLibraryTrack({ state: TrackState.BROKEN });
 
-      await expect(store.playPlayerTrack(brokenTrack)).rejects.toThrow(
-        'Track is marked as broken: "Test Track"',
-      );
+      const failure = await store.playPlayerTrack(brokenTrack).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe('Track is marked as broken: "Test Track"');
+      expect((failure as PlaybackFailure).error).toEqual({ kind: "broken", trackId: "track-1" });
       expect(store.currentTrack).toBeNull();
       expect(store.status).toBe("idle");
     });
@@ -745,7 +743,10 @@ describe("player.store", () => {
       });
       const store = usePlayerStore();
 
-      await expect(store.playPlayerTrack(remoteTrack())).rejects.toThrow("[NETWORK] upstream down");
+      const failure = await store.playPlayerTrack(remoteTrack()).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe("[NETWORK] upstream down");
+      expect((failure as PlaybackFailure).error).toMatchObject({ kind: "source", cause: { kind: "NETWORK" } });
     });
 
     it("never touches offline copies or sources for local tracks", async () => {
@@ -762,12 +763,11 @@ describe("player.store", () => {
   describe("dispose functionality", () => {
     it("should dispose player when player exists", async () => {
       const store = usePlayerStore();
-      const mockDisposeFn = vi.fn().mockResolvedValue(undefined);
-      store.player = { dispose: mockDisposeFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
 
       await store.dispose();
 
-      expect(mockDisposeFn).toHaveBeenCalled();
+      expect(mockPlayerMethods.dispose).toHaveBeenCalled();
       expect(store.player).toBe(null);
     });
 
@@ -835,25 +835,21 @@ describe("player.store", () => {
 
     it("should pause playback when sleep timer expires", async () => {
       const store = usePlayerStore();
-      const mockPauseFn = vi.fn();
-
-      store.player = { pause: mockPauseFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.status = "playing";
 
       store.setSleepTimer(5 * 1000);
       await nextTick();
       vi.advanceTimersByTime(5000);
 
-      expect(mockPauseFn).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
       expect(store.isSleepTimerActive).toBe(false);
       expect(store.sleepTimerRemainingMs).toBe(0);
     });
 
     it("should clear sleep timer on dispose", async () => {
       const store = usePlayerStore();
-      const mockDisposeFn = vi.fn().mockResolvedValue(undefined);
-
-      store.player = { dispose: mockDisposeFn } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
       store.setSleepTimer(5 * 1000);
 
       await store.dispose();
@@ -870,17 +866,19 @@ describe("player.store", () => {
       expect(store.getAudioGraph()).toBe(null);
     });
 
-    it("should return graph when player exists", () => {
+    it("should return graph when player exists", async () => {
       const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
       const mockGraph = {};
-      store.player = { graph: mockGraph } as unknown as NonNullable<typeof store.player>;
+      Object.defineProperty(mockPlayer, "graph", { get: () => mockGraph });
 
       expect(store.getAudioGraph()).toBe(mockGraph);
     });
 
-    it("should return null when graph is undefined", () => {
+    it("should return null when graph is undefined", async () => {
       const store = usePlayerStore();
-      store.player = { graph: undefined } as unknown as NonNullable<typeof store.player>;
+      await store.playPlayerTrack(createLibraryTrack());
+      Object.defineProperty(mockPlayer, "graph", { get: () => undefined });
 
       expect(store.getAudioGraph()).toBe(null);
     });
@@ -994,8 +992,14 @@ describe("player.store", () => {
       );
 
       store.pause();
-      // A buffering blip can flip status back while the fade is in flight.
-      store.status = "playing";
+      // The engine keeps reporting playing/buffering blips while the ramp
+      // runs — they are the very audio being faded and must not reopen the
+      // "playing" state for a second pause to act on.
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("statechange", { to: "buffering" });
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("paused");
       store.pause();
 
       expect(mockPlayerMethods.fadeOut).toHaveBeenCalledTimes(1);
@@ -1208,10 +1212,22 @@ describe("player.store", () => {
       expect(store.status).toBe("loading");
       engine().trigger("statechange", { to: "paused" });
       expect(store.status).toBe("loading");
+      // The OLD media stalling or resuming is not the new track either — and
+      // letting it through would close the switch window early, so the old
+      // track's ended/timeupdate would leak into the new one.
+      engine().trigger("statechange", { to: "buffering" });
+      expect(store.status).toBe("loading");
+      engine().trigger("statechange", { to: "playing" });
+      expect(store.status).toBe("loading");
+      expect(store.playbackState.kind).toBe("resolving");
 
+      await switching;
+
+      // The media is the new track's now; the engine's own transitions land.
+      expect(store.playbackState.kind).toBe("starting");
+      expect(store.status).toBe("loading");
       engine().trigger("statechange", { to: "playing" });
       expect(store.status).toBe("playing");
-      await switching;
 
       // Once the switch is over, the filter must release: a real stop's
       // idle transition still has to reach the store.
@@ -1224,8 +1240,8 @@ describe("player.store", () => {
       await store.playPlayerTrack(createLibraryTrack());
       const stale = engine();
 
-      // A newer request took over and dropped this engine instance.
-      store.player = null;
+      // The store let go of this engine instance (dispose, load-error recovery).
+      await store.dispose();
 
       stale.trigger("statechange", { to: "playing" });
       stale.trigger("timeupdate", { currentTime: 42 });
@@ -1525,6 +1541,60 @@ describe("player.store", () => {
       expect(mockPlayer).toBeUndefined();
       expect(store.status).toBe("idle");
     });
+
+    it("counts listened time for a restored track (the session is armed after load)", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack();
+      store.currentTime = 42;
+
+      await store.play();
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("seeking", 42);
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("timeupdate", { currentTime: 72 });
+      statsMock.stopListening.mockClear();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as never }));
+
+      // Before the cold start shared the switch path it never armed the
+      // session, so a restored track was never credited until the next switch.
+      expect(statsMock.stopListening).toHaveBeenCalledWith(30, { skipped: true });
+    });
+
+    it("applies the track's loudness metadata on a cold start", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack({ integratedLufs: -9, truePeakDbtp: -1 });
+
+      await store.play();
+
+      expect(mockPlayerMethods.setLoudnessMetadata).toHaveBeenCalledWith({
+        integratedLufs: -9,
+        truePeakDbtp: -1,
+      });
+    });
+
+    it("refuses a broken restored track without touching the engine", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack({ state: TrackState.BROKEN });
+
+      await store.play();
+
+      expect(mockPlayer).toBeUndefined();
+      expect(store.status).toBe("idle");
+    });
+
+    it("settles into error instead of throwing when the restored load fails", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack();
+      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+
+      // play() is called from UI handlers: it must not reject.
+      await expect(store.play()).resolves.toBeUndefined();
+
+      expect(store.status).toBe("error");
+      expect(store.player).toBeNull();
+      expect(store.currentTrack).not.toBeNull();
+    });
   });
 
   describe("playPlayerTrack error handling", () => {
@@ -1532,12 +1602,377 @@ describe("player.store", () => {
       const store = usePlayerStore();
       mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
 
-      await expect(store.playPlayerTrack(createLibraryTrack())).rejects.toThrow("decode failed");
+      const failure = await store.playPlayerTrack(createLibraryTrack()).then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).message).toBe("decode failed");
+      expect((failure as PlaybackFailure).error).toMatchObject({ kind: "engine" });
 
       expect(store.status).toBe("error");
       expect(store.player).toBeNull();
       // Non-storage errors keep the track so the UI can show what failed.
       expect(store.currentTrack).not.toBeNull();
+    });
+  });
+
+  describe("playback state machine", () => {
+    type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
+    const engine = () => mockPlayer as unknown as EngineMock;
+
+    const playingStore = async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack());
+      engine().trigger("statechange", { to: "playing" });
+      engine().trigger("durationchange", 200);
+      return store;
+    };
+
+    const parkFadeOut = () => {
+      let finishFade!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFade = resolve; }),
+      );
+      return () => finishFade();
+    };
+
+    it("reports a fade-out-to-pause as not playing while the engine is still audible", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishFade = parkFadeOut();
+
+      store.pause();
+
+      expect(store.playbackState.kind).toBe("fadingOut");
+      expect(store.isPlaying).toBe(false);
+      expect(store.isPlaybackIntended).toBe(false);
+      expect(store.status).toBe("paused");
+
+      finishFade();
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("paused");
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a fade-out-to-stop as not playing from the moment stop is pressed", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishFade = parkFadeOut();
+
+      store.stop();
+
+      expect(store.playbackState).toMatchObject({ kind: "fadingOut", then: "stop" });
+      expect(store.isPlaying).toBe(false);
+      expect(mockPlayerMethods.stop).not.toHaveBeenCalled();
+
+      finishFade();
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("ready");
+      expect(mockPlayerMethods.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets togglePlay rescue a fade-out-to-stop", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishFade = parkFadeOut();
+
+      store.stop();
+      await store.togglePlay();
+
+      expect(store.playbackState.kind).toBe("playing");
+      expect(mockPlayerMethods.cancelFade).toHaveBeenCalledTimes(1);
+
+      finishFade();
+      await flushPromises();
+      // The aborted fade must not land its deferred stop after the fact.
+      expect(mockPlayerMethods.stop).not.toHaveBeenCalled();
+    });
+
+    it("stops a paused engine immediately instead of fading silence", async () => {
+      const store = await playingStore();
+      engine().trigger("statechange", { to: "paused" });
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+
+      store.stop();
+
+      expect(mockPlayerMethods.fadeOut).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.stop).toHaveBeenCalledTimes(1);
+      expect(store.currentTime).toBe(0);
+    });
+
+    it("turns an interrupted fade-out-to-pause into a fade-out-to-stop", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishPauseFade = parkFadeOut();
+
+      store.pause();
+      store.stop();
+
+      expect(store.playbackState).toMatchObject({ kind: "fadingOut", then: "stop" });
+      expect(mockPlayerMethods.fadeOut).toHaveBeenCalledTimes(2);
+
+      // The first fade's deferred pause was aborted by the transition.
+      finishPauseFade();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+
+    it("abandons a fade-out when the track ends inside it and still advances the queue", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishFade = parkFadeOut();
+
+      store.stop();
+
+      const onEnded = vi.fn();
+      const off = useEventBus(trackEndedEvent).on(onEnded);
+      // lyra moves to "ready" and then emits ended when the element runs out.
+      engine().trigger("statechange", { to: "ready" });
+      engine().trigger("ended");
+      off();
+
+      expect(onEnded).toHaveBeenCalledTimes(1);
+      expect(store.playbackState.kind).toBe("ready");
+
+      finishFade();
+      await flushPromises();
+      // Nothing is left to stop: the deferred action was aborted.
+      expect(mockPlayerMethods.stop).not.toHaveBeenCalled();
+    });
+
+    it("drops a fade-out when a platform pause lands on it, then starts fresh on play", async () => {
+      const store = await playingStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 300;
+      const finishFade = parkFadeOut();
+
+      store.pause();
+      // A platform pause (focus loss) emits `pause` only; the deferred pause
+      // is still in flight and is left to land harmlessly.
+      engine().trigger("pause", undefined);
+      expect(store.playbackState.kind).toBe("fadingOut");
+
+      // The element is not playing any more, so play() must not "resume" a
+      // ramp over a silent element — it starts over like any paused player.
+      mockPlayerMethods.play.mockClear();
+      await store.play();
+
+      expect(store.playbackState.kind).toBe("paused");
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+
+      finishFade();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+
+    it("walks a track switch through resolving → loading → starting", async () => {
+      const store = usePlayerStore();
+      let resolveUrl!: (url: string) => void;
+      storageMock.getAudioUrl.mockImplementationOnce(
+        () => new ResultAsync(new Promise((resolve) => { resolveUrl = url => resolve(ok(url)); })),
+      );
+      let finishLoad!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishLoad = resolve; }),
+      );
+
+      const playing = store.playPlayerTrack(createLibraryTrack());
+      expect(store.playbackState.kind).toBe("resolving");
+      expect(store.isLoading).toBe(true);
+      expect(store.isPlaybackIntended).toBe(true);
+
+      resolveUrl("blob:mock-audio-url");
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("loading");
+
+      finishLoad();
+      await playing;
+      expect(store.playbackState.kind).toBe("starting");
+      expect(store.status).toBe("loading");
+    });
+
+    it("never lets a superseded request reopen its switch window", async () => {
+      const store = usePlayerStore();
+      let finishLoadA!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishLoadA = resolve; }),
+      );
+
+      const first = store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never }));
+      await flushPromises();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never }));
+      engine().trigger("statechange", { to: "playing" });
+
+      finishLoadA();
+      await first;
+
+      // A's late wake-up must not touch the state B owns.
+      expect(store.playbackState.kind).toBe("playing");
+      expect(store.currentTrack?.id).toBe("track-b");
+    });
+
+    it("settles into error and discards the engine when source resolution throws", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never }));
+      storageMock.getAudioUrl.mockReturnValueOnce(
+        errAsync(new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone")),
+      );
+
+      const failure = await store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never }))
+        .then(() => null, (e: unknown) => e);
+      expect(failure).toBeInstanceOf(PlaybackFailure);
+      expect((failure as PlaybackFailure).error).toMatchObject({
+        kind: "storage",
+        cause: { code: StorageErrorCode.FILE_NOT_FOUND },
+      });
+
+      // Not stuck in "resolving" with the event filter latched.
+      expect(store.playbackState.kind).toBe("error");
+      expect(store.player).toBeNull();
+      expect(store.currentTrack).toBeNull();
+    });
+
+    it("walks a cold start through the same loading states as a switch", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack();
+      store.currentTime = 42;
+      let finishLoad!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishLoad = resolve; }),
+      );
+
+      const playing = store.play();
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("loading");
+      expect(store.isPlaybackIntended).toBe(true);
+
+      finishLoad();
+      await playing;
+      expect(store.playbackState.kind).toBe("starting");
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(42);
+    });
+
+    it("returns to idle on dispose", async () => {
+      const store = await playingStore();
+
+      await store.dispose();
+
+      expect(store.playbackState.kind).toBe("idle");
+      expect(store.status).toBe("idle");
+    });
+  });
+
+  describe("watchdog", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const parkedResolve = () => {
+      let settle!: (url: string) => void;
+      storageMock.getAudioUrl.mockImplementationOnce(
+        () => new ResultAsync(new Promise((resolve) => { settle = url => resolve(ok(url)); })),
+      );
+      return (url: string) => settle(url);
+    };
+
+    const parkedLoad = () => {
+      let finish!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finish = resolve; }),
+      );
+      return () => finish();
+    };
+
+    const failureOf = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as PlaybackFailure);
+
+    it("gives up on a source that never resolves", async () => {
+      const store = usePlayerStore();
+      parkedResolve();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(store.playbackState.kind).toBe("resolving");
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "resolving" });
+      expect(store.status).toBe("error");
+      expect(store.player).toBeNull();
+      // The track stays on screen so the UI can show what failed.
+      expect(store.currentTrack).not.toBeNull();
+    });
+
+    it("gives up on a load that never finishes and disposes the engine that hung", async () => {
+      const store = usePlayerStore();
+      parkedLoad();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(store.playbackState.kind).toBe("loading");
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "loading" });
+      expect(store.status).toBe("error");
+      // Disposing is what cancels lyra's in-flight load.
+      expect(mockPlayerMethods.dispose).toHaveBeenCalledTimes(1);
+      expect(store.player).toBeNull();
+    });
+
+    it("gives HLS streams a longer leash than local files", async () => {
+      const store = usePlayerStore();
+      parkedLoad();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack({
+        source: TrackSource.REMOTE_HLS,
+        storagePath: "https://example.com/live.m3u8",
+      })));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(store.playbackState.kind).toBe("loading");
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "loading" });
+    });
+
+    it("ignores a source that resolves after the deadline", async () => {
+      const store = usePlayerStore();
+      const settle = parkedResolve();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(15_000);
+      await failure;
+
+      settle("blob:late");
+      await flushPromises();
+
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
+      expect(store.status).toBe("error");
+    });
+
+    it("disarms the deadline once the work completes", async () => {
+      const store = usePlayerStore();
+      const finish = parkedLoad();
+
+      const playing = store.playPlayerTrack(createLibraryTrack());
+      await vi.advanceTimersByTimeAsync(1_000);
+      finish();
+      await playing;
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("statechange", { to: "playing" });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(store.status).toBe("playing");
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
     });
   });
 
