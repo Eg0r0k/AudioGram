@@ -1,4 +1,4 @@
-import { useEventBus } from "@vueuse/core";
+import { until, useEventBus } from "@vueuse/core";
 import { usePlayerStore } from "./store/player.store";
 import { useLyricsStore } from "./store/lyrics.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -46,10 +46,14 @@ export function initPlayerLifecycle(): void {
     useQueueStore().next();
   });
 
-  // The persisted track is rehydrated before any event fires — load its
-  // lyrics eagerly so opening the panel shows them without a spinner. The
+  // The persisted queue restores asynchronously and no event announces it —
+  // once it yields a current track, load its lyrics eagerly so opening the
+  // panel shows them without a spinner. A play() that lands first loads them
+  // through trackChanged, so an already-started player is left alone. The
   // prefetch watcher observes queue/repeat state directly (not events), so
   // it also warms the restored queue and reacts to reorders and mode changes.
-  useLyricsStore().loadFor(usePlayerStore().currentTrack);
+  until(() => usePlayerStore().currentTrack).toBeTruthy().then((track) => {
+    if (usePlayerStore().status === "idle") useLyricsStore().loadFor(track);
+  });
   initNextTrackPrefetch();
 }

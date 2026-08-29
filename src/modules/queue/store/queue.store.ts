@@ -389,20 +389,17 @@ export const useQueueStore = defineStore("queue", () => {
   function syncTrackMetadata(nextTrack: PlayerTrack): void {
     if (isEphemeralTrack(nextTrack)) return;
 
+    // The player shows the queue's copy of its loaded track, so the edit
+    // reaches the now-playing UI through this commit alone.
     commit({ items: patchQueueItem(items.value, nextTrack) });
-    const player = usePlayerStore();
-    const playing = player.currentTrack;
-    if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
-      player.currentTrack = { ...playing, ...nextTrack };
-    }
   }
 
   /**
    * Import-from-player (M3): every queue entry holding the ephemeral track
    * becomes the freshly imported library track — item identity (id, source,
-   * addedAt) survives. If the current entry swaps, the player's track
-   * reference is updated directly; the audio element keeps playing the
-   * already-loaded file, so playback never restarts.
+   * addedAt) survives. If the current entry swaps, the player is told the
+   * media it holds now belongs to the library track; the audio element keeps
+   * playing the already-loaded file, so playback never restarts.
    */
   function swapEphemeralForLibrary(ephemeralTrackId: string, libraryTrack: PlayerTrack): void {
     let swappedCurrent = false;
@@ -416,7 +413,7 @@ export const useQueueStore = defineStore("queue", () => {
     });
 
     if (swappedCurrent) {
-      usePlayerStore().currentTrack = libraryTrack;
+      usePlayerStore().replaceLoadedTrack(libraryTrack);
     }
   }
 
@@ -613,19 +610,8 @@ export const useQueueStore = defineStore("queue", () => {
           : null,
       });
 
-      // If playback already started this session (cold play of the persisted
-      // track), the player owns its current track — don't reassign or clear
-      // it out from under live audio.
-      const player = usePlayerStore();
-      if (player.status === "idle") {
-        const restoredCurrentItem = currentItem.value;
-        if (restoredCurrentItem) {
-          player.currentTrack = restoredCurrentItem.track;
-        }
-        else {
-          player.clearCurrentTrack();
-        }
-      }
+      // Nothing to hand to the player: it shows this store's current track
+      // until it loads something, and loads it from here on the first play().
     }
     catch (error) {
       getLogger().error(`[Queue] Failed to restore persisted queue: ${String(error)}`);

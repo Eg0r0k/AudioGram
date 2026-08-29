@@ -683,12 +683,16 @@ describe("queue.store", () => {
         isShuffled: false,
       };
 
+      const clearSpy = vi.spyOn(playerStore, "clearCurrentTrack");
       await store.restorePersistedQueue();
 
       expect(trackRepository.findByIds).toHaveBeenCalledWith(["1", "2"]);
       expect(store.queue.map(item => item.track.id)).toEqual(["1", "2"]);
       expect(store.currentIndex).toBe(1);
+      // The player derives its current track from the queue: restore neither
+      // assigns nor clears anything on it.
       expect(playerStore.currentTrack?.id).toBe("2");
+      expect(clearSpy).not.toHaveBeenCalled();
     });
   });
 

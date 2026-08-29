@@ -6,7 +6,6 @@ import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import type { Track } from "@/modules/player/types";
-import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { attachTrackLyricsAndSync } from "@/queries/track.queries";
 
@@ -95,7 +94,6 @@ async function saveLyricsFile(trackId: string, selected: SelectedLyricsFile): Pr
 
 export function useAttachTrackLyrics() {
   const queryClient = useQueryClient();
-  const playerStore = usePlayerStore();
   const queueStore = useQueueStore();
   const { t } = useI18n();
 
@@ -111,12 +109,7 @@ export function useAttachTrackLyrics() {
 
       track.lyricsPath = nextTrack.lyricsPath;
 
-      if (playerStore.currentTrack?.id === nextTrack.id && playerStore.currentTrack.kind === "library") {
-        playerStore.currentTrack = {
-          ...playerStore.currentTrack,
-          lyricsPath: nextTrack.lyricsPath,
-        };
-      }
+      // The now-playing UI reads the queue's copy of the current track.
       queueStore.syncTrackMetadata(nextTrack);
 
       toast.success(t("player.lyricsAttached"));

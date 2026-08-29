@@ -1976,6 +1976,71 @@ describe("player.store", () => {
     });
   });
 
+  describe("current track ownership", () => {
+    // The queue owns the current track; the player reports what it loaded,
+    // taking the queue's copy of the same track for fresh metadata.
+    it("shows the queue's current track before anything is loaded", async () => {
+      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+      const store = usePlayerStore();
+      const queue = useQueueStore();
+      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "t9" as never }), source: { type: "manual" }, addedAt: 1 }];
+      queue.currentIndex = 0;
+
+      expect(store.currentTrack?.id).toBe("t9");
+      expect(store.playbackState.kind).toBe("idle");
+    });
+
+    it("cold-starts from the queue's current track after a reload", async () => {
+      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+      const store = usePlayerStore();
+      const queue = useQueueStore();
+      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "t9" as never }), source: { type: "manual" }, addedAt: 1 }];
+      queue.currentIndex = 0;
+      store.currentTime = 30;
+
+      await store.play();
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("blob:mock-audio-url");
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(30);
+    });
+
+    it("reports the queue's copy of the loaded track, so metadata edits need no write here", async () => {
+      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+      const store = usePlayerStore();
+      const queue = useQueueStore();
+      const track = createLibraryTrack();
+      await store.playPlayerTrack(track);
+      queue.queue = [{ id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 }];
+      queue.currentIndex = 0;
+
+      queue.syncTrackMetadata({ ...track, isLiked: true });
+
+      expect(store.currentTrack).toMatchObject({ id: "track-1", isLiked: true });
+    });
+
+    it("keeps reporting the loaded track when the queue moved on to another one", async () => {
+      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+      const store = usePlayerStore();
+      const queue = useQueueStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "loaded" as never }));
+      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "other" as never }), source: { type: "manual" }, addedAt: 1 }];
+      queue.currentIndex = 0;
+
+      expect(store.currentTrack?.id).toBe("loaded");
+    });
+
+    it("lets the loaded media be re-labelled without restarting playback", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "eph" as never, title: "Dropped file" }));
+      mockPlayerMethods.load.mockClear();
+
+      store.replaceLoadedTrack(createLibraryTrack({ id: "lib" as never, title: "Imported" }));
+
+      expect(store.currentTrack?.title).toBe("Imported");
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
+    });
+  });
+
   describe("load formats", () => {
     it("loads .m3u8 sources as HLS", async () => {
       const store = usePlayerStore();

@@ -60,7 +60,26 @@ export const usePlayerStore = defineStore("player", () => {
       useQueueStore().repeatMode = mode;
     },
   });
-  const currentTrack = ref<PlayerTrack | null>(null);
+  // What the engine actually holds. Not persisted: the queue owns the
+  // current track across sessions (its snapshot carries currentItemId), and
+  // a restored session loads from the queue on its first play().
+  const loadedTrack = ref<PlayerTrack | null>(null);
+  // The track the UI shows. While the queue's current entry IS the loaded
+  // track, the queue's copy wins — it carries metadata edits (like, lyrics)
+  // without anyone writing into this store. With nothing loaded it is the
+  // queue's current track (a restored session before its first play).
+  // Writable only as a test seam.
+  const currentTrack = computed<PlayerTrack | null>({
+    get: () => {
+      const loaded = loadedTrack.value;
+      const queued = useQueueStore().currentTrack;
+      if (!loaded) return queued;
+      return queued && queued.kind === loaded.kind && queued.id === loaded.id ? queued : loaded;
+    },
+    set: (track) => {
+      loadedTrack.value = track;
+    },
+  });
   const graphRevision = ref(0);
   const sleepAfterCurrentTrack = ref(false);
 
@@ -195,14 +214,14 @@ export const usePlayerStore = defineStore("player", () => {
     // A session can still be open here (dispose, resolve failure): finalize it
     // with real accumulated seconds instead of leaking it to the wall-clock
     // fallback in stats.service.
-    if (isLibraryTrack(currentTrack.value)) {
+    if (isLibraryTrack(loadedTrack.value)) {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
     // Clearing the track mid-switch releases the event filter: whatever the
     // engine does next has to reach the store again.
     if (isSwitchingTrack()) setState({ kind: "idle" });
-    currentTrack.value = null;
+    loadedTrack.value = null;
     currentTime.value = 0;
     duration.value = 0;
     trackChangedBus.emit(null);
@@ -472,7 +491,7 @@ export const usePlayerStore = defineStore("player", () => {
     // A pending listen still open at this point means the previous track was
     // cut short by this switch — on a natural end the trackEnded handler has
     // already finalized it as completed and this is a no-op.
-    if (isLibraryTrack(currentTrack.value)) {
+    if (isLibraryTrack(loadedTrack.value)) {
       stopListeningAndSync({ skipped: true });
     }
     // The consumed session is over; the next one starts at position 0.
@@ -480,10 +499,19 @@ export const usePlayerStore = defineStore("player", () => {
 
     currentTime.value = 0;
     duration.value = 0;
-    currentTrack.value = track;
+    loadedTrack.value = track;
     trackChangedBus.emit(track);
 
     await loadAndPlay(track);
+  };
+
+  /**
+   * The media already in the engine now belongs to a different track
+   * identity (an ephemeral file imported into the library while playing).
+   * Playback continues untouched; only what the store reports changes.
+   */
+  const replaceLoadedTrack = (track: PlayerTrack) => {
+    loadedTrack.value = track;
   };
 
   const seekTo = (seconds: number) => {
@@ -580,6 +608,7 @@ export const usePlayerStore = defineStore("player", () => {
     setSleepTimer,
     cancelSleepTimer,
     clearCurrentTrack,
+    replaceLoadedTrack,
     unlockAudio,
   };
 }, {
@@ -589,9 +618,7 @@ export const usePlayerStore = defineStore("player", () => {
       "volume",
       "isMuted",
       "playbackRate",
-      "currentTrack",
       "currentTime",
-      "duration",
       "sleepTimerEndsAt",
     ],
   },
