@@ -7,7 +7,7 @@
       >
         <Button
           v-if="control === 'back'"
-          size="icon"
+          size="icon-lg"
           variant="ghost"
           class="shrink-0 rounded-full"
           @click="emit('back')"
@@ -17,7 +17,7 @@
 
         <Button
           v-else-if="control === 'close'"
-          size="icon"
+          size="icon-lg"
           variant="ghost"
           class="shrink-0 rounded-full"
           @click="emit('close')"

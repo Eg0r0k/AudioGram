@@ -7,7 +7,6 @@
     :get-key="libraryItemKey"
     :confirm-count="selectedCount"
     :show-back="rightPanel.depth > 0"
-    header-class="pt-0! min-h-0!"
     @confirm="handleConfirm"
     @back="rightPanel.back()"
     @close="rightPanel.close()"
