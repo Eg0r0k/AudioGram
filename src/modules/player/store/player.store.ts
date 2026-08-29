@@ -12,6 +12,7 @@ import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { createListenSession } from "../lib/listen-session";
 import { createPlaybackEngine, type PlaybackEngine } from "../lib/playback-engine";
+import { createFadeController } from "../lib/fade-controller";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
@@ -26,7 +27,6 @@ import {
 import {
   type PlaybackStatus,
   isSwitching as isSwitchingStatus,
-  isAudible,
   isPlayingStatus,
   isLoadingStatus,
   toPlayerState,
@@ -95,6 +95,26 @@ export const usePlayerStore = defineStore("player", () => {
   // While this holds, the engine still carries the PREVIOUS track's media:
   // its load() chatter and its ended/timeupdate belong to the outgoing track.
   const isSwitchingTrack = () => isSwitchingStatus(state.value, _playRequestId);
+
+  // Fade-in/out policy and the deferred pause/stop a fade-out ends in — see
+  // fade-controller.ts. Transitions still go through setState above.
+  const fades = createFadeController({
+    engine: () => engine.value,
+    state: () => state.value,
+    setState,
+    settings: () => {
+      const audioSettings = useAudioSettingsStore();
+      return {
+        enabled: audioSettings.isFadeEnabled,
+        fadeInSec: audioSettings.fadeInDuration,
+        fadeOutSec: audioSettings.fadeOutDuration,
+      };
+    },
+    volume: () => volume.value,
+    onStopped: () => {
+      currentTime.value = 0;
+    },
+  });
 
   // Flat lyra-shaped view for consumers (and tests) that predate the union.
   // Writable so `store.status = "playing"` keeps working as a test seam; a
@@ -373,7 +393,7 @@ export const usePlayerStore = defineStore("player", () => {
       // as stale.
       setState({ kind: "starting" });
       if (options.resumeAt && options.resumeAt > 0) e.seek(options.resumeAt);
-      await startPlayback();
+      await fades.start();
       useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
@@ -393,7 +413,7 @@ export const usePlayerStore = defineStore("player", () => {
 
   const play = async () => {
     if (engine.value?.isReady) {
-      await startPlayback();
+      await fades.start();
       return;
     }
     // No playable media in the engine: a session restored after reload, or a
@@ -411,121 +431,24 @@ export const usePlayerStore = defineStore("player", () => {
     }
   };
 
-  /** Starts (or resumes) playback on an engine that already holds this track's media. */
-  const startPlayback = async () => {
-    const e = engine.value;
-    if (!e) return;
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeInDuration > 0;
-
-    if (state.value.kind === "fadingOut") {
-      if (e.isPlaying) {
-        // A fade-out was interrupted; playback never actually stopped. The
-        // transition aborts the deferred pause/stop, so restore the playing
-        // status here (direct play(), e.g. MediaSession, bypasses togglePlay's
-        // own restore).
-        setState({ kind: "playing" });
-        if (shouldFade) {
-          // Ramp the fade multiplier from its mid-fade value back to full.
-          // fadeTo() cancels the in-flight fade-out internally — an explicit
-          // cancelFade() first would snap to full and kill the ramp.
-          await e.fadeTo(1, audioSettings.fadeInDuration);
-        }
-        else {
-          // No fade-in: stop the in-flight fade-out, restore the multiplier to
-          // full, keep the user's volume (volume no longer touches the fade).
-          e.cancelFade();
-          e.setVolume(volume.value);
-        }
-        return;
-      }
-      // The platform stopped the element under the fade: the deferred action
-      // is moot, start over like any paused player.
-      setState({ kind: "paused" });
-    }
-
-    if (shouldFade) {
-      await e.fadeIn(audioSettings.fadeInDuration);
-    }
-    else {
-      // A prior fade-out-to-pause may have left the fade multiplier at 0.
-      // Restore it now, while still paused (no signal), so playback is audible
-      // without a click from ramping gain up over still-flushing audio.
-      await e.fadeTo(1, 0);
-      e.setVolume(volume.value);
-      await e.play();
-    }
-  };
-
   const pause = () => {
-    const e = engine.value;
     // A fade-out already in flight is not "playing" — a second pause is a no-op.
-    if (!e || !isPlaying.value) return;
-
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
-
-    if (shouldFade) {
-      const ac = new AbortController();
-      // Optimistic: the UI reads paused now; the engine keeps playing until
-      // the fade ends and the deferred pause lands.
-      setState({ kind: "fadingOut", abort: ac, then: "pause" });
-      e.fadeOut(audioSettings.fadeOutDuration).then(() => {
-        if (ac.signal.aborted) return;
-        // Leave the fade first so the engine's own transition lands on a
-        // state that accepts it. Leave the multiplier at 0 here; play()
-        // restores it while paused, so the gain never jumps up over samples
-        // the element is still flushing.
-        setState({ kind: "paused" });
-        engine.value?.pause();
-      });
-    }
-    else {
-      e.pause();
-    }
+    if (!engine.value || !isPlaying.value) return;
+    fades.pause();
   };
 
   const togglePlay = async () => {
-    if (state.value.kind === "fadingOut") {
-      // Interrupting a fade-out keeps playing: the transition aborts the
-      // deferred pause/stop, then the multiplier snaps back to full.
-      setState({ kind: "playing" });
-      engine.value?.cancelFade();
-      engine.value?.setVolume(volume.value);
-      return;
-    }
-
+    if (fades.interrupt()) return;
     if (isPlaying.value) pause();
     else await play();
   };
 
   const stop = () => {
-    const e = engine.value;
-    if (!e) return;
+    if (!engine.value) return;
     // Stopping mid-switch releases the event filter: the engine's next
     // transition (the in-flight load resolving) has to reach the store again.
     if (isSwitchingTrack()) setState({ kind: "idle" });
-
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
-
-    // Only audible playback has anything to fade; a paused or idle engine
-    // stops right away. An interrupted fade-out-to-pause continues ramping
-    // from wherever its multiplier is.
-    if (shouldFade && isAudible(state.value)) {
-      const ac = new AbortController();
-      setState({ kind: "fadingOut", abort: ac, then: "stop" });
-      e.fadeOut(audioSettings.fadeOutDuration).then(() => {
-        if (ac.signal.aborted) return;
-        setState({ kind: "ready" });
-        engine.value?.stop();
-        currentTime.value = 0;
-      });
-    }
-    else {
-      e.stop();
-      currentTime.value = 0;
-    }
+    fades.stop();
   };
 
   /**
@@ -553,29 +476,15 @@ export const usePlayerStore = defineStore("player", () => {
     await loadAndPlay(track);
   };
 
-  // A fade-out-to-pause/stop in flight means the UI already shows "paused"
-  // but only the fade's deferred engine pause would make it real — and that
-  // pause is abort-guarded. Seeking must complete the pause instead of
-  // abandoning it, or the element keeps playing silently at gain 0 and later
-  // "ends" into the next track at full volume. Order matters: pause first,
-  // because cancelFade snaps the multiplier back to full and would pop over
-  // still-playing audio.
-  const settleFadeBeforeSeek = () => {
-    if (state.value.kind !== "fadingOut") return;
-    setState({ kind: "paused" });
-    engine.value?.pause();
-    engine.value?.cancelFade();
-  };
-
   const seekTo = (seconds: number) => {
     if (!canSeek.value) return;
-    settleFadeBeforeSeek();
+    fades.settleBeforeSeek();
     engine.value?.seek(seconds);
   };
 
   const seekPercent = (percent: number) => {
     if (!canSeek.value) return;
-    settleFadeBeforeSeek();
+    fades.settleBeforeSeek();
     engine.value?.seekPercent(percent / 100);
   };
 
