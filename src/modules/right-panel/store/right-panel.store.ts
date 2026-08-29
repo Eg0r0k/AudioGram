@@ -89,6 +89,21 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     open("entity-select", nextPayload, { ...options, depth: options.depth ?? 3 });
   };
 
+  /**
+   * Folder picker. Scoped to its folder by default so the sidebar can close
+   * it through `invalidateFolderScope` when the user leaves that folder.
+   */
+  const openFolderAdd = (
+    nextPayload: RightPanelPayloadMap["folder-add"],
+    options: OpenRightPanelOptions = {},
+  ): void => {
+    open("folder-add", nextPayload, {
+      ...options,
+      depth: options.depth ?? 1,
+      scope: options.scope ?? { type: "folder", folderId: nextPayload.folderId },
+    });
+  };
+
   function openChapters(
     nextPayload: RightPanelPayloadMap["chapters"],
     options: OpenRightPanelOptions = {},
@@ -143,6 +158,13 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     close();
   }
 
+  /** Mirror of `invalidateRouteScope`: `null` means «no folder is open». */
+  const invalidateFolderScope = (activeFolderId: string | null): void => {
+    if (scope.value.type !== "folder") return;
+    if (scope.value.folderId === activeFolderId) return;
+    close();
+  };
+
   return {
     isOpen,
     view,
@@ -159,11 +181,13 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     openChapters,
     openDownloads,
     openEntitySelect,
+    openFolderAdd,
     back,
     stepBack,
     setUiBackDelegate,
     clearUiBackDelegate,
     close,
     invalidateRouteScope,
+    invalidateFolderScope,
   };
 });

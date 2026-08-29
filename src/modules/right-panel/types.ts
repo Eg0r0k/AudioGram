@@ -1,11 +1,12 @@
 import type { PlayerTrack, Track } from "@/modules/player/types";
 
-export type RightPanelView = "queue" | "current-track" | "lyrics" | "track-info" | "edit-track" | "add-tracks" | "chapters" | "downloads" | "entity-select" | "none";
+export type RightPanelView = "queue" | "current-track" | "lyrics" | "track-info" | "edit-track" | "add-tracks" | "chapters" | "downloads" | "entity-select" | "folder-add" | "none";
 export type RightPanelBackView = "queue" | "current-track" | "none";
 
 export type RightPanelScope
   = | { type: "global" }
-    | { type: "route"; routeKey: string };
+    | { type: "route"; routeKey: string }
+    | { type: "folder"; folderId: string };
 
 export interface RightPanelTrackInfoPayload {
   track: PlayerTrack;
@@ -28,6 +29,7 @@ export interface RightPanelPayloadMap {
   "chapters": RightPanelChaptersPayload;
   "downloads": undefined;
   "entity-select": RightPanelEntitySelectPayload;
+  "folder-add": RightPanelFolderAddPayload;
   "none": undefined;
 }
 
@@ -35,6 +37,11 @@ export interface RightPanelAddTracksPayload {
   entityType: "playlist" | "album" | "artist" | "favorite";
   entityId: string | number;
   onConfirmed?: () => unknown | Promise<unknown>;
+}
+
+/** The sidebar folder the picker adds artists / albums / playlists to. */
+export interface RightPanelFolderAddPayload {
+  folderId: string;
 }
 
 export interface RightPanelEntitySelectPayload {

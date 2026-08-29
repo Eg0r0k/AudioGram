@@ -69,4 +69,66 @@ describe("right-panel.store", () => {
     expect(store.view).toBe("downloads");
     expect(store.scope).toEqual({ type: "global" });
   });
+
+  it("opens folder-add at depth 1 with the folder scope by default", () => {
+    const store = useRightPanelStore();
+
+    store.openFolderAdd({ folderId: "f1" });
+
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("folder-add");
+    expect(store.payload).toEqual({ folderId: "f1" });
+    expect(store.depth).toBe(1);
+    expect(store.scope).toEqual({ type: "folder", folderId: "f1" });
+  });
+
+  it("keeps a folder-scoped panel while the same folder stays active", () => {
+    const store = useRightPanelStore();
+
+    store.openFolderAdd({ folderId: "f1" });
+    store.invalidateFolderScope("f1");
+
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("folder-add");
+  });
+
+  it("closes a folder-scoped panel when another folder becomes active or none is", () => {
+    const store = useRightPanelStore();
+
+    store.openFolderAdd({ folderId: "f1" });
+    store.invalidateFolderScope("f2");
+    expect(store.isOpen).toBe(false);
+    expect(store.view).toBe("none");
+    expect(store.scope).toEqual({ type: "global" });
+
+    store.openFolderAdd({ folderId: "f1" });
+    store.invalidateFolderScope(null);
+    expect(store.isOpen).toBe(false);
+  });
+
+  it("invalidateFolderScope leaves route- and global-scoped panels alone", () => {
+    const store = useRightPanelStore();
+
+    store.openQueue();
+    store.invalidateFolderScope(null);
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("queue");
+
+    store.openAddTracks({ entityType: "favorite", entityId: "favorites" }, {
+      scope: { type: "route", routeKey: "/playlists/42" },
+    });
+    store.invalidateFolderScope("f1");
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("add-tracks");
+  });
+
+  it("route changes do not close a folder-scoped panel", () => {
+    const store = useRightPanelStore();
+
+    store.openFolderAdd({ folderId: "f1" });
+    store.invalidateRouteScope("/albums/1");
+
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("folder-add");
+  });
 });
