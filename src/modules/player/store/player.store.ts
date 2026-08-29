@@ -25,6 +25,16 @@ import { createListenSession } from "../lib/listen-session";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
+import {
+  type PlaybackStatus,
+  isSwitching as isSwitchingStatus,
+  isAudible,
+  isPlayingStatus,
+  isLoadingStatus,
+  toPlayerState,
+  fromPlayerState,
+  assertPlaybackInvariant,
+} from "../lib/playback-status";
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
@@ -38,7 +48,6 @@ export const usePlayerStore = defineStore("player", () => {
   const isMuted = ref(false);
   const playbackRate = ref(1);
   const repeatMode = ref<RepeatMode>("off");
-  const status = ref<PlayerState>("idle");
   const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
   const sleepAfterCurrentTrack = ref(false);
@@ -56,32 +65,56 @@ export const usePlayerStore = defineStore("player", () => {
   // request waking up after an await could still call load() *after* the
   // newer one and win by "last call" semantics — the token drops it first.
   let _playRequestId = 0;
-  let _activeFadeAbort: AbortController | null = null;
   let _activeBlobUrl: string | null = null;
 
-  // The _playRequestId of the switch currently in flight, from the optimistic
-  // "loading" until that request reaches playback (or fails). While it matches
-  // _playRequestId the engine still carries the PREVIOUS track's media: its
-  // load() chatter — it resets to "idle" and resolves through "ready" before
-  // play() lands — must not reach `status`, and its ended/timeupdate belong to
-  // the outgoing track, not the incoming one. Keyed to the request id (not a
-  // boolean) so any newer request bumping _playRequestId closes the window
-  // even when the superseded switch never gets to clean up after itself.
-  let _switchingRequestId: number | null = null;
-  const _isSwitchingTrack = () => _switchingRequestId === _playRequestId;
+  // The one place the player's state lives — see playback-status.ts for the
+  // variants. shallowRef: the fadingOut variant carries an AbortController
+  // that must not be wrapped in a reactive proxy; every transition replaces
+  // the whole object.
+  const state = shallowRef<PlaybackStatus>({ kind: "idle" });
 
-  const isPlaying = computed(
-    () => status.value === "playing" || status.value === "buffering",
-  );
+  // The single transition point. Leaving a fade-out through any path other
+  // than its own deferred action aborts that action — otherwise the element
+  // keeps playing silently at gain 0 and later "ends" into the next track at
+  // full volume. (The completing action re-aborts its own controller, which
+  // is harmless: it has already passed the aborted check.) A switch may only
+  // be opened for the request that currently owns the token.
+  const setState = (next: PlaybackStatus) => {
+    const prev = state.value;
+    if (prev.kind === "fadingOut" && prev !== next) prev.abort.abort();
+    if (next.kind === "resolving" || next.kind === "loading") {
+      assertPlaybackInvariant(
+        next.requestId === _playRequestId,
+        `${next.kind} opened for request ${next.requestId}, current is ${_playRequestId}`,
+      );
+    }
+    state.value = next;
+  };
+
+  // While this holds, the engine still carries the PREVIOUS track's media:
+  // its load() chatter and its ended/timeupdate belong to the outgoing track.
+  const isSwitchingTrack = () => isSwitchingStatus(state.value, _playRequestId);
+
+  // Flat lyra-shaped view for consumers (and tests) that predate the union.
+  // Writable so `store.status = "playing"` keeps working as a test seam; a
+  // flat value can never describe a fade or a switch, so writing one always
+  // settles the store into a plain state.
+  const status = computed<PlayerState>({
+    get: () => toPlayerState(state.value),
+    set: value => setState(fromPlayerState(value, _playRequestId)),
+  });
+  const playbackState = computed(() => state.value);
+
+  const isPlaying = computed(() => isPlayingStatus(state.value));
   // What transport controls outside the app (media session, notification,
   // taskbar toolbar) should show. A track switch passes through "loading"
   // on its way to play() — every "loading" here ends in playback — and
   // reporting that gap as "paused" makes the play/pause button flicker on
   // each skip. The in-app button keeps using `isPlaying` + its own loader.
   const isPlaybackIntended = computed(
-    () => isPlaying.value || status.value === "loading",
+    () => isPlaying.value || isLoadingStatus(state.value),
   );
-  const isLoading = computed(() => status.value === "loading");
+  const isLoading = computed(() => isLoadingStatus(state.value));
 
   // Local tracks (OPFS/FS) load in tens of milliseconds, so a spinner bound
   // directly to `isLoading` would flash on every start; the delayed indicator
@@ -119,13 +152,6 @@ export const usePlayerStore = defineStore("player", () => {
     return true;
   });
 
-  const cancelActiveFade = () => {
-    if (_activeFadeAbort) {
-      _activeFadeAbort.abort();
-      _activeFadeAbort = null;
-    }
-  };
-
   // See listen-session.ts for the accounting model (engine-clock deltas,
   // armed-after-load contract).
   const listenSession = createListenSession();
@@ -148,7 +174,9 @@ export const usePlayerStore = defineStore("player", () => {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
-    _switchingRequestId = null;
+    // Clearing the track mid-switch releases the event filter: whatever the
+    // engine does next has to reach the store again.
+    if (isSwitchingTrack()) setState({ kind: "idle" });
     if (_activeBlobUrl) {
       URL.revokeObjectURL(_activeBlobUrl);
       _activeBlobUrl = null;
@@ -197,8 +225,18 @@ export const usePlayerStore = defineStore("player", () => {
     // recovery) from mutating state that now belongs to its successor.
     newPlayer.on("statechange", ({ to }) => {
       if (player.value !== newPlayer) return;
-      if (_isSwitchingTrack() && (to === "idle" || to === "ready" || to === "paused")) return;
-      status.value = to;
+      // Mid-switch every transition but the load's own progress is the
+      // OUTGOING track's media: load() resets to "idle" and resolves through
+      // "ready" before play() lands, and a stall of the old audio reads as
+      // "buffering". None of that may reach the UI — a single frame of "not
+      // playing" visibly re-morphs the pause icon, and leaving the window on
+      // a blip would let the old track's ended/timeupdate through.
+      if (isSwitchingTrack() && to !== "loading" && to !== "error") return;
+      // A fade-out owns its exit: playing/buffering blips while the ramp runs
+      // are the very audio being silenced. A stop, an end or a failure of
+      // that audio still lands and abandons the fade.
+      if (state.value.kind === "fadingOut" && (to === "playing" || to === "buffering")) return;
+      setState(fromPlayerState(to, _playRequestId));
     });
     // The engine emits `pause` without moving its own state machine, so a
     // pause it did not initiate never reaches `status` through statechange.
@@ -209,19 +247,18 @@ export const usePlayerStore = defineStore("player", () => {
     newPlayer.on("pause", () => {
       if (player.value !== newPlayer) return;
       // Mid-switch the engine still holds the OUTGOING track's media.
-      if (_isSwitchingTrack()) return;
-      // A fade-out-to-pause has already set "paused" optimistically; anything
-      // else that is still nominally playing has just been overruled.
-      if (status.value === "playing" || status.value === "buffering") {
-        status.value = "paused";
-      }
+      if (isSwitchingTrack()) return;
+      // A fade-out-to-pause already reports "paused" and its deferred action
+      // still lands; anything else that is nominally playing has just been
+      // overruled.
+      if (isPlayingStatus(state.value)) setState({ kind: "paused" });
     });
     newPlayer.on("ended", () => {
       if (player.value !== newPlayer) return;
       // Mid-switch the engine still holds the OUTGOING track's media: its
       // natural end must not advance the queue past the user's own selection.
       // The cut-short session was already finalized by playPlayerTrack.
-      if (_isSwitchingTrack()) return;
+      if (isSwitchingTrack()) return;
       // A natural end means the element reached its duration: credit the
       // sliver past the last sample BEFORE the UI reset below, because the
       // lifecycle's completed-stop runs off this emit and must see the full
@@ -237,7 +274,7 @@ export const usePlayerStore = defineStore("player", () => {
       // Positions arriving mid-switch are the outgoing track's audio: they
       // must not overwrite the optimistic zeroed position (the un-armed
       // session drops the samples anyway).
-      if (_isSwitchingTrack()) return;
+      if (isSwitchingTrack()) return;
       listenSession.sample(t);
       currentTime.value = t;
     });
@@ -409,50 +446,55 @@ export const usePlayerStore = defineStore("player", () => {
       if (!track) return;
 
       const requestId = ++_playRequestId;
+      setState({ kind: "resolving", requestId });
 
       const url = await resolvePlayback(track);
       if (requestId !== _playRequestId) return;
       if (!url) {
         clearCurrentTrack();
-        status.value = "idle";
+        setState({ kind: "idle" });
         return;
       }
 
       const p = ensurePlayer();
+      setState({ kind: "loading", requestId });
       await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       // A newer play request took over while we were loading.
       if (requestId !== _playRequestId) return;
+      setState({ kind: "starting" });
       if (currentTime.value > 0) p.seek(currentTime.value);
       await p.play();
       useAudioSettingsStore().pushToGraph();
       return;
     }
 
-    const wasCancellingFade = _activeFadeAbort !== null;
-    cancelActiveFade();
-
     const audioSettings = useAudioSettingsStore();
     const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeInDuration > 0;
 
-    if (wasCancellingFade && player.value.isPlaying) {
-      // A fade-out-to-pause was interrupted; playback never actually stopped.
-      // pause() optimistically set status to "paused"; the deferred pause was
-      // aborted, so the player is still playing — restore the store status
-      // (direct play(), e.g. MediaSession, bypasses togglePlay's own restore).
-      status.value = "playing";
-      if (shouldFade) {
-        // Ramp the fade multiplier from its mid-fade value back to full.
-        // fadeTo() cancels the in-flight fade-out internally — an explicit
-        // cancelFade() first would snap to full and kill the ramp.
-        await player.value.fadeTo(1, audioSettings.fadeInDuration);
+    if (state.value.kind === "fadingOut") {
+      if (player.value.isPlaying) {
+        // A fade-out was interrupted; playback never actually stopped. The
+        // transition aborts the deferred pause/stop, so restore the playing
+        // status here (direct play(), e.g. MediaSession, bypasses togglePlay's
+        // own restore).
+        setState({ kind: "playing" });
+        if (shouldFade) {
+          // Ramp the fade multiplier from its mid-fade value back to full.
+          // fadeTo() cancels the in-flight fade-out internally — an explicit
+          // cancelFade() first would snap to full and kill the ramp.
+          await player.value.fadeTo(1, audioSettings.fadeInDuration);
+        }
+        else {
+          // No fade-in: stop the in-flight fade-out, restore the multiplier to
+          // full, keep the user's volume (volume no longer touches the fade).
+          player.value.cancelFade();
+          player.value.setVolume(volume.value);
+        }
+        return;
       }
-      else {
-        // No fade-in: stop the in-flight fade-out, restore the multiplier to
-        // full, keep the user's volume (volume no longer touches the fade).
-        player.value.cancelFade();
-        player.value.setVolume(volume.value);
-      }
-      return;
+      // The platform stopped the element under the fade: the deferred action
+      // is moot, start over like any paused player.
+      setState({ kind: "paused" });
     }
 
     if (shouldFade) {
@@ -469,39 +511,39 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const pause = () => {
+    // A fade-out already in flight is not "playing" — a second pause is a no-op.
     if (!player.value || !isPlaying.value) return;
-
-    if (_activeFadeAbort) return;
 
     const audioSettings = useAudioSettingsStore();
     const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
 
     if (shouldFade) {
-      status.value = "paused";
-
       const ac = new AbortController();
-      _activeFadeAbort = ac;
+      // Optimistic: the UI reads paused now; the engine keeps playing until
+      // the fade ends and the deferred pause lands.
+      setState({ kind: "fadingOut", abort: ac, then: "pause" });
       player.value.fadeOut(audioSettings.fadeOutDuration).then(() => {
         if (ac.signal.aborted) return;
+        // Leave the fade first so the engine's own transition lands on a
+        // state that accepts it. Leave the multiplier at 0 here; play()
+        // restores it while paused, so the gain never jumps up over samples
+        // the element is still flushing.
+        setState({ kind: "paused" });
         player.value?.pause();
-        // Leave the multiplier at 0 here; play() restores it while paused, so
-        // the gain never jumps up over samples the element is still flushing.
-        _activeFadeAbort = null;
       });
     }
     else {
       player.value.pause();
     }
   };
+
   const togglePlay = async () => {
-    if (_activeFadeAbort) {
-      cancelActiveFade();
+    if (state.value.kind === "fadingOut") {
+      // Interrupting a fade-out keeps playing: the transition aborts the
+      // deferred pause/stop, then the multiplier snaps back to full.
+      setState({ kind: "playing" });
       player.value?.cancelFade();
       player.value?.setVolume(volume.value);
-
-      if (status.value === "paused" && player.value) {
-        status.value = "playing";
-      }
       return;
     }
 
@@ -511,19 +553,23 @@ export const usePlayerStore = defineStore("player", () => {
 
   const stop = () => {
     if (!player.value) return;
-    _switchingRequestId = null;
-    cancelActiveFade();
+    // Stopping mid-switch releases the event filter: the engine's next
+    // transition (the in-flight load resolving) has to reach the store again.
+    if (isSwitchingTrack()) setState({ kind: "idle" });
 
     const audioSettings = useAudioSettingsStore();
     const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
 
-    if (shouldFade) {
+    // Only audible playback has anything to fade; a paused or idle engine
+    // stops right away. An interrupted fade-out-to-pause continues ramping
+    // from wherever its multiplier is.
+    if (shouldFade && isAudible(state.value)) {
       const ac = new AbortController();
-      _activeFadeAbort = ac;
+      setState({ kind: "fadingOut", abort: ac, then: "stop" });
       player.value.fadeOut(audioSettings.fadeOutDuration).then(() => {
         if (ac.signal.aborted) return;
+        setState({ kind: "ready" });
         player.value?.stop();
-        _activeFadeAbort = null;
         currentTime.value = 0;
       });
     }
@@ -553,31 +599,25 @@ export const usePlayerStore = defineStore("player", () => {
     // The consumed session is over; the next one starts at position 0.
     listenSession.reset();
 
-    cancelActiveFade();
     currentTime.value = 0;
     duration.value = 0;
     // Optimistic: the engine's own statechange only fires once load() starts,
     // leaving the previous track's status (and a false live-stream reading
     // from the zeroed duration) visible while the source URL resolves.
-    status.value = "loading";
-    _switchingRequestId = requestId;
-
+    // Opening the switch also abandons any fade in flight.
+    setState({ kind: "resolving", requestId });
 
     const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
-    const url = await resolvePlayback(track);
-    if (requestId !== _playRequestId) return;
-    if (!url) {
-      _switchingRequestId = null;
-      status.value = "error";
-      discardPlayer();
-      clearCurrentTrack();
-      throw new Error(`Cannot resolve audio source for: "${track.title}"`);
-    }
-
+    let url: string | null = null;
     try {
+      url = await resolvePlayback(track);
+      if (requestId !== _playRequestId) return;
+      if (!url) throw new Error(`Cannot resolve audio source for: "${track.title}"`);
+
+      setState({ kind: "loading", requestId });
       if (isEphemeralTrack(track) && track.source.type === "file") {
         await p.load(track.source.file);
         // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
@@ -600,16 +640,18 @@ export const usePlayerStore = defineStore("player", () => {
       // after the entire fade, and a track shorter than the fade genuinely
       // ends inside it — that ended must advance the queue, not be dropped
       // as stale.
-      if (_switchingRequestId === requestId) _switchingRequestId = null;
+      setState({ kind: "starting" });
       await play();
       useAudioSettingsStore().pushToGraph();
     }
     catch (err) {
       if (requestId !== _playRequestId) return;
-      _switchingRequestId = null;
-      status.value = "error";
+      setState({ kind: "error" });
       discardPlayer();
-      if (err instanceof StorageError) {
+      // A source that cannot be resolved at all, or a file that is gone, is
+      // not worth keeping on screen; other failures keep the track so the UI
+      // can show what failed.
+      if (!url || err instanceof StorageError) {
         clearCurrentTrack();
       }
       throw err;
@@ -624,8 +666,8 @@ export const usePlayerStore = defineStore("player", () => {
   // because cancelFade snaps the multiplier back to full and would pop over
   // still-playing audio.
   const settleFadeBeforeSeek = () => {
-    if (!_activeFadeAbort) return;
-    cancelActiveFade();
+    if (state.value.kind !== "fadingOut") return;
+    setState({ kind: "paused" });
     player.value?.pause();
     player.value?.cancelFade();
   };
@@ -670,7 +712,7 @@ export const usePlayerStore = defineStore("player", () => {
 
   const dispose = async () => {
     _playRequestId++;
-    cancelActiveFade();
+    setState({ kind: "idle" });
     cancelSleepTimer();
     clearCurrentTrack();
     const oldPlayer = player.value;
@@ -687,6 +729,7 @@ export const usePlayerStore = defineStore("player", () => {
   return {
     player,
     status,
+    playbackState,
     currentTime,
     duration,
     volume,
