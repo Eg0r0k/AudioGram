@@ -1665,6 +1665,166 @@ describe("queue.store", () => {
     });
   });
 
+  describe("canonical model: one set of items, two orders", () => {
+    const ids = (list: { track: { id: string } }[]) => list.map(item => item.track.id);
+    // The playback order is a permutation of the original order: same items,
+    // same count, whatever the order.
+    const expectSameItems = (store: ReturnType<typeof useQueueStore>) => {
+      expect(store.queue).toHaveLength(store.originalQueue.length);
+      expect(new Set(ids(store.queue))).toEqual(new Set(ids(store.originalQueue)));
+    };
+
+    const seeded = async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+      await store.setQueue([createTrack("1"), createTrack("2"), createTrack("3"), createTrack("4")], 1, { type: "manual" });
+      return store;
+    };
+
+    it("keeps both orders in step through every mutation while shuffled", async () => {
+      const store = await seeded();
+      store.shuffle();
+      expectSameItems(store);
+
+      store.addToQueue(createTrack("5"));
+      expectSameItems(store);
+      store.addMultipleToQueue([createTrack("6"), createTrack("7")]);
+      expectSameItems(store);
+      store.insertNext(createTrack("8"));
+      expectSameItems(store);
+      store.moveTrack(1, 3);
+      expectSameItems(store);
+      store.removeFromQueue(store.queue[store.queue.length - 1].id);
+      expectSameItems(store);
+      store.removeMultiple([store.queue[2].id, store.queue[3].id]);
+      expectSameItems(store);
+
+      // Everything queued after the shuffle comes back in the order it was
+      // added, relative to the original order.
+      store.unshuffle();
+      expect(ids(store.queue)).toEqual(ids(store.originalQueue));
+      expect(store.currentTrack?.id).toBe("2");
+    });
+
+    it("reorders only the visible order while shuffled, and only the original order while not", async () => {
+      const store = await seeded();
+      store.shuffle();
+      const originalBefore = ids(store.originalQueue);
+
+      store.moveTrack(1, 3);
+      expect(ids(store.originalQueue)).toEqual(originalBefore);
+
+      store.unshuffle();
+      store.moveTrack(0, 3);
+      expect(ids(store.queue)).toEqual(["2", "3", "4", "1"]);
+      expect(ids(store.originalQueue)).toEqual(["2", "3", "4", "1"]);
+    });
+
+    it("keeps the current item by identity when items before it are removed or moved", async () => {
+      const store = await seeded();
+      const current = store.currentItem!;
+
+      store.removeFromQueue(store.queue[0].id);
+      expect(store.currentItem).toBe(current);
+      expect(store.currentIndex).toBe(0);
+
+      store.addToQueue(createTrack("5"));
+      store.moveTrack(3, 0);
+      expect(store.currentItem).toBe(current);
+      expect(store.currentIndex).toBe(1);
+    });
+
+    it("survives a shuffle → insertNext → add → remove → unshuffle round-trip", async () => {
+      const store = await seeded();
+      store.shuffle();
+      store.insertNext(createTrack("9"));
+      store.addToQueue(createTrack("5"));
+      store.removeFromQueue(store.queue.find(item => item.track.id === "4")!.id);
+      store.unshuffle();
+
+      expect(ids(store.queue)).toEqual(["1", "2", "9", "3", "5"]);
+      expect(store.currentTrack?.id).toBe("2");
+    });
+
+    it("persists the derived orders, not a second copy of them", async () => {
+      const store = await seeded();
+      store.shuffle();
+      store.insertNext(createTrack("9"));
+
+      const snapshot = store.persistedSnapshot!;
+      expect(snapshot.isShuffled).toBe(true);
+      expect(snapshot.queue.map(item => item.id)).toEqual(store.queue.map(item => item.id));
+      expect(snapshot.originalQueueOrder).toEqual(store.originalQueue.map(item => item.id));
+      expect(snapshot.currentItemId).toBe(store.currentItem!.id);
+      expect(snapshot.currentIndex).toBe(store.currentIndex);
+    });
+
+    it("an empty shuffle is still a shuffle, and is persisted as one", () => {
+      const store = useQueueStore();
+
+      store.shuffle();
+
+      expect(store.isShuffled).toBe(true);
+      store.addToQueue(createTrack("1"));
+      expect(store.persistedSnapshot?.isShuffled).toBe(true);
+    });
+
+    it("restores a shuffled snapshot with both orders, keeping entries the original order forgot", async () => {
+      vi.mocked(trackRepository.findByIds).mockResolvedValue(
+        ok([createTrackEntity("1"), createTrackEntity("2"), createTrackEntity("3")]),
+      );
+      const store = useQueueStore();
+
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [
+          { id: "item-2", track: { kind: "library", trackId: "2" }, source: { type: "manual" }, addedAt: 200 },
+          { id: "item-3", track: { kind: "library", trackId: "3" }, source: { type: "manual" }, addedAt: 300 },
+          { id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 },
+        ],
+        // item-3 was appended by a build that did not mirror it here.
+        originalQueueOrder: ["item-1", "item-2"],
+        currentIndex: 0,
+        currentItemId: "item-2",
+        isShuffled: true,
+      } as any;
+
+      await store.restorePersistedQueue();
+
+      expect(store.isShuffled).toBe(true);
+      expect(store.queue.map(item => item.id)).toEqual(["item-2", "item-3", "item-1"]);
+      expect(store.originalQueue.map(item => item.id)).toEqual(["item-1", "item-2", "item-3"]);
+      expect(store.currentIndex).toBe(0);
+
+      store.unshuffle();
+      expect(store.queue.map(item => item.id)).toEqual(["item-1", "item-2", "item-3"]);
+      expect(store.currentItem?.id).toBe("item-2");
+    });
+
+    it("drops a stale current id that is not in the restored queue", async () => {
+      vi.mocked(trackRepository.findByIds).mockResolvedValue(ok([createTrackEntity("1")]));
+      const store = useQueueStore();
+
+      store.persistedSnapshot = {
+        version: 1,
+        queue: [
+          { id: "item-1", track: { kind: "library", trackId: "1" }, source: { type: "manual" }, addedAt: 100 },
+          { id: "item-2", track: { kind: "library", trackId: "2" }, source: { type: "manual" }, addedAt: 200 },
+        ],
+        originalQueueOrder: ["item-1", "item-2"],
+        currentIndex: 1,
+        currentItemId: "item-2",
+        isShuffled: false,
+      } as any;
+
+      await store.restorePersistedQueue();
+
+      expect(store.queue.map(item => item.id)).toEqual(["item-1"]);
+      expect(store.currentIndex).toBe(-1);
+    });
+  });
+
   describe("restorePersistedQueue edge cases", () => {
     it("should do nothing when snapshot is null", async () => {
       const store = useQueueStore();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlaybackQueue, clampQueueIndex, getCurrentIndexAfterMove, getItemsByOrder, moveItem, resolveQueueReorder } from "../lib/queue-order";
+import { buildPlaybackQueue, clampQueueIndex, getItemsByOrder, moveItem, resolveQueueReorder } from "../lib/queue-order";
 
 describe("queue-order helpers", () => {
   it("moves an item without mutating the original list", () => {
@@ -47,13 +47,6 @@ describe("queue-order helpers", () => {
     expect(result.playbackIndex).toBe(0);
     expect(result.items[0]).toBe("b");
     expect(new Set(result.items)).toEqual(new Set(["a", "b", "c"]));
-  });
-
-  it("updates current index after moves around the current item", () => {
-    expect(getCurrentIndexAfterMove(2, 0, 2)).toBe(1);
-    expect(getCurrentIndexAfterMove(0, 2, 0)).toBe(1);
-    expect(getCurrentIndexAfterMove(1, 1, 3)).toBe(3);
-    expect(getCurrentIndexAfterMove(1, 3, 4)).toBe(1);
   });
 
   it("maps a same-list sort suggestion to absolute queue indexes", () => {

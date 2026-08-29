@@ -15,7 +15,7 @@ import { unique, unwrapResult } from "@/queries/shared";
 import { migrateProxyUrl } from "@/lib/stream-url";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { getLogger } from "@/lib/logger";
-import { buildPlaybackQueue, getCurrentIndexAfterMove, getItemsByOrder, moveItem } from "../lib/queue-order";
+import { buildPlaybackQueue, getItemsByOrder, moveItem } from "../lib/queue-order";
 
 const RESTART_THRESHOLD = 3;
 const AUTOPLAY_RECOMMENDATION_LIMIT = 5;
@@ -55,13 +55,64 @@ interface PersistedQueueSnapshot {
   isShuffled: boolean;
 }
 
+const insertAt = <T>(list: readonly T[], index: number, ...values: T[]): T[] => [
+  ...list.slice(0, index),
+  ...values,
+  ...list.slice(index),
+];
+
+// The media server's port and token change every launch, so any stored
+// proxy URL (playback or cover, current or legacy stream://-era form)
+// must be re-pointed at the live base; foreign URLs pass through.
+const migrateCover = (cover: string | null | undefined) =>
+  cover ? migrateProxyUrl(cover) : cover;
+
+const rehydrateQueueItem = (
+  item: PersistedQueueItem,
+  libraryTracksById: ReadonlyMap<Track["id"], PlayerTrack>,
+): QueueItem | null => {
+  if (item.track.kind === "library") {
+    const track = libraryTracksById.get(item.track.trackId);
+    if (!track) return null;
+    return {
+      id: item.id,
+      track,
+      source: item.source,
+      addedAt: item.addedAt,
+      cover: migrateCover(item.cover),
+    };
+  }
+
+  return {
+    id: item.id,
+    track: {
+      ...item.track,
+      cover: migrateCover(item.track.cover) ?? undefined,
+      source: item.track.source.type === "url"
+        ? { ...item.track.source, url: migrateProxyUrl(item.track.source.url) }
+        : item.track.source,
+    },
+    source: item.source,
+    addedAt: item.addedAt,
+    cover: migrateCover(item.cover),
+  };
+};
+
 export const useQueueStore = defineStore("queue", () => {
   const playerStore = usePlayerStore();
 
-  const queue = ref<QueueItem[]>([]);
-  const originalQueueOrder = ref<QueueItemId[]>([]);
-  const currentIndex = ref(-1);
-  const isShuffled = ref(false);
+  // Canonical state — the only three things a mutation writes. Everything
+  // the UI reads (queue, currentIndex, currentItem, isShuffled, ...) derives
+  // from them, so there is no second copy to keep in sync. Mutations
+  // reassign whole arrays rather than splicing in place.
+  //
+  // `items` is the queue in the order tracks were added; `playbackOrder` is
+  // null while unshuffled and otherwise a permutation of every item id;
+  // `currentItemId` identifies the playing entry by identity, so removing or
+  // reordering around it cannot move the selection.
+  const items = ref<QueueItem[]>([]);
+  const playbackOrder = ref<QueueItemId[] | null>(null);
+  const currentItemId = ref<QueueItemId | null>(null);
   const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
 
   // Bumped by every queue mutation. restorePersistedQueue captures it before
@@ -74,14 +125,47 @@ export const useQueueStore = defineStore("queue", () => {
 
   let autoplayRecommendationsPromise: Promise<boolean> | null = null;
 
-  const originalQueue = computed<QueueItem[]>(() => {
-    return getItemsByOrder(queue.value, originalQueueOrder.value);
+  const originalQueue = computed<QueueItem[]>(() => items.value);
+
+  // The three derived fields below stay writable for the existing tests,
+  // which seed state through them. Writing one settles the canonical state
+  // to what that value would look like: a new `queue` replaces the items
+  // (and, while shuffled, becomes the playback order), `currentIndex` picks
+  // the entry at that position, `isShuffled` freezes or drops the order.
+  const queue = computed<QueueItem[]>({
+    get: () => playbackOrder.value
+      ? getItemsByOrder(items.value, playbackOrder.value)
+      : items.value,
+    set: (list) => {
+      items.value = list;
+      if (playbackOrder.value) playbackOrder.value = list.map(item => item.id);
+      if (currentItemId.value !== null && !list.some(item => item.id === currentItemId.value)) {
+        currentItemId.value = null;
+      }
+    },
+  });
+
+  const isShuffled = computed<boolean>({
+    get: () => playbackOrder.value !== null,
+    set: (shuffled) => {
+      if (shuffled === (playbackOrder.value !== null)) return;
+      playbackOrder.value = shuffled ? queue.value.map(item => item.id) : null;
+    },
+  });
+
+  const currentIndex = computed<number>({
+    get: () => {
+      if (currentItemId.value === null) return -1;
+      return queue.value.findIndex(item => item.id === currentItemId.value);
+    },
+    set: (index) => {
+      currentItemId.value = queue.value[index]?.id ?? null;
+    },
   });
 
   const currentItem = computed<QueueItem | null>(() => {
     const idx = currentIndex.value;
-    if (idx < 0 || idx >= queue.value.length) return null;
-    return queue.value[idx];
+    return idx >= 0 ? queue.value[idx] : null;
   });
 
   const currentTrack = computed<PlayerTrack | null>(
@@ -113,6 +197,26 @@ export const useQueueStore = defineStore("queue", () => {
     if (currentIndex.value <= 0) return [];
     return queue.value.slice(0, currentIndex.value);
   });
+
+  // Dev-only: the canonical state is small enough to check exhaustively
+  // after every mutation, and a broken permutation would otherwise surface
+  // as a silently shorter queue.
+  const assertQueueInvariants = () => {
+    if (!import.meta.env.DEV) return;
+    const order = playbackOrder.value;
+    if (order) {
+      const ids = new Set(items.value.map(item => item.id));
+      const isPermutation = order.length === ids.size
+        && new Set(order).size === order.length
+        && order.every(id => ids.has(id));
+      if (!isPermutation) {
+        throw new Error("[Queue] invariant violated: playbackOrder is not a permutation of items");
+      }
+    }
+    if (currentItemId.value !== null && !items.value.some(item => item.id === currentItemId.value)) {
+      throw new Error("[Queue] invariant violated: currentItemId points at no item");
+    }
+  };
 
   function createItem(track: PlayerTrack, source: QueueSource, cover?: string | null): QueueItem {
     return {
@@ -148,7 +252,7 @@ export const useQueueStore = defineStore("queue", () => {
     if (isEphemeralTrack(nextTrack)) return;
 
     markQueueMutation();
-    queue.value = patchQueueItem(queue.value, nextTrack);
+    items.value = patchQueueItem(items.value, nextTrack);
     const playing = playerStore.currentTrack;
     if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
       playerStore.currentTrack = { ...playing, ...nextTrack };
@@ -167,9 +271,9 @@ export const useQueueStore = defineStore("queue", () => {
     markQueueMutation();
     let swappedCurrent = false;
 
-    queue.value = queue.value.map((item, index) => {
+    items.value = items.value.map((item) => {
       if (!isEphemeralTrack(item.track) || item.track.id !== ephemeralTrackId) return item;
-      if (index === currentIndex.value) swappedCurrent = true;
+      if (item.id === currentItemId.value) swappedCurrent = true;
       return { ...item, track: libraryTrack };
     });
 
@@ -177,39 +281,6 @@ export const useQueueStore = defineStore("queue", () => {
       playerStore.currentTrack = libraryTrack;
     }
     syncPersistedSnapshot();
-  }
-
-  function removeOriginalQueueItems(ids: QueueItemId[]): void {
-    const idSet = new Set(ids);
-    originalQueueOrder.value = originalQueueOrder.value.filter(id => !idSet.has(id));
-  }
-
-  function insertOriginalQueueNext(item: QueueItem): void {
-    if (!isShuffled.value) {
-      // Unshuffled, queue and originalQueueOrder are the same order — this
-      // must mirror insertNext's queue splice (head when nothing is current),
-      // or a later shuffle round-trip reorders the inserted item.
-      const insertAt = currentIndex.value >= 0
-        ? currentIndex.value + 1
-        : 0;
-
-      originalQueueOrder.value.splice(insertAt, 0, item.id);
-      return;
-    }
-
-    const currentId = currentItem.value?.id;
-    if (!currentId) {
-      originalQueueOrder.value.push(item.id);
-      return;
-    }
-
-    const currentOriginalIndex = originalQueueOrder.value.findIndex(id => id === currentId);
-    if (currentOriginalIndex === -1) {
-      originalQueueOrder.value.push(item.id);
-      return;
-    }
-
-    originalQueueOrder.value.splice(currentOriginalIndex + 1, 0, item.id);
   }
 
   function getTrackQueueKey(track: PlayerTrack): string {
@@ -252,6 +323,8 @@ export const useQueueStore = defineStore("queue", () => {
     };
   }
 
+  // The v1 format stores both orders; they are derived from the canonical
+  // state here, so the file layout is unchanged while the runtime model is.
   function buildPersistedQueueSnapshot(): PersistedQueueSnapshot | null {
     const persistedQueue = queue.value
       .map(item => serializeQueueItem(item))
@@ -267,7 +340,9 @@ export const useQueueStore = defineStore("queue", () => {
     return {
       version: 1,
       queue: persistedQueue,
-      originalQueueOrder: originalQueueOrder.value.filter(id => persistedIds.has(id)),
+      originalQueueOrder: items.value
+        .map(item => item.id)
+        .filter(id => persistedIds.has(id)),
       currentIndex: persistedCurrentItemId
         ? persistedQueue.findIndex(item => item.id === persistedCurrentItemId)
         : -1,
@@ -277,6 +352,7 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function syncPersistedSnapshot(): void {
+    assertQueueInvariants();
     persistedSnapshot.value = buildPersistedQueueSnapshot();
   }
 
@@ -335,7 +411,7 @@ export const useQueueStore = defineStore("queue", () => {
 
   function resetPlaybackSelection(): void {
     markQueueMutation();
-    currentIndex.value = -1;
+    currentItemId.value = null;
     playerStore.stop();
     playerStore.clearCurrentTrack();
   }
@@ -350,11 +426,11 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   async function playAtIndex(index: number): Promise<boolean> {
-    if (index < 0 || index >= queue.value.length) return false;
+    const item = queue.value[index];
+    if (!item) return false;
 
     markQueueMutation();
-    currentIndex.value = index;
-    const item = queue.value[index];
+    currentItemId.value = item.id;
 
     try {
       await playerStore.playPlayerTrack(item.track);
@@ -400,36 +476,20 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     markQueueMutation();
-    const items = createQueueItems(tracks, source);
+    const nextItems = createQueueItems(tracks, source);
     const shouldShuffle = options?.shuffled ?? isShuffled.value;
-    const playbackQueue = buildPlaybackQueue(items, startIndex, shouldShuffle);
+    const playbackQueue = buildPlaybackQueue(nextItems, startIndex, shouldShuffle);
 
-    originalQueueOrder.value = items.map(item => item.id);
-    queue.value = playbackQueue.items;
-    isShuffled.value = shouldShuffle;
+    items.value = nextItems;
+    playbackOrder.value = shouldShuffle ? playbackQueue.items.map(item => item.id) : null;
+    currentItemId.value = null;
 
-    currentIndex.value = playbackQueue.playbackIndex - 1;
     const success = await playAtIndex(playbackQueue.playbackIndex);
     if (!success) {
       await skipToNextPlayable(Math.max(playbackQueue.items.length - playbackQueue.playbackIndex, 1));
     }
     syncPersistedSnapshot();
   }
-
-  // currentItemId survives library deletions that shorten the restored queue;
-  // the positional index is only a fallback for older v1 snapshots.
-  const resolveRestoredCurrentIndex = (
-    snapshot: PersistedQueueSnapshot,
-    restoredQueue: QueueItem[],
-  ): number => {
-    if (snapshot.currentItemId !== undefined) {
-      return restoredQueue.findIndex(item => item.id === snapshot.currentItemId);
-    }
-    if (snapshot.currentIndex >= 0 && snapshot.currentIndex < restoredQueue.length) {
-      return snapshot.currentIndex;
-    }
-    return -1;
-  };
 
   async function restorePersistedQueue(): Promise<void> {
     const snapshot = persistedSnapshot.value;
@@ -453,60 +513,40 @@ export const useQueueStore = defineStore("queue", () => {
       if (_mutationEpoch !== epochAtStart) return;
       const libraryTracksById = new Map(libraryTracks.map(track => [track.id, mapTrackEntityToPlayerTrack(track)]));
 
-      const restoredQueue: QueueItem[] = [];
-
-      // The media server's port and token change every launch, so any stored
-      // proxy URL (playback or cover, current or legacy stream://-era form)
-      // must be re-pointed at the live base; foreign URLs pass through.
-      const migratedCover = (cover: string | null | undefined) =>
-        cover ? migrateProxyUrl(cover) : cover;
-
-      for (const item of snapshot.queue) {
-        if (item.track.kind === "library") {
-          const track = libraryTracksById.get(item.track.trackId);
-          if (!track) continue;
-
-          restoredQueue.push({
-            id: item.id,
-            track,
-            source: item.source,
-            addedAt: item.addedAt,
-            cover: migratedCover(item.cover),
-          });
-          continue;
-        }
-
-        const track = {
-          ...item.track,
-          cover: migratedCover(item.track.cover) ?? undefined,
-          source: item.track.source.type === "url"
-            ? { ...item.track.source, url: migrateProxyUrl(item.track.source.url) }
-            : item.track.source,
-        };
-
-        restoredQueue.push({
-          id: item.id,
-          track,
-          source: item.source,
-          addedAt: item.addedAt,
-          cover: migratedCover(item.cover),
-        });
-      }
+      // In the snapshot's playback order; library rows gone from the DB drop out.
+      const restoredQueue = snapshot.queue.flatMap((item) => {
+        const restored = rehydrateQueueItem(item, libraryTracksById);
+        return restored ? [restored] : [];
+      });
 
       if (restoredQueue.length === 0) {
         clear();
         return;
       }
 
-      const queueIds = new Set(restoredQueue.map(item => item.id));
-      const restoredOriginalQueueOrder = snapshot.originalQueueOrder.filter(id => queueIds.has(id));
+      // Unshuffled, the playback order IS the original order. Shuffled, the
+      // original order is what unshuffle returns to; an entry the stored
+      // order forgot (older snapshots) is kept at the end rather than lost.
+      let restoredItems = restoredQueue;
+      if (snapshot.isShuffled) {
+        const restoredIds = new Set(restoredQueue.map(item => item.id));
+        const originalIds = snapshot.originalQueueOrder.filter(id => restoredIds.has(id));
+        const ordered = new Set(originalIds);
+        restoredItems = [
+          ...getItemsByOrder(restoredQueue, originalIds),
+          ...restoredQueue.filter(item => !ordered.has(item.id)),
+        ];
+      }
 
-      queue.value = restoredQueue;
-      originalQueueOrder.value = restoredOriginalQueueOrder.length > 0
-        ? restoredOriginalQueueOrder
-        : restoredQueue.map(item => item.id);
-      currentIndex.value = resolveRestoredCurrentIndex(snapshot, restoredQueue);
-      isShuffled.value = snapshot.isShuffled;
+      // currentItemId survives library deletions that shorten the restored
+      // queue; the positional index is only a fallback for older v1 snapshots.
+      const restoredCurrentId = snapshot.currentItemId ?? snapshot.queue[snapshot.currentIndex]?.id ?? null;
+
+      items.value = restoredItems;
+      playbackOrder.value = snapshot.isShuffled ? restoredQueue.map(item => item.id) : null;
+      currentItemId.value = restoredCurrentId !== null && restoredQueue.some(item => item.id === restoredCurrentId)
+        ? restoredCurrentId
+        : null;
 
       // If playback already started this session (cold play of the persisted
       // track), the player owns its current track — don't reassign or clear
@@ -527,10 +567,9 @@ export const useQueueStore = defineStore("queue", () => {
       getLogger().error(`[Queue] Failed to restore persisted queue: ${String(error)}`);
       // Infrastructure failure (DB hiccup): reset memory but keep the stored
       // snapshot untouched so the next healthy launch can still restore it.
-      queue.value = [];
-      originalQueueOrder.value = [];
-      currentIndex.value = -1;
-      isShuffled.value = false;
+      items.value = [];
+      playbackOrder.value = null;
+      currentItemId.value = null;
     }
   }
 
@@ -538,11 +577,7 @@ export const useQueueStore = defineStore("queue", () => {
     track: PlayerTrack,
     source: QueueSource = { type: "manual" },
   ): void {
-    markQueueMutation();
-    const item = createItem(track, source);
-    queue.value.push(item);
-    originalQueueOrder.value.push(item.id);
-    syncPersistedSnapshot();
+    addMultipleToQueue([track], source);
   }
 
   function addMultipleToQueue(
@@ -550,9 +585,11 @@ export const useQueueStore = defineStore("queue", () => {
     source: QueueSource = { type: "manual" },
   ): void {
     markQueueMutation();
-    const items = tracks.map(t => createItem(t, source));
-    queue.value.push(...items);
-    originalQueueOrder.value.push(...items.map(item => item.id));
+    const added = tracks.map(t => createItem(t, source));
+    items.value = [...items.value, ...added];
+    if (playbackOrder.value) {
+      playbackOrder.value = [...playbackOrder.value, ...added.map(item => item.id)];
+    }
     syncPersistedSnapshot();
   }
 
@@ -614,19 +651,27 @@ export const useQueueStore = defineStore("queue", () => {
     return autoplayRecommendationsPromise;
   }
 
+  // Goes right after the current entry in BOTH orders: after it in the
+  // playback order the user is looking at, and after it in the original
+  // order so a later unshuffle keeps it next to the track it was queued
+  // behind. With nothing current it goes to the head.
   function insertNext(
     track: PlayerTrack,
     source: QueueSource = { type: "manual" },
   ): void {
     markQueueMutation();
-    const insertAt = currentIndex.value >= 0
-      ? currentIndex.value + 1
-      : 0;
-
     const item = createItem(track, source);
+    const current = currentItem.value;
 
-    queue.value.splice(insertAt, 0, item);
-    insertOriginalQueueNext(item);
+    const originalAt = current
+      ? items.value.findIndex(candidate => candidate.id === current.id) + 1
+      : 0;
+    items.value = insertAt(items.value, originalAt, item);
+
+    if (playbackOrder.value) {
+      const playbackAt = currentIndex.value >= 0 ? currentIndex.value + 1 : 0;
+      playbackOrder.value = insertAt(playbackOrder.value, playbackAt, item.id);
+    }
     syncPersistedSnapshot();
   }
 
@@ -697,64 +742,39 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   function removeFromQueue(id: QueueItemId): void {
-    const index = queue.value.findIndex(item => item.id === id);
-    if (index === -1) return;
-
-    markQueueMutation();
-
-    const isCurrentlyPlaying = index === currentIndex.value;
-
-    queue.value.splice(index, 1);
-    removeOriginalQueueItems([id]);
-
-    if (queue.value.length === 0) {
-      resetPlaybackSelection();
-      syncPersistedSnapshot();
-      return;
-    }
-
-    if (index < currentIndex.value) {
-      currentIndex.value--;
-    }
-    else if (isCurrentlyPlaying) {
-      if (currentIndex.value >= queue.value.length) {
-        currentIndex.value = queue.value.length - 1;
-      }
-      playAtIndex(currentIndex.value);
-    }
-    syncPersistedSnapshot();
+    removeMultiple([id]);
   }
 
   function removeMultiple(ids: QueueItemId[]): void {
-    markQueueMutation();
     const idSet = new Set(ids);
-    const currentItemId = currentItem.value?.id;
-    const wasCurrentRemoved = currentItemId && idSet.has(currentItemId);
-    // The successor's position shifts down by every removed item that sat
-    // above the current one — count them against the pre-removal order.
+    if (!queue.value.some(item => idSet.has(item.id))) return;
+
+    markQueueMutation();
+    const oldIndex = currentIndex.value;
+    const wasCurrentRemoved = currentItemId.value !== null && idSet.has(currentItemId.value);
+    // The successor is whatever now sits where the current entry was: its
+    // position shifts down by every removed item that sat above it.
     const removedBeforeCurrent = queue.value
-      .filter((item, index) => index < currentIndex.value && idSet.has(item.id))
+      .filter((item, index) => index < oldIndex && idSet.has(item.id))
       .length;
 
-    queue.value = queue.value.filter(item => !idSet.has(item.id));
-    removeOriginalQueueItems(ids);
+    items.value = items.value.filter(item => !idSet.has(item.id));
+    if (playbackOrder.value) {
+      playbackOrder.value = playbackOrder.value.filter(itemId => !idSet.has(itemId));
+    }
 
-    if (queue.value.length === 0) {
+    if (items.value.length === 0) {
       resetPlaybackSelection();
       syncPersistedSnapshot();
       return;
     }
 
     if (wasCurrentRemoved) {
-      const safeIndex = Math.min(
-        Math.max(currentIndex.value - removedBeforeCurrent, 0),
+      const successorIndex = Math.min(
+        Math.max(oldIndex - removedBeforeCurrent, 0),
         queue.value.length - 1,
       );
-      playAtIndex(safeIndex);
-    }
-    else if (currentItemId) {
-      const newIndex = queue.value.findIndex(item => item.id === currentItemId);
-      currentIndex.value = newIndex >= 0 ? newIndex : 0;
+      playAtIndex(successorIndex);
     }
     syncPersistedSnapshot();
   }
@@ -765,43 +785,27 @@ export const useQueueStore = defineStore("queue", () => {
     if (toIndex < 0 || toIndex >= queue.value.length) return;
 
     markQueueMutation();
-    queue.value = moveItem(queue.value, fromIndex, toIndex);
-
-    if (!isShuffled.value) {
-      originalQueueOrder.value = moveItem(originalQueueOrder.value, fromIndex, toIndex);
+    // A drag reorders whichever order is on screen; the selection follows
+    // its item by identity, so nothing about currentIndex needs fixing up.
+    if (playbackOrder.value) {
+      playbackOrder.value = moveItem(playbackOrder.value, fromIndex, toIndex);
     }
-
-    currentIndex.value = getCurrentIndexAfterMove(currentIndex.value, fromIndex, toIndex);
+    else {
+      items.value = moveItem(items.value, fromIndex, toIndex);
+    }
     syncPersistedSnapshot();
   }
 
   function shuffle(): void {
     markQueueMutation();
-    isShuffled.value = true;
+    const current = currentItem.value;
+    const currentOriginalIndex = current
+      ? items.value.findIndex(item => item.id === current.id)
+      : null;
 
-    const baseQueue = originalQueueOrder.value.length > 0
-      ? getItemsByOrder(queue.value, originalQueueOrder.value)
-      : [...queue.value];
-
-    if (baseQueue.length === 0) return;
-
-    originalQueueOrder.value = baseQueue.map(item => item.id);
-
-    if (currentIndex.value < 0 || !currentItem.value) {
-      queue.value = buildPlaybackQueue(baseQueue, null, true).items;
-      return;
-    }
-
-    const currentId = currentItem.value.id;
-    const currentOriginalIndex = baseQueue.findIndex(item => item.id === currentId);
-    const playbackQueue = buildPlaybackQueue(
-      baseQueue,
-      currentOriginalIndex >= 0 ? currentOriginalIndex : 0,
-      true,
-    );
-
-    queue.value = playbackQueue.items;
-    currentIndex.value = playbackQueue.playbackIndex;
+    playbackOrder.value = buildPlaybackQueue(items.value, currentOriginalIndex, true)
+      .items
+      .map(item => item.id);
     syncPersistedSnapshot();
   }
 
@@ -809,24 +813,7 @@ export const useQueueStore = defineStore("queue", () => {
     if (!isShuffled.value) return;
 
     markQueueMutation();
-    isShuffled.value = false;
-
-    if (originalQueueOrder.value.length === 0) {
-      syncPersistedSnapshot();
-      return;
-    }
-
-    const currentId = currentItem.value?.id;
-    queue.value = getItemsByOrder(queue.value, originalQueueOrder.value);
-
-    if (!currentId) {
-      currentIndex.value = -1;
-      syncPersistedSnapshot();
-      return;
-    }
-
-    const newIndex = queue.value.findIndex(item => item.id === currentId);
-    currentIndex.value = newIndex >= 0 ? newIndex : 0;
+    playbackOrder.value = null;
     syncPersistedSnapshot();
   }
 
@@ -841,10 +828,9 @@ export const useQueueStore = defineStore("queue", () => {
 
   function clear(): void {
     markQueueMutation();
-    queue.value = [];
-    originalQueueOrder.value = [];
+    items.value = [];
+    playbackOrder.value = null;
     resetPlaybackSelection();
-    isShuffled.value = false;
     syncPersistedSnapshot();
   }
 

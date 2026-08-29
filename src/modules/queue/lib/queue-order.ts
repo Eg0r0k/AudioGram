@@ -90,14 +90,3 @@ export const resolveQueueReorder = (
 
   return { from: from + sliceOffset, to: suggestion.targetIndex + sliceOffset };
 };
-
-export function getCurrentIndexAfterMove(
-  currentIndex: number,
-  fromIndex: number,
-  toIndex: number,
-): number {
-  if (fromIndex === currentIndex) return toIndex;
-  if (fromIndex < currentIndex && toIndex >= currentIndex) return currentIndex - 1;
-  if (fromIndex > currentIndex && toIndex <= currentIndex) return currentIndex + 1;
-  return currentIndex;
-}
