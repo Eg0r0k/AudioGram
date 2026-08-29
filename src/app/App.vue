@@ -8,7 +8,7 @@
         <component
           :is="Component"
           :key="route.fullPath"
-          class="page-wrapper bg-muted dark:bg-background"
+          class="page-wrapper bg-canvas"
         />
       </SlideTransition>
     </RouterView>

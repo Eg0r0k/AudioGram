@@ -101,7 +101,7 @@
       class="flex-1"
       @focusin="openSearch()"
     >
-      <InputGroup class="dark:bg-background!  bg-muted! rounded-full h-10 flex-1">
+      <InputGroup class="bg-canvas! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
           <DropdownMenu v-if="isYoutubeAvailable || isNdSearchAvailable">
             <DropdownMenuTrigger as-child>

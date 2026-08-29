@@ -57,7 +57,7 @@ const filteredPlaylists = computed(() => {
       class="w-56 "
     >
       <div class="p-0.5">
-        <InputGroup class="dark:bg-background! bg-muted!   h-8">
+        <InputGroup class="bg-canvas! h-8">
           <InputGroupInput
             v-model="searchQuery"
             :placeholder="$t('track.contextMenu.searchPlaylist')"

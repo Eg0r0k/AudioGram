@@ -157,13 +157,9 @@ onUnmounted(() => {
   bottom: 0;
   right: 0;
   width: 1px;
-  background: var(--border);
+  background: var(--canvas);
   pointer-events: none;
   z-index: 10;
-}
-
-:global(.dark) .sidebar-wrapper::after {
-  background: var(--background);
 }
 
 .sidebar-wrapper.is-resizing {

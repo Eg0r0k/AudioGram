@@ -44,7 +44,7 @@
     </RightPanelHeader>
 
     <Scrollable class="min-h-0 flex-1">
-      <div class="grid gap-6 dark:bg-background bg-muted ">
+      <div class="grid gap-6 bg-canvas">
         <section class="grid gap-3 p-2 bg-card">
           <div class="grid gap-3 sm:grid-cols-1">
             <DetailField

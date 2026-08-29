@@ -18,6 +18,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
+  --color-canvas: var(--canvas);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -82,6 +83,7 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.9632 0.0034 247.86);
   --muted-foreground: oklch(0.556 0 0);
+  --canvas: var(--muted);
   --accent: oklch(0.945 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.6047 0.197 25);
@@ -118,6 +120,7 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.2891 0 129.63);
   --muted-foreground: oklch(0.708 0 0);
+  --canvas: var(--background);
   --accent: oklch(0.2891 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.6873 0.2019 23.8);
