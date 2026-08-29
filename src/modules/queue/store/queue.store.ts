@@ -744,7 +744,7 @@ export const useQueueStore = defineStore("queue", () => {
   function insertNext(
     track: PlayerTrack,
     source: QueueSource = { type: "manual" },
-  ): void {
+  ): QueueItem {
     const item = createItem(track, source);
     const current = currentItem.value;
 
@@ -759,6 +759,7 @@ export const useQueueStore = defineStore("queue", () => {
         ? insertAt(playbackOrder.value, playbackAt, item.id)
         : null,
     });
+    return item;
   }
 
   async function next(): Promise<void> {

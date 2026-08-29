@@ -429,6 +429,20 @@ describe("queue.store", () => {
       expect(store.queue[1].track).toStrictEqual(trackToInsert);
     });
 
+    it("returns the inserted entry so the caller can jump to it", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+      await store.setQueue([createTrack("1"), createTrack("2")], 0, { type: "manual" });
+
+      const item = store.insertNext(createTrack("9"));
+      await store.jumpToId(item.id);
+
+      expect(store.queue[1]).toBe(item);
+      expect(store.currentTrack?.id).toBe("9");
+      expect(playSpy).toHaveBeenLastCalledWith(createTrack("9"));
+    });
+
     it("should insert at beginning when no current track", () => {
       const store = useQueueStore();
       const track = createTrack("1");

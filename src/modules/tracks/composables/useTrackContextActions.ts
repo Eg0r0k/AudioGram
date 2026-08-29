@@ -2,7 +2,6 @@ import { isLibraryTrack, type PlayerTrack, type Track } from "@/modules/player/t
 import type { ContextActions, TrackMenuSubject } from "@/modules/tracks/components/menu/type";
 import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
-import { usePlayerStore } from "@/modules/player/store/player.store";
 import { ArtistId, PlaylistId, QueueItemId, type TrackId } from "@/types/ids";
 import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
@@ -51,17 +50,24 @@ export const useTrackContextActions = (
   const router = useRouter();
   const route = useRoute();
   const queueStore = useQueueStore();
-  const playerStore = usePlayerStore();
   const rightPanelStore = useRightPanelStore();
   const queryClient = useQueryClient();
   const { t } = useI18n();
   const { attachTrackLyrics } = useAttachTrackLyrics();
   const { toggleTrackLike } = useToggleTrackLike();
 
+  // Always through the queue: it owns the current track (like/lyrics edits
+  // reach the now-playing UI via its copy) and a played track needs an
+  // entry to advance from. An entry the track already has is jumped to —
+  // the queue's own menu, or a track that is queued further down —
+  // otherwise it goes right after the current entry and starts.
   const play = () => {
     const current = toValue(track);
     if (!current) return;
-    playerStore.playPlayerTrack(current);
+    const existingId = toValue(options.queueItemId)
+      ?? queueStore.queue.find(item => item.track.kind === current.kind && item.track.id === current.id)?.id;
+    const itemId = existingId ?? queueStore.insertNext(current).id;
+    queueStore.jumpToId(itemId);
   };
 
   const playNext = () => {
