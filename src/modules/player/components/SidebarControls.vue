@@ -209,6 +209,7 @@ import IconPlaylist from "~icons/tabler/playlist";
 import PIPContent from "./pip/PIPContent.vue";
 import { useQueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { useSleepTimer } from "../composables/useSleepTimer";
+import { useDisplayedPlaybackTime } from "../composables/useDisplayedPlaybackTime";
 import { useTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
 import { isLibraryTrack } from "@/modules/player/types";
 import type { TrackId } from "@/types/ids";
@@ -267,16 +268,21 @@ const toggleTimeDisplayMode = () => {
   timeDisplayMode.value = timeDisplayMode.value === "total" ? "remaining" : "total";
 };
 
+const { currentTime: displayedTime, duration: displayedDuration } = useDisplayedPlaybackTime();
+
 const timeDisplay = computed(() => {
   if (playerStore.isLiveStream) return { current: "🔴", duration: "LIVE" };
 
-  const remainingTime = Math.max(playerStore.duration - playerStore.currentTime, 0);
+  const duration = displayedDuration.value;
+  if (duration === null) return { current: formatDuration(0), duration: "–:––" };
+
+  const remainingTime = Math.max(duration - displayedTime.value, 0);
 
   return {
     current: timeDisplayMode.value === "remaining"
       ? `-${formatDuration(remainingTime)}`
-      : formatDuration(playerStore.currentTime),
-    duration: formatDuration(playerStore.duration),
+      : formatDuration(displayedTime.value),
+    duration: formatDuration(duration),
   };
 });
 

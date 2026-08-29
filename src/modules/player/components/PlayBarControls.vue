@@ -44,10 +44,10 @@
             variant="ghost"
             :class="repeatModeClass"
             :aria-label="$t('player.repeat')"
-            @click="playerStore.toggleRepeat"
+            @click="queueStore.toggleRepeat"
           >
             <IconRepeatOnce
-              v-if="playerStore.repeatMode === 'one'"
+              v-if="queueStore.repeatMode === 'one'"
               class="size-4.5"
             />
             <IconRepeat
@@ -65,7 +65,6 @@
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import PlayButton from "./PlayButton.vue";
-import { usePlayerStore } from "@/modules/player/store/player.store";
 import IconShuffle from "~icons/tabler/arrows-shuffle-2";
 import IconPlayerTrackPrevFilled from "~icons/tabler/player-track-prev-filled";
 import IconPlayerTrackNextFilled from "~icons/tabler/player-track-next-filled";
@@ -73,9 +72,8 @@ import IconRepeat from "~icons/tabler/repeat";
 import IconRepeatOnce from "~icons/tabler/repeat-once";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
-const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
 const repeatModeClass = computed(() => ({
-  "text-primary": playerStore.repeatMode !== "off",
+  "text-primary": queueStore.repeatMode !== "off",
 }));
 </script>

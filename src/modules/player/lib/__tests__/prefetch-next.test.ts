@@ -29,13 +29,13 @@ vi.mock("@/modules/sources/registry", () => ({
 const queueMock = reactive({
   queue: [] as { track: PlayerTrack }[],
   currentIndex: -1,
+  repeatMode: "off" as "off" | "all" | "one",
   get size() {
     return this.queue.length;
   },
   ensureAutoplayRecommendations: vi.fn(async () => true),
 });
 const playerMock = reactive({
-  repeatMode: "off" as "off" | "all" | "one",
   isPlaying: false,
 });
 
@@ -292,7 +292,7 @@ describe("initNextTrackPrefetch", () => {
     provider.isAvailable = true;
     queueMock.queue = [];
     queueMock.currentIndex = -1;
-    playerMock.repeatMode = "off";
+    queueMock.repeatMode = "off";
     playerMock.isPlaying = false;
   });
 
@@ -333,7 +333,7 @@ describe("initNextTrackPrefetch", () => {
     expect(queueMock.ensureAutoplayRecommendations).not.toHaveBeenCalled();
 
     queueMock.currentIndex = 1;
-    playerMock.repeatMode = "all";
+    queueMock.repeatMode = "all";
     await nextTick();
     expect(queueMock.ensureAutoplayRecommendations).not.toHaveBeenCalled();
   });
@@ -396,7 +396,7 @@ describe("initNextTrackPrefetch", () => {
     await settle();
     expect(provider.prefetch).not.toHaveBeenCalled();
 
-    playerMock.repeatMode = "all";
+    queueMock.repeatMode = "all";
     await settle();
     expect(provider.prefetch).toHaveBeenCalledWith(ndTrackId("first"));
   });
@@ -407,7 +407,7 @@ describe("initNextTrackPrefetch", () => {
       { track: libraryTrack("nd:s2") },
     ];
     queueMock.currentIndex = 0;
-    playerMock.repeatMode = "one";
+    queueMock.repeatMode = "one";
 
     init();
     await settle();

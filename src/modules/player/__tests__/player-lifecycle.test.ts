@@ -7,7 +7,7 @@ const mockPlayer = {
   getListenedSeconds: () => mockPlayer.listenedSeconds,
   sleepAfterCurrentTrack: false,
 };
-const mockQueue = { next: vi.fn() };
+const mockQueue = { advance: vi.fn() };
 const mockLyrics = { loadFor: vi.fn() };
 
 vi.mock("../store/player.store", () => ({ usePlayerStore: () => mockPlayer }));
@@ -104,10 +104,10 @@ describe("player lifecycle", () => {
     trackEndedBus.emit();
 
     expect(statsService.stopListening).toHaveBeenCalledWith(199, { completed: true });
-    expect(mockQueue.next).toHaveBeenCalledTimes(1);
+    expect(mockQueue.advance).toHaveBeenCalledTimes(1);
 
     const stopOrder = vi.mocked(statsService.stopListening).mock.invocationCallOrder[0];
-    const nextOrder = mockQueue.next.mock.invocationCallOrder[0];
+    const nextOrder = mockQueue.advance.mock.invocationCallOrder[0];
     expect(stopOrder).toBeLessThan(nextOrder);
   });
 
@@ -157,6 +157,6 @@ describe("player lifecycle", () => {
     trackEndedBus.emit();
 
     expect(statsService.stopListening).not.toHaveBeenCalled();
-    expect(mockQueue.next).toHaveBeenCalledTimes(1);
+    expect(mockQueue.advance).toHaveBeenCalledTimes(1);
   });
 });

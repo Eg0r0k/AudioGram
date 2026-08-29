@@ -28,6 +28,7 @@ vi.mock("@/queries/cover.queries", () => ({
 }));
 
 import { usePlayerStore } from "../../store/player.store";
+import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useMediaSession } from "../useMediaSession";
 
 const createLibraryTrack = (id: string, albumId: string): Track => ({
@@ -82,20 +83,20 @@ describe("useMediaSession (android bridge)", () => {
     mountSession();
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1", "album-a");
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(true));
     bridge.setPlaybackState.mockClear();
 
-    player.status = "loading";
+    player.playbackState = { kind: "loading", requestId: 0 };
     player.currentTrack = createLibraryTrack("t2", "album-a");
     await Promise.resolve();
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await vi.waitFor(() => expect(bridge.setPlaybackState).toHaveBeenCalled());
 
     const reported = bridge.setPlaybackState.mock.calls.map(call => call[0]);
     expect(reported).not.toContain(false);
 
-    player.status = "paused";
+    player.playbackState = { kind: "paused" };
     await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(false));
   });
 
@@ -127,7 +128,7 @@ describe("useMediaSession (android bridge)", () => {
     bridge.setPlaybackState.mockClear();
     dispatchAndroidAction({ action: "repeat" });
 
-    expect(player.repeatMode).toBe("all");
+    expect(useQueueStore().repeatMode).toBe("all");
     await vi.waitFor(() => {
       const call = bridge.setPlaybackState.mock.lastCall!;
       expect(call[6]).toBe("all");

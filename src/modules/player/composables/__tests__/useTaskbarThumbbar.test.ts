@@ -145,15 +145,15 @@ describe("useTaskbarThumbbar", () => {
     mount();
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1");
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await vi.waitFor(() => expect(lastState().playing).toBe(true));
     invokeMock.mockClear();
 
     // A skip passes through "loading" before the next track plays.
-    player.status = "loading";
+    player.playbackState = { kind: "loading", requestId: 0 };
     player.currentTrack = createLibraryTrack("t2");
     await Promise.resolve();
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await Promise.resolve();
 
     const pushedPlaying = invokeMock.mock.calls.map(
@@ -161,7 +161,7 @@ describe("useTaskbarThumbbar", () => {
     );
     expect(pushedPlaying).not.toContain(false);
 
-    player.status = "paused";
+    player.playbackState = { kind: "paused" };
     await vi.waitFor(() => expect(lastState().playing).toBe(false));
   });
 

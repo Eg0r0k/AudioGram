@@ -3,150 +3,42 @@ import { computed, ref, shallowRef } from "vue";
 import { useEventBus } from "@vueuse/core";
 import { ok, err, type Result } from "neverthrow";
 import { toPlaybackFailure, type PlaybackError } from "@/modules/player/service/playback-resolver.service";
-import { trackRepository } from "@/db/repositories";
 import { QueueItemId } from "@/types/ids";
 import {
-  type Track,
-  type EphemeralTrack,
   isEphemeralTrack,
   type PlayerTrack,
   REPEAT_MODES,
   type RepeatMode,
 } from "@/modules/player/types";
-import { isSameQueueSource, type QueueItem, type QueueSource } from "../types";
+import { isSameQueueSource, type QueueItem, type QueueSource, type QueueState } from "../types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
-import { getRecommendations } from "@/modules/recommendations/service/recommender.service";
-import { unique, unwrapResult } from "@/queries/shared";
-import { migrateProxyUrl } from "@/lib/stream-url";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { getLogger } from "@/lib/logger";
+import { createDebouncedLocalStorage } from "@/lib/storage/debounced-storage";
 import { buildPlaybackQueue, getItemsByOrder, moveItem } from "../lib/queue-order";
 import { playbackStalledEvent, trackSkippedEvent } from "../lib/queue-events";
+import {
+  QUEUE_STORAGE_KEY,
+  buildPersistedQueueSnapshot,
+  readLegacyRepeatMode,
+  rehydratePersistedQueue,
+  type PersistedQueueSnapshot,
+} from "../lib/queue-persistence";
+import { createAutoplayRecommender } from "../lib/queue-autoplay";
+import { shadowPinRemoteTracks } from "../lib/shadow-pin";
 
 const RESTART_THRESHOLD = 3;
 // Transient failures in a row that mean the environment is broken, not the
 // tracks: stop there instead of burning through the whole queue while the
 // network is down.
 const MAX_CONSECUTIVE_TRANSIENT_FAILURES = 3;
-const AUTOPLAY_RECOMMENDATION_LIMIT = 5;
-const QUEUE_STORAGE_KEY = "audiogram-queue-v1";
-
-interface PersistedLibraryTrack {
-  kind: "library";
-  trackId: Track["id"];
-}
-
-type PersistedEphemeralTrack = Pick<EphemeralTrack, "id" | "title" | "artist" | "albumName" | "duration" | "cover"> & {
-  kind: "ephemeral";
-  source: { type: "path"; path: string } | { type: "url"; url: string };
-};
-
-type PersistedQueueTrack = PersistedLibraryTrack | PersistedEphemeralTrack;
-
-interface PersistedQueueItem {
-  id: QueueItemId;
-  track: PersistedQueueTrack;
-  source: QueueSource;
-  addedAt: number;
-  cover?: string | null;
-}
-
-interface PersistedQueueSnapshot {
-  version: 1;
-  queue: PersistedQueueItem[];
-  originalQueueOrder: QueueItemId[];
-  currentIndex: number;
-  /**
-   * Authoritative over currentIndex on restore: tracks deleted from the
-   * library between sessions shorten the restored queue, and a positional
-   * index would then point at a neighbour. Older v1 snapshots lack it.
-   */
-  currentItemId?: QueueItemId;
-  isShuffled: boolean;
-}
-
-/**
- * Canonical queue state — the only thing a mutation writes. Everything the
- * UI reads (queue, currentIndex, currentItem, isShuffled, ...) derives from
- * it, so there is no second copy to keep in sync.
- *
- * `items` is the queue in the order tracks were added; `playbackOrder` is
- * null while unshuffled and otherwise a permutation of every item id;
- * `currentItemId` identifies the playing entry by identity, so removing or
- * reordering around it cannot move the selection.
- */
-interface QueueState {
-  items: readonly QueueItem[];
-  playbackOrder: readonly QueueItemId[] | null;
-  currentItemId: QueueItemId | null;
-}
 
 const EMPTY_STATE: QueueState = { items: [], playbackOrder: null, currentItemId: null };
-
-const LEGACY_PLAYER_STORAGE_KEY = "lyra-player";
-
-const isRepeatMode = (value: unknown): value is RepeatMode =>
-  typeof value === "string" && (REPEAT_MODES as readonly string[]).includes(value);
-
-// One-time migration: repeatMode used to persist under the player's key. A
-// queue entry that has never stored one adopts the player's value, so the
-// upgrade does not reset the user's repeat setting.
-const readLegacyRepeatMode = (): RepeatMode | null => {
-  try {
-    const own = localStorage.getItem(QUEUE_STORAGE_KEY);
-    if (own && "repeatMode" in JSON.parse(own)) return null;
-    const legacy = localStorage.getItem(LEGACY_PLAYER_STORAGE_KEY);
-    const mode: unknown = legacy ? JSON.parse(legacy).repeatMode : undefined;
-    return isRepeatMode(mode) ? mode : null;
-  }
-  catch {
-    return null;
-  }
-};
 
 const insertAt = <T>(list: readonly T[], index: number, ...values: T[]): T[] => [
   ...list.slice(0, index),
   ...values,
   ...list.slice(index),
 ];
-
-// The media server's port and token change every launch, so any stored
-// proxy URL (playback or cover, current or legacy stream://-era form)
-// must be re-pointed at the live base; foreign URLs pass through.
-const migrateCover = (cover: string | null | undefined) =>
-  cover ? migrateProxyUrl(cover) : cover;
-
-const rehydrateQueueItem = (
-  item: PersistedQueueItem,
-  libraryTracksById: ReadonlyMap<Track["id"], PlayerTrack>,
-): QueueItem | null => {
-  if (item.track.kind === "library") {
-    const track = libraryTracksById.get(item.track.trackId);
-    if (!track) return null;
-    return {
-      id: item.id,
-      track,
-      source: item.source,
-      addedAt: item.addedAt,
-      cover: migrateCover(item.cover),
-    };
-  }
-
-  return {
-    id: item.id,
-    track: {
-      ...item.track,
-      cover: migrateCover(item.track.cover) ?? undefined,
-      source: item.track.source.type === "url"
-        ? { ...item.track.source, url: migrateProxyUrl(item.track.source.url) }
-        : item.track.source,
-    },
-    source: item.source,
-    addedAt: item.addedAt,
-    cover: migrateCover(item.cover),
-  };
-};
 
 // Dev-only: the canonical state is small enough to check exhaustively after
 // every commit, and a broken permutation would otherwise surface as a
@@ -170,8 +62,8 @@ const assertQueueInvariants = (state: QueueState) => {
 
 export const useQueueStore = defineStore("queue", () => {
   // The player store is resolved inside the functions that drive it, never
-  // here: the two stores import each other, and a top-level call would tie
-  // this store's setup to the player's.
+  // at setup: this store is created during app bootstrap, before the player
+  // has any reason to exist.
 
   // One shallow ref rather than three: a mutation that touches several
   // fields lands atomically, so no reader (and no invariant check) ever
@@ -192,49 +84,21 @@ export const useQueueStore = defineStore("queue", () => {
   // (open-with launch, an early click) — their state wins over yesterday's.
   let _mutationEpoch = 0;
 
-  let autoplayRecommendationsPromise: Promise<boolean> | null = null;
-
   const items = computed(() => state.value.items);
   const playbackOrder = computed(() => state.value.playbackOrder);
   const currentItemId = computed(() => state.value.currentItemId);
 
   const originalQueue = computed<QueueItem[]>(() => items.value as QueueItem[]);
 
-  // The three derived fields below stay writable for the existing tests,
-  // which seed state through them. Writing one settles the canonical state
-  // to what that value would look like: a new `queue` replaces the items
-  // (and, while shuffled, becomes the playback order), `currentIndex` picks
-  // the entry at that position, `isShuffled` freezes or drops the order.
-  const queue = computed<QueueItem[]>({
-    get: () => (playbackOrder.value
-      ? getItemsByOrder(items.value, playbackOrder.value)
-      : items.value) as QueueItem[],
-    set: (list) => {
-      const keepsCurrent = currentItemId.value !== null && list.some(item => item.id === currentItemId.value);
-      commit({
-        items: list,
-        playbackOrder: playbackOrder.value ? list.map(item => item.id) : null,
-        currentItemId: keepsCurrent ? currentItemId.value : null,
-      });
-    },
-  });
+  const queue = computed<QueueItem[]>(() => (playbackOrder.value
+    ? getItemsByOrder(items.value, playbackOrder.value)
+    : items.value) as QueueItem[]);
 
-  const isShuffled = computed<boolean>({
-    get: () => playbackOrder.value !== null,
-    set: (shuffled) => {
-      if (shuffled === (playbackOrder.value !== null)) return;
-      commit({ playbackOrder: shuffled ? queue.value.map(item => item.id) : null });
-    },
-  });
+  const isShuffled = computed(() => playbackOrder.value !== null);
 
-  const currentIndex = computed<number>({
-    get: () => {
-      if (currentItemId.value === null) return -1;
-      return queue.value.findIndex(item => item.id === currentItemId.value);
-    },
-    set: (index) => {
-      commit({ currentItemId: queue.value[index]?.id ?? null });
-    },
+  const currentIndex = computed(() => {
+    if (currentItemId.value === null) return -1;
+    return queue.value.findIndex(item => item.id === currentItemId.value);
   });
 
   const currentItem = computed<QueueItem | null>(() => {
@@ -306,70 +170,6 @@ export const useQueueStore = defineStore("queue", () => {
     return `${track.kind}:${track.id}`;
   }
 
-  function serializeQueueItem(item: QueueItem): PersistedQueueItem | null {
-    if (item.track.kind === "library") {
-      return {
-        id: item.id,
-        track: {
-          kind: "library",
-          trackId: item.track.id,
-        },
-        source: item.source,
-        addedAt: item.addedAt,
-        cover: item.cover,
-      };
-    }
-
-    if (item.track.source.type === "file") {
-      return null;
-    }
-
-    return {
-      id: item.id,
-      track: {
-        kind: "ephemeral",
-        id: item.track.id,
-        title: item.track.title,
-        artist: item.track.artist,
-        albumName: item.track.albumName,
-        duration: item.track.duration,
-        cover: item.track.cover,
-        source: item.track.source,
-      },
-      source: item.source,
-      addedAt: item.addedAt,
-      cover: item.cover,
-    };
-  }
-
-  // The v1 format stores both orders; they are derived from the canonical
-  // state here, so the file layout is unchanged while the runtime model is.
-  function buildPersistedQueueSnapshot(): PersistedQueueSnapshot | null {
-    const persistedQueue = queue.value
-      .map(item => serializeQueueItem(item))
-      .filter((item): item is PersistedQueueItem => item !== null);
-
-    if (persistedQueue.length === 0) {
-      return null;
-    }
-
-    const persistedIds = new Set(persistedQueue.map(item => item.id));
-    const persistedCurrentItemId = currentItem.value?.id;
-
-    return {
-      version: 1,
-      queue: persistedQueue,
-      originalQueueOrder: items.value
-        .map(item => item.id)
-        .filter(id => persistedIds.has(id)),
-      currentIndex: persistedCurrentItemId
-        ? persistedQueue.findIndex(item => item.id === persistedCurrentItemId)
-        : -1,
-      currentItemId: persistedCurrentItemId,
-      isShuffled: isShuffled.value,
-    };
-  }
-
   /**
    * The single writer. Every mutation lands here, so the epoch, the
    * invariant check and the persisted snapshot can never be forgotten by a
@@ -388,16 +188,35 @@ export const useQueueStore = defineStore("queue", () => {
     state.value = next;
     _mutationEpoch++;
     if (options.persist !== false) {
-      persistedSnapshot.value = buildPersistedQueueSnapshot();
+      persistedSnapshot.value = buildPersistedQueueSnapshot({
+        queue: queue.value,
+        items: items.value,
+        currentItemId: currentItemId.value,
+        isShuffled: isShuffled.value,
+      });
     }
   };
+
+  /**
+   * Replace the whole canonical state at once — a restored snapshot, or a
+   * test seeding a scenario. Goes through the same invariant check and
+   * persistence as every other mutation.
+   */
+  function hydrate(state: QueueState): void {
+    commit(state);
+  }
 
   function syncTrackMetadata(nextTrack: PlayerTrack): void {
     if (isEphemeralTrack(nextTrack)) return;
 
-    // The player shows the queue's copy of its loaded track, so the edit
-    // reaches the now-playing UI through this commit alone.
     commit({ items: patchQueueItem(items.value, nextTrack) });
+
+    // The player shows what it was handed; an edit to the playing track is
+    // handed over again so the now-playing UI picks it up.
+    const current = currentItem.value;
+    if (current && current.track.kind === nextTrack.kind && current.track.id === nextTrack.id) {
+      usePlayerStore().presentTrack(current.track);
+    }
   }
 
   /**
@@ -419,24 +238,11 @@ export const useQueueStore = defineStore("queue", () => {
     });
 
     if (swappedCurrent) {
-      usePlayerStore().replaceLoadedTrack(libraryTrack);
+      usePlayerStore().presentTrack(libraryTrack);
     }
   }
 
   function createQueueItems(tracks: PlayerTrack[], source: QueueSource): QueueItem[] {
-    // Queued tracks from live browsing shadow-pin their rows so the persisted
-    // snapshot (library kind → trackId only) can restore them. Idempotent
-    // upserts, fire-and-forget.
-    for (const track of tracks) {
-      if (track.kind === "library" && track.sourceDto) {
-        ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
-          // A failed shadow-pin means this queued track will drop out of the
-          // persisted queue on restore — surface it.
-          getLogger().warn(`[Queue] Shadow-pin failed for ${track.id}: ${String(error)}`);
-        });
-      }
-    }
-
     const canReuseExistingItems = currentItem.value !== null
       && isSameQueueSource(currentItem.value.source, source);
 
@@ -573,6 +379,7 @@ export const useQueueStore = defineStore("queue", () => {
       return;
     }
 
+    shadowPinRemoteTracks(tracks);
     const nextItems = createQueueItems(tracks, source);
     const shouldShuffle = options?.shuffled ?? isShuffled.value;
     const playbackQueue = buildPlaybackQueue(nextItems, startIndex, shouldShuffle);
@@ -600,56 +407,22 @@ export const useQueueStore = defineStore("queue", () => {
     const epochAtStart = _mutationEpoch;
 
     try {
-      const libraryTrackIds = unique(snapshot.queue.flatMap((item) => {
-        if (item.track.kind !== "library") return [];
-        return [item.track.trackId];
-      }));
-
-      const libraryTracks = libraryTrackIds.length > 0
-        ? await unwrapResult(trackRepository.findByIds(libraryTrackIds))
-        : [];
+      const restored = await rehydratePersistedQueue(snapshot);
       if (_mutationEpoch !== epochAtStart) return;
-      const libraryTracksById = new Map(libraryTracks.map(track => [track.id, mapTrackEntityToPlayerTrack(track)]));
 
-      // In the snapshot's playback order; library rows gone from the DB drop out.
-      const restoredQueue = snapshot.queue.flatMap((item) => {
-        const restored = rehydrateQueueItem(item, libraryTracksById);
-        return restored ? [restored] : [];
-      });
-
-      if (restoredQueue.length === 0) {
+      if (!restored) {
         clear();
         return;
       }
 
-      // Unshuffled, the playback order IS the original order. Shuffled, the
-      // original order is what unshuffle returns to; an entry the stored
-      // order forgot (older snapshots) is kept at the end rather than lost.
-      let restoredItems = restoredQueue;
-      if (snapshot.isShuffled) {
-        const restoredIds = new Set(restoredQueue.map(item => item.id));
-        const originalIds = snapshot.originalQueueOrder.filter(id => restoredIds.has(id));
-        const ordered = new Set(originalIds);
-        restoredItems = [
-          ...getItemsByOrder(restoredQueue, originalIds),
-          ...restoredQueue.filter(item => !ordered.has(item.id)),
-        ];
-      }
+      commit(restored);
 
-      // currentItemId survives library deletions that shorten the restored
-      // queue; the positional index is only a fallback for older v1 snapshots.
-      const restoredCurrentId = snapshot.currentItemId ?? snapshot.queue[snapshot.currentIndex]?.id ?? null;
-
-      commit({
-        items: restoredItems,
-        playbackOrder: snapshot.isShuffled ? restoredQueue.map(item => item.id) : null,
-        currentItemId: restoredCurrentId !== null && restoredQueue.some(item => item.id === restoredCurrentId)
-          ? restoredCurrentId
-          : null,
-      });
-
-      // Nothing to hand to the player: it shows this store's current track
-      // until it loads something, and loads it from here on the first play().
+      // Nothing is loaded yet: the player shows the restored entry and loads
+      // it on the first play(). A player that is already showing something
+      // (an open-with launch that bypassed this queue) keeps it.
+      const player = usePlayerStore();
+      const restoredTrack = currentTrack.value;
+      if (restoredTrack && !player.currentTrack) player.presentTrack(restoredTrack);
     }
     catch (error) {
       getLogger().error(`[Queue] Failed to restore persisted queue: ${String(error)}`);
@@ -679,63 +452,14 @@ export const useQueueStore = defineStore("queue", () => {
     });
   }
 
-  async function appendAutoplayRecommendations(): Promise<boolean> {
-    if (repeatMode.value !== "off") return false;
-    if (currentIndex.value !== queue.value.length - 1) return false;
-
-    const sourceItem = currentItem.value;
-    if (!sourceItem || sourceItem.track.kind !== "library") return false;
-
-    const sourceItemId = sourceItem.id;
-
-    const upcomingLibraryIds = queue.value
-      .slice(currentIndex.value + 1)
-      .flatMap(item => item.track.kind === "library" ? [item.track.id] : []);
-    const additionalExcludeIds = [...new Set(upcomingLibraryIds)];
-
-    let recommendations: Awaited<ReturnType<typeof getRecommendations>>;
-
-    try {
-      recommendations = await getRecommendations(
-        sourceItem.track.id,
-        AUTOPLAY_RECOMMENDATION_LIMIT,
-        additionalExcludeIds,
-      );
-
-      if (recommendations.length < AUTOPLAY_RECOMMENDATION_LIMIT) {
-        const fallback = await getRecommendations(
-          sourceItem.track.id,
-          AUTOPLAY_RECOMMENDATION_LIMIT,
-        );
-        recommendations = fallback;
-      }
-    }
-    catch (error) {
-      getLogger().error(`[Queue] Failed to load autoplay recommendations: ${String(error)}`);
-      return false;
-    }
-
-    if (currentItem.value?.id !== sourceItemId) return false;
-    if (repeatMode.value !== "off") return false;
-    if (currentIndex.value !== queue.value.length - 1) return false;
-
-    const tracks = recommendations.map(({ track }) => mapTrackEntityToPlayerTrack(track));
-    if (tracks.length === 0) return false;
-
-    addMultipleToQueue(tracks, { type: "recommendation" });
-    return true;
-  }
-
-  async function ensureAutoplayRecommendations(): Promise<boolean> {
-    if (!autoplayRecommendationsPromise) {
-      autoplayRecommendationsPromise = appendAutoplayRecommendations()
-        .finally(() => {
-          autoplayRecommendationsPromise = null;
-        });
-    }
-
-    return autoplayRecommendationsPromise;
-  }
+  const autoplay = createAutoplayRecommender({
+    repeatMode: () => repeatMode.value,
+    queue: () => queue.value,
+    currentIndex: () => currentIndex.value,
+    currentItem: () => currentItem.value,
+    append: tracks => addMultipleToQueue(tracks, { type: "recommendation" }),
+  });
+  const ensureAutoplayRecommendations = () => autoplay.ensure();
 
   // Goes right after the current entry in BOTH orders: after it in the
   // playback order the user is looking at, and after it in the original
@@ -762,7 +486,11 @@ export const useQueueStore = defineStore("queue", () => {
     return item;
   }
 
-  async function next(): Promise<void> {
+  /**
+   * The current track ended on its own: repeat-one restarts it, otherwise
+   * the queue moves on exactly like `next()`.
+   */
+  async function advance(): Promise<void> {
     if (queue.value.length === 0) return;
 
     if (repeatMode.value === "one") {
@@ -793,6 +521,16 @@ export const useQueueStore = defineStore("queue", () => {
 
       resetPlaybackSelection();
     }
+  }
+
+  /**
+   * The user asked for the next track. In repeat-one that is a request to
+   * stop looping: the mode falls back to repeat-all and the queue moves on
+   * (wrapping at the end) instead of restarting the same track.
+   */
+  async function next(): Promise<void> {
+    if (repeatMode.value === "one") repeatMode.value = "all";
+    await advance();
   }
 
   async function previous(): Promise<void> {
@@ -941,10 +679,12 @@ export const useQueueStore = defineStore("queue", () => {
 
     setQueue,
     restorePersistedQueue,
+    hydrate,
     addToQueue,
     addMultipleToQueue,
     insertNext,
     next,
+    advance,
     previous,
     ensureAutoplayRecommendations,
     jumpTo,
@@ -963,6 +703,9 @@ export const useQueueStore = defineStore("queue", () => {
 }, {
   persist: {
     key: QUEUE_STORAGE_KEY,
+    // A drag-reorder is a burst of commits, each rebuilding the snapshot;
+    // coalesce the writes.
+    storage: createDebouncedLocalStorage(300),
     pick: ["persistedSnapshot", "repeatMode"],
     afterHydrate: ({ store }) => {
       const queueStore = store as typeof store & {

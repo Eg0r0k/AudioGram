@@ -134,11 +134,11 @@ export const useMediaSession = () => {
     androidBridge.setPlaybackState(
       player.isPlaybackIntended,
       positionOverrideMs ?? Math.max(0, player.currentTime * 1000),
-      Math.max(0, player.duration * 1000),
+      Math.max(0, (player.duration ?? 0) * 1000),
       player.canSeek,
       queue.hasNext,
       queue.hasPrevious,
-      player.repeatMode,
+      queue.repeatMode,
       canLike && track.isLiked,
       canLike,
     );
@@ -203,7 +203,7 @@ export const useMediaSession = () => {
         }
         break;
       case "repeat":
-        player.toggleRepeat();
+        queue.toggleRepeat();
         updateAndroidPlayback();
         break;
       case "like": {
@@ -221,7 +221,7 @@ export const useMediaSession = () => {
       return;
     }
 
-    if (!player.canSeek || player.duration <= 0) {
+    if (!player.canSeek || (player.duration ?? 0) <= 0) {
       try {
         navigator.mediaSession.setPositionState();
       }
@@ -232,7 +232,7 @@ export const useMediaSession = () => {
     }
 
     const now = Date.now();
-    const position = Math.max(0, Math.min(player.currentTime, player.duration));
+    const position = Math.max(0, Math.min(player.currentTime, player.duration ?? 0));
 
     if (!force && !forceNextUpdate.value) {
       const timeSinceLastUpdate = now - lastPositionUpdate;
@@ -247,7 +247,7 @@ export const useMediaSession = () => {
 
     try {
       navigator.mediaSession.setPositionState({
-        duration: player.duration,
+        duration: player.duration ?? 0,
         playbackRate: 1.0,
         position,
       });
@@ -296,7 +296,7 @@ export const useMediaSession = () => {
       setActionHandler("seekforward", (details) => {
         const offset = details.seekOffset || 10;
 
-        player.seekTo(Math.min(player.duration, player.currentTime + offset));
+        player.seekTo(Math.min(player.duration ?? 0, player.currentTime + offset));
 
         forceNextUpdate.value = true;
         updatePositionState(true);
@@ -449,7 +449,7 @@ export const useMediaSession = () => {
   );
 
   watch(
-    () => player.repeatMode,
+    () => queue.repeatMode,
     () => {
       updateAndroidPlayback();
     },

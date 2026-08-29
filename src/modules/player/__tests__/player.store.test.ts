@@ -168,11 +168,10 @@ describe("player.store", () => {
 
       expect(store.volume).toBe(1);
       expect(store.isMuted).toBe(false);
-      expect(store.repeatMode).toBe("off");
       expect(store.status).toBe("idle");
       expect(store.currentTrack).toBe(null);
       expect(store.currentTime).toBe(0);
-      expect(store.duration).toBe(0);
+      expect(store.duration).toBeNull();
       expect(store.graphRevision).toBe(0);
       expect(store.sleepTimerEndsAt).toBe(null);
       expect(store.sleepTimerRemainingMs).toBe(0);
@@ -192,11 +191,11 @@ describe("player.store", () => {
     it("does not appear when loading finishes before the delay", async () => {
       const store = usePlayerStore();
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       await nextTick();
       await vi.advanceTimersByTimeAsync(100);
 
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       await nextTick();
       await vi.advanceTimersByTimeAsync(1000);
 
@@ -206,7 +205,7 @@ describe("player.store", () => {
     it("appears when loading persists past the delay", async () => {
       const store = usePlayerStore();
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       await nextTick();
       expect(store.showLoadingIndicator).toBe(false);
 
@@ -217,12 +216,12 @@ describe("player.store", () => {
     it("stays visible for the minimum time after loading ends", async () => {
       const store = usePlayerStore();
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       await nextTick();
       await vi.advanceTimersByTimeAsync(300);
       expect(store.showLoadingIndicator).toBe(true);
 
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       await nextTick();
       await vi.advanceTimersByTimeAsync(100);
       expect(store.showLoadingIndicator).toBe(true);
@@ -234,13 +233,13 @@ describe("player.store", () => {
     it("keeps the indicator up when loading resumes before the hide delay", async () => {
       const store = usePlayerStore();
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       await nextTick();
       await vi.advanceTimersByTimeAsync(300);
 
-      store.status = "buffering";
+      store.playbackState = { kind: "buffering" };
       await nextTick();
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       await nextTick();
       await vi.advanceTimersByTimeAsync(1000);
 
@@ -252,35 +251,35 @@ describe("player.store", () => {
     it("should compute isPlaying correctly for different states", () => {
       const store = usePlayerStore();
 
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       expect(store.isPlaying).toBe(true);
 
-      store.status = "buffering";
+      store.playbackState = { kind: "buffering" };
       expect(store.isPlaying).toBe(true);
 
-      store.status = "idle";
+      store.playbackState = { kind: "idle" };
       expect(store.isPlaying).toBe(false);
 
-      store.status = "paused";
+      store.playbackState = { kind: "paused" };
       expect(store.isPlaying).toBe(false);
 
-      store.status = "error";
+      store.playbackState = { kind: "error" };
       expect(store.isPlaying).toBe(false);
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       expect(store.isPlaying).toBe(false);
     });
 
     it("should compute isLoading correctly", () => {
       const store = usePlayerStore();
 
-      store.status = "loading";
+      store.playbackState = { kind: "loading", requestId: 0 };
       expect(store.isLoading).toBe(true);
 
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       expect(store.isLoading).toBe(false);
 
-      store.status = "idle";
+      store.playbackState = { kind: "idle" };
       expect(store.isLoading).toBe(false);
     });
 
@@ -339,7 +338,7 @@ describe("player.store", () => {
     it("should not allow seek for live streams", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack());
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       store.duration = 0;
       store.currentTrack = {
         kind: "ephemeral", id: "stream-1", title: "Live Stream",
@@ -500,58 +499,29 @@ describe("player.store", () => {
     });
   });
 
-  describe("repeat mode", () => {
-    it("should cycle through repeat modes", () => {
-      const store = usePlayerStore();
-
-      expect(store.repeatMode).toBe("off");
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("all");
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("one");
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("off");
-    });
-
-    it("should handle all repeat modes explicitly", () => {
-      const store = usePlayerStore();
-
-      store.repeatMode = "off";
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("all");
-
-      store.repeatMode = "all";
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("one");
-
-      store.repeatMode = "one";
-      store.toggleRepeat();
-      expect(store.repeatMode).toBe("off");
-    });
-  });
 
   describe("toggle play/pause logic", () => {
     it("should not be playing when status is idle", () => {
       const store = usePlayerStore();
-      store.status = "idle";
+      store.playbackState = { kind: "idle" };
       expect(store.isPlaying).toBe(false);
     });
 
     it("should not be playing when status is paused", () => {
       const store = usePlayerStore();
-      store.status = "paused";
+      store.playbackState = { kind: "paused" };
       expect(store.isPlaying).toBe(false);
     });
 
     it("should be playing when status is playing", () => {
       const store = usePlayerStore();
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       expect(store.isPlaying).toBe(true);
     });
 
     it("should be playing when status is buffering", () => {
       const store = usePlayerStore();
-      store.status = "buffering";
+      store.playbackState = { kind: "buffering" };
       expect(store.isPlaying).toBe(true);
     });
   });
@@ -585,7 +555,7 @@ describe("player.store", () => {
       await store.playPlayerTrack(createLibraryTrack());
 
       expect(store.currentTime).toBe(0);
-      expect(store.duration).toBe(0);
+      expect(store.duration).toBeNull();
     });
 
     it("should create player and load track URL", async () => {
@@ -625,7 +595,7 @@ describe("player.store", () => {
       await store.playPlayerTrack(trackB);
 
       expect(store.currentTime).toBe(0);
-      expect(store.duration).toBe(0);
+      expect(store.duration).toBeNull();
       expect(store.currentTrack!.title).toBe("Track B");
     });
 
@@ -836,7 +806,7 @@ describe("player.store", () => {
     it("should pause playback when sleep timer expires", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack());
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
 
       store.setSleepTimer(5 * 1000);
       await nextTick();
@@ -931,7 +901,7 @@ describe("player.store", () => {
     async function startedStore() {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack());
-      store.status = "playing";
+      store.playbackState = { kind: "playing" };
       return store;
     }
 
@@ -1011,7 +981,7 @@ describe("player.store", () => {
 
     it("play with fade enabled ramps in instead of hard-starting", async () => {
       const store = await startedStore();
-      store.status = "paused";
+      store.playbackState = { kind: "paused" };
       mockAudioSettings.isFadeEnabled = true;
       mockAudioSettings.fadeInDuration = 200;
       mockPlayerMethods.play.mockClear();
@@ -1024,7 +994,7 @@ describe("player.store", () => {
 
     it("play without fade restores the fade multiplier before starting", async () => {
       const store = await startedStore();
-      store.status = "paused";
+      store.playbackState = { kind: "paused" };
       mockPlayerMethods.play.mockClear();
       mockPlayerMethods.fadeTo.mockClear();
 
@@ -2023,25 +1993,23 @@ describe("player.store", () => {
   });
 
   describe("current track ownership", () => {
-    // The queue owns the current track; the player reports what it loaded,
-    // taking the queue's copy of the same track for fresh metadata.
-    it("shows the queue's current track before anything is loaded", async () => {
-      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+    // The queue owns the current track and hands it to the player: loaded
+    // through playPlayerTrack, or merely presented (a restored session, a
+    // metadata edit). The player never reads the queue.
+    it("presents a track without loading it", () => {
       const store = usePlayerStore();
-      const queue = useQueueStore();
-      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "t9" as never }), source: { type: "manual" }, addedAt: 1 }];
-      queue.currentIndex = 0;
+      mockPlayerMethods.load.mockClear();
+
+      store.presentTrack(createLibraryTrack({ id: "t9" as never }));
 
       expect(store.currentTrack?.id).toBe("t9");
       expect(store.playbackState.kind).toBe("idle");
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
     });
 
-    it("cold-starts from the queue's current track after a reload", async () => {
-      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
+    it("cold-starts from the presented track after a reload", async () => {
       const store = usePlayerStore();
-      const queue = useQueueStore();
-      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "t9" as never }), source: { type: "manual" }, addedAt: 1 }];
-      queue.currentIndex = 0;
+      store.presentTrack(createLibraryTrack({ id: "t9" as never }));
       store.currentTime = 30;
 
       await store.play();
@@ -2050,37 +2018,12 @@ describe("player.store", () => {
       expect(mockPlayerMethods.seek).toHaveBeenCalledWith(30);
     });
 
-    it("reports the queue's copy of the loaded track, so metadata edits need no write here", async () => {
-      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
-      const store = usePlayerStore();
-      const queue = useQueueStore();
-      const track = createLibraryTrack();
-      await store.playPlayerTrack(track);
-      queue.queue = [{ id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 }];
-      queue.currentIndex = 0;
-
-      queue.syncTrackMetadata({ ...track, isLiked: true });
-
-      expect(store.currentTrack).toMatchObject({ id: "track-1", isLiked: true });
-    });
-
-    it("keeps reporting the loaded track when the queue moved on to another one", async () => {
-      const { useQueueStore } = await import("@/modules/queue/store/queue.store");
-      const store = usePlayerStore();
-      const queue = useQueueStore();
-      await store.playPlayerTrack(createLibraryTrack({ id: "loaded" as never }));
-      queue.queue = [{ id: "q1" as never, track: createLibraryTrack({ id: "other" as never }), source: { type: "manual" }, addedAt: 1 }];
-      queue.currentIndex = 0;
-
-      expect(store.currentTrack?.id).toBe("loaded");
-    });
-
     it("lets the loaded media be re-labelled without restarting playback", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack({ id: "eph" as never, title: "Dropped file" }));
       mockPlayerMethods.load.mockClear();
 
-      store.replaceLoadedTrack(createLibraryTrack({ id: "lib" as never, title: "Imported" }));
+      store.presentTrack(createLibraryTrack({ id: "lib" as never, title: "Imported" }));
 
       expect(store.currentTrack?.title).toBe("Imported");
       expect(mockPlayerMethods.load).not.toHaveBeenCalled();

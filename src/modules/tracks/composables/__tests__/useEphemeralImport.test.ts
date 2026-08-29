@@ -84,10 +84,11 @@ describe("useEphemeralImport", () => {
     const track = ephemeral("C:/Music/x.flac");
     const queueStore = useQueueStore();
     const playerStore = usePlayerStore();
-    queueStore.queue = [
-      { id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 },
-    ];
-    queueStore.currentIndex = 0;
+    queueStore.hydrate({
+      items: [{ id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 }],
+      playbackOrder: null,
+      currentItemId: "q1" as never,
+    });
     playerStore.currentTrack = track;
 
     importFromPathsMock.mockResolvedValue(batchResult("lib-1"));
@@ -104,9 +105,11 @@ describe("useEphemeralImport", () => {
   it("leaves the queue alone when the import reports no success", async () => {
     const track = ephemeral("C:/Music/x.flac");
     const queueStore = useQueueStore();
-    queueStore.queue = [
-      { id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 },
-    ];
+    queueStore.hydrate({
+      items: [{ id: "q1" as never, track, source: { type: "manual" }, addedAt: 1 }],
+      playbackOrder: null,
+      currentItemId: null,
+    });
 
     importFromPathsMock.mockResolvedValue({ successful: [], failed: [], skipped: 1, total: 1 });
 

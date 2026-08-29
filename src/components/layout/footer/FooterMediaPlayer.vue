@@ -28,7 +28,7 @@ async function handleAddMark(percent: number) {
   const track = playerStore.currentTrack;
   if (!track || !isLibraryTrack(track)) return;
 
-  const time = (percent / 100) * playerStore.duration;
+  const time = (percent / 100) * (playerStore.duration ?? 0);
   const existing = chapters.value ?? [];
   const updated = [...existing, { time, title: "" }].sort((a, b) => a.time - b.time);
   await saveChapters.mutateAsync({ trackId: track.id, chapters: updated });
@@ -51,7 +51,7 @@ async function handleAddMark(percent: number) {
             :keyboard-step="5"
             :min="0"
             :max="100"
-            :duration="playerStore.duration"
+            :duration="playerStore.duration ?? 0"
             :chapters="chapters"
             :use-transform="true"
             :with-transition="false"

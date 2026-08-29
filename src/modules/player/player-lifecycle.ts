@@ -48,7 +48,7 @@ export function initPlayerLifecycle(): void {
       player.sleepAfterCurrentTrack = false;
     }
 
-    useQueueStore().next();
+    useQueueStore().advance();
   });
 
   // The queue decides whether to skip or stop; what the user sees is decided

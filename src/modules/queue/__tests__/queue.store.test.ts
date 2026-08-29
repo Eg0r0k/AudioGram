@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApp, nextTick } from "vue";
+import type { QueueItem } from "../types";
 import { createPinia, setActivePinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { ok } from "neverthrow";
@@ -79,6 +80,34 @@ function createRecommendation(track: TrackEntity) {
   };
 }
 
+// Seeding helpers over hydrate(): the same semantics the store's derived
+// fields used to have as writable seams.
+type QueueStoreInstance = ReturnType<typeof useQueueStore>;
+const seedQueueItems = (store: QueueStoreInstance, list: QueueItem[]) => {
+  const currentId = store.currentItem?.id ?? null;
+  const keepsCurrent = currentId !== null && list.some(item => item.id === currentId);
+  store.hydrate({
+    items: list,
+    playbackOrder: store.isShuffled ? list.map(item => item.id) : null,
+    currentItemId: keepsCurrent ? currentId : null,
+  });
+};
+const seedCurrentIndex = (store: QueueStoreInstance, index: number) => {
+  store.hydrate({
+    items: store.originalQueue,
+    playbackOrder: store.isShuffled ? store.queue.map(item => item.id) : null,
+    currentItemId: store.queue[index]?.id ?? null,
+  });
+};
+const seedShuffled = (store: QueueStoreInstance, shuffled: boolean) => {
+  if (shuffled === store.isShuffled) return;
+  store.hydrate({
+    items: store.originalQueue,
+    playbackOrder: shuffled ? store.queue.map(item => item.id) : null,
+    currentItemId: store.currentItem?.id ?? null,
+  });
+};
+
 describe("queue.store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -103,7 +132,7 @@ describe("queue.store", () => {
 
       expect(store.isEmpty).toBe(true);
 
-      store.queue = [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }];
+      seedQueueItems(store, [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }]);
       expect(store.isEmpty).toBe(false);
     });
 
@@ -112,10 +141,10 @@ describe("queue.store", () => {
 
       expect(store.size).toBe(0);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
+      ]);
       expect(store.size).toBe(2);
     });
   });
@@ -138,7 +167,7 @@ describe("queue.store", () => {
         { id: "b" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: 2 },
         { id: "c" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 3 },
       ];
-      store.queue = items as any;
+      seedQueueItems(store, items as any);
       store.originalQueueOrder = ["a", "b", "c"] as any;
 
       store.swapEphemeralForLibrary("eph-1", library);
@@ -154,10 +183,10 @@ describe("queue.store", () => {
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack");
       const ephemeral = createEphemeral("eph-1", "C:/x.flac");
       const library = createTrack("lib-1", "Imported");
-      store.queue = [
+      seedQueueItems(store, [
         { id: "a" as any, track: ephemeral, source: { type: "manual" as const }, addedAt: 1 },
-      ] as any;
-      store.currentIndex = 0;
+      ] as any);
+      seedCurrentIndex(store, 0);
       playerStore.currentTrack = ephemeral;
 
       store.swapEphemeralForLibrary("eph-1", library);
@@ -169,11 +198,11 @@ describe("queue.store", () => {
     it("persists the swapped entry as a library track", () => {
       const store = useQueueStore();
       const library = createTrack("lib-1", "Imported");
-      store.queue = [
+      seedQueueItems(store, [
         { id: "a" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 1 },
-      ] as any;
+      ] as any);
       store.originalQueueOrder = ["a"] as any;
-      store.currentIndex = 0;
+      seedCurrentIndex(store, 0);
 
       store.swapEphemeralForLibrary("eph-1", library);
 
@@ -187,11 +216,11 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
       const current = createTrack("2");
-      store.queue = [
+      seedQueueItems(store, [
         { id: "a" as any, track: createEphemeral("eph-1", "C:/x.flac"), source: { type: "manual" as const }, addedAt: 1 },
         { id: "b" as any, track: current, source: { type: "manual" as const }, addedAt: 2 },
-      ] as any;
-      store.currentIndex = 1;
+      ] as any);
+      seedCurrentIndex(store, 1);
       playerStore.currentTrack = current;
 
       store.swapEphemeralForLibrary("eph-1", createTrack("lib-1"));
@@ -204,18 +233,18 @@ describe("queue.store", () => {
     it("should compute currentItem correctly", () => {
       const store = useQueueStore();
       const track = createTrack("1");
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       expect(store.currentItem?.track).toStrictEqual(track);
     });
 
     it("should return null for currentItem when index is -1", () => {
       const store = useQueueStore();
-      store.queue = [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }];
-      store.currentIndex = -1;
+      seedQueueItems(store, [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }]);
+      seedCurrentIndex(store, -1);
 
       expect(store.currentItem).toBe(null);
     });
@@ -223,8 +252,8 @@ describe("queue.store", () => {
     it("should compute currentTrack correctly", () => {
       const store = useQueueStore();
       const track = createTrack("1");
-      store.queue = [{ id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() }];
-      store.currentIndex = 0;
+      seedQueueItems(store, [{ id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() }]);
+      seedCurrentIndex(store, 0);
 
       expect(store.currentTrack).toStrictEqual(track);
     });
@@ -233,19 +262,19 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       expect(store.hasNext).toBe(true);
 
-      store.currentIndex = 1;
+      seedCurrentIndex(store, 1);
       expect(store.hasNext).toBe(false);
 
-      playerStore.repeatMode = "all";
+      store.repeatMode = "all";
       expect(store.hasNext).toBe(true);
     });
 
@@ -253,31 +282,31 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "off";
 
       expect(store.hasPrevious).toBe(true);
 
-      store.currentIndex = 0;
+      seedCurrentIndex(store, 0);
       expect(store.hasPrevious).toBe(false);
 
-      playerStore.repeatMode = "all";
+      store.repeatMode = "all";
       expect(store.hasPrevious).toBe(true);
     });
 
     it("should compute upcomingItems correctly", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       expect(store.upcomingItems).toHaveLength(2);
       expect(store.upcomingItems[0].track.id).toBe("2");
@@ -287,12 +316,12 @@ describe("queue.store", () => {
     it("should compute previousItems correctly", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 2;
+      ]);
+      seedCurrentIndex(store, 2);
 
       expect(store.previousItems).toHaveLength(2);
       expect(store.previousItems[0].track.id).toBe("1");
@@ -316,8 +345,8 @@ describe("queue.store", () => {
 
     it("should clear queue for empty tracks array", async () => {
       const store = useQueueStore();
-      store.queue = [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }];
-      store.currentIndex = 0;
+      seedQueueItems(store, [{ id: "1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }]);
+      seedCurrentIndex(store, 0);
 
       await store.setQueue([]);
 
@@ -359,7 +388,7 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.isShuffled = true;
+      seedShuffled(store, true);
 
       const tracks = [createTrack("1"), createTrack("2"), createTrack("3")];
       await store.setQueue(tracks, 2, { type: "playlist", playlistId: "playlist-1" as any });
@@ -418,11 +447,11 @@ describe("queue.store", () => {
       const track2 = createTrack("2");
       const trackToInsert = createTrack("insert");
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
         { id: "item-2" as any, track: track2, source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.insertNext(trackToInsert);
 
@@ -448,8 +477,8 @@ describe("queue.store", () => {
       const track = createTrack("1");
       const trackToInsert = createTrack("insert");
 
-      store.queue = [{ id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() }];
-      store.currentIndex = -1;
+      seedQueueItems(store, [{ id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() }]);
+      seedCurrentIndex(store, -1);
 
       store.insertNext(trackToInsert);
 
@@ -460,11 +489,11 @@ describe("queue.store", () => {
   describe("removeFromQueue", () => {
     it("should remove track by id", () => {
       const store = useQueueStore();
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeFromQueue("item-2" as any);
 
@@ -474,12 +503,12 @@ describe("queue.store", () => {
 
     it("should update currentIndex when removing item before current", () => {
       const store = useQueueStore();
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 2;
+      ]);
+      seedCurrentIndex(store, 2);
 
       store.removeFromQueue("item-1" as any);
 
@@ -490,12 +519,12 @@ describe("queue.store", () => {
   describe("removeMultiple", () => {
     it("should remove multiple tracks by ids", () => {
       const store = useQueueStore();
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeMultiple(["item-1" as any, "item-3" as any]);
 
@@ -507,11 +536,11 @@ describe("queue.store", () => {
   describe("moveTrack", () => {
     it("should move track from one position to another", () => {
       const store = useQueueStore();
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
+      ]);
 
       store.moveTrack(0, 2);
 
@@ -521,11 +550,11 @@ describe("queue.store", () => {
 
     it("should update currentIndex when moving current track", () => {
       const store = useQueueStore();
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.moveTrack(0, 1);
 
@@ -539,12 +568,12 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.shuffle();
 
@@ -555,7 +584,7 @@ describe("queue.store", () => {
 
     it("should not shuffle if queue has 1 or fewer items", () => {
       const store = useQueueStore();
-      store.queue = [{ id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }];
+      seedQueueItems(store, [{ id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() }]);
 
       store.shuffle();
 
@@ -706,8 +735,8 @@ describe("queue.store", () => {
       expect(trackRepository.findByIds).toHaveBeenCalledWith(["1", "2"]);
       expect(store.queue.map(item => item.track.id)).toEqual(["1", "2"]);
       expect(store.currentIndex).toBe(1);
-      // The player derives its current track from the queue: restore neither
-      // assigns nor clears anything on it.
+      // Restore hands the player the entry to show without loading it and
+      // never clears anything on it.
       expect(playerStore.currentTrack?.id).toBe("2");
       expect(clearSpy).not.toHaveBeenCalled();
     });
@@ -735,10 +764,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const track1 = createTrack("1");
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
       playerStore.currentTrack = track1;
 
       store.syncTrackMetadata({ ...track1, title: "Renamed" } as Track);
@@ -753,11 +782,11 @@ describe("queue.store", () => {
       const track1 = createTrack("1");
       const track2 = createTrack("2");
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
         { id: "item-2" as any, track: track2, source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
       playerStore.currentTrack = track1;
 
       store.syncTrackMetadata({ ...track2, title: "Renamed" } as Track);
@@ -773,11 +802,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       await store.jumpTo(1);
 
@@ -792,11 +821,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       await store.jumpToId("item-2" as any);
 
@@ -808,10 +837,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       await store.jumpToId("non-existent-id" as any);
 
@@ -826,12 +855,12 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -839,19 +868,58 @@ describe("queue.store", () => {
       expect(playSpy).toHaveBeenCalledWith(createTrack("2"));
     });
 
-    it("should restart current track in repeat-one mode", async () => {
+    it("should restart current track in repeat-one mode when it ends", async () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "one";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "one";
+
+      await store.advance();
+
+      expect(store.currentIndex).toBe(0);
+      expect(store.repeatMode).toBe("one");
+      expect(playSpy).toHaveBeenCalledWith(createTrack("1"));
+    });
+
+    it("next() in repeat-one mode falls back to repeat-all and plays the next track", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "one";
 
       await store.next();
 
+      expect(store.repeatMode).toBe("all");
+      expect(store.currentIndex).toBe(1);
+      expect(playSpy).toHaveBeenCalledWith(createTrack("2"));
+    });
+
+    it("next() in repeat-one mode on the last track wraps like repeat-all", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "one";
+
+      await store.next();
+
+      expect(store.repeatMode).toBe("all");
       expect(store.currentIndex).toBe(0);
       expect(playSpy).toHaveBeenCalledWith(createTrack("1"));
     });
@@ -861,12 +929,12 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
-      playerStore.repeatMode = "all";
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "all";
 
       await store.next();
 
@@ -879,12 +947,12 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -905,11 +973,11 @@ describe("queue.store", () => {
       ];
       vi.mocked(getRecommendations).mockResolvedValue(recommendations.map(createRecommendation));
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -924,8 +992,8 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [];
-      store.currentIndex = -1;
+      seedQueueItems(store, []);
+      seedCurrentIndex(store, -1);
 
       await store.next();
 
@@ -939,11 +1007,11 @@ describe("queue.store", () => {
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
       const clearCurrentTrackSpy = vi.spyOn(playerStore, "clearCurrentTrack").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -959,11 +1027,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
+      ]);
+      seedCurrentIndex(store, 1);
       playerStore.currentTime = 1;
 
       await store.previous();
@@ -977,10 +1045,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const seekSpy = vi.spyOn(playerStore, "seekTo").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
       playerStore.currentTime = 5;
       // A seekable track: the restart-at-zero branch requires canSeek.
       playerStore.player = {} as any;
@@ -996,13 +1064,13 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
       playerStore.currentTime = 1;
-      playerStore.repeatMode = "all";
+      store.repeatMode = "all";
 
       await store.previous();
 
@@ -1015,12 +1083,12 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const seekSpy = vi.spyOn(playerStore, "seekTo").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
       playerStore.currentTime = 1;
-      playerStore.repeatMode = "off";
+      store.repeatMode = "off";
 
       await store.previous();
 
@@ -1032,7 +1100,7 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [];
+      seedQueueItems(store, []);
 
       await store.previous();
 
@@ -1044,12 +1112,12 @@ describe("queue.store", () => {
     it("should shuffle when not shuffled", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      store.isShuffled = false;
+      ]);
+      seedCurrentIndex(store, 0);
+      seedShuffled(store, false);
 
       store.toggleShuffle();
 
@@ -1059,11 +1127,11 @@ describe("queue.store", () => {
     it("should unshuffle when already shuffled", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.isShuffled = true;
+      ]);
+      seedShuffled(store, true);
 
       store.toggleShuffle();
 
@@ -1145,10 +1213,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeFromQueue("item-1" as any);
 
@@ -1159,11 +1227,11 @@ describe("queue.store", () => {
     it("should update currentIndex when removing after current", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeFromQueue("item-2" as any);
 
@@ -1175,11 +1243,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeFromQueue("item-1" as any);
 
@@ -1191,10 +1259,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeFromQueue("non-existent" as any);
 
@@ -1209,10 +1277,10 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.removeMultiple(["item-1" as any]);
 
@@ -1223,12 +1291,12 @@ describe("queue.store", () => {
     it("should recalculate index after removal", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
+      ]);
+      seedCurrentIndex(store, 1);
 
       store.removeMultiple(["item-1" as any]);
 
@@ -1240,11 +1308,11 @@ describe("queue.store", () => {
     it("should do nothing when fromIndex equals toIndex", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.moveTrack(0, 0);
 
@@ -1254,12 +1322,12 @@ describe("queue.store", () => {
     it("should decrement index when moving item before current", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 2;
+      ]);
+      seedCurrentIndex(store, 2);
 
       store.moveTrack(0, 2);
 
@@ -1269,12 +1337,12 @@ describe("queue.store", () => {
     it("should increment index when moving item after current", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.moveTrack(2, 0);
 
@@ -1284,10 +1352,10 @@ describe("queue.store", () => {
     it("should do nothing for invalid indices", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
+      ]);
 
       store.moveTrack(-1, 0);
       expect(store.queue[0].track.id).toBe("1");
@@ -1301,11 +1369,11 @@ describe("queue.store", () => {
     it("should save original queue on first shuffle", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       store.shuffle();
 
@@ -1317,10 +1385,10 @@ describe("queue.store", () => {
     it("should do nothing when not shuffled", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.isShuffled = false;
+      ]);
+      seedShuffled(store, false);
 
       store.unshuffle();
 
@@ -1330,10 +1398,10 @@ describe("queue.store", () => {
     it("should do nothing when original queue is empty", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.isShuffled = true;
+      ]);
+      seedShuffled(store, true);
 
       store.unshuffle();
 
@@ -1346,10 +1414,10 @@ describe("queue.store", () => {
     it("should return null when currentIndex out of bounds", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 5;
+      ]);
+      seedCurrentIndex(store, 5);
 
       expect(store.currentItem).toBe(null);
       expect(store.currentTrack).toBe(null);
@@ -1358,11 +1426,11 @@ describe("queue.store", () => {
     it("should return all items when currentIndex is -1", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = -1;
+      ]);
+      seedCurrentIndex(store, -1);
 
       expect(store.upcomingItems).toHaveLength(2);
       expect(store.previousItems).toHaveLength(0);
@@ -1371,11 +1439,11 @@ describe("queue.store", () => {
     it("should return empty array for previousItems when at start", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       expect(store.previousItems).toHaveLength(0);
       expect(store.upcomingItems).toHaveLength(1);
@@ -1385,11 +1453,11 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "all";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "all";
 
       expect(store.hasNext).toBe(true);
     });
@@ -1398,11 +1466,11 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "all";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "all";
 
       expect(store.hasPrevious).toBe(true);
     });
@@ -1411,8 +1479,8 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [];
-      playerStore.repeatMode = "all";
+      seedQueueItems(store, []);
+      store.repeatMode = "all";
 
       expect(store.hasNext).toBe(false);
     });
@@ -1421,8 +1489,8 @@ describe("queue.store", () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();
 
-      store.queue = [];
-      playerStore.repeatMode = "all";
+      seedQueueItems(store, []);
+      store.repeatMode = "all";
 
       expect(store.hasPrevious).toBe(false);
     });
@@ -1432,12 +1500,12 @@ describe("queue.store", () => {
     it("should recalculate currentIndex when current item stays", () => {
       const store = useQueueStore();
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 1;
+      ]);
+      seedCurrentIndex(store, 1);
 
       store.removeMultiple(["item-3"] as any);
 
@@ -1450,11 +1518,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      store.queue = [];
+      ]);
+      seedCurrentIndex(store, 0);
+      seedQueueItems(store, []);
 
       store.removeMultiple(["item-1"] as any);
 
@@ -1464,14 +1532,13 @@ describe("queue.store", () => {
 
   describe("queue audit fixes", () => {
     const seedQueue = (store: ReturnType<typeof useQueueStore>, ids: string[], current = -1) => {
-      store.queue = ids.map(id => ({
+      seedQueueItems(store, ids.map(id => ({
         id: `item-${id}` as any,
         track: createTrack(id),
         source: { type: "manual" as const },
         addedAt: Date.now(),
-      }));
-      store.originalQueueOrder = store.queue.map(item => item.id);
-      store.currentIndex = current;
+      })));
+      seedCurrentIndex(store, current);
     };
 
     describe("restore vs early user actions", () => {
@@ -1514,7 +1581,7 @@ describe("queue.store", () => {
 
         // Playback started outside the queue (cold play of the persisted track).
         playerStore.currentTrack = createTrack("9");
-        playerStore.status = "playing";
+        playerStore.playbackState = { kind: "playing" };
 
         store.persistedSnapshot = {
           version: 1,
@@ -1628,7 +1695,7 @@ describe("queue.store", () => {
         const store = useQueueStore();
         store.addToQueue(createTrack("1"));
         store.addToQueue(createTrack("2"));
-        store.currentIndex = -1;
+        seedCurrentIndex(store, -1);
 
         store.insertNext(createTrack("9"));
 
@@ -1662,9 +1729,9 @@ describe("queue.store", () => {
         const playerStore = usePlayerStore();
         const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
         seedQueue(store, ["1"], 0);
-        playerStore.repeatMode = "one";
+        store.repeatMode = "one";
 
-        await store.next();
+        await store.advance();
 
         expect(playSpy).toHaveBeenCalledTimes(1);
         expect(store.currentIndex).toBe(0);
@@ -1676,9 +1743,9 @@ describe("queue.store", () => {
         const playSpy = vi.spyOn(playerStore, "playPlayerTrack")
           .mockRejectedValue(new Error("dead"));
         seedQueue(store, ["1"], 0);
-        playerStore.repeatMode = "one";
+        store.repeatMode = "one";
 
-        await store.next();
+        await store.advance();
 
         expect(playSpy).toHaveBeenCalledTimes(1);
         expect(store.currentIndex).toBe(-1);
@@ -1996,15 +2063,13 @@ describe("queue.store", () => {
   });
 
   describe("repeatMode", () => {
-    it("cycles off → all → one → off and is readable through the player store", () => {
+    it("cycles off → all → one → off", () => {
       const store = useQueueStore();
-      const playerStore = usePlayerStore();
 
       expect(store.repeatMode).toBe("off");
       store.toggleRepeat();
       expect(store.repeatMode).toBe("all");
-      expect(playerStore.repeatMode).toBe("all");
-      playerStore.toggleRepeat();
+      store.toggleRepeat();
       expect(store.repeatMode).toBe("one");
       store.toggleRepeat();
       expect(store.repeatMode).toBe("off");
@@ -2024,6 +2089,8 @@ describe("queue.store", () => {
 
       store.toggleRepeat();
       await nextTick();
+      // Writes are debounced; hiding the page flushes them.
+      window.dispatchEvent(new Event("pagehide"));
 
       expect(JSON.parse(localStorage.getItem("audiogram-queue-v1")!).repeatMode).toBe("all");
       expect(JSON.parse(localStorage.getItem("lyra-player") ?? "{}").repeatMode).toBeUndefined();
@@ -2227,9 +2294,9 @@ describe("queue.store", () => {
     it("should be a no-op for ephemeral tracks", () => {
       const store = useQueueStore();
       const track = { kind: "ephemeral", id: "eph-1", title: "Eph", source: { type: "url", url: "https://example.com/a.mp3" } } as any;
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track, source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
+      ]);
 
       store.syncTrackMetadata({ ...track, title: "Updated" });
 
@@ -2291,13 +2358,13 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = -1;
+      ]);
+      seedCurrentIndex(store, -1);
       playerStore.currentTime = 1;
-      playerStore.repeatMode = "all";
+      store.repeatMode = "all";
 
       await store.previous();
 
@@ -2314,13 +2381,13 @@ describe("queue.store", () => {
         .mockRejectedValueOnce(new Error("fail"))
         .mockResolvedValueOnce(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -2336,12 +2403,12 @@ describe("queue.store", () => {
       vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(new Error("fail"));
       const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
-      playerStore.repeatMode = "off";
+      ]);
+      seedCurrentIndex(store, 0);
+      store.repeatMode = "off";
 
       await store.next();
 
@@ -2356,11 +2423,11 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       vi.spyOn(playerStore, "playPlayerTrack").mockRejectedValue(new Error("fail"));
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
-      ];
-      store.currentIndex = 0;
+      ]);
+      seedCurrentIndex(store, 0);
 
       expect(() => store.removeFromQueue("item-1" as any)).not.toThrow();
     });
@@ -2372,9 +2439,9 @@ describe("queue.store", () => {
       const playerStore = usePlayerStore();
       const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
 
-      store.queue = [
+      seedQueueItems(store, [
         { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
-      ];
+      ]);
 
       await store.jumpTo(-1);
       expect(playSpy).not.toHaveBeenCalled();

@@ -64,11 +64,11 @@
           class="control-extra rounded-full"
           size="icon-sm"
           variant="ghost"
-          :class="{ 'text-primary': playerStore.repeatMode !== 'off' }"
-          @click="playerStore.toggleRepeat()"
+          :class="{ 'text-primary': queueStore.repeatMode !== 'off' }"
+          @click="queueStore.toggleRepeat()"
         >
           <IconRepeatOnce
-            v-if="playerStore.repeatMode === 'one'"
+            v-if="queueStore.repeatMode === 'one'"
             class="size-4.5"
           />
           <IconRepeat

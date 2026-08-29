@@ -5,7 +5,6 @@ import { useAudioSettingsStore } from "@/modules/settings/store/audio";
 import {
   type PlayerTrack,
   isLibraryTrack,
-  type RepeatMode,
 } from "../types";
 import { statsService } from "@/services/stats.service";
 import { useEventBus } from "@vueuse/core";
@@ -16,7 +15,7 @@ import { createFadeController } from "../lib/fade-controller";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { createDebouncedLocalStorage } from "@/lib/storage/debounced-storage";
 import {
   type PlaybackSource,
   PlaybackFailure,
@@ -47,40 +46,21 @@ export const usePlayerStore = defineStore("player", () => {
   const trackEndedBus = useEventBus(trackEndedEvent);
 
   const currentTime = ref(0);
-  const duration = ref(0);
+  // null until the loaded media reports its length — a track switch, a
+  // restored session before its first play(). Readers that need a number
+  // for arithmetic coalesce it themselves; nobody has to guess whether a
+  // zero means "unknown".
+  const duration = ref<number | null>(null);
   const volume = ref(1);
   const isMuted = ref(false);
   const playbackRate = ref(1);
-  // What happens after a track ends is the queue's decision, so repeatMode
-  // lives (and persists) in the queue store. This delegates for consumers
-  // that still read it here; resolved lazily — the two stores import each
-  // other, and neither may touch the other while its setup runs.
-  const repeatMode = computed<RepeatMode>({
-    get: () => useQueueStore().repeatMode,
-    set: (mode) => {
-      useQueueStore().repeatMode = mode;
-    },
-  });
-  // What the engine actually holds. Not persisted: the queue owns the
-  // current track across sessions (its snapshot carries currentItemId), and
-  // a restored session loads from the queue on its first play().
-  const loadedTrack = ref<PlayerTrack | null>(null);
-  // The track the UI shows. While the queue's current entry IS the loaded
-  // track, the queue's copy wins — it carries metadata edits (like, lyrics)
-  // without anyone writing into this store. With nothing loaded it is the
-  // queue's current track (a restored session before its first play).
-  // Writable only as a test seam.
-  const currentTrack = computed<PlayerTrack | null>({
-    get: () => {
-      const loaded = loadedTrack.value;
-      const queued = useQueueStore().currentTrack;
-      if (!loaded) return queued;
-      return queued && queued.kind === loaded.kind && queued.id === loaded.id ? queued : loaded;
-    },
-    set: (track) => {
-      loadedTrack.value = track;
-    },
-  });
+  // The track the UI shows: what playPlayerTrack() is loading or has loaded,
+  // or what the queue told the player to present without loading (a restored
+  // session before its first play(), a metadata edit, an imported ephemeral).
+  // Not persisted: the queue owns the current track across sessions and
+  // presents it back on restore. The queue is the only writer besides
+  // playPlayerTrack; this store never reads the queue.
+  const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
   const sleepAfterCurrentTrack = ref(false);
 
@@ -146,15 +126,12 @@ export const usePlayerStore = defineStore("player", () => {
     },
   });
 
-  // Flat lyra-shaped view for consumers (and tests) that predate the union.
-  // Writable so `store.status = "playing"` keeps working as a test seam; a
-  // flat value can never describe a fade or a switch, so writing one always
-  // settles the store into a plain state.
-  const status = computed<PlayerState>({
-    get: () => toPlayerState(state.value),
-    set: value => setState(fromPlayerState(value, _playRequestId)),
-  });
-  const playbackState = computed(() => state.value);
+  // Flat lyra-shaped view for consumers that predate the union.
+  const status = computed<PlayerState>(() => toPlayerState(state.value));
+  // The union itself. Exposed as store state (writable, as Pinia state is)
+  // so tests can seed a scenario; production code transitions through the
+  // actions only, never by assigning here.
+  const playbackState = state;
 
   const isPlaying = computed(() => isPlayingStatus(state.value));
   // What transport controls outside the app (media session, notification,
@@ -173,8 +150,9 @@ export const usePlayerStore = defineStore("player", () => {
   const showLoadingIndicator = useDelayedIndicator(isLoading);
 
   const progress = computed(() => {
-    if (duration.value <= 0) return 0;
-    return (currentTime.value / duration.value) * 100;
+    const dur = duration.value;
+    if (dur === null || dur <= 0) return 0;
+    return (currentTime.value / dur) * 100;
   });
 
   const canPlay = computed(() => engine.value?.isReady ?? false);
@@ -184,17 +162,15 @@ export const usePlayerStore = defineStore("player", () => {
     if (!track) return false;
     const dur = duration.value;
     if (engine.value?.isLive) return true;
-    // While a source is still loading, duration is 0 because it's *unknown*,
-    // not because the stream is endless — don't flag live until it settles.
-    if (isLoading.value) return false;
+    // Unknown is not endless: only a loaded stream that reports no length.
+    if (dur === null) return false;
     return isStreamingTrack(track) && dur <= 0;
   });
 
   const canSeek = computed(() => {
     if (!engine.value) return false;
     if (isLiveStream.value) return false;
-    if (duration.value <= 0) return false;
-    return true;
+    return duration.value !== null && duration.value > 0;
   });
 
   // See listen-session.ts for the accounting model (engine-clock deltas,
@@ -215,16 +191,16 @@ export const usePlayerStore = defineStore("player", () => {
     // A session can still be open here (dispose, resolve failure): finalize it
     // with real accumulated seconds instead of leaking it to the wall-clock
     // fallback in stats.service.
-    if (isLibraryTrack(loadedTrack.value)) {
+    if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
     // Clearing the track mid-switch releases the event filter: whatever the
     // engine does next has to reach the store again.
     if (isSwitchingTrack()) setState({ kind: "idle" });
-    loadedTrack.value = null;
+    currentTrack.value = null;
     currentTime.value = 0;
-    duration.value = 0;
+    duration.value = null;
     trackChangedBus.emit(null);
   };
 
@@ -295,7 +271,7 @@ export const usePlayerStore = defineStore("player", () => {
           // lifecycle's completed-stop runs off this emit and must see the full
           // session (reading the zeroed time recorded every natural end as
           // 0 seconds listened and never bumped playCount).
-          if (duration.value > 0) listenSession.sample(duration.value);
+          if (duration.value !== null && duration.value > 0) listenSession.sample(duration.value);
           currentTime.value = 0;
           listenSession.rebase(0);
           trackEndedBus.emit();
@@ -512,27 +488,29 @@ export const usePlayerStore = defineStore("player", () => {
     // A pending listen still open at this point means the previous track was
     // cut short by this switch — on a natural end the trackEnded handler has
     // already finalized it as completed and this is a no-op.
-    if (isLibraryTrack(loadedTrack.value)) {
+    if (isLibraryTrack(currentTrack.value)) {
       stopListeningAndSync({ skipped: true });
     }
     // The consumed session is over; the next one starts at position 0.
     listenSession.reset();
 
     currentTime.value = 0;
-    duration.value = 0;
-    loadedTrack.value = track;
+    duration.value = null;
+    currentTrack.value = track;
     trackChangedBus.emit(track);
 
     await loadAndPlay(track);
   };
 
   /**
-   * The media already in the engine now belongs to a different track
-   * identity (an ephemeral file imported into the library while playing).
-   * Playback continues untouched; only what the store reports changes.
+   * Show `track` as the current one without touching the engine: a restored
+   * session before its first play() (play() then loads it from here), a
+   * metadata edit to the playing track, or media already in the engine that
+   * now belongs to a different track identity (an ephemeral file imported
+   * into the library while playing). Playback continues untouched.
    */
-  const replaceLoadedTrack = (track: PlayerTrack) => {
-    loadedTrack.value = track;
+  const presentTrack = (track: PlayerTrack) => {
+    currentTrack.value = track;
   };
 
   const seekTo = (seconds: number) => {
@@ -567,10 +545,6 @@ export const usePlayerStore = defineStore("player", () => {
     engine.value?.toggleMute();
   };
 
-  const toggleRepeat = () => {
-    useQueueStore().toggleRepeat();
-  };
-
   const dispose = async () => {
     _playRequestId++;
     setState({ kind: "idle" });
@@ -600,7 +574,6 @@ export const usePlayerStore = defineStore("player", () => {
     isPlaybackIntended,
     isLoading,
     showLoadingIndicator,
-    repeatMode,
     currentTrack,
     graphRevision,
     sleepTimerEndsAt,
@@ -621,7 +594,6 @@ export const usePlayerStore = defineStore("player", () => {
     setVolume,
     setPlaybackRate,
     toggleMute,
-    toggleRepeat,
     getAudioGraph,
     getListenedSeconds,
     dispose,
@@ -629,12 +601,14 @@ export const usePlayerStore = defineStore("player", () => {
     setSleepTimer,
     cancelSleepTimer,
     clearCurrentTrack,
-    replaceLoadedTrack,
+    presentTrack,
     unlockAudio,
   };
 }, {
   persist: {
     key: "lyra-player",
+    // The position changes on every timeupdate; coalesce the writes.
+    storage: createDebouncedLocalStorage(500),
     pick: [
       "volume",
       "isMuted",

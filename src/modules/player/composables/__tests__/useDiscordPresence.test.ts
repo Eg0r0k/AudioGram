@@ -84,7 +84,7 @@ describe("useDiscordPresence", () => {
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1");
     player.duration = 200;
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await nextTick();
 
     expect(activityCalls()).toHaveLength(1);
@@ -98,7 +98,7 @@ describe("useDiscordPresence", () => {
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1");
     player.duration = 200;
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await nextTick();
     invokeMock.mockClear();
 
@@ -113,7 +113,7 @@ describe("useDiscordPresence", () => {
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1");
     player.duration = 200;
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await nextTick();
     invokeMock.mockClear();
 
@@ -130,15 +130,15 @@ describe("useDiscordPresence", () => {
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1");
     player.duration = 200;
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await nextTick();
     invokeMock.mockClear();
 
-    player.status = "paused";
+    player.playbackState = { kind: "paused" };
     await nextTick();
     expect(invokeMock).toHaveBeenLastCalledWith("discord_clear_activity", undefined);
 
-    player.status = "playing";
+    player.playbackState = { kind: "playing" };
     await nextTick();
     expect(activityCalls()).toHaveLength(1);
   });

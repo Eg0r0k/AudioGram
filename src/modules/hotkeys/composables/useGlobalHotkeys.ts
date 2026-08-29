@@ -73,7 +73,7 @@ export const useGlobalHotKeys = () => {
     () => keys["shift+arrowright"].value && canFire.value,
     () => {
       if (!player.canSeek) return;
-      player.seekTo(Math.min(player.duration, player.currentTime + SEEK_STEP));
+      player.seekTo(Math.min(player.duration ?? 0, player.currentTime + SEEK_STEP));
     },
   );
 
@@ -99,7 +99,7 @@ export const useGlobalHotKeys = () => {
   // Toggles
   whenever(() => keys.m.value && canFire.value, () => player.toggleMute());
   whenever(() => keys.s.value && canFire.value, () => queue.toggleShuffle());
-  whenever(() => keys.r.value && canFire.value, () => player.toggleRepeat());
+  whenever(() => keys.r.value && canFire.value, () => queue.toggleRepeat());
 
   // Queue panel
   whenever(() => keys.q.value && canFire.value, () => {

@@ -153,7 +153,7 @@
             :keyboard-step="5"
             :min="0"
             :max="100"
-            :duration="playerStore.duration"
+            :duration="(playerStore.duration ?? 0)"
             :chapters="mobileChapters"
             :use-transform="true"
             :with-transition="false"
@@ -213,12 +213,12 @@
             size="icon-lg"
             variant="ghost"
             class="rounded-full"
-            :class="playerStore.repeatMode !== 'off' ? 'text-primary' : 'text-white'"
+            :class="queueStore.repeatMode !== 'off' ? 'text-primary' : 'text-white'"
             :aria-label="$t('player.repeat')"
-            @click.stop="playerStore.toggleRepeat"
+            @click.stop="queueStore.toggleRepeat"
           >
             <IconRepeatOnce
-              v-if="playerStore.repeatMode === 'one'"
+              v-if="queueStore.repeatMode === 'one'"
               class="size-6"
             />
             <IconRepeat
@@ -379,8 +379,8 @@ const { link: sourceLink } = useQueueSourceLink();
 const { displayProgress, isTransitionEnabled, isScrubbing, scrubValue, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
 
 const scrubTimeDisplay = computed(() => {
-  const target = (scrubValue.value / 100) * playerStore.duration;
-  return `${formatDuration(target)} / ${formatDuration(playerStore.duration)}`;
+  const target = (scrubValue.value / 100) * (playerStore.duration ?? 0);
+  return `${formatDuration(target)} / ${formatDuration((playerStore.duration ?? 0))}`;
 });
 
 const mobileTrackId = computed<TrackId>(() => {
@@ -395,7 +395,7 @@ async function handleAddMark(percent: number) {
   const track = playerStore.currentTrack;
   if (!track || !isLibraryTrack(track)) return;
 
-  const time = (percent / 100) * playerStore.duration;
+  const time = (percent / 100) * (playerStore.duration ?? 0);
   const existing = mobileChapters.value ?? [];
   const updated = [...existing, { time, title: "" }].sort((a, b) => a.time - b.time);
   await saveChapters.mutateAsync({ trackId: track.id, chapters: updated });
@@ -550,7 +550,7 @@ const timeDisplay = computed(() => {
   if (playerStore.isLiveStream) return { current: "🔴", duration: "LIVE" };
   return {
     current: formatDuration(playerStore.currentTime),
-    duration: formatDuration(playerStore.duration),
+    duration: formatDuration((playerStore.duration ?? 0)),
   };
 });
 

@@ -181,7 +181,7 @@ export const initNextTrackPrefetch = (): (() => void) => {
   const player = usePlayerStore();
 
   const nextTrackId = (): TrackId | null => {
-    const index = nextPlaybackIndex(queue.currentIndex, queue.size, player.repeatMode);
+    const index = nextPlaybackIndex(queue.currentIndex, queue.size, queue.repeatMode);
     if (index === null) return null;
     return prefetchIdOf(queue.queue[index]?.track);
   };
@@ -217,7 +217,7 @@ export const initNextTrackPrefetch = (): (() => void) => {
   // the regular next-track warmer above.
   const stopTailWatch = watch(
     () => player.isPlaying
-      && player.repeatMode === "off"
+      && queue.repeatMode === "off"
       && queue.size > 0
       && queue.currentIndex === queue.size - 1,
     (atTail) => {

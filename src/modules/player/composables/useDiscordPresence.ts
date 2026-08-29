@@ -49,7 +49,7 @@ export const useDiscordPresence = () => {
       clientId: DISCORD_CLIENT_ID,
       track: player.currentTrack,
       isPlaying: player.isPlaying,
-      duration: player.duration,
+      duration: player.duration ?? 0,
       currentTime: player.currentTime,
     });
     if (!payload) {

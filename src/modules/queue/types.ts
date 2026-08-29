@@ -22,6 +22,22 @@ export interface QueueItem {
   cover?: string | null;
 }
 
+/**
+ * Canonical queue state — the only thing a mutation writes. Everything the
+ * UI reads (queue, currentIndex, currentItem, isShuffled, ...) derives from
+ * it, so there is no second copy to keep in sync.
+ *
+ * `items` is the queue in the order tracks were added; `playbackOrder` is
+ * null while unshuffled and otherwise a permutation of every item id;
+ * `currentItemId` identifies the playing entry by identity, so removing or
+ * reordering around it cannot move the selection.
+ */
+export interface QueueState {
+  items: readonly QueueItem[];
+  playbackOrder: readonly QueueItemId[] | null;
+  currentItemId: QueueItemId | null;
+}
+
 export function isSameQueueSource(left: QueueSource, right: QueueSource): boolean {
   if (left.type !== right.type) return false;
 
