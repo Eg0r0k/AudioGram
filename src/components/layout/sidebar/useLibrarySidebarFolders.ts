@@ -1,6 +1,6 @@
-import { computed, ref, type ComputedRef } from "vue";
+import { computed, onScopeDispose, ref, watch, type ComputedRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { useSidebar } from "@/composables/useSidebar";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { SidebarFolderEntity } from "@/db/entities";
 import { normalizeFolderName, validateFolderName } from "@/modules/library/lib/folderName";
 import type { FolderLibraryItemType, LibraryFolderEntry, LibraryItem } from "@/modules/library/types";
@@ -31,8 +31,13 @@ export function useLibrarySidebarFolders({
   /** What the name dialog opens with; the dialog owns the edited value. */
   const folderName = ref("");
   const editingFolderId = ref<string | null>(null);
-  const isFolderPickerOpen = ref(false);
-  const { expandLeftSidebar } = useSidebar();
+
+  const rightPanel = useRightPanelStore();
+
+  // The folder picker lives in the right panel, scoped to the folder it was
+  // opened for: leaving that folder (or unmounting the sidebar) closes it.
+  watch(activeFolderId, id => rightPanel.invalidateFolderScope(id), { flush: "sync" });
+  onScopeDispose(() => rightPanel.invalidateFolderScope(null));
 
   const activeFolder = computed(() =>
     folders.value.find((folder: SidebarFolderEntity) => folder.id === activeFolderId.value) ?? null,
@@ -43,17 +48,13 @@ export function useLibrarySidebarFolders({
     : t("library.folder.create"),
   );
 
-  const folderDepth = computed<0 | 1 | 2>(() => {
-    if (!activeFolder.value) return 0;
-    return isFolderPickerOpen.value ? 2 : 1;
-  });
+  const folderDepth = computed<0 | 1>(() => (activeFolder.value ? 1 : 0));
 
   function openFolder(folderId: string) {
     activeFolderId.value = folderId;
   }
 
   const closeFolder = () => {
-    isFolderPickerOpen.value = false;
     activeFolderId.value = null;
   };
 
@@ -97,28 +98,16 @@ export function useLibrarySidebarFolders({
   }
 
   /**
-   * The picker lives inside the sidebar, so in the icon-only compact layout
-   * it would not fit: opening it expands the sidebar and leaves it expanded.
+   * Enters the folder and opens the right-panel picker for it. Called from
+   * the FAB inside a folder and from «add to folder» in the root context
+   * menu, so the sidebar always shows the folder the picker writes to.
    */
   const openFolderPicker = (folderId: string) => {
     const folder = folders.value.find((folder: SidebarFolderEntity) => folder.id === folderId);
     if (!folder) return;
 
     activeFolderId.value = folderId;
-    isFolderPickerOpen.value = true;
-    expandLeftSidebar();
-  };
-
-  const closeFolderPicker = () => {
-    isFolderPickerOpen.value = false;
-  };
-
-  /** Appending is enough: the repository strips the entries from other folders. */
-  const addItemsToActiveFolder = async (entries: LibraryFolderEntry[]) => {
-    if (!activeFolder.value) return;
-
-    await setFolderItems(activeFolder.value.id, [...activeFolder.value.items, ...entries]);
-    isFolderPickerOpen.value = false;
+    rightPanel.openFolderAdd({ folderId });
   };
 
   async function deleteSidebarFolder(folderId: string) {
@@ -137,15 +126,12 @@ export function useLibrarySidebarFolders({
 
   return {
     activeFolder,
-    addItemsToActiveFolder,
     closeFolder,
-    closeFolderPicker,
     deleteSidebarFolder,
     folderDepth,
     folderName,
     folderNameDialogTitle,
     isFolderNameDialogOpen,
-    isFolderPickerOpen,
     openCreateFolderDialog,
     openFolder,
     openFolderPicker,

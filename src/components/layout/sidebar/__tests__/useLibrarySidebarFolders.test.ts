@@ -1,21 +1,21 @@
-import { computed, defineComponent, h } from "vue";
+import { createTestingPinia } from "@pinia/testing";
+import { computed, defineComponent, h, nextTick } from "vue";
 import { render } from "@testing-library/vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "@/app/i18n";
 import type { SidebarFolderEntity } from "@/db/entities";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useLibrarySidebarFolders } from "../useLibrarySidebarFolders";
-
-const expandLeftSidebar = vi.fn();
-vi.mock("@/composables/useSidebar", () => ({
-  useSidebar: () => ({ expandLeftSidebar }),
-}));
 
 const folders: SidebarFolderEntity[] = [
   { id: "f1", name: "Rock", items: [{ type: "album", id: "al1" }], addedAt: 1, updatedAt: 1 } as unknown as SidebarFolderEntity,
+  { id: "f2", name: "Jazz", items: [], addedAt: 1, updatedAt: 1 } as unknown as SidebarFolderEntity,
 ];
 
 const setup = () => {
-  const setFolderItems = vi.fn().mockResolvedValue(undefined);
+  const pinia = createTestingPinia({ stubActions: false });
+  const rightPanel = useRightPanelStore(pinia);
+  const deleteFolder = vi.fn().mockResolvedValue(undefined);
   let api!: ReturnType<typeof useLibrarySidebarFolders>;
   const Host = defineComponent({
     setup() {
@@ -23,52 +23,75 @@ const setup = () => {
         folders: computed(() => folders),
         createFolder: vi.fn(),
         renameFolder: vi.fn(),
-        deleteFolder: vi.fn(),
-        setFolderItems,
+        deleteFolder,
+        setFolderItems: vi.fn().mockResolvedValue(undefined),
       });
       return () => h("div");
     },
   });
-  render(Host, { global: { plugins: [i18n] } });
-  return { api, setFolderItems };
+  const { unmount } = render(Host, { global: { plugins: [i18n, pinia] } });
+  return { api, rightPanel, deleteFolder, unmount };
 };
 
 describe("useLibrarySidebarFolders picker", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("openFolderPicker opens the folder, the picker and expands the sidebar", () => {
-    const { api } = setup();
+  it("openFolderPicker enters the folder and opens the right panel bound to it", () => {
+    const { api, rightPanel } = setup();
     api.openFolderPicker("f1");
     expect(api.activeFolder.value?.id).toBe("f1");
-    expect(api.isFolderPickerOpen.value).toBe(true);
-    expect(api.folderDepth.value).toBe(2);
-    expect(expandLeftSidebar).toHaveBeenCalledTimes(1);
+    expect(api.folderDepth.value).toBe(1);
+    expect(rightPanel.openFolderAdd).toHaveBeenCalledWith({ folderId: "f1" });
+    expect(rightPanel.view).toBe("folder-add");
+    expect(rightPanel.scope).toEqual({ type: "folder", folderId: "f1" });
   });
 
   it("openFolderPicker ignores an unknown folder", () => {
-    const { api } = setup();
+    const { api, rightPanel } = setup();
     api.openFolderPicker("nope");
-    expect(api.isFolderPickerOpen.value).toBe(false);
-    expect(expandLeftSidebar).not.toHaveBeenCalled();
+    expect(api.activeFolder.value).toBeNull();
+    expect(rightPanel.openFolderAdd).not.toHaveBeenCalled();
   });
 
-  it("addItemsToActiveFolder appends entries and closes the picker", async () => {
-    const { api, setFolderItems } = setup();
-    api.openFolderPicker("f1");
-    await api.addItemsToActiveFolder([{ type: "artist", id: "a1" }]);
-    expect(setFolderItems).toHaveBeenCalledWith("f1", [
-      { type: "album", id: "al1" },
-      { type: "artist", id: "a1" },
-    ]);
-    expect(api.isFolderPickerOpen.value).toBe(false);
-    expect(api.folderDepth.value).toBe(1);
-  });
-
-  it("closeFolder also closes the picker", () => {
-    const { api } = setup();
+  it("leaving the folder closes its panel", async () => {
+    const { api, rightPanel } = setup();
     api.openFolderPicker("f1");
     api.closeFolder();
-    expect(api.isFolderPickerOpen.value).toBe(false);
+    await nextTick();
     expect(api.folderDepth.value).toBe(0);
+    expect(rightPanel.isOpen).toBe(false);
+  });
+
+  it("opening another folder closes the panel of the previous one", async () => {
+    const { api, rightPanel } = setup();
+    api.openFolderPicker("f1");
+    api.openFolder("f2");
+    await nextTick();
+    expect(rightPanel.isOpen).toBe(false);
+  });
+
+  it("switching straight to another folder's picker keeps the new panel open", async () => {
+    const { api, rightPanel } = setup();
+    api.openFolderPicker("f1");
+    api.openFolderPicker("f2");
+    await nextTick();
+    expect(rightPanel.isOpen).toBe(true);
+    expect(rightPanel.scope).toEqual({ type: "folder", folderId: "f2" });
+  });
+
+  it("deleting the active folder closes the panel", async () => {
+    const { api, rightPanel } = setup();
+    api.openFolderPicker("f1");
+    await api.deleteSidebarFolder("f1");
+    await nextTick();
+    expect(api.activeFolder.value).toBeNull();
+    expect(rightPanel.isOpen).toBe(false);
+  });
+
+  it("unmounting the sidebar closes a folder-scoped panel", () => {
+    const { api, rightPanel, unmount } = setup();
+    api.openFolderPicker("f1");
+    unmount();
+    expect(rightPanel.isOpen).toBe(false);
   });
 });
