@@ -16,6 +16,7 @@ import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
 import {
+  type PlaybackSource,
   PlaybackFailure,
   toPlaybackFailure,
   checkPlayable,
@@ -301,6 +302,31 @@ export const usePlayerStore = defineStore("player", () => {
     if (playable.isErr()) throw new PlaybackFailure(playable.error, track);
   };
 
+  // Watchdog: no await on the way to playback may hang forever. In a hidden
+  // Android WebView the ended → next → resolve → load chain can stall on any
+  // of them, and a store that then honestly reports "loading" for the rest
+  // of the session is worse than a skipped track. Starting values — tune
+  // against real devices; streams get a longer leash than local files.
+  const RESOLVE_TIMEOUT_MS = 15_000;
+  const LOAD_TIMEOUT_MS = 30_000;
+  const HLS_LOAD_TIMEOUT_MS = 60_000;
+
+  const loadTimeoutFor = (source: PlaybackSource) =>
+    source.kind === "hls" ? HLS_LOAD_TIMEOUT_MS : LOAD_TIMEOUT_MS;
+
+  // Races `work` against a deadline. A late settlement of `work` after the
+  // deadline is dropped, not acted on; cancelling the underlying engine work
+  // is the caller's job (disposing the engine does it). A plain timer rather
+  // than AbortSignal.timeout: lyra's load() accepts no signal, so a signal
+  // would only be a timer in disguise — and this one fake timers can drive.
+  const withTimeout = <T>(work: PromiseLike<T>, ms: number, onTimeout: () => Error): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(onTimeout()), ms);
+      Promise.resolve(work)
+        .then(resolve, reject)
+        .finally(() => clearTimeout(deadline));
+    });
+
   /**
    * The one path from a track to audible playback: claim a request, resolve
    * the source, load it, start. Used both for a track switch and for a cold
@@ -317,12 +343,20 @@ export const usePlayerStore = defineStore("player", () => {
     const e = ensureEngine();
 
     try {
-      const resolved = await resolvePlaybackSource(track);
+      const resolved = await withTimeout(
+        resolvePlaybackSource(track),
+        RESOLVE_TIMEOUT_MS,
+        () => new PlaybackFailure({ kind: "timeout", phase: "resolving" }, track),
+      );
       if (requestId !== _playRequestId) return;
       if (resolved.isErr()) throw new PlaybackFailure(resolved.error, track);
 
       setState({ kind: "loading", requestId });
-      await e.load(resolved.value);
+      await withTimeout(
+        e.load(resolved.value),
+        loadTimeoutFor(resolved.value),
+        () => new PlaybackFailure({ kind: "timeout", phase: "loading" }, track),
+      );
 
       // A superseded load() resolves silently (lyra cancels it internally);
       // playing now would fight the newer request.

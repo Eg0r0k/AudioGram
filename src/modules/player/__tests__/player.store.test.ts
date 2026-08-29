@@ -1866,6 +1866,116 @@ describe("player.store", () => {
     });
   });
 
+  describe("watchdog", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const parkedResolve = () => {
+      let settle!: (url: string) => void;
+      storageMock.getAudioUrl.mockImplementationOnce(
+        () => new ResultAsync(new Promise((resolve) => { settle = url => resolve(ok(url)); })),
+      );
+      return (url: string) => settle(url);
+    };
+
+    const parkedLoad = () => {
+      let finish!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finish = resolve; }),
+      );
+      return () => finish();
+    };
+
+    const failureOf = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as PlaybackFailure);
+
+    it("gives up on a source that never resolves", async () => {
+      const store = usePlayerStore();
+      parkedResolve();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(store.playbackState.kind).toBe("resolving");
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "resolving" });
+      expect(store.status).toBe("error");
+      expect(store.player).toBeNull();
+      // The track stays on screen so the UI can show what failed.
+      expect(store.currentTrack).not.toBeNull();
+    });
+
+    it("gives up on a load that never finishes and disposes the engine that hung", async () => {
+      const store = usePlayerStore();
+      parkedLoad();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(store.playbackState.kind).toBe("loading");
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "loading" });
+      expect(store.status).toBe("error");
+      // Disposing is what cancels lyra's in-flight load.
+      expect(mockPlayerMethods.dispose).toHaveBeenCalledTimes(1);
+      expect(store.player).toBeNull();
+    });
+
+    it("gives HLS streams a longer leash than local files", async () => {
+      const store = usePlayerStore();
+      parkedLoad();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack({
+        source: TrackSource.REMOTE_HLS,
+        storagePath: "https://example.com/live.m3u8",
+      })));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(store.playbackState.kind).toBe("loading");
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "loading" });
+    });
+
+    it("ignores a source that resolves after the deadline", async () => {
+      const store = usePlayerStore();
+      const settle = parkedResolve();
+
+      const failure = failureOf(store.playPlayerTrack(createLibraryTrack()));
+      await vi.advanceTimersByTimeAsync(15_000);
+      await failure;
+
+      settle("blob:late");
+      await flushPromises();
+
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
+      expect(store.status).toBe("error");
+    });
+
+    it("disarms the deadline once the work completes", async () => {
+      const store = usePlayerStore();
+      const finish = parkedLoad();
+
+      const playing = store.playPlayerTrack(createLibraryTrack());
+      await vi.advanceTimersByTimeAsync(1_000);
+      finish();
+      await playing;
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("statechange", { to: "playing" });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(store.status).toBe("playing");
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+    });
+  });
+
   describe("load formats", () => {
     it("loads .m3u8 sources as HLS", async () => {
       const store = usePlayerStore();
