@@ -122,6 +122,10 @@ vi.mock("@/lib/environment/userAgent", () => ({
   IS_TAURI: false,
 }));
 
+const loggerMock = vi.hoisted(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }));
+
+vi.mock("@/lib/logger", () => ({ getLogger: () => loggerMock }));
+
 import { useEventBus } from "@vueuse/core";
 import { ok, okAsync, errAsync } from "neverthrow";
 import { usePlayerStore } from "../store/player.store";
@@ -1543,6 +1547,60 @@ describe("player.store", () => {
 
       expect(mockPlayer).toBeUndefined();
       expect(store.status).toBe("idle");
+    });
+
+    it("counts listened time for a restored track (the session is armed after load)", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack();
+      store.currentTime = 42;
+
+      await store.play();
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("seeking", 42);
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void })
+        .trigger("timeupdate", { currentTime: 72 });
+      statsMock.stopListening.mockClear();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-2" as never }));
+
+      // Before the cold start shared the switch path it never armed the
+      // session, so a restored track was never credited until the next switch.
+      expect(statsMock.stopListening).toHaveBeenCalledWith(30, { skipped: true });
+    });
+
+    it("applies the track's loudness metadata on a cold start", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack({ integratedLufs: -9, truePeakDbtp: -1 });
+
+      await store.play();
+
+      expect(mockPlayerMethods.setLoudnessMetadata).toHaveBeenCalledWith({
+        integratedLufs: -9,
+        truePeakDbtp: -1,
+      });
+    });
+
+    it("refuses a broken restored track without touching the engine", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack({ state: TrackState.BROKEN });
+
+      await store.play();
+
+      expect(mockPlayer).toBeUndefined();
+      expect(store.status).toBe("idle");
+    });
+
+    it("settles into error instead of throwing when the restored load fails", async () => {
+      const store = usePlayerStore();
+      store.currentTrack = createLibraryTrack();
+      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed"));
+
+      // play() is called from UI handlers: it must not reject.
+      await expect(store.play()).resolves.toBeUndefined();
+
+      expect(store.status).toBe("error");
+      expect(store.player).toBeNull();
+      expect(store.currentTrack).not.toBeNull();
     });
   });
 

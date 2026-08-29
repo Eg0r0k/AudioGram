@@ -440,34 +440,98 @@ export const usePlayerStore = defineStore("player", () => {
     p.setPlaybackRate(playbackRate.value);
   };
 
-  const play = async () => {
-    if (!player.value || !player.value.isReady) {
-      const track = currentTrack.value;
-      if (!track) return;
+  const throwIfBroken = (track: PlayerTrack) => {
+    if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
+      throw new Error(`Track is marked as broken: "${track.title}"`);
+    }
+  };
 
-      const requestId = ++_playRequestId;
-      setState({ kind: "resolving", requestId });
+  /**
+   * The one path from a track to audible playback: claim a request, resolve
+   * the source, load it, start. Used both for a track switch and for a cold
+   * start (a session restored after reload, or a switch interrupted mid-load).
+   * Throws on failure with the store settled into "error".
+   */
+  const loadAndPlay = async (track: PlayerTrack, options: { resumeAt?: number } = {}) => {
+    const requestId = ++_playRequestId;
+    // Optimistic: the engine's own statechange only fires once load() starts,
+    // leaving the previous track's status (and a false live-stream reading
+    // from the zeroed duration) visible while the source URL resolves.
+    // Opening the switch also abandons any fade in flight.
+    setState({ kind: "resolving", requestId });
+    const p = ensurePlayer();
 
-      const url = await resolvePlayback(track);
+    let url: string | null = null;
+    try {
+      url = await resolvePlayback(track);
       if (requestId !== _playRequestId) return;
-      if (!url) {
-        clearCurrentTrack();
-        setState({ kind: "idle" });
-        return;
+      if (!url) throw new Error(`Cannot resolve audio source for: "${track.title}"`);
+
+      setState({ kind: "loading", requestId });
+      if (isEphemeralTrack(track) && track.source.type === "file") {
+        await p.load(track.source.file);
+        // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
+        p.setPlaybackRate(playbackRate.value);
+      }
+      else {
+        await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
       }
 
-      const p = ensurePlayer();
-      setState({ kind: "loading", requestId });
-      await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      // A newer play request took over while we were loading.
+      // A superseded load() resolves silently (lyra cancels it internally);
+      // playing now would fight the newer request.
       if (requestId !== _playRequestId) return;
+
+      // Only now is this track the engine's media — positions sampled before
+      // this point still belonged to the previous track.
+      listenSession.arm();
+      applyLoudnessMetadata(p, track);
+      // The loaded media belongs to THIS track now, so the switching window
+      // must close before play(): with fade-in enabled play() resolves only
+      // after the entire fade, and a track shorter than the fade genuinely
+      // ends inside it — that ended must advance the queue, not be dropped
+      // as stale.
       setState({ kind: "starting" });
-      if (currentTime.value > 0) p.seek(currentTime.value);
-      await p.play();
+      if (options.resumeAt && options.resumeAt > 0) p.seek(options.resumeAt);
+      await startPlayback();
       useAudioSettingsStore().pushToGraph();
+    }
+    catch (err) {
+      if (requestId !== _playRequestId) return;
+      setState({ kind: "error" });
+      discardPlayer();
+      // A source that cannot be resolved at all, or a file that is gone, is
+      // not worth keeping on screen; other failures keep the track so the UI
+      // can show what failed.
+      if (!url || err instanceof StorageError) {
+        clearCurrentTrack();
+      }
+      throw err;
+    }
+  };
+
+  const play = async () => {
+    if (player.value?.isReady) {
+      await startPlayback();
       return;
     }
+    // No playable media in the engine: a session restored after reload, or a
+    // switch that togglePlay interrupted mid-load. Start the current track
+    // from where it was; a failure is logged, not thrown — the callers here
+    // are UI handlers, and the store already reads "error".
+    const track = currentTrack.value;
+    if (!track) return;
+    try {
+      throwIfBroken(track);
+      await loadAndPlay(track, { resumeAt: currentTime.value });
+    }
+    catch (err) {
+      getLogger().error(`[Player] Cannot start "${track.title}": ${String(err)}`);
+    }
+  };
 
+  /** Starts (or resumes) playback on an engine that already holds this track's media. */
+  const startPlayback = async () => {
+    if (!player.value) return;
     const audioSettings = useAudioSettingsStore();
     const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeInDuration > 0;
 
@@ -584,11 +648,7 @@ export const usePlayerStore = defineStore("player", () => {
    * Throws on failure — queue.store uses this to skip to next.
    */
   const playPlayerTrack = async (track: PlayerTrack): Promise<void> => {
-    if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
-      throw new Error(`Track is marked as broken: "${track.title}"`);
-    }
-
-    const requestId = ++_playRequestId;
+    throwIfBroken(track);
 
     // A pending listen still open at this point means the previous track was
     // cut short by this switch — on a natural end the trackEnded handler has
@@ -601,61 +661,10 @@ export const usePlayerStore = defineStore("player", () => {
 
     currentTime.value = 0;
     duration.value = 0;
-    // Optimistic: the engine's own statechange only fires once load() starts,
-    // leaving the previous track's status (and a false live-stream reading
-    // from the zeroed duration) visible while the source URL resolves.
-    // Opening the switch also abandons any fade in flight.
-    setState({ kind: "resolving", requestId });
-
-    const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
-    let url: string | null = null;
-    try {
-      url = await resolvePlayback(track);
-      if (requestId !== _playRequestId) return;
-      if (!url) throw new Error(`Cannot resolve audio source for: "${track.title}"`);
-
-      setState({ kind: "loading", requestId });
-      if (isEphemeralTrack(track) && track.source.type === "file") {
-        await p.load(track.source.file);
-        // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
-        p.setPlaybackRate(playbackRate.value);
-      }
-      else {
-        await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      }
-
-      // A superseded load() resolves silently (lyra cancels it internally);
-      // playing now would fight the newer request.
-      if (requestId !== _playRequestId) return;
-
-      // Only now is this track the engine's media — positions sampled before
-      // this point still belonged to the previous track.
-      listenSession.arm();
-      applyLoudnessMetadata(p, track);
-      // The loaded media belongs to THIS track now, so the switching window
-      // must close before play(): with fade-in enabled play() resolves only
-      // after the entire fade, and a track shorter than the fade genuinely
-      // ends inside it — that ended must advance the queue, not be dropped
-      // as stale.
-      setState({ kind: "starting" });
-      await play();
-      useAudioSettingsStore().pushToGraph();
-    }
-    catch (err) {
-      if (requestId !== _playRequestId) return;
-      setState({ kind: "error" });
-      discardPlayer();
-      // A source that cannot be resolved at all, or a file that is gone, is
-      // not worth keeping on screen; other failures keep the track so the UI
-      // can show what failed.
-      if (!url || err instanceof StorageError) {
-        clearCurrentTrack();
-      }
-      throw err;
-    }
+    await loadAndPlay(track);
   };
 
   // A fade-out-to-pause/stop in flight means the UI already shows "paused"
