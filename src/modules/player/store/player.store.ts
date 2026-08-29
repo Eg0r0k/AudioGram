@@ -1,34 +1,46 @@
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, markRaw } from "vue";
-import { Player, type PlayerState } from "lyra-audio";
-import Hls from "hls.js";
+import { computed, ref, shallowRef } from "vue";
+import type { PlayerState } from "lyra-audio";
 import { useAudioSettingsStore } from "@/modules/settings/store/audio";
 import {
   type PlayerTrack,
   isLibraryTrack,
-  isEphemeralTrack,
-  type EphemeralTrack,
-  type Track,
   type RepeatMode,
 } from "../types";
-import { TrackSource, TrackState } from "@/db/entities";
-import { StorageError } from "@/db/errors/storage.errors";
-import { platformCaps } from "@/lib/environment/platformCaps";
-import { storageService } from "@/db/storage";
-import { offlineCopyRepository } from "@/db/repositories";
-import { sources } from "@/modules/sources";
 import { statsService } from "@/services/stats.service";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
 import { useEventBus } from "@vueuse/core";
 import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { createListenSession } from "../lib/listen-session";
+import { createPlaybackEngine, type PlaybackEngine } from "../lib/playback-engine";
+import { createFadeController } from "../lib/fade-controller";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import {
+  type PlaybackSource,
+  PlaybackFailure,
+  toPlaybackFailure,
+  checkPlayable,
+  isStreamingTrack,
+  resolvePlaybackSource,
+} from "../service/playback-resolver.service";
+import {
+  type PlaybackStatus,
+  isSwitching as isSwitchingStatus,
+  isPlayingStatus,
+  isLoadingStatus,
+  toPlayerState,
+  fromPlayerState,
+  assertPlaybackInvariant,
+} from "../lib/playback-status";
 
 export const usePlayerStore = defineStore("player", () => {
-  const player = shallowRef<Player | null>(null);
+  const engine = shallowRef<PlaybackEngine | null>(null);
+  // The raw lyra instance, for consumers that drive the audio graph directly
+  // (EQ, normalization, progress polling). Everything else goes through the
+  // engine adapter.
+  const player = computed(() => engine.value?.player ?? null);
 
   const trackChangedBus = useEventBus(trackChangedEvent);
   const trackEndedBus = useEventBus(trackEndedEvent);
@@ -48,7 +60,6 @@ export const usePlayerStore = defineStore("player", () => {
       useQueueStore().repeatMode = mode;
     },
   });
-  const status = ref<PlayerState>("idle");
   const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
   const sleepAfterCurrentTrack = ref(false);
@@ -66,32 +77,75 @@ export const usePlayerStore = defineStore("player", () => {
   // request waking up after an await could still call load() *after* the
   // newer one and win by "last call" semantics — the token drops it first.
   let _playRequestId = 0;
-  let _activeFadeAbort: AbortController | null = null;
-  let _activeBlobUrl: string | null = null;
 
-  // The _playRequestId of the switch currently in flight, from the optimistic
-  // "loading" until that request reaches playback (or fails). While it matches
-  // _playRequestId the engine still carries the PREVIOUS track's media: its
-  // load() chatter — it resets to "idle" and resolves through "ready" before
-  // play() lands — must not reach `status`, and its ended/timeupdate belong to
-  // the outgoing track, not the incoming one. Keyed to the request id (not a
-  // boolean) so any newer request bumping _playRequestId closes the window
-  // even when the superseded switch never gets to clean up after itself.
-  let _switchingRequestId: number | null = null;
-  const _isSwitchingTrack = () => _switchingRequestId === _playRequestId;
+  // The one place the player's state lives — see playback-status.ts for the
+  // variants. shallowRef: the fadingOut variant carries an AbortController
+  // that must not be wrapped in a reactive proxy; every transition replaces
+  // the whole object.
+  const state = shallowRef<PlaybackStatus>({ kind: "idle" });
 
-  const isPlaying = computed(
-    () => status.value === "playing" || status.value === "buffering",
-  );
+  // The single transition point. Leaving a fade-out through any path other
+  // than its own deferred action aborts that action — otherwise the element
+  // keeps playing silently at gain 0 and later "ends" into the next track at
+  // full volume. (The completing action re-aborts its own controller, which
+  // is harmless: it has already passed the aborted check.) A switch may only
+  // be opened for the request that currently owns the token.
+  const setState = (next: PlaybackStatus) => {
+    const prev = state.value;
+    if (prev.kind === "fadingOut" && prev !== next) prev.abort.abort();
+    if (next.kind === "resolving" || next.kind === "loading") {
+      assertPlaybackInvariant(
+        next.requestId === _playRequestId,
+        `${next.kind} opened for request ${next.requestId}, current is ${_playRequestId}`,
+      );
+    }
+    state.value = next;
+  };
+
+  // While this holds, the engine still carries the PREVIOUS track's media:
+  // its load() chatter and its ended/timeupdate belong to the outgoing track.
+  const isSwitchingTrack = () => isSwitchingStatus(state.value, _playRequestId);
+
+  // Fade-in/out policy and the deferred pause/stop a fade-out ends in — see
+  // fade-controller.ts. Transitions still go through setState above.
+  const fades = createFadeController({
+    engine: () => engine.value,
+    state: () => state.value,
+    setState,
+    settings: () => {
+      const audioSettings = useAudioSettingsStore();
+      return {
+        enabled: audioSettings.isFadeEnabled,
+        fadeInSec: audioSettings.fadeInDuration,
+        fadeOutSec: audioSettings.fadeOutDuration,
+      };
+    },
+    volume: () => volume.value,
+    onStopped: () => {
+      currentTime.value = 0;
+    },
+  });
+
+  // Flat lyra-shaped view for consumers (and tests) that predate the union.
+  // Writable so `store.status = "playing"` keeps working as a test seam; a
+  // flat value can never describe a fade or a switch, so writing one always
+  // settles the store into a plain state.
+  const status = computed<PlayerState>({
+    get: () => toPlayerState(state.value),
+    set: value => setState(fromPlayerState(value, _playRequestId)),
+  });
+  const playbackState = computed(() => state.value);
+
+  const isPlaying = computed(() => isPlayingStatus(state.value));
   // What transport controls outside the app (media session, notification,
   // taskbar toolbar) should show. A track switch passes through "loading"
   // on its way to play() — every "loading" here ends in playback — and
   // reporting that gap as "paused" makes the play/pause button flicker on
   // each skip. The in-app button keeps using `isPlaying` + its own loader.
   const isPlaybackIntended = computed(
-    () => isPlaying.value || status.value === "loading",
+    () => isPlaying.value || isLoadingStatus(state.value),
   );
-  const isLoading = computed(() => status.value === "loading");
+  const isLoading = computed(() => isLoadingStatus(state.value));
 
   // Local tracks (OPFS/FS) load in tens of milliseconds, so a spinner bound
   // directly to `isLoading` would flash on every start; the delayed indicator
@@ -103,38 +157,25 @@ export const usePlayerStore = defineStore("player", () => {
     return (currentTime.value / duration.value) * 100;
   });
 
-  const canPlay = computed(() => player.value?.isReady ?? false);
+  const canPlay = computed(() => engine.value?.isReady ?? false);
 
   const isLiveStream = computed(() => {
     const track = currentTrack.value;
     if (!track) return false;
     const dur = duration.value;
-    if (player.value?.isLive) return true;
+    if (engine.value?.isLive) return true;
     // While a source is still loading, duration is 0 because it's *unknown*,
     // not because the stream is endless — don't flag live until it settles.
     if (isLoading.value) return false;
-    if (isEphemeralTrack(track) && track.source.type === "url") {
-      return dur <= 0;
-    }
-    if (isLibraryTrack(track) && track.source === TrackSource.REMOTE_HLS) {
-      return dur <= 0;
-    }
-    return false;
+    return isStreamingTrack(track) && dur <= 0;
   });
 
   const canSeek = computed(() => {
-    if (!player.value) return false;
+    if (!engine.value) return false;
     if (isLiveStream.value) return false;
     if (duration.value <= 0) return false;
     return true;
   });
-
-  const cancelActiveFade = () => {
-    if (_activeFadeAbort) {
-      _activeFadeAbort.abort();
-      _activeFadeAbort = null;
-    }
-  };
 
   // See listen-session.ts for the accounting model (engine-clock deltas,
   // armed-after-load contract).
@@ -145,7 +186,7 @@ export const usePlayerStore = defineStore("player", () => {
     // Pull the element position right now: in the background the last
     // timeupdate may be minutes stale, and the engine clock is the only
     // source that never throttles.
-    if (player.value) listenSession.sample(player.value.currentTime);
+    if (engine.value) listenSession.sample(engine.value.currentTime);
     statsService.stopListening(listenSession.seconds(), options)
       .catch(err => getLogger().error(`[Stats] ${String(err)}`));
   };
@@ -158,401 +199,275 @@ export const usePlayerStore = defineStore("player", () => {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
-    _switchingRequestId = null;
-    if (_activeBlobUrl) {
-      URL.revokeObjectURL(_activeBlobUrl);
-      _activeBlobUrl = null;
-    }
+    // Clearing the track mid-switch releases the event filter: whatever the
+    // engine does next has to reach the store again.
+    if (isSwitchingTrack()) setState({ kind: "idle" });
     currentTrack.value = null;
     currentTime.value = 0;
     duration.value = 0;
     trackChangedBus.emit(null);
   };
 
-  const discardPlayer = () => {
-    const broken = player.value;
-    player.value = null;
+  const discardEngine = () => {
+    const broken = engine.value;
+    engine.value = null;
     broken?.dispose().catch(() => {});
   };
 
   /**
-   * Returns the app-lifetime Player, creating it on first use. Tracks reuse
+   * Returns the app-lifetime engine, creating it on first use. Tracks reuse
    * the same engine: lyra's load() tears down the previous source itself and
    * cancels a superseded in-flight load internally, so recreating the
    * instance per track is unnecessary (and was the root of orphaned-player
    * races). A new instance appears only after dispose() or a load error.
+   * The adapter drops events from a disposed-then-replaced instance, so the
+   * handlers below only ever hear from the live one.
    */
-  const ensurePlayer = (): Player => {
-    if (player.value) return player.value;
+  const ensureEngine = (): PlaybackEngine => {
+    if (engine.value) return engine.value;
 
     const audioSettings = useAudioSettingsStore();
-    const newPlayer = new Player({
-      mode: "html5",
-      Hls,
+    const created = createPlaybackEngine({
+      volume: volume.value,
+      muted: isMuted.value,
       playbackRate: playbackRate.value,
-      latencyHint: "playback",
       loudnessNormalization: {
         enabled: audioSettings.isNormalizationEnabled,
         targetLufs: audioSettings.normalizationTargetLufs,
         preventClipping: audioSettings.normalizationPreventClipping,
       },
+      handlers: {
+        onStateChange: (to) => {
+          // Mid-switch every transition but the load's own progress is the
+          // OUTGOING track's media: load() resets to "idle" and resolves through
+          // "ready" before play() lands, and a stall of the old audio reads as
+          // "buffering". None of that may reach the UI — a single frame of "not
+          // playing" visibly re-morphs the pause icon, and leaving the window on
+          // a blip would let the old track's ended/timeupdate through.
+          if (isSwitchingTrack() && to !== "loading" && to !== "error") return;
+          // A fade-out owns its exit: playing/buffering blips while the ramp runs
+          // are the very audio being silenced. A stop, an end or a failure of
+          // that audio still lands and abandons the fade.
+          if (state.value.kind === "fadingOut" && (to === "playing" || to === "buffering")) return;
+          setState(fromPlayerState(to, _playRequestId));
+        },
+        // The engine emits `pause` without moving its own state machine, so a
+        // pause it did not initiate never reaches `status` through statechange.
+        // The platform does initiate them — audio focus loss, a call, Chromium
+        // pausing a hidden element — and the UI then goes on claiming it is
+        // playing over a silent element, with the position frozen. lyra already
+        // filters the pause that accompanies `ended`.
+        onPause: () => {
+          // Mid-switch the engine still holds the OUTGOING track's media.
+          if (isSwitchingTrack()) return;
+          // A fade-out-to-pause already reports "paused" and its deferred action
+          // still lands; anything else that is nominally playing has just been
+          // overruled.
+          if (isPlayingStatus(state.value)) setState({ kind: "paused" });
+        },
+        onEnded: () => {
+          // Mid-switch the engine still holds the OUTGOING track's media: its
+          // natural end must not advance the queue past the user's own selection.
+          // The cut-short session was already finalized by playPlayerTrack.
+          if (isSwitchingTrack()) return;
+          // A natural end means the element reached its duration: credit the
+          // sliver past the last sample BEFORE the UI reset below, because the
+          // lifecycle's completed-stop runs off this emit and must see the full
+          // session (reading the zeroed time recorded every natural end as
+          // 0 seconds listened and never bumped playCount).
+          if (duration.value > 0) listenSession.sample(duration.value);
+          currentTime.value = 0;
+          listenSession.rebase(0);
+          trackEndedBus.emit();
+        },
+        onTimeUpdate: (t) => {
+          // Positions arriving mid-switch are the outgoing track's audio: they
+          // must not overwrite the optimistic zeroed position (the un-armed
+          // session drops the samples anyway).
+          if (isSwitchingTrack()) return;
+          listenSession.sample(t);
+          currentTime.value = t;
+        },
+        // Re-bases without crediting: "seeking" fires synchronously with the
+        // clamped target (covers every initiator — slider, chapters, media
+        // session), "seeked" re-syncs to the position the element actually
+        // landed on.
+        onSeek: t => listenSession.rebase(t),
+        onDuration: (dur) => {
+          duration.value = dur;
+        },
+        onCanPlay: (dur) => {
+          duration.value = dur;
+          graphRevision.value++;
+        },
+        onVolume: (vol, muted) => {
+          volume.value = vol;
+          isMuted.value = muted;
+        },
+        onRate: (rate) => {
+          playbackRate.value = rate;
+        },
+        onError: detail => getLogger().error(`[Player] error: ${detail}`),
+      },
     });
 
-    newPlayer.setVolume(volume.value);
-    newPlayer.setMuted(isMuted.value);
-    newPlayer.setPlaybackRate(playbackRate.value);
-    player.value = markRaw(newPlayer);
-
-    // Guards keep a disposed-then-replaced instance (dispose(), load-error
-    // recovery) from mutating state that now belongs to its successor.
-    newPlayer.on("statechange", ({ to }) => {
-      if (player.value !== newPlayer) return;
-      if (_isSwitchingTrack() && (to === "idle" || to === "ready" || to === "paused")) return;
-      status.value = to;
-    });
-    // The engine emits `pause` without moving its own state machine, so a
-    // pause it did not initiate never reaches `status` through statechange.
-    // The platform does initiate them — audio focus loss, a call, Chromium
-    // pausing a hidden element — and the UI then goes on claiming it is
-    // playing over a silent element, with the position frozen. lyra already
-    // filters the pause that accompanies `ended`.
-    newPlayer.on("pause", () => {
-      if (player.value !== newPlayer) return;
-      // Mid-switch the engine still holds the OUTGOING track's media.
-      if (_isSwitchingTrack()) return;
-      // A fade-out-to-pause has already set "paused" optimistically; anything
-      // else that is still nominally playing has just been overruled.
-      if (status.value === "playing" || status.value === "buffering") {
-        status.value = "paused";
-      }
-    });
-    newPlayer.on("ended", () => {
-      if (player.value !== newPlayer) return;
-      // Mid-switch the engine still holds the OUTGOING track's media: its
-      // natural end must not advance the queue past the user's own selection.
-      // The cut-short session was already finalized by playPlayerTrack.
-      if (_isSwitchingTrack()) return;
-      // A natural end means the element reached its duration: credit the
-      // sliver past the last sample BEFORE the UI reset below, because the
-      // lifecycle's completed-stop runs off this emit and must see the full
-      // session (reading the zeroed time recorded every natural end as
-      // 0 seconds listened and never bumped playCount).
-      if (duration.value > 0) listenSession.sample(duration.value);
-      currentTime.value = 0;
-      listenSession.rebase(0);
-      trackEndedBus.emit();
-    });
-    newPlayer.on("timeupdate", ({ currentTime: t }) => {
-      if (player.value !== newPlayer) return;
-      // Positions arriving mid-switch are the outgoing track's audio: they
-      // must not overwrite the optimistic zeroed position (the un-armed
-      // session drops the samples anyway).
-      if (_isSwitchingTrack()) return;
-      listenSession.sample(t);
-      currentTime.value = t;
-    });
-    // Both hooks re-base without crediting: "seeking" fires synchronously with
-    // the clamped target (covers every initiator — slider, chapters, media
-    // session), "seeked" re-syncs to the position the element actually landed
-    // on.
-    newPlayer.on("seeking", (t) => {
-      if (player.value === newPlayer) listenSession.rebase(t);
-    });
-    newPlayer.on("seeked", (t) => {
-      if (player.value === newPlayer) listenSession.rebase(t);
-    });
-    newPlayer.on("durationchange", (dur) => {
-      if (player.value === newPlayer) duration.value = dur;
-    });
-    newPlayer.on("loadedmetadata", ({ duration: dur }) => {
-      if (player.value === newPlayer) duration.value = dur;
-    });
-    newPlayer.on("canplay", () => {
-      if (player.value !== newPlayer) return;
-      duration.value = player.value.duration;
-      graphRevision.value++;
-    });
-    newPlayer.on("volumechange", ({ volume: vol, muted }) => {
-      if (player.value !== newPlayer) return;
-      volume.value = vol;
-      isMuted.value = muted;
-    });
-    newPlayer.on("ratechange", (rate) => {
-      if (player.value === newPlayer) playbackRate.value = rate;
-    });
-    newPlayer.on("error", (err) => {
-      if (player.value !== newPlayer) return;
-      const detail = err instanceof Error
-        ? `${err.name}: ${err.message}`
-        : (() => {
-            try {
-              return JSON.stringify(err);
-            }
-            catch {
-              return String(err);
-            }
-          })();
-      getLogger().error(`[Player] error: ${detail}`);
-    });
-
-    return newPlayer;
+    engine.value = created;
+    return created;
   };
 
-  /**
-   * Resolves the audio URL/source for any PlayerTrack — the single resolution
-   * point for playback.
-   *
-   * Library tracks:
-   *   1. local file (LOCAL_INTERNAL/LOCAL_EXTERNAL) → storageService.getAudioUrl
-   *   2. remote with an offline copy → storageService.getAudioUrl(copy path)
-   *   3. remote otherwise → sources.forTrack(id).resolveStreamUrl(id)
-   *   (REMOTE_HLS: storagePath IS the stream URL — folds into sources in M6)
-   *
-   * Ephemeral tracks:
-   *   file → createObjectURL (web drag-and-drop / file picker)
-   *   path → storageService.getAudioUrl (Tauri "Open with", no import)
-   *   url  → used directly (radio, YT stream proxy)
-   */
-  const resolvePlayback = async (track: PlayerTrack): Promise<string | null> => {
-    if (isEphemeralTrack(track)) return resolveEphemeralPlayback(track);
-    return resolveLibraryPlayback(track);
-  };
-
-  const resolveEphemeralPlayback = async (track: EphemeralTrack): Promise<string | null> => {
-    switch (track.source.type) {
-      case "file": {
-        if (_activeBlobUrl) {
-          URL.revokeObjectURL(_activeBlobUrl);
-        }
-        _activeBlobUrl = URL.createObjectURL(track.source.file);
-        return _activeBlobUrl;
-      }
-
-      case "path": {
-        if (!platformCaps.hasFs) {
-          getLogger().warn("[Player] path-based ephemeral tracks require native FS");
-          return null;
-        }
-        const result = await storageService.getAudioUrl(track.source.path);
-        if (result.isErr()) throw result.error;
-        return result.value;
-      }
-
-      case "url":
-        return track.source.url;
-    }
-  };
-
-  const resolveLibraryPlayback = async (track: Track): Promise<string | null> => {
-    if (track.source === TrackSource.REMOTE_HLS) {
-      return track.storagePath || null;
-    }
-
-    const isRemote = track.source === TrackSource.REMOTE_SUBSONIC
-      || track.source === TrackSource.REMOTE_YT;
-
-    if (!isRemote) {
-      if (track.source === TrackSource.LOCAL_EXTERNAL && !platformCaps.hasFs) {
-        getLogger().warn("[Player] LOCAL_EXTERNAL tracks require native FS");
-        return null;
-      }
-      const result = await storageService.getAudioUrl(track.storagePath);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    }
-
-    // Playing from live browsing shadow-pins the row (pinned = 0) so
-    // history, stats and queue persistence have valid FKs. Fire-and-forget:
-    // playback must not wait for the cascade.
-    if (track.sourceDto) {
-      ensurePinned({ kind: "remote", dto: track.sourceDto }, { pinned: 0 }).catch((error) => {
-        getLogger().warn(`[Player] Shadow-pin failed for ${track.id}: ${String(error)}`);
-      });
-    }
-
-    const copyResult = await offlineCopyRepository.findById(track.id);
-    const copy = copyResult.isOk() ? copyResult.value : undefined;
-    if (copy) {
-      const result = await storageService.getAudioUrl(copy.storagePath);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    }
-
-    const streamResult = await sources.forTrack(track.id).resolveStreamUrl(track.id);
-    if (streamResult.isErr()) {
-      throw new Error(`[${streamResult.error.kind}] ${streamResult.error.message}`);
-    }
-    return streamResult.value;
-  };
-
-  const applyLoudnessMetadata = (p: Player, track: PlayerTrack) => {
+  const applyLoudnessMetadata = (e: PlaybackEngine, track: PlayerTrack) => {
     if (isLibraryTrack(track) && typeof track.integratedLufs === "number") {
-      p.setLoudnessMetadata({
+      e.setLoudnessMetadata({
         integratedLufs: track.integratedLufs,
         truePeakDbtp: track.truePeakDbtp,
       });
     }
     else {
-      p.clearLoudnessMetadata();
+      e.clearLoudnessMetadata();
     }
   };
 
-  const loadUrl = async (p: Player, url: string, allowCorsFallback = false) => {
-    const isHls = url.includes(".m3u8")
-      || url.includes("application/vnd.apple.mpegurl");
+  const throwIfUnplayable = (track: PlayerTrack) => {
+    const playable = checkPlayable(track);
+    if (playable.isErr()) throw new PlaybackFailure(playable.error, track);
+  };
 
-    if (isHls) {
-      await p.load({ url, type: "hls" });
+  // Watchdog: no await on the way to playback may hang forever. In a hidden
+  // Android WebView the ended → next → resolve → load chain can stall on any
+  // of them, and a store that then honestly reports "loading" for the rest
+  // of the session is worse than a skipped track. Starting values — tune
+  // against real devices; streams get a longer leash than local files.
+  const RESOLVE_TIMEOUT_MS = 15_000;
+  const LOAD_TIMEOUT_MS = 30_000;
+  const HLS_LOAD_TIMEOUT_MS = 60_000;
+
+  const loadTimeoutFor = (source: PlaybackSource) =>
+    source.kind === "hls" ? HLS_LOAD_TIMEOUT_MS : LOAD_TIMEOUT_MS;
+
+  // Races `work` against a deadline. A late settlement of `work` after the
+  // deadline is dropped, not acted on; cancelling the underlying engine work
+  // is the caller's job (disposing the engine does it). A plain timer rather
+  // than AbortSignal.timeout: lyra's load() accepts no signal, so a signal
+  // would only be a timer in disguise — and this one fake timers can drive.
+  const withTimeout = <T>(work: PromiseLike<T>, ms: number, onTimeout: () => Error): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(onTimeout()), ms);
+      Promise.resolve(work)
+        .then(resolve, reject)
+        .finally(() => clearTimeout(deadline));
+    });
+
+  /**
+   * The one path from a track to audible playback: claim a request, resolve
+   * the source, load it, start. Used both for a track switch and for a cold
+   * start (a session restored after reload, or a switch interrupted mid-load).
+   * Throws on failure with the store settled into "error".
+   */
+  const loadAndPlay = async (track: PlayerTrack, options: { resumeAt?: number } = {}) => {
+    const requestId = ++_playRequestId;
+    // Optimistic: the engine's own statechange only fires once load() starts,
+    // leaving the previous track's status (and a false live-stream reading
+    // from the zeroed duration) visible while the source URL resolves.
+    // Opening the switch also abandons any fade in flight.
+    setState({ kind: "resolving", requestId });
+    const e = ensureEngine();
+
+    try {
+      const resolved = await withTimeout(
+        resolvePlaybackSource(track),
+        RESOLVE_TIMEOUT_MS,
+        () => new PlaybackFailure({ kind: "timeout", phase: "resolving" }, track),
+      );
+      if (requestId !== _playRequestId) return;
+      if (resolved.isErr()) throw new PlaybackFailure(resolved.error, track);
+
+      setState({ kind: "loading", requestId });
+      await withTimeout(
+        e.load(resolved.value),
+        loadTimeoutFor(resolved.value),
+        () => new PlaybackFailure({ kind: "timeout", phase: "loading" }, track),
+      );
+
+      // A superseded load() resolves silently (lyra cancels it internally);
+      // playing now would fight the newer request.
+      if (requestId !== _playRequestId) return;
+
+      // Only now is this track the engine's media — positions sampled before
+      // this point still belonged to the previous track.
+      listenSession.arm();
+      applyLoudnessMetadata(e, track);
+      // The loaded media belongs to THIS track now, so the switching window
+      // must close before play(): with fade-in enabled play() resolves only
+      // after the entire fade, and a track shorter than the fade genuinely
+      // ends inside it — that ended must advance the queue, not be dropped
+      // as stale.
+      setState({ kind: "starting" });
+      if (options.resumeAt && options.resumeAt > 0) e.seek(options.resumeAt);
+      await fades.start();
+      useAudioSettingsStore().pushToGraph();
     }
-    else if (allowCorsFallback) {
-      await p.load(url, { corsFallback: true });
+    catch (err) {
+      if (requestId !== _playRequestId) return;
+      const failure = toPlaybackFailure(err, track);
+      setState({ kind: "error" });
+      discardEngine();
+      // A source that cannot be resolved at all, or a file that is gone, is
+      // not worth keeping on screen; other failures keep the track so the UI
+      // can show what failed.
+      if (failure.error.kind === "unavailable" || failure.error.kind === "storage") {
+        clearCurrentTrack();
+      }
+      throw failure;
     }
-    else {
-      await p.load(url);
-    }
-    p.setPlaybackRate(playbackRate.value);
   };
 
   const play = async () => {
-    if (!player.value || !player.value.isReady) {
-      const track = currentTrack.value;
-      if (!track) return;
-
-      const requestId = ++_playRequestId;
-
-      const url = await resolvePlayback(track);
-      if (requestId !== _playRequestId) return;
-      if (!url) {
-        clearCurrentTrack();
-        status.value = "idle";
-        return;
-      }
-
-      const p = ensurePlayer();
-      await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      // A newer play request took over while we were loading.
-      if (requestId !== _playRequestId) return;
-      if (currentTime.value > 0) p.seek(currentTime.value);
-      await p.play();
-      useAudioSettingsStore().pushToGraph();
+    if (engine.value?.isReady) {
+      await fades.start();
       return;
     }
-
-    const wasCancellingFade = _activeFadeAbort !== null;
-    cancelActiveFade();
-
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeInDuration > 0;
-
-    if (wasCancellingFade && player.value.isPlaying) {
-      // A fade-out-to-pause was interrupted; playback never actually stopped.
-      // pause() optimistically set status to "paused"; the deferred pause was
-      // aborted, so the player is still playing — restore the store status
-      // (direct play(), e.g. MediaSession, bypasses togglePlay's own restore).
-      status.value = "playing";
-      if (shouldFade) {
-        // Ramp the fade multiplier from its mid-fade value back to full.
-        // fadeTo() cancels the in-flight fade-out internally — an explicit
-        // cancelFade() first would snap to full and kill the ramp.
-        await player.value.fadeTo(1, audioSettings.fadeInDuration);
-      }
-      else {
-        // No fade-in: stop the in-flight fade-out, restore the multiplier to
-        // full, keep the user's volume (volume no longer touches the fade).
-        player.value.cancelFade();
-        player.value.setVolume(volume.value);
-      }
-      return;
+    // No playable media in the engine: a session restored after reload, or a
+    // switch that togglePlay interrupted mid-load. Start the current track
+    // from where it was; a failure is logged, not thrown — the callers here
+    // are UI handlers, and the store already reads "error".
+    const track = currentTrack.value;
+    if (!track) return;
+    try {
+      throwIfUnplayable(track);
+      await loadAndPlay(track, { resumeAt: currentTime.value });
     }
-
-    if (shouldFade) {
-      await player.value.fadeIn(audioSettings.fadeInDuration);
-    }
-    else {
-      // A prior fade-out-to-pause may have left the fade multiplier at 0.
-      // Restore it now, while still paused (no signal), so playback is audible
-      // without a click from ramping gain up over still-flushing audio.
-      await player.value.fadeTo(1, 0);
-      player.value.setVolume(volume.value);
-      await player.value.play();
+    catch (err) {
+      getLogger().error(`[Player] Cannot start "${track.title}": ${String(err)}`);
     }
   };
 
   const pause = () => {
-    if (!player.value || !isPlaying.value) return;
-
-    if (_activeFadeAbort) return;
-
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
-
-    if (shouldFade) {
-      status.value = "paused";
-
-      const ac = new AbortController();
-      _activeFadeAbort = ac;
-      player.value.fadeOut(audioSettings.fadeOutDuration).then(() => {
-        if (ac.signal.aborted) return;
-        player.value?.pause();
-        // Leave the multiplier at 0 here; play() restores it while paused, so
-        // the gain never jumps up over samples the element is still flushing.
-        _activeFadeAbort = null;
-      });
-    }
-    else {
-      player.value.pause();
-    }
+    // A fade-out already in flight is not "playing" — a second pause is a no-op.
+    if (!engine.value || !isPlaying.value) return;
+    fades.pause();
   };
+
   const togglePlay = async () => {
-    if (_activeFadeAbort) {
-      cancelActiveFade();
-      player.value?.cancelFade();
-      player.value?.setVolume(volume.value);
-
-      if (status.value === "paused" && player.value) {
-        status.value = "playing";
-      }
-      return;
-    }
-
+    if (fades.interrupt()) return;
     if (isPlaying.value) pause();
     else await play();
   };
 
   const stop = () => {
-    if (!player.value) return;
-    _switchingRequestId = null;
-    cancelActiveFade();
-
-    const audioSettings = useAudioSettingsStore();
-    const shouldFade = audioSettings.isFadeEnabled && audioSettings.fadeOutDuration > 0;
-
-    if (shouldFade) {
-      const ac = new AbortController();
-      _activeFadeAbort = ac;
-      player.value.fadeOut(audioSettings.fadeOutDuration).then(() => {
-        if (ac.signal.aborted) return;
-        player.value?.stop();
-        _activeFadeAbort = null;
-        currentTime.value = 0;
-      });
-    }
-    else {
-      player.value.stop();
-      currentTime.value = 0;
-    }
+    if (!engine.value) return;
+    // Stopping mid-switch releases the event filter: the engine's next
+    // transition (the in-flight load resolving) has to reach the store again.
+    if (isSwitchingTrack()) setState({ kind: "idle" });
+    fades.stop();
   };
 
   /**
    * Main entry point for playing any track.
-   * Throws on failure — queue.store uses this to skip to next.
+   * Throws a PlaybackFailure on failure — queue.store uses this to skip to
+   * next, and the failure's `error.kind` says whether that is the right move.
    */
   const playPlayerTrack = async (track: PlayerTrack): Promise<void> => {
-    if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
-      throw new Error(`Track is marked as broken: "${track.title}"`);
-    }
-
-    const requestId = ++_playRequestId;
+    throwIfUnplayable(track);
 
     // A pending listen still open at this point means the previous track was
     // cut short by this switch — on a natural end the trackEnded handler has
@@ -563,112 +478,44 @@ export const usePlayerStore = defineStore("player", () => {
     // The consumed session is over; the next one starts at position 0.
     listenSession.reset();
 
-    cancelActiveFade();
     currentTime.value = 0;
     duration.value = 0;
-    // Optimistic: the engine's own statechange only fires once load() starts,
-    // leaving the previous track's status (and a false live-stream reading
-    // from the zeroed duration) visible while the source URL resolves.
-    status.value = "loading";
-    _switchingRequestId = requestId;
-
-    const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);
 
-    const url = await resolvePlayback(track);
-    if (requestId !== _playRequestId) return;
-    if (!url) {
-      _switchingRequestId = null;
-      status.value = "error";
-      discardPlayer();
-      clearCurrentTrack();
-      throw new Error(`Cannot resolve audio source for: "${track.title}"`);
-    }
-
-    try {
-      if (isEphemeralTrack(track) && track.source.type === "file") {
-        await p.load(track.source.file);
-        // load() resets the element's playbackRate to 1; re-apply (see loadUrl).
-        p.setPlaybackRate(playbackRate.value);
-      }
-      else {
-        await loadUrl(p, url, isEphemeralTrack(track) && track.source.type === "url");
-      }
-
-      // A superseded load() resolves silently (lyra cancels it internally);
-      // playing now would fight the newer request.
-      if (requestId !== _playRequestId) return;
-
-      // Only now is this track the engine's media — positions sampled before
-      // this point still belonged to the previous track.
-      listenSession.arm();
-      applyLoudnessMetadata(p, track);
-      // The loaded media belongs to THIS track now, so the switching window
-      // must close before play(): with fade-in enabled play() resolves only
-      // after the entire fade, and a track shorter than the fade genuinely
-      // ends inside it — that ended must advance the queue, not be dropped
-      // as stale.
-      if (_switchingRequestId === requestId) _switchingRequestId = null;
-      await play();
-      useAudioSettingsStore().pushToGraph();
-    }
-    catch (err) {
-      if (requestId !== _playRequestId) return;
-      _switchingRequestId = null;
-      status.value = "error";
-      discardPlayer();
-      if (err instanceof StorageError) {
-        clearCurrentTrack();
-      }
-      throw err;
-    }
-  };
-
-  // A fade-out-to-pause/stop in flight means the UI already shows "paused"
-  // but only the fade's deferred engine pause would make it real — and that
-  // pause is abort-guarded. Seeking must complete the pause instead of
-  // abandoning it, or the element keeps playing silently at gain 0 and later
-  // "ends" into the next track at full volume. Order matters: pause first,
-  // because cancelFade snaps the multiplier back to full and would pop over
-  // still-playing audio.
-  const settleFadeBeforeSeek = () => {
-    if (!_activeFadeAbort) return;
-    cancelActiveFade();
-    player.value?.pause();
-    player.value?.cancelFade();
+    await loadAndPlay(track);
   };
 
   const seekTo = (seconds: number) => {
     if (!canSeek.value) return;
-    settleFadeBeforeSeek();
-    player.value?.seek(seconds);
+    fades.settleBeforeSeek();
+    engine.value?.seek(seconds);
   };
 
   const seekPercent = (percent: number) => {
     if (!canSeek.value) return;
-    settleFadeBeforeSeek();
-    player.value?.seekPercent(percent / 100);
+    fades.settleBeforeSeek();
+    engine.value?.seekPercent(percent / 100);
   };
 
   const setVolume = (value: number) => {
     volume.value = value;
-    player.value?.setVolume(value);
+    engine.value?.setVolume(value);
   };
 
   const setMuted = (muted: boolean) => {
     isMuted.value = muted;
-    player.value?.setMuted(muted);
+    engine.value?.setMuted(muted);
   };
 
   const setPlaybackRate = (value: number) => {
     if (!Number.isFinite(value)) return;
     playbackRate.value = Math.min(Math.max(value, 0.0625), 16);
-    player.value?.setPlaybackRate(playbackRate.value);
+    engine.value?.setPlaybackRate(playbackRate.value);
   };
 
   const toggleMute = () => {
-    player.value?.toggleMute();
+    engine.value?.toggleMute();
   };
 
   const toggleRepeat = () => {
@@ -677,23 +524,24 @@ export const usePlayerStore = defineStore("player", () => {
 
   const dispose = async () => {
     _playRequestId++;
-    cancelActiveFade();
+    setState({ kind: "idle" });
     cancelSleepTimer();
     clearCurrentTrack();
-    const oldPlayer = player.value;
-    player.value = null;
-    if (oldPlayer) await oldPlayer.dispose();
+    const old = engine.value;
+    engine.value = null;
+    if (old) await old.dispose();
   };
 
-  const getAudioGraph = () => player.value?.graph ?? null;
+  const getAudioGraph = () => engine.value?.graph ?? null;
 
   const unlockAudio = async () => {
-    await ensurePlayer().unlockAudio();
+    await ensureEngine().unlockAudio();
   };
 
   return {
     player,
     status,
+    playbackState,
     currentTime,
     duration,
     volume,

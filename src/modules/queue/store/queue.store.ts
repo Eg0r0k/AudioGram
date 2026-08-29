@@ -3,7 +3,8 @@ import { computed, ref, shallowRef } from "vue";
 import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import { TrackSource } from "@/db/entities";
-import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
+import { StorageErrorCode } from "@/db/errors/storage.errors";
+import { PlaybackFailure } from "@/modules/player/service/playback-resolver.service";
 import { trackRepository } from "@/db/repositories";
 import { QueueItemId } from "@/types/ids";
 import {
@@ -482,8 +483,9 @@ export const useQueueStore = defineStore("queue", () => {
   function handlePlaybackError(track: PlayerTrack, err: unknown): void {
     if (!isEphemeralTrack(track)
       && track.source === TrackSource.LOCAL_EXTERNAL
-      && err instanceof StorageError
-      && err.code === StorageErrorCode.FILE_NOT_FOUND) {
+      && err instanceof PlaybackFailure
+      && err.error.kind === "storage"
+      && err.error.cause.code === StorageErrorCode.FILE_NOT_FOUND) {
       toast.warning(i18n.global.t("watchedFolders.trackPathMissing"));
     }
   }
