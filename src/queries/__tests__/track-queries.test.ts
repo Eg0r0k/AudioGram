@@ -458,8 +458,8 @@ describe("track.queries", () => {
     });
 
     it("hands a track-owned cover over to the newly assigned album", async () => {
-      // The editor requires an album, so fixing the tags of an album-less
-      // import always assigns one — the embedded art must follow the track.
+      // Fixing the tags of an album-less import may assign one — the embedded
+      // art must follow the track.
       const albumless: TrackEntity = { ...currentTrackEntity, albumId: "" as AlbumId, albumTitle: "" };
       repositories.trackRepository.findById.mockResolvedValue(ok(albumless));
       repositories.albumRepository.findById.mockResolvedValue(ok(existingAlbum));
@@ -505,6 +505,43 @@ describe("track.queries", () => {
       expect(repositories.coverRepository.upsertOwnerCover).not.toHaveBeenCalled();
       expect(repositories.coverRepository.deleteByOwner)
         .toHaveBeenCalledWith("track", albumless.id);
+    });
+
+    it("detaches the track from its album when neither albumId nor albumTitle is given", async () => {
+      repositories.coverRepository.findByOwner.mockResolvedValue(ok(undefined));
+
+      const next = await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+      });
+
+      expect(repositories.albumRepository.create).not.toHaveBeenCalled();
+      expect(repositories.trackRepository.update).toHaveBeenCalledWith(
+        currentTrackEntity.id,
+        expect.objectContaining({ albumId: "", albumTitle: "" }),
+      );
+      expect(next.albumId).toBe("");
+      expect(next.albumName).toBe("");
+    });
+
+    it("copies the album cover onto the track when it leaves the album without art of its own", async () => {
+      const coverBlob = new Blob([new Uint8Array(4)], { type: "image/webp" });
+      repositories.coverRepository.findByOwner.mockImplementation(
+        async (ownerType: string, ownerId: string) =>
+          ok(ownerType === "album" && ownerId === currentTrackEntity.albumId
+            ? { id: "c1", ownerType, ownerId, blob: coverBlob, mimeType: "image/webp", addedAt: 1, updatedAt: 1 }
+            : undefined),
+      );
+      repositories.coverRepository.upsertOwnerCover.mockResolvedValue(ok("c2"));
+
+      await updateTrackMetadataAndSync(queryClient, track, {
+        title: track.title,
+        artistNames: ["A"],
+      });
+
+      expect(repositories.coverRepository.upsertOwnerCover)
+        .toHaveBeenCalledWith("track", currentTrackEntity.id, coverBlob);
+      expect(repositories.coverRepository.deleteByOwner).not.toHaveBeenCalled();
     });
 
     it("persists trackNo and diskNo", async () => {

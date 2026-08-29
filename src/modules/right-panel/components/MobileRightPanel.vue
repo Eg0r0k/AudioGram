@@ -12,8 +12,7 @@
     <Transition name="slide-panel">
       <div
         v-if="rightPanel.isOpen"
-        class="pointer-events-auto absolute inset-0 overflow-hidden bg-card shadow-2xl"
-        :style="{ paddingTop: top, paddingBottom: bottom }"
+        class="pointer-events-auto absolute inset-0 overflow-hidden bg-card shadow-2xl pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
       >
         <RightPanelHost />
       </div>
@@ -22,14 +21,12 @@
 </template>
 
 <script setup lang="ts">
-import { useScreenSafeArea } from "@vueuse/core";
 import RightPanelHost from "@/modules/right-panel/components/RightPanelHost.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { panelBackDepth } from "@/modules/right-panel/lib/backChain";
 import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 
 const rightPanel = useRightPanelStore();
-const { top, bottom } = useScreenSafeArea();
 
 registerOverlayBackHandler({
   depth: () => panelBackDepth(rightPanel.isOpen, rightPanel.view, rightPanel.returnToView),

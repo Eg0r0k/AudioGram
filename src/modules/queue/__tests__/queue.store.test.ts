@@ -706,6 +706,42 @@ describe("queue.store", () => {
       expect((store.queue[0].track as Track).lyricsPath).toBe("lyrics/1.lrc");
       expect((store.originalQueue[0].track as Track).lyricsPath).toBe("lyrics/1.lrc");
     });
+
+    it("patches the player's current track when it is the edited one", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const track1 = createTrack("1");
+
+      store.queue = [
+        { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      playerStore.currentTrack = track1;
+
+      store.syncTrackMetadata({ ...track1, title: "Renamed" } as Track);
+
+      expect(playerStore.currentTrack?.title).toBe("Renamed");
+      expect(store.currentTrack?.title).toBe("Renamed");
+    });
+
+    it("leaves the player's current track alone when another track is edited", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const track1 = createTrack("1");
+      const track2 = createTrack("2");
+
+      store.queue = [
+        { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: track2, source: { type: "manual" as const }, addedAt: Date.now() },
+      ];
+      store.currentIndex = 0;
+      playerStore.currentTrack = track1;
+
+      store.syncTrackMetadata({ ...track2, title: "Renamed" } as Track);
+
+      expect(playerStore.currentTrack?.title).toBe(track1.title);
+      expect(store.queue[1].track.title).toBe("Renamed");
+    });
   });
 
   describe("jumpTo", () => {

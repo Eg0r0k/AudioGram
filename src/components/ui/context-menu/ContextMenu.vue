@@ -6,7 +6,19 @@ import { useOverlayScrollLock } from "@/components/ui/scrollable/scroll-lock";
 import ContextMenuCursorAutoClose from "./ContextMenuCursorAutoClose.vue";
 import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
 
-const props = defineProps<ContextMenuRootProps>();
+// Reka's trigger arms its own long-press timer on every touch pointerdown and
+// opens the menu from it, bypassing the native `contextmenu` event. Every menu
+// here picks its subject from that native event (Android WebView fires it at
+// the system long-press delay), so the synthetic path can only misfire: an
+// empty or stale-subject menu when the system delay is longer than reka's,
+// and a second menu from an outer root when triggers nest — stopPropagation
+// on `contextmenu` clears only the inner trigger's timer. setTimeout's
+// maximum delay disables it without patching the library.
+const NATIVE_LONG_PRESS_ONLY_MS = 2 ** 31 - 1;
+
+const props = withDefaults(defineProps<ContextMenuRootProps>(), {
+  pressOpenDelay: NATIVE_LONG_PRESS_ONLY_MS,
+});
 const emits = defineEmits<ContextMenuRootEmits>();
 
 const forwarded = useForwardPropsEmits(props, emits);
@@ -24,7 +36,6 @@ registerOverlayBackHandler({
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   },
 });
-
 
 const bindings = computed(() => ({
   ...forwarded.value,

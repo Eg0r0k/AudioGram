@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { refDebounced } from "@vueuse/core";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
@@ -85,6 +85,7 @@ const {
   initialPageParam: 0,
   getNextPageParam: lastPage => lastPage.nextOffset,
   enabled: hasEntityId,
+  placeholderData: keepPreviousData,
 });
 
 const tracks = computed(() =>

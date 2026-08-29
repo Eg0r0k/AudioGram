@@ -1,8 +1,7 @@
 ﻿<template>
   <div
     ref="dropZoneRef"
-    class="relative flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased"
-    :style="{ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left }"
+    class="relative flex bg-muted dark:bg-card flex-col h-dvh overflow-hidden antialiased pt-[env(safe-area-inset-top,0px)] pr-[env(safe-area-inset-right,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)]"
   >
     <WindowToolbar class="toolbar" />
     <DropOverlay :show="isDragging" />
@@ -16,8 +15,7 @@
 
     <div
       ref="dockRef"
-      class="pointer-events-none absolute z-(--z-mobile-dock) flex flex-col gap-1"
-      :style="{ bottom, left, right }"
+      class="pointer-events-none absolute z-(--z-mobile-dock) flex flex-col gap-1 bottom-[env(safe-area-inset-bottom,0px)] left-[env(safe-area-inset-left,0px)] right-[env(safe-area-inset-right,0px)]"
     >
       <div
         v-if="playerStore.currentTrack"
@@ -49,7 +47,7 @@
 
 <script setup lang="ts">
 import { ref, useTemplateRef, watch } from "vue";
-import { useElementSize, useScreenSafeArea } from "@vueuse/core";
+import { useElementSize } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { registerOverlayBackHandler, useOverlayBackButton } from "@/composables/useOverlayBackButton";
@@ -103,8 +101,6 @@ const { isDragging } = useFileDrop({
     importFiles(files);
   },
 });
-
-const { top, right, bottom, left } = useScreenSafeArea();
 </script>
 
 <style>

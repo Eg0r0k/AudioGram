@@ -1,13 +1,7 @@
 ﻿<template>
   <div
     ref="dropZoneRef"
-    class="app-grid  overflow-hidden h-dvh antialiased"
-    :style="{
-      paddingTop: top,
-      paddingRight: right,
-      paddingBottom: bottom,
-      paddingLeft: left,
-    }"
+    class="app-grid overflow-hidden h-dvh antialiased pt-[env(safe-area-inset-top,0px)] pr-[env(safe-area-inset-right,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)]"
   >
     <WindowToolbar class="toolbar" />
     <DropOverlay :show="isDragging" />
@@ -33,7 +27,6 @@
 </template>
 
 <script setup lang="ts">
-import { useScreenSafeArea } from "@vueuse/core";
 import WindowToolbar from "@/components/WindowToolbar.vue";
 import FooterMediaPlayer from "@/components/layout/footer/FooterMediaPlayer.vue";
 import ResizableSidebar from "@/components/layout/sidebar/ResizableSidebar.vue";
@@ -64,7 +57,6 @@ const { isDragging } = useFileDrop({
   },
 });
 
-const { top, right, bottom, left } = useScreenSafeArea();
 </script>
 
 <style scoped>

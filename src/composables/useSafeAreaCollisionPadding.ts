@@ -1,5 +1,5 @@
 import { computed, type ComputedRef } from "vue";
-import { createSharedComposable, useScreenSafeArea } from "@vueuse/core";
+import { useSafeAreaInsets } from "@/composables/useSafeAreaInsets";
 
 export interface CollisionPadding {
   top: number;
@@ -7,10 +7,6 @@ export interface CollisionPadding {
   bottom: number;
   left: number;
 }
-
-const useSharedSafeArea = createSharedComposable(useScreenSafeArea);
-
-const toPx = (value: string): number => Number.parseFloat(value) || 0;
 
 /**
  * Default `collisionPadding` for reka poppers (menus, submenus).
@@ -22,11 +18,11 @@ const toPx = (value: string): number => Number.parseFloat(value) || 0;
  * the tappable region; on desktop every inset is 0 and nothing changes.
  */
 export const useSafeAreaCollisionPadding = (): ComputedRef<CollisionPadding> => {
-  const { top, right, bottom, left } = useSharedSafeArea();
+  const { top, right, bottom, left } = useSafeAreaInsets();
   return computed(() => ({
-    top: toPx(top.value),
-    right: toPx(right.value),
-    bottom: toPx(bottom.value),
-    left: toPx(left.value),
+    top: top.value,
+    right: right.value,
+    bottom: bottom.value,
+    left: left.value,
   }));
 };

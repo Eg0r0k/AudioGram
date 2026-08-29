@@ -43,7 +43,8 @@ export interface RightPanelEntitySelectPayload {
   selectedAlbumId?: string;
   /**
    * For `kind: "album"` an existing pick reports both `albumId` and `albumTitle`
-   * (the title is only a display label), while a created one reports `albumTitle` alone.
+   * (the title is only a display label), a created one reports `albumTitle`
+   * alone, and "no album" reports neither.
    */
   onConfirm: (result: { names?: string[]; albumId?: string; albumTitle?: string }) => void;
   /**

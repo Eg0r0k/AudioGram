@@ -12,7 +12,7 @@
         :key="genre.id"
         class="flex items-center gap-3"
       >
-        <span class="w-28 shrink-0 truncate text-sm">{{ genre.name }}</span>
+        <span class="w-28 shrink-0 truncate text-sm">{{ genre.name || t("settings.stats.noGenre") }}</span>
         <div class="h-1.5 flex-1 rounded-full bg-background">
           <div
             class="h-full rounded-full bg-primary"

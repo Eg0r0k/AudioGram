@@ -42,7 +42,7 @@ async function handleAddMark(percent: number) {
     <aside>
       <div class="relative flex items-center justify-between ">
         <div
-          class="absolute -left-[11px] -top-3.5 -right-[11px]"
+          class="absolute -left-[11px] z-10 -top-3.5 -right-[11px]"
           :class="{ 'pointer-events-none opacity-50': !playerStore.canSeek }"
         >
           <RangeSelector

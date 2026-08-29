@@ -1,13 +1,15 @@
 <template>
-  <Scrollable class="flex-1">
-    <LibrarySidebar
-      v-if="isMobileLayout"
-      class="h-full bg-card"
-    />
-    <div
-      v-else
-      class="relative flex flex-col gap-4  items-center justify-center  h-full overflow-hidden bg-background"
-    >
+  <div
+    v-if="isMobileLayout"
+    class="flex flex-1 min-h-0 flex-col"
+  >
+    <LibrarySidebar class="h-full bg-card" />
+  </div>
+  <Scrollable
+    v-else
+    class="flex-1"
+  >
+    <div class="relative flex flex-col gap-4  items-center justify-center  h-full overflow-hidden bg-background">
       <IconLogo class=" text-accent size-45" />
       <div class="flex flex-col">
         <div class="flex flex-col gap-2 w-[256px]">

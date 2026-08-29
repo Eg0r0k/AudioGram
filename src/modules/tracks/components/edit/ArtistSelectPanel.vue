@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { refDebounced } from "@vueuse/core";
-import { useQuery } from "@tanstack/vue-query";
+import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import { EntitySelectPanel } from "@/components/entity-select";
 import { identityKey } from "@/lib/artist-names";
@@ -82,6 +82,7 @@ const PICKER_LIMIT = 1000;
 const { data } = useQuery({
   queryKey: computed(() => queryKeys.artists.search(normalizedSearch.value)),
   queryFn: () => searchArtists(normalizedSearch.value, PICKER_LIMIT),
+  placeholderData: keepPreviousData,
 });
 const suggestions = computed(() =>
   [...(data.value ?? [])].sort((a, b) => a.name.localeCompare(b.name)),

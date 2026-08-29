@@ -271,7 +271,6 @@ import { Button } from "@/components/ui/button";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import { routeLocation } from "@/app/router/route-locations";
 import { useDeviceLayout } from "@/composables/useDeviceLayout";
-import { useScreenSafeArea } from "@vueuse/core";
 import { usePlayerStore } from "@/modules/player";
 import IconCheck from "~icons/tabler/check";
 import IconMinus from "~icons/tabler/minus";
@@ -309,7 +308,6 @@ const isCancelDialogOpen = ref(false);
 
 const { isMobileLayout } = useDeviceLayout();
 const playerStore = usePlayerStore();
-const { right: safeRight, bottom: safeBottom, left: safeLeft } = useScreenSafeArea();
 
 // MiniPlayer (h-14 + my-1) occupies the bottom of the mobile column when a
 // track is loaded; dock the import surface just above it, clear of the notch.
@@ -323,9 +321,9 @@ const containerStyle = computed(() => {
   if (isMobileLayout.value) {
     const player = playerStore.currentTrack ? MINI_PLAYER_OFFSET : "0px";
     return {
-      left: `calc(${safeLeft.value || "0px"} + 0.5rem)`,
-      right: `calc(${safeRight.value || "0px"} + 0.5rem)`,
-      bottom: `calc(${safeBottom.value || "0px"} + ${player} + 0.5rem)`,
+      left: "calc(env(safe-area-inset-left, 0px) + 0.5rem)",
+      right: "calc(env(safe-area-inset-right, 0px) + 0.5rem)",
+      bottom: `calc(env(safe-area-inset-bottom, 0px) + ${player} + 0.5rem)`,
       maxHeight: "min(75dvh, 620px)",
     };
   }
@@ -407,7 +405,7 @@ function secondaryLine(file: ImportFileItem): string {
     return t("common.import.errorReason.default");
   }
   if (file.status === "ok" && file.title) {
-    return file.artist ? `${file.title} вЂ” ${file.artist}` : file.title;
+    return file.artist ? `${file.title} — ${file.artist}` : file.title;
   }
   return "";
 }
