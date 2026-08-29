@@ -43,7 +43,7 @@
         }"
       >
         <div
-          v-for="virtualRow in virtualizer.getVirtualItems()"
+          v-for="virtualRow in (rowsReady ? virtualizer.getVirtualItems() : [])"
           :key="String(virtualRow.key)"
           :ref="(el) => measureElement(el as Element | null)"
           :data-index="virtualRow.index"
@@ -83,6 +83,7 @@
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, useTemplateRef, watch } from "vue";
 import { scrollableInjectionKey } from "./injection";
+import { useSlideContentReady } from "@/components/transitions/slideContentReady";
 import { isScrollLockedByOverlay } from "./scroll-lock";
 import useScrollable from "./useScrollable";
 
@@ -129,6 +130,15 @@ const beforeHeight = ref(0);
 const stickyHeight = ref(0);
 const preListHeight = computed(() => beforeHeight.value + stickyHeight.value);
 
+// Rows wait for two things: the before/sticky slots measured (so the first
+// row render already has the right scrollMargin instead of being redone), and
+// the enclosing slide transition running — mounting dozens of rows is the
+// heaviest part of a page and must not sit between the click and the first
+// frame of motion.
+const headerMeasured = ref(false);
+const contentReady = useSlideContentReady();
+const rowsReady = computed(() => headerMeasured.value && contentReady.value);
+
 const effectivePaddingTop = computed(() =>
   props.items.length > 0 ? props.paddingTop : 0,
 );
@@ -150,6 +160,7 @@ const stickyRef = useTemplateRef("stickyRef");
 
 let beforeResizeObserver: ResizeObserver | null = null;
 let stickyResizeObserver: ResizeObserver | null = null;
+let mountFrame: number | null = null;
 let lastLoadMoreItemsCount = -1;
 let scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -371,10 +382,12 @@ const playFlip = () => {
   }
 };
 
-onMounted(() => {
-  nextTick(() => {
+const measureHeaderNextFrame = () => {
+  mountFrame = requestAnimationFrame(() => {
+    mountFrame = null;
     updateBeforeHeight();
     updateStickyHeight();
+    headerMeasured.value = true;
 
     if (beforeRef.value && typeof ResizeObserver !== "undefined") {
       beforeResizeObserver = new ResizeObserver(() => {
@@ -390,9 +403,18 @@ onMounted(() => {
       stickyResizeObserver.observe(stickyRef.value);
     }
   });
+};
+
+onMounted(() => {
+  if (contentReady.value) {
+    measureHeaderNextFrame();
+    return;
+  }
+  watch(contentReady, measureHeaderNextFrame, { once: true });
 });
 
 onUnmounted(() => {
+  if (mountFrame != null) cancelAnimationFrame(mountFrame);
   beforeResizeObserver?.disconnect();
   stickyResizeObserver?.disconnect();
   if (scrollDebounceTimer) {

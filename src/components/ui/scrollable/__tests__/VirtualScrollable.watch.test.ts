@@ -1,7 +1,8 @@
 import { render } from "@testing-library/vue";
-import { nextTick } from "vue";
+import { nextTick, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
+import { SLIDE_CONTENT_READY_KEY } from "@/components/transitions/slideContentReady";
 
 // Captures the virtualizer instance the component builds so `measure()` can
 // be counted; everything else is the real TanStack implementation.
@@ -77,7 +78,7 @@ const installLayoutStubs = () => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 };
 
-const mountList = (rows: Row[], animateReorder = true) => {
+const mountList = (rows: Row[], animateReorder = true, provide: Record<symbol, unknown> = {}) => {
   let current = rows;
   const utils = render(VirtualScrollable<Row>, {
     props: {
@@ -87,6 +88,7 @@ const mountList = (rows: Row[], animateReorder = true) => {
       animateReorder,
     },
     slots: { default: `<template #default="{ item }"><span>{{ item.id }}</span></template>` },
+    global: { provide },
   });
   const setItems = async (next: Row[]) => {
     current = next;
@@ -101,7 +103,12 @@ const mountList = (rows: Row[], animateReorder = true) => {
 const renderedKeys = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>("[data-vkey]")).map(el => el.dataset.vkey);
 
+const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+// Rows render a frame after mount (the before/sticky slots are measured in a
+// frame callback first), so a mount flush waits for that frame.
 const flush = async () => {
+  await nextFrame();
   await nextTick();
   await nextTick();
 };
@@ -119,6 +126,30 @@ describe("VirtualScrollable — items watchers", () => {
     const keys = renderedKeys(container);
     expect(keys.length).toBeGreaterThanOrEqual(VIEWPORT_HEIGHT / ROW_HEIGHT);
     expect(keys[0]).toBe("r0");
+  });
+
+  it("rows render only after the mount frame measured the header", async () => {
+    const { container } = mountList(makeRows(100));
+    await nextTick();
+    await nextTick();
+    expect(renderedKeys(container)).toHaveLength(0);
+
+    await flush();
+    expect(renderedKeys(container).length).toBeGreaterThan(0);
+  });
+
+  it("rows wait for the enclosing slide transition to start", async () => {
+    const gate = ref(false);
+    const { container } = mountList(makeRows(100), true, { [SLIDE_CONTENT_READY_KEY as symbol]: gate });
+    await flush();
+    expect(renderedKeys(container)).toHaveLength(0);
+
+    // Once the gate opens (watchers run on the next tick) the header is measured
+    // in the following frame, then rows render.
+    gate.value = true;
+    await nextTick();
+    await flush();
+    expect(renderedKeys(container).length).toBeGreaterThan(0);
   });
 
   it("a new array with the same keys costs no measure() and no FLIP layout reads", async () => {

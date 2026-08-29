@@ -1,14 +1,21 @@
 <template>
   <div class="slide-transition-container">
-    <Transition :name="transitionName">
+    <Transition
+      :name="transitionName"
+      @before-enter="onBeforeEnter"
+      @enter="onEnter"
+      @after-enter="onEnterSettled"
+      @enter-cancelled="onEnterSettled"
+    >
       <slot />
     </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { provide, readonly, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { SLIDE_CONTENT_READY_KEY, useSlideContentReady } from "./slideContentReady";
 
 const props = defineProps<{
   depth?: number;
@@ -41,37 +48,88 @@ const resolveByHistory = (): string => {
   return "";
 };
 
-watch(
-  [() => props.depth, () => route.fullPath],
-  ([newDepth, newFullPath], [oldDepth, oldFullPath]) => {
-    if (hasHash(newFullPath) || hasHash(oldFullPath)) {
-      transitionName.value = "";
-      return;
-    }
+type TransitionSources = [depth: number | undefined, fullPath: string];
 
-    if (newDepth === undefined || oldDepth === undefined) {
-      transitionName.value = "";
-      return;
-    }
+const resolveTransitionName = (
+  [newDepth, newFullPath]: TransitionSources,
+  [oldDepth, oldFullPath]: TransitionSources,
+): string => {
+  if (hasHash(newFullPath) || hasHash(oldFullPath)) return "";
+  if (newDepth === undefined || oldDepth === undefined) return "";
 
-    if (newDepth !== oldDepth) {
-      lastPosition = historyPosition();
-      transitionName.value = newDepth > oldDepth ? "slide-left" : "slide-right";
-      return;
-    }
+  if (newDepth !== oldDepth) {
+    lastPosition = historyPosition();
+    return newDepth > oldDepth ? "slide-left" : "slide-right";
+  }
 
-    if (!props.historyAware || newDepth === 0) {
-      transitionName.value = "";
-      return;
-    }
+  if (!props.historyAware || newDepth === 0) return "";
+  return resolveByHistory();
+};
 
-    transitionName.value = resolveByHistory();
-  },
-);
+// Heavy children (see useSlideContentReady) mount only once the enter
+// transition is running on the compositor, so their mount cost no longer sits
+// between the click and the first frame of motion. A nested SlideTransition
+// starts gated by its parent's slide, so a page that contains one (mobile
+// IndexPage) still defers the inner list until the outer slide has started.
+const outerReady = useSlideContentReady();
+const contentReady = ref(outerReady.value);
+provide(SLIDE_CONTENT_READY_KEY, readonly(contentReady));
+
+let enterArmed = false;
+let enterInFlight = false;
+let stopListening: (() => void) | null = null;
+
+const releaseContent = () => {
+  stopListening?.();
+  stopListening = null;
+  contentReady.value = true;
+};
+
+if (!outerReady.value) {
+  watch(outerReady, releaseContent, { once: true });
+}
+
+// Only a page sliding in from off-screen (slide-left) hides its blank frames.
+// A page returning from behind (slide-right) is 80% visible from the first
+// frame, and a page replacing an interrupted enter (quick back mid-slide)
+// takes over from content that is already on screen — both render in full.
+const applyTransition = (name: string) => {
+  transitionName.value = name;
+  enterArmed = false;
+  contentReady.value = name !== "slide-left" || enterInFlight;
+};
+
+const onBeforeEnter = () => {
+  enterArmed = true;
+  enterInFlight = true;
+};
+
+const onEnter = (el: Element) => {
+  const onTransitionStart = (event: Event) => {
+    if (event.target === el) releaseContent();
+  };
+  el.addEventListener("transitionstart", onTransitionStart);
+  stopListening = () => el.removeEventListener("transitionstart", onTransitionStart);
+};
+
+const onEnterSettled = () => {
+  enterInFlight = false;
+  releaseContent();
+};
+
+const transitionSources = [() => props.depth, () => route.fullPath] as const;
+
+watch(transitionSources, () => {
+  if (!enterArmed) releaseContent();
+}, { flush: "post" });
+
+watch(transitionSources, (next, prev) => {
+  applyTransition(resolveTransitionName(next, prev));
+});
 </script>
 <style>
 :root {
-  --transition-duration: 0.3s;
+  --transition-duration: 0.35s;
   --parallax-offset: -20%;
   --overlay-brightness: 0.7;
 }
