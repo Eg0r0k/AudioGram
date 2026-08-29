@@ -25,6 +25,7 @@ import { createListenSession } from "../lib/listen-session";
 import { useDelayedIndicator } from "../composables/useDelayedIndicator";
 import { useCountdown } from "../composables/useCountdown";
 import { getLogger } from "@/lib/logger";
+import { useQueueStore } from "@/modules/queue/store/queue.store";
 
 export const usePlayerStore = defineStore("player", () => {
   const player = shallowRef<Player | null>(null);
@@ -37,7 +38,16 @@ export const usePlayerStore = defineStore("player", () => {
   const volume = ref(1);
   const isMuted = ref(false);
   const playbackRate = ref(1);
-  const repeatMode = ref<RepeatMode>("off");
+  // What happens after a track ends is the queue's decision, so repeatMode
+  // lives (and persists) in the queue store. This delegates for consumers
+  // that still read it here; resolved lazily — the two stores import each
+  // other, and neither may touch the other while its setup runs.
+  const repeatMode = computed<RepeatMode>({
+    get: () => useQueueStore().repeatMode,
+    set: (mode) => {
+      useQueueStore().repeatMode = mode;
+    },
+  });
   const status = ref<PlayerState>("idle");
   const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
@@ -662,9 +672,7 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const toggleRepeat = () => {
-    const modes: RepeatMode[] = ["off", "all", "one"];
-    const idx = modes.indexOf(repeatMode.value);
-    repeatMode.value = modes[(idx + 1) % modes.length];
+    useQueueStore().toggleRepeat();
   };
 
   const dispose = async () => {
@@ -733,7 +741,6 @@ export const usePlayerStore = defineStore("player", () => {
       "volume",
       "isMuted",
       "playbackRate",
-      "repeatMode",
       "currentTrack",
       "currentTime",
       "duration",

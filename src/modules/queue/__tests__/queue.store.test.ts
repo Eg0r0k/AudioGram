@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createApp, nextTick } from "vue";
 import { createPinia, setActivePinia } from "pinia";
+import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { ok } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { trackRepository } from "@/db/repositories";
@@ -1850,6 +1852,66 @@ describe("queue.store", () => {
 
       expect(store.queue.map(item => item.id)).toEqual(["item-1"]);
       expect(store.currentIndex).toBe(-1);
+    });
+  });
+
+  describe("repeatMode", () => {
+    it("cycles off → all → one → off and is readable through the player store", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+
+      expect(store.repeatMode).toBe("off");
+      store.toggleRepeat();
+      expect(store.repeatMode).toBe("all");
+      expect(playerStore.repeatMode).toBe("all");
+      playerStore.toggleRepeat();
+      expect(store.repeatMode).toBe("one");
+      store.toggleRepeat();
+      expect(store.repeatMode).toBe("off");
+    });
+
+    // Pinia only activates plugins once it is installed on an app.
+    const hydratedStore = () => {
+      const pinia = createPinia();
+      pinia.use(piniaPluginPersistedstate);
+      createApp({ render: () => null }).use(pinia);
+      setActivePinia(pinia);
+      return useQueueStore();
+    };
+
+    it("persists under the queue key and no longer under the player's", async () => {
+      const store = hydratedStore();
+
+      store.toggleRepeat();
+      await nextTick();
+
+      expect(JSON.parse(localStorage.getItem("audiogram-queue-v1")!).repeatMode).toBe("all");
+      expect(JSON.parse(localStorage.getItem("lyra-player") ?? "{}").repeatMode).toBeUndefined();
+    });
+
+    it("adopts the repeat mode a previous build stored under the player's key", () => {
+      localStorage.setItem("lyra-player", JSON.stringify({ volume: 1, repeatMode: "all" }));
+
+      const store = hydratedStore();
+
+      expect(store.repeatMode).toBe("all");
+    });
+
+    it("prefers its own stored repeat mode over the legacy one", () => {
+      localStorage.setItem("lyra-player", JSON.stringify({ repeatMode: "all" }));
+      localStorage.setItem("audiogram-queue-v1", JSON.stringify({ persistedSnapshot: null, repeatMode: "one" }));
+
+      const store = hydratedStore();
+
+      expect(store.repeatMode).toBe("one");
+    });
+
+    it("ignores a legacy value that is not a repeat mode", () => {
+      localStorage.setItem("lyra-player", JSON.stringify({ repeatMode: "bogus" }));
+
+      const store = hydratedStore();
+
+      expect(store.repeatMode).toBe("off");
     });
   });
 

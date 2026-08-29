@@ -6,7 +6,14 @@ import { TrackSource } from "@/db/entities";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 import { trackRepository } from "@/db/repositories";
 import { QueueItemId } from "@/types/ids";
-import { type Track, type EphemeralTrack, isEphemeralTrack, type PlayerTrack } from "@/modules/player/types";
+import {
+  type Track,
+  type EphemeralTrack,
+  isEphemeralTrack,
+  type PlayerTrack,
+  REPEAT_MODES,
+  type RepeatMode,
+} from "@/modules/player/types";
 import { isSameQueueSource, type QueueItem, type QueueSource } from "../types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
@@ -73,6 +80,27 @@ interface QueueState {
 
 const EMPTY_STATE: QueueState = { items: [], playbackOrder: null, currentItemId: null };
 
+const LEGACY_PLAYER_STORAGE_KEY = "lyra-player";
+
+const isRepeatMode = (value: unknown): value is RepeatMode =>
+  typeof value === "string" && (REPEAT_MODES as readonly string[]).includes(value);
+
+// One-time migration: repeatMode used to persist under the player's key. A
+// queue entry that has never stored one adopts the player's value, so the
+// upgrade does not reset the user's repeat setting.
+const readLegacyRepeatMode = (): RepeatMode | null => {
+  try {
+    const own = localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (own && "repeatMode" in JSON.parse(own)) return null;
+    const legacy = localStorage.getItem(LEGACY_PLAYER_STORAGE_KEY);
+    const mode: unknown = legacy ? JSON.parse(legacy).repeatMode : undefined;
+    return isRepeatMode(mode) ? mode : null;
+  }
+  catch {
+    return null;
+  }
+};
+
 const insertAt = <T>(list: readonly T[], index: number, ...values: T[]): T[] => [
   ...list.slice(0, index),
   ...values,
@@ -137,7 +165,9 @@ const assertQueueInvariants = (state: QueueState) => {
 };
 
 export const useQueueStore = defineStore("queue", () => {
-  const playerStore = usePlayerStore();
+  // The player store is resolved inside the functions that drive it, never
+  // here: the two stores import each other, and a top-level call would tie
+  // this store's setup to the player's.
 
   // One shallow ref rather than three: a mutation that touches several
   // fields lands atomically, so no reader (and no invariant check) ever
@@ -146,6 +176,9 @@ export const useQueueStore = defineStore("queue", () => {
   // deep-proxying a thousand queue entries is pure overhead.
   const state = shallowRef<QueueState>(EMPTY_STATE);
   const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
+  // What happens after a track ends — loop it, loop the queue, or stop — is
+  // a queue decision, not an engine one.
+  const repeatMode = ref<RepeatMode>("off");
 
   // Bumped by every commit. restorePersistedQueue captures it before its
   // async DB read and refuses to commit when the user acted in that gap
@@ -208,13 +241,13 @@ export const useQueueStore = defineStore("queue", () => {
 
   const hasNext = computed(() => {
     if (queue.value.length === 0) return false;
-    if (playerStore.repeatMode !== "off") return true;
+    if (repeatMode.value !== "off") return true;
     return currentIndex.value < queue.value.length - 1;
   });
 
   const hasPrevious = computed(() => {
     if (queue.value.length === 0) return false;
-    if (playerStore.repeatMode === "all") return true;
+    if (repeatMode.value === "all") return true;
     return currentIndex.value > 0;
   });
 
@@ -356,9 +389,10 @@ export const useQueueStore = defineStore("queue", () => {
     if (isEphemeralTrack(nextTrack)) return;
 
     commit({ items: patchQueueItem(items.value, nextTrack) });
-    const playing = playerStore.currentTrack;
+    const player = usePlayerStore();
+    const playing = player.currentTrack;
     if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
-      playerStore.currentTrack = { ...playing, ...nextTrack };
+      player.currentTrack = { ...playing, ...nextTrack };
     }
   }
 
@@ -381,7 +415,7 @@ export const useQueueStore = defineStore("queue", () => {
     });
 
     if (swappedCurrent) {
-      playerStore.currentTrack = libraryTrack;
+      usePlayerStore().currentTrack = libraryTrack;
     }
   }
 
@@ -440,8 +474,9 @@ export const useQueueStore = defineStore("queue", () => {
 
   function resetPlaybackSelection(): void {
     commit({ currentItemId: null });
-    playerStore.stop();
-    playerStore.clearCurrentTrack();
+    const player = usePlayerStore();
+    player.stop();
+    player.clearCurrentTrack();
   }
 
   function handlePlaybackError(track: PlayerTrack, err: unknown): void {
@@ -460,7 +495,7 @@ export const useQueueStore = defineStore("queue", () => {
     commit({ currentItemId: item.id });
 
     try {
-      await playerStore.playPlayerTrack(item.track);
+      await usePlayerStore().playPlayerTrack(item.track);
       return true;
     }
     catch (err) {
@@ -475,7 +510,7 @@ export const useQueueStore = defineStore("queue", () => {
       const nextIdx = currentIndex.value + 1;
 
       if (nextIdx >= queue.value.length) {
-        if (playerStore.repeatMode === "all") {
+        if (repeatMode.value === "all") {
           const success = await playAtIndex(0);
           if (success) return;
         }
@@ -579,13 +614,14 @@ export const useQueueStore = defineStore("queue", () => {
       // If playback already started this session (cold play of the persisted
       // track), the player owns its current track — don't reassign or clear
       // it out from under live audio.
-      if (playerStore.status === "idle") {
+      const player = usePlayerStore();
+      if (player.status === "idle") {
         const restoredCurrentItem = currentItem.value;
         if (restoredCurrentItem) {
-          playerStore.currentTrack = restoredCurrentItem.track;
+          player.currentTrack = restoredCurrentItem.track;
         }
         else {
-          playerStore.clearCurrentTrack();
+          player.clearCurrentTrack();
         }
       }
     }
@@ -618,7 +654,7 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   async function appendAutoplayRecommendations(): Promise<boolean> {
-    if (playerStore.repeatMode !== "off") return false;
+    if (repeatMode.value !== "off") return false;
     if (currentIndex.value !== queue.value.length - 1) return false;
 
     const sourceItem = currentItem.value;
@@ -654,7 +690,7 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     if (currentItem.value?.id !== sourceItemId) return false;
-    if (playerStore.repeatMode !== "off") return false;
+    if (repeatMode.value !== "off") return false;
     if (currentIndex.value !== queue.value.length - 1) return false;
 
     const tracks = recommendations.map(({ track }) => mapTrackEntityToPlayerTrack(track));
@@ -702,7 +738,7 @@ export const useQueueStore = defineStore("queue", () => {
   async function next(): Promise<void> {
     if (queue.value.length === 0) return;
 
-    if (playerStore.repeatMode === "one") {
+    if (repeatMode.value === "one") {
       // A transient failure (remote tracks re-resolve on every loop) gets one
       // retry; after that give up explicitly instead of leaving playback in a
       // silent half-error state with the selection intact.
@@ -716,7 +752,7 @@ export const useQueueStore = defineStore("queue", () => {
       const success = await playAtIndex(currentIndex.value + 1);
       if (!success) await skipToNextPlayable();
     }
-    else if (playerStore.repeatMode === "all") {
+    else if (repeatMode.value === "all") {
       const success = await playAtIndex(0);
       if (!success) await skipToNextPlayable();
     }
@@ -734,22 +770,23 @@ export const useQueueStore = defineStore("queue", () => {
 
   async function previous(): Promise<void> {
     if (queue.value.length === 0) return;
+    const player = usePlayerStore();
 
     // Restart-at-zero needs a seekable track: on live streams seekTo is a
     // silent no-op and would swallow the button press entirely.
-    if (playerStore.currentTime > RESTART_THRESHOLD && playerStore.canSeek) {
-      playerStore.seekTo(0);
+    if (player.currentTime > RESTART_THRESHOLD && player.canSeek) {
+      player.seekTo(0);
       return;
     }
 
     if (currentIndex.value > 0) {
       await playAtIndex(currentIndex.value - 1);
     }
-    else if (playerStore.repeatMode === "all") {
+    else if (repeatMode.value === "all") {
       await playAtIndex(queue.value.length - 1);
     }
     else {
-      playerStore.seekTo(0);
+      player.seekTo(0);
     }
   }
 
@@ -836,6 +873,11 @@ export const useQueueStore = defineStore("queue", () => {
     commit({ playbackOrder: null });
   }
 
+  const toggleRepeat = () => {
+    const idx = REPEAT_MODES.indexOf(repeatMode.value);
+    repeatMode.value = REPEAT_MODES[(idx + 1) % REPEAT_MODES.length];
+  };
+
   function toggleShuffle(): void {
     if (isShuffled.value) {
       unshuffle();
@@ -847,8 +889,9 @@ export const useQueueStore = defineStore("queue", () => {
 
   function clear(): void {
     commit(EMPTY_STATE);
-    playerStore.stop();
-    playerStore.clearCurrentTrack();
+    const player = usePlayerStore();
+    player.stop();
+    player.clearCurrentTrack();
   }
 
   return {
@@ -857,6 +900,7 @@ export const useQueueStore = defineStore("queue", () => {
     currentIndex,
     isShuffled,
     persistedSnapshot,
+    repeatMode,
 
     currentItem,
     currentTrack,
@@ -885,14 +929,21 @@ export const useQueueStore = defineStore("queue", () => {
     syncTrackMetadata,
     swapEphemeralForLibrary,
     toggleShuffle,
+    toggleRepeat,
     clear,
   };
 }, {
   persist: {
     key: QUEUE_STORAGE_KEY,
-    pick: ["persistedSnapshot"],
+    pick: ["persistedSnapshot", "repeatMode"],
     afterHydrate: ({ store }) => {
-      (store as typeof store & { restorePersistedQueue: () => Promise<void> }).restorePersistedQueue();
+      const queueStore = store as typeof store & {
+        repeatMode: RepeatMode;
+        restorePersistedQueue: () => Promise<void>;
+      };
+      const legacyRepeatMode = readLegacyRepeatMode();
+      if (legacyRepeatMode) queueStore.repeatMode = legacyRepeatMode;
+      queueStore.restorePersistedQueue();
     },
   },
 });
