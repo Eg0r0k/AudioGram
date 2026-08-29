@@ -36,6 +36,10 @@ export function useLibrarySidebarFolders({
 
   // The folder picker lives in the right panel, scoped to the folder it was
   // opened for: leaving that folder (or unmounting the sidebar) closes it.
+  // `sync`: a pre-flush watcher would collapse `null → id → null` within one
+  // tick into "no change" and never fire. Not reachable from separate user
+  // gestures today, so this is defensive ordering, not a correctness need —
+  // but do not drop it blind.
   watch(activeFolderId, id => rightPanel.invalidateFolderScope(id), { flush: "sync" });
   onScopeDispose(() => rightPanel.invalidateFolderScope(null));
 

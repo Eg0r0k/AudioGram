@@ -123,7 +123,7 @@ export const useRightPanelStore = defineStore("right-panel", () => {
   function back(): void {
     switch (returnToView.value) {
       case "queue":
-        openQueue({ scope: scope.value, depth: 0 });
+        openQueue({ scope: scope.value.type === "folder" ? { type: "global" } : scope.value, depth: 0 });
         return;
       case CURRENT_TRACK_VIEW:
       case "none":

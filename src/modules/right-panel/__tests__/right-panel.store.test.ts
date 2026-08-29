@@ -131,4 +131,16 @@ describe("right-panel.store", () => {
     expect(store.isOpen).toBe(true);
     expect(store.view).toBe("folder-add");
   });
+
+  it("back from a folder-scoped panel to the queue drops the folder scope", () => {
+    const store = useRightPanelStore();
+    store.openQueue();
+    store.openFolderAdd({ folderId: "f1" });
+    store.back();
+    expect(store.view).toBe("queue");
+    expect(store.scope).toEqual({ type: "global" });
+    store.invalidateFolderScope(null);
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("queue");
+  });
 });

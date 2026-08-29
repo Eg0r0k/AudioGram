@@ -2,6 +2,7 @@ import { createTestingPinia } from "@pinia/testing";
 import { fireEvent, render } from "@testing-library/vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, ref } from "vue";
+import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import type { SidebarFolderEntity } from "@/db/entities";
 import type { LibraryItem } from "@/modules/library/types";
@@ -18,6 +19,10 @@ vi.mock("@/modules/library/composables/useLibrary", () => ({
     movableItems: computed(() => movableItems.value),
     setFolderItems,
   }),
+}));
+
+vi.mock("vue-sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }));
 
 const VirtualScrollableStub = {
@@ -127,6 +132,24 @@ describe("FolderAddPanel", () => {
       { type: "album", id: "al1" },
     ]);
     expect(rightPanel.isOpen).toBe(false);
+  });
+
+  it("shows an error toast and keeps the panel open when saving fails", async () => {
+    setFolderItems.mockRejectedValueOnce(new Error("boom"));
+    const { container, getByTestId, rightPanel } = renderPanel();
+    const [playlist] = rows(container);
+    await fireEvent.click(playlist);
+    expect(getByTestId("fab").textContent).toBe("1");
+
+    await fireEvent.click(getByTestId("fab"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(rightPanel.isOpen).toBe(true);
+    expect(rightPanel.view).toBe("folder-add");
+    expect(getByTestId("fab").textContent).toBe("1");
   });
 
   it("clicking a selected row deselects it", async () => {

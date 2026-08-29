@@ -100,6 +100,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { toast } from "vue-sonner";
 import { EntitySelectPanel } from "@/components/entity-select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -200,6 +201,14 @@ const handleRowClick = (item: FolderPickerItem, event: MouseEvent | KeyboardEven
   handleSelect({ id: libraryItemKey(item) }, event);
 };
 
+// The host keeps this instance across a same-tick folder switch
+// (transition key = view:depth), so per-folder UI state must not leak.
+watch(() => props.payload.folderId, () => {
+  search.value = "";
+  filter.value = "all";
+  clearSelection();
+});
+
 const panelRef = useTemplateRef<{ listEl: HTMLElement | null }>("panelRef");
 watch(
   () => panelRef.value?.listEl ?? null,
@@ -222,8 +231,14 @@ const handleConfirm = async () => {
   const entries = Array.from(selectedIds.value).flatMap(parseFolderEntryKey);
   if (entries.length === 0) return;
 
-  await setFolderItems(target.id, [...target.items, ...entries]);
+  try {
+    await setFolderItems(target.id, [...target.items, ...entries]);
+  }
+  catch {
+    toast.error(t("sheet.addFailed"));
+    return;
+  }
   clearSelection();
-  rightPanel.close();
+  if (rightPanel.view === "folder-add") rightPanel.close();
 };
 </script>

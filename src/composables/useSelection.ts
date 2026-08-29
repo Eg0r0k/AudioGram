@@ -264,7 +264,7 @@ export function useSelection<T extends Selectable>(
     // Порядок разрешения: явный scrollEl → сам containerEl, если скроллится →
     // первый скроллируемый потомок (AlbumPage/AddTracksPanel держат внешний
     // нескроллируемый враппер, а реальный скролл — во внутреннем контейнере
-    // VirtualScrollable) → скроллируемый предок (LibraryFolderAddPanel) →
+    // VirtualScrollable) → скроллируемый предок (FolderAddPanel) →
     // сам containerEl как крайний случай.
     const resolveScrollEl = (): HTMLElement => {
       if (scrollEl) return scrollEl;
