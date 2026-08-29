@@ -49,89 +49,89 @@
       </div>
     </div>
 
-    <div
-      v-if="isLoading"
-      class="flex flex-1 flex-col px-4 pt-4 sm:px-6"
-    >
-      <TrackRowLoading :rows="5" />
-    </div>
-
-    <div
-      v-else-if="isError"
-      class="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center"
-    >
-      <div>
-        <h2 class="text-2xl font-bold">
-          {{ t('errors.tracksLoadFailed') }}
-        </h2>
-        <p class="text-muted-foreground">
-          {{ errorMessage }}
-        </p>
-      </div>
-
-      <Button @click="refetch">
-        {{ t('common.retry') }}
-      </Button>
-    </div>
-
-    <TrackContextMenu
-      v-else
-      context="default"
-    >
-      <div
-        class="track-list-grid relative flex min-h-0 flex-1 flex-col"
-      >
-        <LibrarySortHeader
-          v-model:sort-key="sortKey"
-        />
-
-        <VirtualScrollable
-          :items="tracks"
-          :get-item-key="getTrackKey"
-          :item-height="56"
-          :load-more-offset="120"
-          :padding-top="8"
-          :padding-bottom="8"
-          :loading="isFetchingNextPage"
-          class="flex-1"
-          @load-more="handleLoadMore"
+    <TrackContextMenu context="default">
+      <CrossfadeTransition class="flex-1">
+        <div
+          v-if="isLoading"
+          class="flex flex-col px-4 pt-4 sm:px-6"
         >
-          <template #default="{ item, index }">
-            <div class="px-2">
-              <TrackExpanded
-                :track="item"
-                :index="index + 1"
-                :is-active="currentTrackId === item.id"
-                @play="handlePlayTrack(index)"
-                @contextmenu="handleContextMenu(item, index)"
-              />
-            </div>
-          </template>
+          <TrackRowLoading :rows="5" />
+        </div>
 
-          <template #loader>
-            <div class="flex items-center px-2 flex-col w-full">
-              <TrackRowLoading />
-            </div>
-          </template>
+        <div
+          v-else-if="isError"
+          class="flex flex-col items-center justify-center gap-4 px-4 text-center"
+        >
+          <div>
+            <h2 class="text-2xl font-bold">
+              {{ t('errors.tracksLoadFailed') }}
+            </h2>
+            <p class="text-muted-foreground">
+              {{ errorMessage }}
+            </p>
+          </div>
 
-          <template #empty>
-            <Empty class="p-4 py-12 sm:px-6 md:py-12">
-              <EmptyHeader>
-                <EmptyMedia
-                  variant="icon"
-                  class="rounded-full text-muted-foreground"
-                >
-                  <component
-                    :is="emptyIcon"
-                    class="size-5"
-                  />
-                </EmptyMedia>
-                <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </template>
-        </VirtualScrollable>
-      </div>
+          <Button @click="refetch">
+            {{ t('common.retry') }}
+          </Button>
+        </div>
+
+        <div
+          v-else
+          class="track-list-grid relative flex min-h-0 flex-col"
+        >
+          <LibrarySortHeader
+            v-model:sort-key="sortKey"
+          />
+
+          <VirtualScrollable
+            :items="tracks"
+            :get-item-key="getTrackKey"
+            :item-height="56"
+            :load-more-offset="120"
+            :padding-top="8"
+            :padding-bottom="8"
+            :loading="isFetchingNextPage"
+            class="flex-1"
+            @load-more="handleLoadMore"
+          >
+            <template #default="{ item, index }">
+              <div class="px-2">
+                <TrackExpanded
+                  :track="item"
+                  :index="index + 1"
+                  :is-active="currentTrackId === item.id"
+                  @play="handlePlayTrack(index)"
+                  @contextmenu="handleContextMenu(item, index)"
+                />
+              </div>
+            </template>
+
+            <template #loader>
+              <div class="flex items-center px-2 flex-col w-full">
+                <TrackRowLoading />
+              </div>
+            </template>
+
+            <template #empty>
+              <Empty class="p-4 py-12 sm:px-6 md:py-12">
+                <EmptyHeader>
+                  <EmptyMedia
+                    variant="icon"
+                    class="rounded-full text-muted-foreground"
+                  >
+                    <component
+                      :is="emptyIcon"
+                      class="size-5"
+                    />
+                  </EmptyMedia>
+                  <EmptyDescription>{{ emptyLabel }}</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </template>
+          </VirtualScrollable>
+        </div>
+      </CrossfadeTransition>
     </TrackContextMenu>
 
     <TrackDropdown context="default" />
@@ -149,6 +149,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
+import CrossfadeTransition from "@/components/transitions/CrossfadeTransition.vue";
 
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
