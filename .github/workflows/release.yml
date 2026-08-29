@@ -46,7 +46,13 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
+            args: ''
           - platform: ubuntu-22.04
+            args: ''
+          # One universal bundle serves Apple Silicon and Intel; the arm64
+          # runner cross-compiles the x86_64 half, so no Intel runner needed.
+          - platform: macos-latest
+            args: --target universal-apple-darwin
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -73,6 +79,8 @@ jobs:
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -95,6 +103,22 @@ jobs:
           curl -fsSL -o src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe \
             https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe
 
+      - name: Download yt-dlp sidecar (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          # yt-dlp_macos is already a universal (arm64 + x86_64) binary.
+          # tauri-build checks for a sidecar per compiled target triple and
+          # the bundler looks up the universal name, so the same file is
+          # stored under all three.
+          curl -fsSL -o src-tauri/binaries/yt-dlp-universal-apple-darwin \
+            https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos
+          for triple in aarch64-apple-darwin x86_64-apple-darwin; do
+            cp src-tauri/binaries/yt-dlp-universal-apple-darwin "src-tauri/binaries/yt-dlp-$triple"
+          done
+          chmod +x src-tauri/binaries/yt-dlp-*-apple-darwin
+
       - name: Install frontend deps
         run: pnpm install
 
@@ -112,6 +136,7 @@ jobs:
           releaseDraft: false
           prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
           tauriScript: pnpm tauri
+          args: ${{ matrix.args }}
 
   build-android:
     # needs: build so the GitHub release already exists when the APK uploads.
@@ -278,12 +303,17 @@ jobs:
           LINUX_SIG_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("\\.AppImage\\.sig$")) | .url // empty' | head -n1)
           # Optional: the android job may be skipped, the manifest still ships.
           ANDROID_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("aarch64\\.apk$")) | .url // empty' | head -n1)
+          # Optional too: the universal macOS bundle updates both darwin targets.
+          MAC_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("\\.app\\.tar\\.gz$")) | .url // empty' | head -n1)
+          MAC_SIG_URL=$(echo "$RELEASE" | jq -r '.assets[]? | select(.name | test("\\.app\\.tar\\.gz\\.sig$")) | .url // empty' | head -n1)
 
           echo "Resolved asset URLs:"
           echo "WIN_URL=$WIN_URL"
           echo "WIN_SIG_URL=$WIN_SIG_URL"
           echo "LINUX_URL=$LINUX_URL"
           echo "LINUX_SIG_URL=$LINUX_SIG_URL"
+          echo "MAC_URL=$MAC_URL"
+          echo "MAC_SIG_URL=$MAC_SIG_URL"
 
           if [ -z "$WIN_URL" ] || [ -z "$WIN_SIG_URL" ] || [ -z "$LINUX_URL" ] || [ -z "$LINUX_SIG_URL" ]; then
             echo "Required assets are missing."
@@ -293,6 +323,13 @@ jobs:
           echo "Downloading signatures..."
           WIN_SIG=$(curl -fsSL "$WIN_SIG_URL")
           LINUX_SIG=$(curl -fsSL "$LINUX_SIG_URL")
+          MAC_SIG=""
+          if [ -n "$MAC_URL" ] && [ -n "$MAC_SIG_URL" ]; then
+            MAC_SIG=$(curl -fsSL "$MAC_SIG_URL")
+          else
+            echo "No macOS updater bundle on this release; darwin entries skipped."
+            MAC_URL=""
+          fi
           NOTES=$(echo "$RELEASE" | jq -r '.body // ""')
 
           echo "Signature lengths:"
@@ -308,6 +345,8 @@ jobs:
             --arg linux_url "$LINUX_URL" \
             --arg linux_sig "$LINUX_SIG" \
             --arg android_url "$ANDROID_URL" \
+            --arg mac_url "$MAC_URL" \
+            --arg mac_sig "$MAC_SIG" \
             '{
               version: $version,
               notes: $notes,
@@ -315,7 +354,12 @@ jobs:
               platforms: ({
                 "windows-x86_64": { url: $win_url, signature: $win_sig },
                 "linux-x86_64": { url: $linux_url, signature: $linux_sig }
-              } + (if $android_url != "" then { "android-aarch64": { url: $android_url, signature: "" } } else {} end))
+              }
+              + (if $android_url != "" then { "android-aarch64": { url: $android_url, signature: "" } } else {} end)
+              + (if $mac_url != "" then {
+                  "darwin-aarch64": { url: $mac_url, signature: $mac_sig },
+                  "darwin-x86_64": { url: $mac_url, signature: $mac_sig }
+                } else {} end))
             }' > "docs/manifests/${CHANNEL}/latest.json"
 
           echo "Generated docs/manifests/${CHANNEL}/latest.json:"

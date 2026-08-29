@@ -7,7 +7,7 @@ export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
 const BaseGeneralSchema = object({
   language: optional(picklist(SUPPORTED_LANGUAGES), "system"),
   checkUpdatesOnLaunch: optional(boolean(), true),
-  analyzeTracks: optional(boolean(), true),
+  analyzeTracks: optional(boolean(), false),
   confirmTrackDeletion: optional(boolean(), true),
 });
 
