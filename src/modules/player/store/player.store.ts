@@ -562,7 +562,6 @@ export const usePlayerStore = defineStore("player", () => {
     status.value = "loading";
     _switchingRequestId = requestId;
 
-
     const p = ensurePlayer();
     currentTrack.value = track;
     trackChangedBus.emit(track);

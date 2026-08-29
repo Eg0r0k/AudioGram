@@ -149,6 +149,10 @@ export const useQueueStore = defineStore("queue", () => {
 
     markQueueMutation();
     queue.value = patchQueueItem(queue.value, nextTrack);
+    const playing = playerStore.currentTrack;
+    if (playing && !isEphemeralTrack(playing) && playing.id === nextTrack.id) {
+      playerStore.currentTrack = { ...playing, ...nextTrack };
+    }
     syncPersistedSnapshot();
   }
 

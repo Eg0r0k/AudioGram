@@ -15,6 +15,7 @@ import { initMediaServerBase } from "./lib/stream-url";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
 import { initDownloadManager } from "@/modules/downloads/manager";
 import { sweepOrphanedEntities } from "@/services/library-gc";
+import { hideAndroidSplash } from "@/lib/android-splash";
 import { initZoom } from "@/modules/settings/composables/useZoom";
 import { statsService } from "@/services/stats.service";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
@@ -90,3 +91,7 @@ app.directive("ripple", vRipple);
 app.directive("copy", vCopy);
 
 app.mount("#app");
+
+router.isReady().then(() => {
+  requestAnimationFrame(() => requestAnimationFrame(hideAndroidSplash));
+});

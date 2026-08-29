@@ -105,7 +105,7 @@
           gradient-length="20px"
         >
           <span class="context-info__title">
-            {{ currentTrack?.title ?? "вЂ”" }}
+            {{ currentTrack?.title ?? "—" }}
           </span>
         </MarqueeBlock>
 
