@@ -41,6 +41,11 @@ export const catalogFilters = (kind: SourceKind | null): LibraryFilter[] => {
   return listable.length > 0 ? ["all", ...listable] : [];
 };
 
+// These rows ARE the source's catalog, so their links ask for the source's
+// view — otherwise a downloaded album would open as its library row while
+// the user is browsing the server it came from.
+const CATALOG = { catalog: true } as const;
+
 /** Fields every catalog row shares, whatever entity it stands for. */
 const catalogRow = (kind: SourceKind, coverRef: string | undefined) => ({
   isPinned: false,
@@ -81,7 +86,7 @@ export function useCatalogLibraryItems(
           type: "artist",
           title: artist.name,
           artistName: artist.name,
-          to: routeLocation.artist(artist.id),
+          to: routeLocation.artist(artist.id, CATALOG),
           rounded: true,
         });
       }
@@ -96,7 +101,7 @@ export function useCatalogLibraryItems(
           title: album.title,
           subtitle: album.artistName,
           artistName: album.artistName,
-          to: routeLocation.album(album.id),
+          to: routeLocation.album(album.id, CATALOG),
           rounded: false,
           trackCount: album.trackCount,
         });
@@ -110,7 +115,7 @@ export function useCatalogLibraryItems(
           id: playlist.id,
           type: "playlist",
           title: playlist.name,
-          to: routeLocation.playlist(playlist.id),
+          to: routeLocation.playlist(playlist.id, CATALOG),
           rounded: false,
           trackCount: playlist.trackCount,
         });

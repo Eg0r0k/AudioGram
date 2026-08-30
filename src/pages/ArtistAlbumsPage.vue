@@ -153,7 +153,7 @@ const albumItems = computed<LibraryItem[]>(() => albums.value.map(album => ({
   addedAt: album.addedAt,
   updatedAt: album.updatedAt,
   artistName: artistData.value?.title,
-  to: routeLocation.album(album.id),
+  to: routeLocation.album(album.id, { catalog: !artist.value }),
   rounded: false,
   isCatalog: !artist.value,
 })));

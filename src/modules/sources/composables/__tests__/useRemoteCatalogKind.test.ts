@@ -8,7 +8,10 @@ const rows = vi.hoisted(() => ({
   artists: new Map<string, { pinned: number }>(),
   albums: new Map<string, { pinned: number }>(),
   playlists: new Map<string, object>(),
+  query: {} as Record<string, unknown>,
 }));
+
+vi.mock("vue-router", () => ({ useRoute: () => ({ query: rows.query }) }));
 
 vi.mock("@/db/repositories", () => ({
   artistRepository: { findById: (id: string) => Promise.resolve(ok(rows.artists.get(id))) },
@@ -49,6 +52,7 @@ describe("useRemoteCatalogKind", () => {
     rows.artists.clear();
     rows.albums.clear();
     rows.playlists.clear();
+    rows.query = {};
   });
 
   it("takes the local path for an unprefixed id without touching Dexie", async () => {
@@ -84,6 +88,19 @@ describe("useRemoteCatalogKind", () => {
     const { remoteKind } = await resolve("albums", "nd:al1");
 
     expect(remoteKind.value).toBe("nd");
+  });
+
+  // The other half of the same coin: a link that came from searching the
+  // source asked for the source's view, downloaded or not.
+  it("keeps the catalog path when the link asked for it, pinned row or not", async () => {
+    rows.artists.set("yt:UC1", { pinned: 1 });
+    rows.query = { catalog: "1" };
+
+    const { remoteKind, isLibraryEntity, isResolved } = await resolve("artists", "yt:UC1");
+
+    expect(isLibraryEntity.value).toBe(false);
+    expect(remoteKind.value).toBe("yt");
+    expect(isResolved.value).toBe(true);
   });
 
   it("treats any existing playlist row as a library playlist", async () => {

@@ -1,5 +1,7 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
+import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
+import { wantsCatalogView } from "@/app/router/route-locations";
 import { albumRepository, artistRepository, playlistRepository } from "@/db/repositories";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import type { SourceKind } from "@/types/track-ref";
@@ -45,22 +47,30 @@ const LOOKUP: Record<SourceEntity, (id: string) => Promise<boolean>> = {
  * catalog first and swaps to the library row a tick later.
  */
 export function useRemoteCatalogKind(entity: SourceEntity, id: MaybeRefOrGetter<string>) {
+  const route = useRoute();
+
   // Only a remote-branded id can be ambiguous; a local id is local, and
   // asking Dexie about it would be a pointless round-trip.
   const candidate = computed(() => remoteCatalogKindOf(toValue(id), entity));
 
+  // A link that came from browsing the source asked for the source's view
+  // and gets it, downloaded or not; the Dexie lookup is then pointless too.
+  const forcedCatalog = computed(() => candidate.value !== null && wantsCatalogView(route.query));
+
   const libraryRow = useQuery(computed(() => ({
     queryKey: ["library-entity", entity, toValue(id)] as const,
     queryFn: () => LOOKUP[entity](toValue(id)),
-    enabled: candidate.value !== null,
+    enabled: candidate.value !== null && !forcedCatalog.value,
   })));
 
   const isLibraryEntity = computed(() =>
-    candidate.value !== null && libraryRow.data.value === true,
+    !forcedCatalog.value && candidate.value !== null && libraryRow.data.value === true,
   );
 
   /** False only while a remote-branded id is still being looked up. */
-  const isResolved = computed(() => candidate.value === null || !libraryRow.isLoading.value);
+  const isResolved = computed(() =>
+    candidate.value === null || forcedCatalog.value || !libraryRow.isLoading.value,
+  );
 
   const remoteKind = computed<SourceKind | null>(() =>
     (isResolved.value && !isLibraryEntity.value ? candidate.value : null),

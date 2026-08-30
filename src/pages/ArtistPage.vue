@@ -240,9 +240,10 @@ const albumItems = computed<LibraryItem[]>(() => albums.value.map(album => ({
   addedAt: album.addedAt,
   updatedAt: album.updatedAt,
   artistName: artist.value?.name,
-  to: routeLocation.album(album.id),
+  // A catalog artist page lists catalog albums: no Dexie rows behind them,
+  // and the link stays inside the catalog the shelf came from.
+  to: routeLocation.album(album.id, { catalog: !artist.value }),
   rounded: false,
-  // A catalog artist page lists catalog albums: no Dexie rows behind them.
   isCatalog: !artist.value,
 })));
 

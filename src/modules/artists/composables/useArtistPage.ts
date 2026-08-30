@@ -134,7 +134,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
       isCatalog: true,
       addedAt: 0,
       updatedAt: 0,
-      to: routeLocation.playlist(playlist.id),
+      to: routeLocation.playlist(playlist.id, { catalog: true }),
       rounded: false,
       trackCount: playlist.trackCount,
     })),

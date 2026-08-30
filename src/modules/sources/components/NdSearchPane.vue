@@ -164,17 +164,21 @@ const filteredResults = computed<SearchResultItem[]>(() => {
   }
 });
 
+// Results of searching the source, so they open the source's view even for
+// an entity whose tracks are already downloaded.
+const CATALOG = { catalog: true } as const;
+
 function navigate(item: SearchResultItem) {
   saveQueryToHistory();
   switch (item.type) {
     case "artist":
-      router.push(routeLocation.artist(item.entityId));
+      router.push(routeLocation.artist(item.entityId, CATALOG));
       break;
     case "album":
-      router.push(routeLocation.album(item.entityId));
+      router.push(routeLocation.album(item.entityId, CATALOG));
       break;
     case "playlist":
-      router.push(routeLocation.playlist(item.entityId));
+      router.push(routeLocation.playlist(item.entityId, CATALOG));
       break;
   }
 }

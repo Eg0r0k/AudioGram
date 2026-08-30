@@ -24,7 +24,7 @@
 
     <template v-else-if="isAlbum(data)">
       <RouterLink
-        :to="routeLocation.artist(data.artistId)"
+        :to="routeLocation.artist(data.artistId, artistIntent)"
         class="font-medium text-white/90 hover:text-white hover:underline underline-offset-2 transition-colors duration-200"
       >
         {{ data.artistName }}
@@ -50,13 +50,20 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { routeLocation } from "@/app/router/route-locations";
+import { useRoute } from "vue-router";
+import { routeLocation, wantsCatalogView } from "@/app/router/route-locations";
 import { isAlbum, isArtist, isLiked, isPlaylist, MediaData } from "@/modules/media-hero/types";
 
 defineProps<{
   data: MediaData;
 }>();
+
+// Following an artist link out of a catalog album stays in that catalog:
+// the album was the source's view, so its artist should be too.
+const route = useRoute();
+const artistIntent = computed(() => ({ catalog: wantsCatalogView(route.query) }));
 
 const { t } = useI18n();
 
