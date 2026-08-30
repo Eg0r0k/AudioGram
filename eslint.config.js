@@ -9,7 +9,19 @@ import sonarjs from "eslint-plugin-sonarjs";
 
 export default typescript.config(
   {
-    ignores: ["dist/**", "node_modules/**", "src-tauri/**", "**/__tests__/**", "**/__test__/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "src-tauri/**",
+      // Stale git worktrees of old branches: a full copy of src/, which
+      // tripled every report here.
+      ".claude/**",
+      "**/__tests__/**",
+      "**/__test__/**",
+      // Tests are exempt wherever they live — a co-located *.test.ts is the
+      // same kind of file as one under __tests__/.
+      "**/*.test.ts",
+    ],
   },
 
   js.configs.recommended,
