@@ -44,7 +44,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
   const artistId = computed(() => ArtistId(route.params.id as string));
 
   // Data path picks by id prefix: catalog artists live, local ids via Dexie.
-  const remoteKind = computed(() => remoteCatalogKindOf(artistId.value, "browseArtists"));
+  const remoteKind = computed(() => remoteCatalogKindOf(artistId.value, "artists"));
   const isRemote = computed(() => remoteKind.value !== null);
 
   const remoteQuery = useSourceArtist(remoteKind, computed(() => (isRemote.value ? artistId.value : null)));

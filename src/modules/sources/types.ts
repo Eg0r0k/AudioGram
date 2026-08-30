@@ -21,10 +21,27 @@ export type {
   SourceTrackDTO,
 } from "@/types/source-dto";
 
+/** Collections a source can expose. */
+export type SourceEntity = "artists" | "albums" | "playlists";
+
+/**
+ * What a source can do with one collection. Listing and opening are separate
+ * questions: YouTube has no browsable album catalog, yet a single album opens
+ * fine by id — a source that answers "no" to browsing still belongs on the
+ * album page it was routed to. Conflating the two either hides working pages
+ * or advertises catalogs that don't exist.
+ */
+export interface SourceEntityCaps {
+  /** Enumerate the catalog — library pages, source dropdowns. */
+  list: boolean;
+  /** Open one by id — /album/<kind>:<id> and friends. */
+  open: boolean;
+}
+
 export interface SourceCapabilities {
-  browseArtists: boolean;
-  browseAlbums: boolean;
-  browsePlaylists: boolean;
+  artists: SourceEntityCaps;
+  albums: SourceEntityCaps;
+  playlists: SourceEntityCaps;
   search: boolean;
   /** Can hand over a file for an offline copy. */
   download: boolean;

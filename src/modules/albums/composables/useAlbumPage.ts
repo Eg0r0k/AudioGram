@@ -34,7 +34,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   // Data path picks by id prefix: remote-catalog albums come live from the
   // source, local ids take the Dexie path.
-  const remoteKind = computed(() => remoteCatalogKindOf(albumId.value, "browseAlbums"));
+  const remoteKind = computed(() => remoteCatalogKindOf(albumId.value, "albums"));
   const isRemote = computed(() => remoteKind.value !== null);
 
   const remoteQuery = useSourceAlbum(remoteKind, computed(() => (isRemote.value ? albumId.value : null)));

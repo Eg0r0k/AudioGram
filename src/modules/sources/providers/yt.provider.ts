@@ -55,10 +55,14 @@ const mapMusicTrack = (entity: YtMusicEntity & { kind: "track" }): SourceTrackDT
 export const ytSourceProvider: SourceProvider = {
   id: "yt",
 
+  // open stays false alongside list: the six browse methods below still answer
+  // `unsupported`, and claiming otherwise would route /album/yt:<id> onto a
+  // page with nothing to render. These flip to open: true one collection at a
+  // time, as each method gets a real implementation.
   capabilities: {
-    browseArtists: false,
-    browseAlbums: false,
-    browsePlaylists: false,
+    artists: { list: false, open: false },
+    albums: { list: false, open: false },
+    playlists: { list: false, open: false },
     search: true,
     download: true,
   },

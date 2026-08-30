@@ -7,7 +7,7 @@ import type { AlbumId, ArtistId } from "@/types/ids";
 import type { SourceKind } from "@/types/track-ref";
 import { sourceKindOf } from "../lib/display";
 import { sources } from "../registry";
-import type { SourceCapabilities } from "../types";
+import type { SourceEntity } from "../types";
 
 // Remote-source catalog composables, parameterized by source kind. While
 // the source is off (or the kind is null) every query sits on skipToken.
@@ -20,17 +20,15 @@ type KindInput = MaybeRefOrGetter<SourceKind | null>;
 const ALBUMS_PAGE_SIZE = 100;
 
 /**
- * The remote source behind an entity id when it can serve the given catalog
- * area; null → the local Dexie path.
+ * The remote source behind an entity id when it can open that entity by id;
+ * null → the local Dexie path. Asks about `open`, not `list`: a page reached
+ * by id needs the one collection, not the catalog it came from.
  */
-export function remoteCatalogKindOf(
-  id: string,
-  capability: keyof SourceCapabilities,
-): SourceKind | null {
+export const remoteCatalogKindOf = (id: string, entity: SourceEntity): SourceKind | null => {
   const kind = sourceKindOf(id);
   if (kind === "local") return null;
-  return sources.get(kind).capabilities[capability] ? kind : null;
-}
+  return sources.get(kind).capabilities[entity].open ? kind : null;
+};
 
 /** Reactive availability of a remote source (platform + settings gate). */
 export function useSourceAvailable(kind: KindInput) {

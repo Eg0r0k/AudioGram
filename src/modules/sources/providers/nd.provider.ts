@@ -55,9 +55,9 @@ export const ndSourceProvider: SourceProvider = {
   id: "nd",
 
   capabilities: {
-    browseArtists: true,
-    browseAlbums: true,
-    browsePlaylists: true,
+    artists: { list: true, open: true },
+    albums: { list: true, open: true },
+    playlists: { list: true, open: true },
     search: true,
     download: true,
   },
