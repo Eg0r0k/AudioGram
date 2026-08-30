@@ -163,8 +163,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import type { QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
-import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
-import { sourceCoverUrl, sourceKindOf, THUMB_SIZE_ROW } from "@/modules/sources/lib/display";
+import { useTrackRowCover } from "@/modules/tracks/composables/useTrackRowCover";
 import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
 import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
 import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
@@ -256,21 +255,7 @@ const downloadableDto = computed(() => {
   return ytPlayable.value ? ytPlayableToDto(ytPlayable.value) : null;
 });
 
-const { url: coverBlobUrl } = useTrackCover(() => props.track);
-const coverUrl = computed(() => {
-  if (props.coverUrl) return props.coverUrl;
-  // Remote display rows (ND/YT catalog) carry their cover in the DTO —
-  // their albumId points to no local cover blob.
-  const coverRef = props.track.sourceDto?.coverRef;
-  if (coverRef) {
-    return sourceCoverUrl(sourceKindOf(props.track.id), coverRef, THUMB_SIZE_ROW) || "/img/fallback.svg";
-  }
-  // Queue/history rows also render ephemeral tracks (YT streams, radio):
-  // they carry their own cover URL and have no album to look up.
-  const track = props.track as PlayerTrack;
-  if (isEphemeralTrack(track)) return track.cover ?? "/img/fallback.svg";
-  return coverBlobUrl.value ?? "/img/fallback.svg";
-});
+const coverUrl = useTrackRowCover(() => props.track, () => props.coverUrl);
 
 const artists = computed(() => {
   const artistStr = props.track.artist;
