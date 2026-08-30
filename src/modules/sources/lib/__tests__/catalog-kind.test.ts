@@ -6,11 +6,18 @@ const caps = vi.hoisted(() => ({
   yt: { artists: { list: false, open: false }, albums: { list: false, open: false }, playlists: { list: false, open: false } },
 } as Record<string, Record<string, SourceEntityCaps>>));
 
+const paging = vi.hoisted(() => ({ yt: true, nd: false } as Record<string, boolean>));
+
 vi.mock("../../registry", () => ({
-  sources: { get: (kind: string) => ({ capabilities: caps[kind] }) },
+  sources: {
+    get: (kind: string) => ({
+      capabilities: caps[kind],
+      getPlaylistPage: paging[kind] ? () => undefined : undefined,
+    }),
+  },
 }));
 
-import { remoteCatalogKindOf, remoteListKindOf } from "../useSourceCatalog";
+import { pagedPlaylistKindOf, remoteCatalogKindOf, remoteListKindOf } from "../catalog-kind";
 
 describe("remoteCatalogKindOf", () => {
   it("returns null for local ids without consulting a provider", () => {
@@ -46,5 +53,26 @@ describe("remoteListKindOf", () => {
 
     expect(remoteListKindOf("nd:pl1", "playlists")).toBe("nd");
     expect(remoteListKindOf("yt:pl1", "playlists")).toBeNull();
+  });
+});
+
+describe("pagedPlaylistKindOf", () => {
+  it("returns null for a local id", () => {
+    expect(pagedPlaylistKindOf("playlist-123")).toBeNull();
+  });
+
+  // The presence of getPlaylistPage is the whole contract — a source opts
+  // into lazy paging by implementing it, and nothing names a source here.
+  it("returns the kind only when the provider pages its playlists", () => {
+    caps.yt.playlists = { list: false, open: true };
+
+    expect(pagedPlaylistKindOf("yt:pl1")).toBe("yt");
+    expect(pagedPlaylistKindOf("nd:pl1")).toBeNull();
+  });
+
+  it("returns null when the source cannot open the playlist at all", () => {
+    caps.yt.playlists = { list: false, open: false };
+
+    expect(pagedPlaylistKindOf("yt:pl1")).toBeNull();
   });
 });

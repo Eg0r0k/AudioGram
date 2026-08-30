@@ -1,11 +1,12 @@
 import { computed, type MaybeRefOrGetter, toValue } from "vue";
-import { LIBRARY_FILTERS, type LibraryFilter, type LibraryItem } from "@/modules/library/types";
+import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import { routeLocation } from "@/app/router/route-locations";
 import { getLogger } from "@/lib/logger";
 import type { SourceKind } from "@/types/track-ref";
 import { sources } from "../registry";
 import type { SourceEntity } from "../types";
-import { sourceCoverUrl, THUMB_SIZE_LQ, THUMB_SIZE_ROW } from "../lib/display";
+import { THUMB_SIZE_LQ, THUMB_SIZE_ROW } from "@/lib/media/cover-sizes";
+import { sourceCoverUrl } from "../lib/display";
 import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylists } from "./useSourceCatalog";
 
 //
@@ -18,28 +19,6 @@ import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylists } from ".
 // parks every query on skipToken and yields an empty list, so the caller
 // can hold this composable unconditionally, as composables require.
 //
-
-/** The capability each sidebar tab needs from the source behind it. */
-const FILTER_ENTITY: Record<Exclude<LibraryFilter, "all">, SourceEntity> = {
-  artist: "artists",
-  album: "albums",
-  playlist: "playlists",
-};
-
-/**
- * Tabs a source can actually fill. A source with no browsable collection at
- * all gets none — not even "all", which would open onto a permanently empty
- * list.
- */
-export const catalogFilters = (kind: SourceKind | null): LibraryFilter[] => {
-  if (!kind) return [];
-  const caps = sources.get(kind).capabilities;
-  const listable = LIBRARY_FILTERS.filter(
-    (filter): filter is Exclude<LibraryFilter, "all"> =>
-      filter !== "all" && caps[FILTER_ENTITY[filter]].list,
-  );
-  return listable.length > 0 ? ["all", ...listable] : [];
-};
 
 // These rows ARE the source's catalog, so their links ask for the source's
 // view — otherwise a downloaded album would open as its library row while

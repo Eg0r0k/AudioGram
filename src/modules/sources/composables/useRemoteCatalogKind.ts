@@ -1,12 +1,15 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useRoute } from "vue-router";
-import { useQuery } from "@tanstack/vue-query";
+import { skipToken, useQuery } from "@tanstack/vue-query";
 import { wantsCatalogView } from "@/app/router/route-locations";
-import { albumRepository, artistRepository, playlistRepository } from "@/db/repositories";
-import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
+import { getAlbumLibraryRow } from "@/queries/album.queries";
+import { getArtistLibraryRow } from "@/queries/artist.queries";
+import { getPlaylistLibraryRow } from "@/queries/playlist.queries";
+import { queryKeys } from "@/queries/query-keys";
+import { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import type { SourceKind } from "@/types/track-ref";
+import { remoteCatalogKindOf } from "../lib/catalog-kind";
 import type { SourceEntity } from "../types";
-import { remoteCatalogKindOf } from "./useSourceCatalog";
 
 //
 // Which path a detail page takes for a given id.
@@ -22,21 +25,41 @@ import { remoteCatalogKindOf } from "./useSourceCatalog";
 // hanging off a download and carries no library meaning of its own.
 //
 
-// Playlists have no `pinned` flag because they have no shadow rows: the pin
-// cascade builds tracks with their albums and artists, never a playlist. So
-// any playlist row that exists is already a library playlist.
-const LOOKUP: Record<SourceEntity, (id: string) => Promise<boolean>> = {
-  artists: async (id) => {
-    const found = await artistRepository.findById(id as ArtistId);
-    return found.isOk() && (found.value?.pinned ?? 0) !== 0;
+/**
+ * As much of a row as the membership rule below needs to see: it exists, and
+ * it may carry a `pinned` flag.
+ */
+type LibraryRow = { id: string; pinned?: number } | null;
+
+/**
+ * Row reads go through the queries layer rather than the repositories, so
+ * this composable stays about choosing a path and the Dexie read stays where
+ * every other Dexie read in the app lives. Their keys sit under the entity's
+ * own namespace, so pinning or deleting one already invalidates this.
+ *
+ * Playlists have no `pinned` flag because they have no shadow rows: the pin
+ * cascade builds tracks with their albums and artists, never a playlist. So
+ * any playlist row that exists is already a library playlist.
+ */
+const LOOKUP: Record<SourceEntity, {
+  key: (id: string | null) => readonly unknown[];
+  read: (id: string) => Promise<LibraryRow>;
+  isMember: (row: LibraryRow) => boolean;
+}> = {
+  artists: {
+    key: id => queryKeys.artists.libraryRow(id === null ? null : ArtistId(id)),
+    read: id => getArtistLibraryRow(ArtistId(id)),
+    isMember: row => (row?.pinned ?? 0) !== 0,
   },
-  albums: async (id) => {
-    const found = await albumRepository.findById(id as AlbumId);
-    return found.isOk() && (found.value?.pinned ?? 0) !== 0;
+  albums: {
+    key: id => queryKeys.albums.libraryRow(id === null ? null : AlbumId(id)),
+    read: id => getAlbumLibraryRow(AlbumId(id)),
+    isMember: row => (row?.pinned ?? 0) !== 0,
   },
-  playlists: async (id) => {
-    const found = await playlistRepository.findById(id as PlaylistId);
-    return found.isOk() && !!found.value;
+  playlists: {
+    key: id => queryKeys.playlists.libraryRow(id === null ? null : PlaylistId(id)),
+    read: id => getPlaylistLibraryRow(PlaylistId(id)),
+    isMember: row => row !== null,
   },
 };
 
@@ -46,7 +69,7 @@ const LOOKUP: Record<SourceEntity, (id: string) => Promise<boolean>> = {
  * Resolution waits for the Dexie lookup so the page never renders the
  * catalog first and swaps to the library row a tick later.
  */
-export function useRemoteCatalogKind(entity: SourceEntity, id: MaybeRefOrGetter<string>) {
+export const useRemoteCatalogKind = (entity: SourceEntity, id: MaybeRefOrGetter<string>) => {
   const route = useRoute();
 
   // Only a remote-branded id can be ambiguous; a local id is local, and
@@ -57,19 +80,27 @@ export function useRemoteCatalogKind(entity: SourceEntity, id: MaybeRefOrGetter<
   // and gets it, downloaded or not; the Dexie lookup is then pointless too.
   const forcedCatalog = computed(() => candidate.value !== null && wantsCatalogView(route.query));
 
-  const libraryRow = useQuery(computed(() => ({
-    queryKey: ["library-entity", entity, toValue(id)] as const,
-    queryFn: () => LOOKUP[entity](toValue(id)),
-    enabled: candidate.value !== null && !forcedCatalog.value,
-  })));
+  const lookupId = computed(() =>
+    (candidate.value !== null && !forcedCatalog.value ? toValue(id) : null),
+  );
+
+  const lookup = LOOKUP[entity];
+
+  const libraryRow = useQuery(computed(() => {
+    const id = lookupId.value;
+    return {
+      queryKey: lookup.key(id),
+      queryFn: id === null ? skipToken : () => lookup.read(id),
+    };
+  }));
 
   const isLibraryEntity = computed(() =>
-    !forcedCatalog.value && candidate.value !== null && libraryRow.data.value === true,
+    lookupId.value !== null && lookup.isMember(libraryRow.data.value ?? null),
   );
 
   /** False only while a remote-branded id is still being looked up. */
   const isResolved = computed(() =>
-    candidate.value === null || forcedCatalog.value || !libraryRow.isLoading.value,
+    lookupId.value === null || !libraryRow.isLoading.value,
   );
 
   const remoteKind = computed<SourceKind | null>(() =>
@@ -77,4 +108,4 @@ export function useRemoteCatalogKind(entity: SourceEntity, id: MaybeRefOrGetter<
   );
 
   return { remoteKind, isResolved, isLibraryEntity };
-}
+};

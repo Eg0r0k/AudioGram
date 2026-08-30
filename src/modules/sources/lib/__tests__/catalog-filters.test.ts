@@ -9,7 +9,7 @@ vi.mock("../../registry", () => ({
   sources: { get: () => ({ capabilities: caps.current }) },
 }));
 
-import { catalogFilters } from "../useCatalogLibraryItems";
+import { catalogFilters } from "../catalog-filters";
 
 const listing = (...entities: string[]): Record<string, SourceEntityCaps> =>
   Object.fromEntries(["artists", "albums", "playlists"].map(entity =>
