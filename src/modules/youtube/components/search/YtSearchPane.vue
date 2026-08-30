@@ -58,6 +58,11 @@
           @update:chip="setYtChip"
         />
 
+        <SourceHealthNotice
+          kind="yt"
+          class="mx-4 mt-2"
+        />
+
         <Scrollable
           v-if="!submittedYtQuery"
           class="flex-1 min-h-0"
@@ -113,10 +118,12 @@ import type { PlayerTrack, Track } from "@/modules/player/types";
 import { youtubeProvider } from "../../provider";
 import { parseYoutubeCollectionUrl } from "../../lib/url";
 import { playableFromVideo } from "../../lib/playable";
-import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
+import { THUMB_SIZE_ROW } from "@/lib/media/cover-sizes";
+import { proxiedThumbnail } from "../../lib/thumbnail";
 import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
 import type { YtPlayable } from "../../types";
 import IconBrandYoutube from "~icons/tabler/brand-youtube-filled";
+import SourceHealthNotice from "@/modules/sources/components/SourceHealthNotice.vue";
 import YtSearchAllSections from "./YtSearchAllSections.vue";
 import YtSearchChips from "./YtSearchChips.vue";
 import YtSearchList from "./YtSearchList.vue";

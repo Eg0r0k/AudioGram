@@ -35,14 +35,13 @@
           </div>
           <TrackRow
             v-for="(row, index) in trackRows"
-            :key="row.playable.id"
-            :track="row.track"
-            :cover-url="row.cover"
-            :artist-routes="row.artistRoutes"
+            :key="row.id"
+            :track="row"
+            :artist-routes="artistRoutes(row)"
             hide-index
             :menu-index="index"
             menu-target="yt-search"
-            @play="play(row.playable)"
+            @play="play(index)"
           />
         </div>
 
@@ -79,19 +78,27 @@ import SearchNoResults from "@/modules/search/components/SearchNoResults.vue";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
-import type { PlayerTrack, Track } from "@/modules/player/types";
+import { useQueueStore } from "@/modules/queue/store/queue.store";
+import type { Track } from "@/modules/player/types";
 import type { YtChip } from "@/modules/search/composables/useSearch";
-import { useYtSearchAll } from "../../composables/useYtSearchQueries";
-import { useYoutube, ytEphemeralTrack } from "../../composables/useYoutube";
+import { hitResultItem, trackArtistRoutes } from "@/modules/search/lib/resultItems";
+import { useSourceSearchPages } from "@/modules/sources/composables/useSourceCatalog";
+import { sourceTrackToDisplay } from "@/modules/sources/lib/display";
 import { youtubeErrorMessage } from "../../lib/errors";
-import { playableFromMusicTrack, ytMusicTrackToDto } from "../../lib/playable";
-import { proxiedThumbnail, THUMB_SIZE_ROW } from "../../lib/thumbnail";
-import { ytArtistRoutes } from "../../lib/searchRows";
-import type { YoutubeError, YtPlayable } from "../../types";
 import YtEntitySection from "./YtEntitySection.vue";
+
+//
+// The "all" chip: YouTube's own mixed shelf, cut into sections. The rows are
+// the shared ones — a hit is a source DTO here like anywhere else, so a
+// track plays and downloads through the same path an album page's row does.
+//
 
 const TOP_TRACKS = 5;
 const TOP_ENTITIES = 4;
+
+// Results open YouTube's view of an entity, not a library row that may exist
+// under the same branded id.
+const CATALOG = { catalog: true } as const;
 
 const props = defineProps<{ query: string }>();
 
@@ -100,41 +107,45 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { play } = useYoutube();
+const queueStore = useQueueStore();
 
-const { data, isLoading, error } = useYtSearchAll(toRef(props, "query"));
+const { data, isLoading, error } = useSourceSearchPages("yt", toRef(props, "query"), "all");
 
-// Ephemeral display tracks are built once per result set so their ids stay
-// stable across re-renders (TrackRow/menu identity checks rely on that).
-const trackRows = computed(() =>
-  (data.value?.items ?? [])
-    .flatMap(item => (item.kind === "track" ? [item] : []))
+// One shelf, not an infinite list: "all" shows the head of each kind and
+// hands the rest to the per-kind chips.
+const hits = computed(() => data.value?.pages[0]?.items ?? []);
+
+const trackRows = computed<Track[]>(() =>
+  hits.value
+    .flatMap(hit => (hit.kind === "track" ? [hit.item] : []))
     .slice(0, TOP_TRACKS)
-    .map((item) => {
-      const playable: YtPlayable = playableFromMusicTrack(item);
-      return {
-        playable,
-        // The catalog entity rides along so a download pins the full identity.
-        track: ytEphemeralTrack(playable, ytMusicTrackToDto(item)) as PlayerTrack as Track,
-        cover: item.thumbnail ? proxiedThumbnail(item.thumbnail, THUMB_SIZE_ROW) : undefined,
-        artistRoutes: ytArtistRoutes(item.artists),
-      };
-    }),
+    .map(sourceTrackToDisplay),
 );
 
 const albums = computed(() =>
-  (data.value?.items ?? []).flatMap(item => (item.kind === "album" ? [item] : [])).slice(0, TOP_ENTITIES),
+  hits.value
+    .flatMap(hit => (hit.kind === "album" ? [hitResultItem(hit, "yt", t)] : []))
+    .slice(0, TOP_ENTITIES),
 );
 const artists = computed(() =>
-  (data.value?.items ?? []).flatMap(item => (item.kind === "artist" ? [item] : [])).slice(0, TOP_ENTITIES),
+  hits.value
+    .flatMap(hit => (hit.kind === "artist" ? [hitResultItem(hit, "yt", t)] : []))
+    .slice(0, TOP_ENTITIES),
 );
 const playlists = computed(() =>
-  (data.value?.items ?? []).flatMap(item => (item.kind === "playlist" ? [item] : [])).slice(0, TOP_ENTITIES),
+  hits.value
+    .flatMap(hit => (hit.kind === "playlist" ? [hitResultItem(hit, "yt", t)] : []))
+    .slice(0, TOP_ENTITIES),
 );
 
-const isEmpty = computed(() => (data.value?.items.length ?? 0) === 0);
+const isEmpty = computed(() => hits.value.length === 0);
 
-const errorText = computed(() =>
-  error.value ? youtubeErrorMessage(error.value as unknown as YoutubeError, t) : null,
-);
+const errorText = computed(() => (error.value ? youtubeErrorMessage(error.value, t) : null));
+
+const artistRoutes = (row: Track) =>
+  (row.sourceDto ? trackArtistRoutes(row.sourceDto, CATALOG) : []);
+
+const play = (index: number) => {
+  queueStore.setQueue(trackRows.value, index, { type: "search" });
+};
 </script>

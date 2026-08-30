@@ -19,27 +19,28 @@
     <SearchDropdownRow
       v-for="item in items"
       :key="item.id"
-      :item="ytEntityResultItem(item, t)"
-      :to="ytEntityRoute(item) ?? undefined"
+      :item="item"
+      :to="searchResultRoute(item, CATALOG) ?? undefined"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import SearchDropdownRow from "@/modules/search/components/SearchDropdownRow.vue";
-import type { YtMusicEntity } from "../../types";
-import { ytEntityResultItem, ytEntityRoute } from "../../lib/searchRows";
+import { searchResultRoute } from "@/modules/search/lib/resultItems";
+import type { SearchResultItem } from "@/modules/search/types";
+
+// A search result opens the source's view of the entity, not a library row
+// that may exist under the same branded id.
+const CATALOG = { catalog: true } as const;
 
 defineProps<{
   title: string;
-  items: YtMusicEntity[];
+  items: SearchResultItem[];
 }>();
 
 const emit = defineEmits<{
   showAll: [];
 }>();
-
-const { t } = useI18n();
 </script>
