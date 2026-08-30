@@ -70,7 +70,7 @@
                   variant="ghost"
                   size="sm"
                   class="shrink-0 rounded-full px-2"
-                  @click="router.push(routeLocation.artistAlbums(artistId))"
+                  @click="router.push(routeLocation.artistAlbums(artistId, { catalog: !artist }))"
                 >
                   {{ $t('common.viewAll') }}
                   <IconChevronRight class="size-4" />

@@ -106,7 +106,7 @@ import PageErrorState from "@/components/common/PageErrorState.vue";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconVinyl from "~icons/tabler/vinyl";
-import { routeLocation } from "@/app/router/route-locations";
+import { routeLocation, wantsCatalogView } from "@/app/router/route-locations";
 import { useGoBack } from "@/composables/useGoBack";
 import AlbumItem from "@/modules/albums/components/AlbumItem.vue";
 import { usePlayAlbum } from "@/modules/albums/composables/usePlayAlbum";
@@ -139,7 +139,11 @@ const {
   isFetchingNextAlbumPage,
 } = useArtistPage(sortKey);
 
-const goBack = useGoBack(routeLocation.artist(route.params.id as string));
+// Going back from a catalog album list lands on the catalog artist, not on
+// the library row that may share its id.
+const goBack = useGoBack(
+  routeLocation.artist(route.params.id as string, { catalog: wantsCatalogView(route.query) }),
+);
 
 const gridClass = "grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-2 gap-y-3 px-4 pb-6 pt-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:px-6";
 

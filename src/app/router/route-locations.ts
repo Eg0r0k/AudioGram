@@ -34,7 +34,8 @@ export const routeLocation = {
   liked: (): RouteLocationRaw => ({ name: ROUTE_NAMES.LIKED }),
   album: (id: string, intent?: ViewIntent): RouteLocationRaw => withIntent(ROUTE_NAMES.ALBUM, id, intent),
   artist: (id: string, intent?: ViewIntent): RouteLocationRaw => withIntent(ROUTE_NAMES.ARTIST, id, intent),
-  artistAlbums: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.ARTIST_ALBUMS, params: { id } }),
+  artistAlbums: (id: string, intent?: ViewIntent): RouteLocationRaw =>
+    withIntent(ROUTE_NAMES.ARTIST_ALBUMS, id, intent),
   playlist: (id: string, intent?: ViewIntent): RouteLocationRaw => withIntent(ROUTE_NAMES.PLAYLIST, id, intent),
   settings: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS }),
   settingsGeneral: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_GENERAL }),
