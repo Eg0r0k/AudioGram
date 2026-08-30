@@ -88,6 +88,10 @@ export const queryKeys = {
     analysisProgress: () => ["recommendations", "analysisProgress"] as const,
   },
   source: {
+    /** Every remote catalog answer, whatever source it came from. */
+    all: () => ["source"] as const,
+    /** One source's slice of the above. */
+    ofKind: (kind: SourceKind) => ["source", kind] as const,
     artists: (kind: SourceKind | null) => ["source", kind, "artists"] as const,
     albumsInf: (kind: SourceKind | null, sort: string) => ["source", kind, "albums", sort] as const,
     // Null ids come from skipToken-parked options.
@@ -98,12 +102,17 @@ export const queryKeys = {
     playlistMeta: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id, "meta"] as const,
     playlistPages: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id, "pages"] as const,
     search: (kind: SourceKind | null, q: string) => ["source", kind, "search", q] as const,
+    searchPages: (kind: SourceKind | null, scope: string, q: string) =>
+      ["source", kind, "search", q, "pages", scope] as const,
   },
   youtube: {
-    searchAll: (query: string) => ["youtube", "search", "all", query] as const,
-    searchList: (chip: string, query: string) => ["youtube", "search", chip, query] as const,
-    // Collection keys used to live here; albums, artists and playlists are
-    // cached under queryKeys.source now, whatever source they came from.
+    all: () => ["youtube"] as const,
+    /**
+     * Plain-video search — the one YouTube query with no generic counterpart.
+     * Music search caches under queryKeys.source like every other source's,
+     * and so do albums, artists and playlists, whatever source they came from.
+     */
+    videoSearch: (query: string) => ["youtube", "search", "videos", query] as const,
   },
   stats: {
     all: () => ["stats"] as const,
