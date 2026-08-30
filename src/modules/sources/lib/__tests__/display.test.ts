@@ -13,7 +13,7 @@ vi.mock("../../registry", () => ({
 }));
 
 import { sourceAlbumToAlbumData, sourceCoverUrl, sourcePlaylistToPlaylistData } from "../display";
-import { THUMB_SIZE_FULL } from "../cover-sizes";
+import { THUMB_SIZE_FULL } from "@/lib/media/cover-sizes";
 
 describe("sourceCoverUrl", () => {
   it("routes to the provider of the given kind", () => {

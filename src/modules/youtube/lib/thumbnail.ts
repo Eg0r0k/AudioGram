@@ -1,10 +1,6 @@
 import { platformCaps } from "@/lib/environment/platformCaps";
 import { proxyPathFromUrl, ytImageUrl } from "@/lib/stream-url";
-import { THUMB_SIZE_FULL } from "@/modules/sources/lib/cover-sizes";
-
-// Rendition sizes are shared with every other source; re-exported here so YT
-// call sites keep importing thumbnails and their sizes from one place.
-export { THUMB_SIZE_CARD, THUMB_SIZE_FULL, THUMB_SIZE_ROW } from "@/modules/sources/lib/cover-sizes";
+import { THUMB_SIZE_FULL } from "@/lib/media/cover-sizes";
 
 /**
  * googleusercontent/ggpht covers are served at the size encoded in the URL,

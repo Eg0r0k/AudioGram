@@ -1,9 +1,11 @@
 //
 // Cover renditions requested from a source. Sizes are a property of the
 // layout, not of any one source: local, Navidrome and YouTube covers all
-// land in the same rows, cards and heroes. Kept in a leaf module with no
-// imports so both the generic display bridges and the YouTube thumbnail
-// helpers can depend on it without either owning the other.
+// land in the same rows, cards and heroes.
+//
+// A leaf module with no imports, under @/lib rather than inside a source
+// module, so nothing has to depend upward to ask for a size — the generic
+// display bridges and the YouTube thumbnail helpers are peers here.
 //
 
 /** Hero/full-cover rendition (YT Music's standard album cover size). */

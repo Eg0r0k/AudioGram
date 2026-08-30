@@ -3,7 +3,7 @@ import type { Track } from "@/modules/player/types";
 import type { AlbumData, ArtistData, PlaylistData } from "@/modules/media-hero/types";
 import { AlbumId, PlaylistId } from "@/types/ids";
 import { parseTrackRef, type SourceKind } from "@/types/track-ref";
-import { THUMB_SIZE_FULL } from "./cover-sizes";
+import { THUMB_SIZE_FULL } from "@/lib/media/cover-sizes";
 import { sources } from "../registry";
 import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO } from "../types";
 
@@ -13,8 +13,6 @@ import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO
 // branching. Remote menu subjects still travel as DTOs (step 9), these are
 // display-only shapes.
 //
-
-export { THUMB_SIZE_CARD, THUMB_SIZE_FULL, THUMB_SIZE_LQ, THUMB_SIZE_ROW } from "./cover-sizes";
 
 export function sourceCoverUrl(kind: SourceKind, coverRef: string | undefined, size?: number): string {
   if (!coverRef || kind === "local") return "";

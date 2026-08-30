@@ -4,7 +4,8 @@ const caps = vi.hoisted(() => ({ canShellSpawn: true }));
 vi.mock("@/lib/environment/platformCaps", () => ({ platformCaps: caps }));
 
 import { setMediaServerBaseForTests } from "@/lib/stream-url";
-import { proxiedThumbnail, THUMB_SIZE_ROW, unproxiedThumbnail } from "../lib/thumbnail";
+import { THUMB_SIZE_ROW } from "@/lib/media/cover-sizes";
+import { proxiedThumbnail, unproxiedThumbnail } from "../lib/thumbnail";
 
 const BASE = "http://127.0.0.1:4321/tokentokentokentokentokentokento";
 const COVER = "https://lh3.googleusercontent.com/cover=w120-h120-l90-rj";
