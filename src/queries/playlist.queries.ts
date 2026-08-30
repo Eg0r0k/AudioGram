@@ -15,7 +15,7 @@ import type { TrackSortKey } from "@/modules/tracks/types";
 import type { Track } from "@/modules/player/types";
 import type { PlaylistId } from "@/types/ids";
 import { PlaylistId as createPlaylistId } from "@/types/ids";
-import { queryOptions, type QueryClient } from "@tanstack/vue-query";
+import { queryOptions, skipToken, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForPlaylistMutation,
   invalidateForTrackMutation,
@@ -36,6 +36,11 @@ import {
 import type { PlaylistPageData, PaginatedPlaylistTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
+
+/** The playlist row under an id, or null — a miss is an answer, not an error. */
+export async function getPlaylistLibraryRow(playlistId: PlaylistId): Promise<PlaylistEntity | null> {
+  return (await unwrapResult(playlistRepository.findById(playlistId))) ?? null;
+}
 
 export interface PlaylistChanges {
   name?: string;
@@ -159,6 +164,16 @@ export const playlistQueries = {
       queryKey: queryKeys.playlists.detail(playlistId),
       queryFn: () => getPlaylistByIdOrThrow(playlistId),
       enabled,
+    }),
+  /**
+   * The Dexie row under this id, or null when there is none. A branded
+   * remote id may or may not have one — that is the question this answers —
+   * so a miss is an answer, not the error `detail` raises.
+   */
+  libraryRow: (playlistId: PlaylistId | null) =>
+    queryOptions({
+      queryKey: queryKeys.playlists.libraryRow(playlistId),
+      queryFn: playlistId ? () => getPlaylistLibraryRow(playlistId) : skipToken,
     }),
   page: (playlistId: PlaylistId) =>
     queryOptions({

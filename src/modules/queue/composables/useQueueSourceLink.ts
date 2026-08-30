@@ -4,19 +4,17 @@ import type { RouteLocationRaw } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { routeLocation } from "@/app/router/route-locations";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { remoteCatalogKindOf, remoteListKindOf } from "@/modules/sources/lib/catalog-kind";
 import { sourceKindOf } from "@/modules/sources/lib/display";
-import { remoteListKindOf, useSourcePlaylists } from "@/modules/sources/composables/useSourceCatalog";
+import { useSourcePlaylistMeta, useSourcePlaylists } from "@/modules/sources/composables/useSourceCatalog";
 import { albumQueries } from "@/queries/album.queries";
 import { artistQueries } from "@/queries/artist.queries";
 import { playlistQueries } from "@/queries/playlist.queries";
-import { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 
 export interface QueueSourceLink {
   label: string;
   to: RouteLocationRaw;
 }
-
-const isLocalId = (id: string) => sourceKindOf(id) === "local";
 
 /**
  * Where the current queue item was queued from, as something to navigate
@@ -24,8 +22,8 @@ const isLocalId = (id: string) => sourceKindOf(id) === "local";
  * origin has no page (search, manual, recommendations, ...) or its name
  * is not known yet.
  *
- * Library entities are named through their detail queries; a catalog
- * album or artist has no Dexie row, so its name comes off the track.
+ * Names come from the Dexie row when there is one — a downloaded remote
+ * entity has one under its branded id — and off the source otherwise.
  */
 export const useQueueSourceLink = () => {
   const queueStore = useQueueStore();
@@ -38,26 +36,40 @@ export const useQueueSourceLink = () => {
   const artistId = computed(() => (source.value?.type === "artist" ? source.value.artistId : null));
   const playlistId = computed(() => (source.value?.type === "playlist" ? source.value.playlistId : null));
 
-  const { data: album } = useQuery(computed(() =>
-    albumQueries.detail(albumId.value ?? AlbumId(""), !!albumId.value && isLocalId(albumId.value)),
-  ));
-  const { data: artist } = useQuery(computed(() =>
-    artistQueries.detail(artistId.value ?? ArtistId(""), !!artistId.value && isLocalId(artistId.value)),
-  ));
-  const { data: playlist } = useQuery(computed(() =>
-    playlistQueries.detail(playlistId.value ?? PlaylistId(""), !!playlistId.value && isLocalId(playlistId.value)),
-  ));
+  // Row-or-null, not `detail`: a catalog id legitimately has no row, and
+  // asking `detail` about one would raise "not found" on every queue change.
+  const { data: album } = useQuery(computed(() => albumQueries.libraryRow(albumId.value)));
+  const { data: artist } = useQuery(computed(() => artistQueries.libraryRow(artistId.value)));
+  const { data: playlist } = useQuery(computed(() => playlistQueries.libraryRow(playlistId.value)));
 
-  // A remote playlist has no Dexie row and, unlike an album or artist, no
-  // name on the track either. The source's playlist list carries it and is
-  // the same query the sidebar already loads while browsing that source.
-  const remoteKind = computed(() =>
+  // A remote playlist has no name on the track either, unlike an album or an
+  // artist. Where the source lists its playlists, the sidebar has already
+  // loaded that list and it costs nothing; where it does not — a source that
+  // only opens playlists by id — the playlist's own metadata is asked for.
+  const listKind = computed(() =>
     (playlistId.value ? remoteListKindOf(playlistId.value, "playlists") : null),
   );
-  const { data: remotePlaylists } = useSourcePlaylists(remoteKind);
-  const remotePlaylistName = computed(() =>
+  const { data: remotePlaylists } = useSourcePlaylists(listKind);
+  const listedName = computed(() =>
     remotePlaylists.value?.find(entry => entry.id === playlistId.value)?.name,
   );
+
+  const metaKind = computed(() =>
+    (playlistId.value && !listedName.value
+      ? remoteCatalogKindOf(playlistId.value, "playlists")
+      : null),
+  );
+  const { data: remotePlaylistMeta } = useSourcePlaylistMeta(metaKind, playlistId);
+
+  const remotePlaylistName = computed(() => listedName.value ?? remotePlaylistMeta.value?.name);
+
+  /**
+   * The row's name wins; the fallback is only for ids that may legitimately
+   * have no row. A local entity always has one, and waiting for it beats
+   * flashing the track's denormalized copy, which a rename leaves stale.
+   */
+  const nameOf = (id: string, row: string | undefined, fallback: string | undefined) =>
+    row ?? (sourceKindOf(id) === "local" ? undefined : fallback);
 
   const link = computed<QueueSourceLink | null>(() => {
     const current = source.value;
@@ -66,15 +78,15 @@ export const useQueueSourceLink = () => {
 
     switch (current.type) {
       case "album": {
-        const label = isLocalId(current.albumId) ? album.value?.title : track?.albumName;
+        const label = nameOf(current.albumId, album.value?.title, track?.albumName);
         return label ? { label, to: routeLocation.album(current.albumId) } : null;
       }
       case "artist": {
-        const label = isLocalId(current.artistId) ? artist.value?.name : track?.artist;
+        const label = nameOf(current.artistId, artist.value?.name, track?.artist);
         return label ? { label, to: routeLocation.artist(current.artistId) } : null;
       }
       case "playlist": {
-        const label = isLocalId(current.playlistId) ? playlist.value?.name : remotePlaylistName.value;
+        const label = nameOf(current.playlistId, playlist.value?.name, remotePlaylistName.value);
         return label ? { label, to: routeLocation.playlist(current.playlistId) } : null;
       }
       case "liked":

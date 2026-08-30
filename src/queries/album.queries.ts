@@ -14,7 +14,7 @@ import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { AlbumId as createAlbumId } from "@/types/ids";
 import type { AlbumId, ArtistId } from "@/types/ids";
-import { queryOptions, type QueryClient } from "@tanstack/vue-query";
+import { queryOptions, skipToken, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForAlbumMutation,
   removeAlbumCaches,
@@ -32,6 +32,11 @@ import {
 import type { AlbumPageData, PaginatedTracksResult } from "./types";
 
 const PAGE_SIZE = 50;
+
+/** The album row under an id, or null — a miss is an answer, not an error. */
+export async function getAlbumLibraryRow(albumId: AlbumId): Promise<AlbumEntity | null> {
+  return (await unwrapResult(albumRepository.findById(albumId))) ?? null;
+}
 
 export interface AlbumChanges {
   title?: string;
@@ -155,6 +160,16 @@ export const albumQueries = {
       queryKey: queryKeys.albums.detail(albumId),
       queryFn: () => getAlbumByIdOrThrow(albumId),
       enabled,
+    }),
+  /**
+   * The Dexie row under this id, or null when there is none. A branded
+   * remote id may or may not have one — that is the question this answers —
+   * so a miss is an answer, not the error `detail` raises.
+   */
+  libraryRow: (albumId: AlbumId | null) =>
+    queryOptions({
+      queryKey: queryKeys.albums.libraryRow(albumId),
+      queryFn: albumId ? () => getAlbumLibraryRow(albumId) : skipToken,
     }),
   page: (albumId: AlbumId) =>
     queryOptions({
