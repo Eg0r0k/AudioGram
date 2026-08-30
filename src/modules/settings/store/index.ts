@@ -19,6 +19,13 @@ export interface SettingsError {
   cause?: unknown;
 }
 
+/** Drops the credential from a settings section without mutating the original. */
+const withoutPassword = <T extends { password: string }>(section: T): Omit<T, "password"> => {
+  const copy: Record<string, unknown> = { ...section };
+  delete copy.password;
+  return copy as Omit<T, "password">;
+};
+
 export const useSettingsStore = defineStore("settings", () => {
   const settings = ref<Settings>(structuredClone(DEFAULT_SETTINGS));
   const isLoaded = ref(false);
@@ -90,9 +97,22 @@ export const useSettingsStore = defineStore("settings", () => {
     return ok(result.output);
   };
 
-  function exportToJSON(): string {
-    return JSON.stringify(settings.value, null, 2);
-  }
+  /**
+   * Settings as shareable JSON. Passwords are stripped, never blanked in
+   * place: an export is a file the user hands to a bug report or copies
+   * between machines, and a credential in it is a leak the user can't see.
+   * The schema defaults them back to "" on import, so the file still
+   * round-trips — the source just needs its password re-entered.
+   */
+  const exportToJSON = (): string => {
+    const current = settings.value;
+
+    return JSON.stringify({
+      ...current,
+      proxy: withoutPassword(current.proxy),
+      sources: { ...current.sources, nd: withoutPassword(current.sources.nd) },
+    }, null, 2);
+  };
 
   return {
     settings,
