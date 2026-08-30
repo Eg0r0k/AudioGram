@@ -10,6 +10,66 @@ export interface UseFileDropOptions {
   onDrop?: (files: File[]) => void;
 }
 
+type DropFs = Pick<typeof import("@tauri-apps/plugin-fs"), "readDir" | "stat">;
+
+const matchesExtension = (path: string, extensions?: string[]): boolean => {
+  if (!extensions?.length) return true;
+  return extensions.some(ext => path.toLowerCase().endsWith(ext.toLowerCase()));
+};
+
+/**
+ * Every accepted file under a directory, recursively. A subtree that cannot
+ * be read is logged and skipped: one unreadable folder must not lose the
+ * rest of the drop.
+ */
+const collectFiles = async (
+  fs: DropFs,
+  dirPath: string,
+  extensions?: string[],
+): Promise<string[]> => {
+  const files: string[] = [];
+  try {
+    const entries = await fs.readDir(dirPath);
+    for (const entry of entries) {
+      const fullPath = `${dirPath}/${entry.name}`;
+      if (entry.isDirectory) {
+        files.push(...(await collectFiles(fs, fullPath, extensions)));
+      }
+      else if (entry.isFile && matchesExtension(entry.name, extensions)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  catch (e) {
+    getLogger().error(`[FileDrop] Reading directory ${dirPath} failed: ${String(e)}`);
+  }
+  return files;
+};
+
+/** Dropped paths flattened into files: directories are walked, files filtered. */
+const collectDroppedPaths = async (
+  fs: DropFs,
+  paths: string[],
+  extensions?: string[],
+): Promise<string[]> => {
+  const result: string[] = [];
+  for (const path of paths) {
+    try {
+      const info = await fs.stat(path);
+      if (info.isDirectory) {
+        result.push(...(await collectFiles(fs, path, extensions)));
+      }
+      else if (info.isFile && matchesExtension(path, extensions)) {
+        result.push(path);
+      }
+    }
+    catch (e) {
+      getLogger().error(`[FileDrop] Processing path ${path} failed: ${String(e)}`);
+    }
+  }
+  return result;
+};
+
 export function useFileDrop(options?: UseFileDropOptions) {
   const isDragging = ref(false);
   const droppedFiles = ref<File[]>([]);
@@ -28,55 +88,8 @@ export function useFileDrop(options?: UseFileDropOptions) {
         isProcessing.value = true;
 
         try {
-          const { readDir, stat } = await import("@tauri-apps/plugin-fs");
-
-          const hasValidExtension = (path: string): boolean => {
-            if (!options?.acceptedExtensions?.length) return true;
-            return options.acceptedExtensions.some(ext =>
-              path.toLowerCase().endsWith(ext.toLowerCase()),
-            );
-          };
-
-          const collectFiles = async (dirPath: string): Promise<string[]> => {
-            const files: string[] = [];
-            try {
-              const entries = await readDir(dirPath);
-              for (const entry of entries) {
-                const fullPath = `${dirPath}/${entry.name}`;
-                if (entry.isDirectory) {
-                  files.push(...(await collectFiles(fullPath)));
-                }
-                else if (entry.isFile && hasValidExtension(entry.name)) {
-                  files.push(fullPath);
-                }
-              }
-            }
-            catch (e) {
-              getLogger().error(`[FileDrop] Reading directory ${dirPath} failed: ${String(e)}`);
-            }
-            return files;
-          };
-
-          const processPaths = async (paths: string[]): Promise<string[]> => {
-            const result: string[] = [];
-            for (const path of paths) {
-              try {
-                const info = await stat(path);
-                if (info.isDirectory) {
-                  result.push(...(await collectFiles(path)));
-                }
-                else if (info.isFile && hasValidExtension(path)) {
-                  result.push(path);
-                }
-              }
-              catch (e) {
-                getLogger().error(`[FileDrop] Processing path ${path} failed: ${String(e)}`);
-              }
-            }
-            return result;
-          };
-
-          const paths = await processPaths(payload.paths);
+          const fs = await import("@tauri-apps/plugin-fs");
+          const paths = await collectDroppedPaths(fs, payload.paths, options?.acceptedExtensions);
           const files = paths.map((path) => {
             const name = path.split(/[/\\]/).pop() || path;
             return Object.assign(new File([], name), {

@@ -16,7 +16,10 @@ const props = withDefaults(
 const emits = defineEmits<TooltipContentEmits>();
 
 const delegatedProps = computed(() => {
-  const { class: _, ...delegated } = props;
+  // `class` is applied by this component, not forwarded; dropped by name
+  // rather than by an unused rest-destructuring binding.
+  const delegated = { ...props };
+  delete delegated.class;
   return delegated;
 });
 

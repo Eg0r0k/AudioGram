@@ -35,7 +35,10 @@
                 ? t("common.import.progressLabel", { current, total })
                 : t("common.import.doneTitle") }}
             </span>
-            <span v-if="headerSubtitle" class="truncate text-xs text-muted-foreground">
+            <span
+              v-if="headerSubtitle"
+              class="truncate text-xs text-muted-foreground"
+            >
               {{ headerSubtitle }}
             </span>
           </span>

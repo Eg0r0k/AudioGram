@@ -64,11 +64,9 @@ const contextComponent = computed(() => contexts[props.context]);
 
 const contextProps = computed(() => {
   const base = { actions };
-  switch (props.context) {
-    case "playlist":
-      return { ...base, isOwner: props.isPlaylistOwner };
-    default:
-      return base;
-  }
+  // Only the playlist context takes an extra prop; the rest take the actions.
+  return props.context === "playlist"
+    ? { ...base, isOwner: props.isPlaylistOwner }
+    : base;
 });
 </script>

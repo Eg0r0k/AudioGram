@@ -30,7 +30,6 @@ registerOverlayBackHandler({
   },
 });
 
-
 const bindings = computed(() => ({
   ...forwarded.value,
   "onUpdate:open": (open: boolean) => {

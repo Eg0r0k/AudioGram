@@ -1,32 +1,34 @@
 import { getFileFromEntry } from "./getFileFromEntry";
 
+/**
+ * readEntries hands over a batch at a time and signals the end with an empty
+ * one, so a directory is only fully read after repeated calls.
+ */
+const readAllEntries = (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> =>
+  new Promise((resolve) => {
+    const allEntries: FileSystemEntry[] = [];
+
+    const readBatch = () => {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) {
+          resolve(allEntries);
+        }
+        else {
+          allEntries.push(...entries);
+          readBatch();
+        }
+      });
+    };
+
+    readBatch();
+  });
+
 export const scanDirectory = async (
   dirEntry: FileSystemDirectoryEntry,
   path: string = "",
 ): Promise<File[]> => {
   const files: File[] = [];
-  const dirReader = dirEntry.createReader();
-  const readAllEntries = (): Promise<FileSystemEntry[]> => {
-    return new Promise((resolve) => {
-      const allEntries: FileSystemEntry[] = [];
-
-      const readBatch = () => {
-        dirReader.readEntries((entries) => {
-          if (entries.length === 0) {
-            resolve(allEntries);
-          }
-          else {
-            allEntries.push(...entries);
-            readBatch();
-          }
-        });
-      };
-
-      readBatch();
-    });
-  };
-
-  const entries = await readAllEntries();
+  const entries = await readAllEntries(dirEntry.createReader());
 
   for (const entry of entries) {
     if (entry.isFile) {

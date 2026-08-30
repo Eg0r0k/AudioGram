@@ -9,11 +9,17 @@ export class ProxyError extends Error {
   }
 }
 
+/**
+ * The most specific text available: what the cause says about itself, the
+ * bare string a Tauri command rejected with, or the caller's fallback.
+ */
+const messageOf = (cause: unknown, fallback: string): string => {
+  if (cause instanceof Error) return cause.message;
+  return typeof cause === "string" ? cause : fallback;
+};
+
 const toError = (message: string) => (cause: unknown) =>
-  new ProxyError(
-    cause instanceof Error ? cause.message : typeof cause === "string" ? cause : message,
-    cause,
-  );
+  new ProxyError(messageOf(cause, message), cause);
 
 /**
  * Pushes the active proxy URL (or `null` to clear) to the Rust side, where the
