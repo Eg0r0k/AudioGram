@@ -53,7 +53,10 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value)),
   );
 
-  const album = computed(() => albumData.value ?? null);
+  // `enabled: false` stops the fetch, not the cache read: a row left by an
+  // earlier library visit would otherwise make the catalog view believe it
+  // has a Dexie entity behind it.
+  const album = computed(() => (isRemote.value ? null : albumData.value ?? null));
 
   const {
     data: infiniteData,

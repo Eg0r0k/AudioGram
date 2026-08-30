@@ -4,7 +4,7 @@ import { AlbumId, PlaylistId } from "@/types/ids";
 import { getLogger } from "@/lib/logger";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { sources } from "@/modules/sources";
-import { sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 import { enqueueCollectionDownload } from "@/modules/downloads/enqueue";
 import type { LibraryItem } from "../types";
 import { getAlbumPageData } from "@/queries/album.queries";
@@ -70,17 +70,22 @@ export function useLibraryContextActions() {
   };
 
   /**
-   * Catalog row (ND browsing): tracks come from the server, not Dexie.
-   * Queueing shadow-pins them on play, exactly like the ND album page.
+   * Catalog row: tracks come from the source, not Dexie. Queueing
+   * shadow-pins them on play, exactly like the catalog album page. The
+   * source comes from the row's own branded id — these cards are not
+   * Navidrome-only any more.
    */
   const addCatalogToQueue = async (item: LibraryItem) => {
-    const provider = sources.get("nd");
+    const kind = sourceKindOf(item.id);
+    if (kind === "local") return;
+
+    const provider = sources.get(kind);
     const result = item.type === "album"
       ? await provider.getAlbum(AlbumId(item.id))
       : await provider.getPlaylist(PlaylistId(item.id));
 
     if (result.isErr()) {
-      getLogger().error(`[ND] Queueing ${item.type} ${item.id} failed: ${result.error.message}`);
+      getLogger().error(`[Library] Queueing catalog ${item.type} ${item.id} failed: ${result.error.message}`);
       toast.error(t("queue.addFailed"));
       return;
     }
@@ -106,7 +111,7 @@ export function useLibraryContextActions() {
       if (!batchId) toast.info(t("media.nothingToDownload"));
     }
     catch (error) {
-      getLogger().error(`[ND] Batch download of ${item.type} ${item.id} failed: ${String(error)}`);
+      getLogger().error(`[Library] Batch download of ${item.type} ${item.id} failed: ${String(error)}`);
       toast.error(t("track.downloadFailed"));
     }
   };

@@ -54,7 +54,10 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalPlaylistLoading.value)),
   );
 
-  const playlist = computed(() => playlistData.value ?? null);
+  // `enabled: false` stops the fetch, not the cache read: a row left by an
+  // earlier library visit would otherwise make the catalog view believe it
+  // has a Dexie entity behind it.
+  const playlist = computed(() => (isRemote.value ? null : playlistData.value ?? null));
 
   const {
     data: infiniteData,

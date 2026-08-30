@@ -65,7 +65,11 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value)),
   );
 
-  const artist = computed(() => artistData.value ?? null);
+  // `enabled: false` stops the fetch, not the cache read: a query whose key
+  // was filled by an earlier library visit still hands its row back here.
+  // The catalog view must not see it — that row is what makes the page call
+  // itself a library entity, down to the context menu on its album cards.
+  const artist = computed(() => (isRemote.value ? null : artistData.value ?? null));
 
   const {
     data: tracksInfiniteData,
