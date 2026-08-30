@@ -1,7 +1,9 @@
 import type { TrackEntity } from "@/db/entities";
 import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
+import { reportSourceError, reportSourceOk } from "@/modules/sources/lib/health";
 import type { SourceError, SourceErrorKind } from "@/types/source-dto";
+import type { SourceKind } from "@/types/track-ref";
 import type { TrackSortKey } from "@/types/track-sort";
 import type { Result } from "neverthrow";
 
@@ -15,17 +17,25 @@ export class SourceQueryError extends Error {
   }
 }
 
-/** unwrapResult's counterpart for the source-provider boundary. */
+/**
+ * unwrapResult's counterpart for the source-provider boundary. `kind` is what
+ * makes a live request double as a health probe: the source that answered (or
+ * refused) is the one the verdict is recorded against, so a view can say
+ * "the password was rejected" instead of showing an empty list.
+ */
 export async function unwrapSourceResult<T>(
   promise: PromiseLike<Result<T, SourceError>>,
+  kind?: SourceKind,
 ): Promise<T> {
   const result = await promise;
 
   if (result.isErr()) {
     getLogger().error(`[Source] ${result.error.kind}: ${result.error.message}`);
+    if (kind) reportSourceError(kind, result.error);
     throw new SourceQueryError(result.error.kind, result.error.message);
   }
 
+  if (kind) reportSourceOk(kind);
   return result.value;
 }
 export function unique<T>(values: readonly T[]): T[] {

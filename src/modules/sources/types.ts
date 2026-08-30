@@ -16,12 +16,30 @@ import type { SourceKind } from "@/types/track-ref";
 export type {
   SourceAlbumDTO,
   SourceArtistDTO,
+  SourceArtistRef,
   SourceError,
   SourceErrorKind,
   SourcePage,
   SourcePlaylistDTO,
   SourceTrackDTO,
 } from "@/types/source-dto";
+
+/**
+ * What a paged search asks for. "all" is the mixed shelf a source puts
+ * together itself — the ranking is the source's, not ours.
+ */
+export type SourceSearchScope = "all" | "track" | "album" | "artist" | "playlist";
+
+/**
+ * One search result. A page of these is heterogeneous under scope "all" and
+ * uniform under the others; the discriminant is what lets one list render
+ * both without the caller knowing which it asked for.
+ */
+export type SourceSearchHit
+  = | { kind: "track"; item: SourceTrackDTO }
+    | { kind: "album"; item: SourceAlbumDTO }
+    | { kind: "artist"; item: SourceArtistDTO }
+    | { kind: "playlist"; item: SourcePlaylistDTO };
 
 /** Collections a source can expose. */
 export type SourceEntity = "artists" | "albums" | "playlists";
@@ -64,6 +82,14 @@ export interface SourceProvider {
   /** Platform + settings gate (IS_TAURI, ND configured, …). */
   readonly isAvailable: boolean;
 
+  /**
+   * The cheapest request that proves the configured source answers — a
+   * credential check, not a catalog read. Optional: a source with nothing to
+   * configure has nothing to probe, and `isAvailable` already covers whether
+   * it applies at all.
+   */
+  checkConnection?(): ResultAsync<void, SourceError>;
+
   listArtists(): ResultAsync<SourceArtistDTO[], SourceError>;
   listAlbums(p: { offset: number; limit: number; sort: "alpha" | "newest" }):
   ResultAsync<SourceAlbumDTO[], SourceError>;
@@ -97,6 +123,17 @@ export interface SourceProvider {
   }, SourceError>;
   search(q: string, types: ("track" | "album" | "artist")[], p: { offset: number; limit: number }):
   ResultAsync<{ tracks: SourceTrackDTO[]; albums: SourceAlbumDTO[]; artists: SourceArtistDTO[] }, SourceError>;
+  /**
+   * Search a page at a time, for the sources whose results arrive by
+   * continuation rather than by offset — and whose result set is worth
+   * scrolling rather than capping at one request.
+   *
+   * Optional, and independent of {@link SourceProvider.search}: a source that
+   * answers a whole query in one call omits it, and the presence of the
+   * method is what tells a pane it can page.
+   */
+  searchPage?(q: string, scope: SourceSearchScope, cursor: string | null):
+  ResultAsync<SourcePage<SourceSearchHit>, SourceError>;
 
   /** Metadata snapshot for pin / revalidate-on-view. */
   getTrack(id: TrackId): ResultAsync<SourceTrackDTO, SourceError>;

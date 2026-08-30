@@ -1,5 +1,19 @@
 {
   "local": "My library",
   "nd": "Navidrome",
-  "yt": "YouTube"
+  "yt": "YouTube",
+  "health": {
+    "authFailed": "{source}: sign-in failed",
+    "unreachable": "{source}: cannot be reached",
+    "retry": "Check again",
+    "settings": "Settings"
+  },
+  "status": {
+    "notConfigured": "Not set up",
+    "available": "Set up",
+    "checking": "Checking the connection…",
+    "ok": "Connected",
+    "failed": "Could not connect",
+    "check": "Check the connection"
+  }
 }

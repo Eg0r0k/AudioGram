@@ -66,6 +66,11 @@ export const ndSourceProvider: SourceProvider = {
     return getNdConfig() !== null;
   },
 
+  /** Subsonic `ping`: reaches the server and validates the credentials. */
+  checkConnection() {
+    return withConfig(config => subsonicFetch(config, "ping").map(() => undefined));
+  },
+
   listArtists() {
     return withConfig(config =>
       subsonicFetch<GetArtistsPayload>(config, "getArtists").map(payload =>

@@ -1,5 +1,19 @@
 {
   "local": "Моя медиатека",
   "nd": "Navidrome",
-  "yt": "YouTube"
+  "yt": "YouTube",
+  "health": {
+    "authFailed": "{source}: не удалось войти",
+    "unreachable": "{source}: нет связи",
+    "retry": "Проверить снова",
+    "settings": "Настройки"
+  },
+  "status": {
+    "notConfigured": "Не настроен",
+    "available": "Настроен",
+    "checking": "Проверка подключения…",
+    "ok": "Подключение установлено",
+    "failed": "Не удалось подключиться",
+    "check": "Проверить подключение"
+  }
 }
