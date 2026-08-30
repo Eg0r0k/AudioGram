@@ -216,17 +216,17 @@ const errorMessage = computed(() => {
 
 // ND playlist: read-only live page, tracks.value already holds the full
 // server list — queue straight from it.
-const ndQueueSource = computed(() => {
+const remoteQueueSource = computed(() => {
   const vm = playlistData.value;
-  return vm && sourceKindOf(vm.id) === "nd"
+  return vm && sourceKindOf(vm.id) !== "local"
     ? { type: "playlist", playlistId: vm.id } as const
     : null;
 });
 
 function handlePlayAll() {
-  if (ndQueueSource.value) {
+  if (remoteQueueSource.value) {
     if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, ndQueueSource.value);
+      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
     }
     return;
   }
@@ -251,8 +251,8 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
-  if (ndQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, ndQueueSource.value);
+  if (remoteQueueSource.value) {
+    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
     return;
   }
 
@@ -269,9 +269,9 @@ async function handlePlayTrack(index: number) {
 }
 
 async function handleShuffle() {
-  if (ndQueueSource.value) {
+  if (remoteQueueSource.value) {
     if (tracks.value.length > 0) {
-      await shuffleQueue(ndQueueSource.value, async () => [...tracks.value]);
+      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
     }
     return;
   }

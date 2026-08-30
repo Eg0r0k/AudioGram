@@ -232,19 +232,19 @@ function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "album" });
 }
 
-// ND album: no Dexie row, but tracks.value already holds the full list from
-// getAlbum (in the current sort order) — queue straight from it.
-const ndQueueSource = computed(() => {
+// Remote album: no Dexie row, but tracks.value already holds the full list
+// from getAlbum (in the current sort order) — queue straight from it.
+const remoteQueueSource = computed(() => {
   const vm = albumData.value;
-  return vm && sourceKindOf(vm.id) === "nd"
+  return vm && sourceKindOf(vm.id) !== "local"
     ? { type: "album", albumId: vm.id } as const
     : null;
 });
 
 function handlePlayAll() {
-  if (ndQueueSource.value) {
+  if (remoteQueueSource.value) {
     if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, ndQueueSource.value);
+      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
     }
     return;
   }
@@ -265,8 +265,8 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
-  if (ndQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, ndQueueSource.value);
+  if (remoteQueueSource.value) {
+    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
     return;
   }
 
@@ -319,9 +319,9 @@ async function handleSave(changes: AlbumChanges) {
 }
 
 async function handleShuffle() {
-  if (ndQueueSource.value) {
+  if (remoteQueueSource.value) {
     if (tracks.value.length > 0) {
-      await shuffleQueue(ndQueueSource.value, async () => [...tracks.value]);
+      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
     }
     return;
   }

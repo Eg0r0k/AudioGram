@@ -17,7 +17,7 @@ import { statsQueries } from "@/queries/stats.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
-import { sourceArtistToArtistData, sourceCoverUrl, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
+import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
 
@@ -77,8 +77,13 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     enabled: computed(() => !isRemote.value && !!artist.value),
   });
 
+  // A catalog artist has no Dexie rows to page through; its top tracks ride
+  // along with getArtist. Sources without such a notion omit the field, and
+  // the section is simply empty for them.
   const tracks = computed(() =>
-    isRemote.value ? [] : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? [],
+    (isRemote.value
+      ? (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay)
+      : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? []),
   );
 
   const {

@@ -43,6 +43,20 @@ export interface SourcePlaylistDTO {
   coverRef?: string;
 }
 
+/**
+ * One page of a collection a source hands over piecemeal.
+ *
+ * The cursor is opaque and belongs to the source — YouTube's continuation
+ * tokens, someone else's `next` URL. Only the source that issued one may
+ * interpret it, and nothing downstream may derive a position or a total
+ * from it: with cursor paging the length is unknown until the last page.
+ */
+export interface SourcePage<T> {
+  items: T[];
+  /** Continuation token, or null once the collection is exhausted. */
+  cursor: string | null;
+}
+
 export type SourceErrorKind
   = | "UNAVAILABLE"
     | "AUTH"

@@ -5,6 +5,7 @@ import type {
   SourceAlbumDTO,
   SourceArtistDTO,
   SourceError,
+  SourcePage,
   SourcePlaylistDTO,
   SourceTrackDTO,
 } from "@/types/source-dto";
@@ -17,6 +18,7 @@ export type {
   SourceArtistDTO,
   SourceError,
   SourceErrorKind,
+  SourcePage,
   SourcePlaylistDTO,
   SourceTrackDTO,
 } from "@/types/source-dto";
@@ -66,9 +68,31 @@ export interface SourceProvider {
   listAlbums(p: { offset: number; limit: number; sort: "alpha" | "newest" }):
   ResultAsync<SourceAlbumDTO[], SourceError>;
   getAlbum(id: AlbumId): ResultAsync<{ album: SourceAlbumDTO; tracks: SourceTrackDTO[] }, SourceError>;
-  getArtist(id: ArtistId): ResultAsync<{ artist: SourceArtistDTO; albums: SourceAlbumDTO[] }, SourceError>;
+  /**
+   * `tracks` is the artist's top songs where the source has such a notion
+   * (YouTube's artist page, Subsonic's getTopSongs) — omitted, not empty,
+   * when it does not, so a page can tell "none" from "not offered".
+   */
+  getArtist(id: ArtistId): ResultAsync<{
+    artist: SourceArtistDTO;
+    albums: SourceAlbumDTO[];
+    tracks?: SourceTrackDTO[];
+  }, SourceError>;
   listPlaylists(): ResultAsync<SourcePlaylistDTO[], SourceError>;
   getPlaylist(id: PlaylistId): ResultAsync<{ playlist: SourcePlaylistDTO; tracks: SourceTrackDTO[] }, SourceError>;
+  /**
+   * A playlist too long to arrive whole. The first call passes a null cursor
+   * and gets the metadata with it; later calls pass the previous page's
+   * cursor and get `playlist: null`, since the metadata does not change.
+   *
+   * Optional: a source whose playlists arrive complete from
+   * {@link SourceProvider.getPlaylist} simply omits it, and the presence of
+   * the method is what tells a page to paginate.
+   */
+  getPlaylistPage?(id: PlaylistId, cursor: string | null): ResultAsync<{
+    playlist: SourcePlaylistDTO | null;
+    page: SourcePage<SourceTrackDTO>;
+  }, SourceError>;
   search(q: string, types: ("track" | "album" | "artist")[], p: { offset: number; limit: number }):
   ResultAsync<{ tracks: SourceTrackDTO[]; albums: SourceAlbumDTO[]; artists: SourceArtistDTO[] }, SourceError>;
 

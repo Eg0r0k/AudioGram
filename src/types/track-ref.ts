@@ -30,3 +30,4 @@ export const ndPlaylistId = (playlistId: string) => PlaylistId(`${ND_PREFIX}${pl
 // can hang shadow album/artist rows off downloaded YT tracks.
 export const ytAlbumId = (browseId: string) => AlbumId(`${YT_PREFIX}${browseId}`);
 export const ytArtistId = (channelId: string) => ArtistId(`${YT_PREFIX}${channelId}`);
+export const ytPlaylistId = (listId: string) => PlaylistId(`${YT_PREFIX}${listId}`);
