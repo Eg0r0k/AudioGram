@@ -112,7 +112,7 @@
       <UpdateButton :compact="isCompact" />
 
       <FloatingButton
-        v-if="!activeFolder && !isNdSource"
+        v-if="!activeFolder && !isCatalog"
         inline
         class="pointer-events-auto"
         :class="!isCompact && 'ml-auto'"
@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, useTemplateRef } from "vue";
+import { computed, inject, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import SlideTransition from "@/components/transitions/SlideTransition.vue";
@@ -175,8 +175,7 @@ import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
 import { useCurrentSourceStore } from "@/modules/sources/store/currentSource.store";
-import { useNdLibraryItems } from "@/modules/sources/composables/useNdLibraryItems";
-import { LIBRARY_FILTERS } from "@/modules/library/types";
+import { catalogFilters, useCatalogLibraryItems } from "@/modules/sources/composables/useCatalogLibraryItems";
 
 const {
   pinnedItems,
@@ -231,17 +230,32 @@ const scrollableRef = useTemplateRef("scrollableRef");
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 
 const currentSourceStore = useCurrentSourceStore();
-const isNdSource = computed(() => currentSourceStore.currentSource === "nd");
-const ndLibrary = useNdLibraryItems(activeFilter);
+
+// Local rows come from Dexie with pinning and folders behind them, catalog
+// rows come off the network and have neither. That split is real and stays;
+// what it no longer does is name a particular source.
+const catalogKind = computed(() =>
+  (currentSourceStore.currentSource === "local" ? null : currentSourceStore.currentSource),
+);
+const isCatalog = computed(() => catalogKind.value !== null);
+const catalog = useCatalogLibraryItems(catalogKind, activeFilter);
 
 const localItems = computed(() => activeFolder.value
   ? getFolderItems(activeFolder.value.id)
   : [...pinnedItems.value, ...unpinnedItems.value],
 );
 
-const libraryItems = computed(() => (isNdSource.value ? ndLibrary.items.value : localItems.value));
-const listLoading = computed(() => (isNdSource.value ? ndLibrary.isLoading.value : isLoading.value));
-const visibleFilters = computed(() => (isNdSource.value ? [...LIBRARY_FILTERS] : availableFilters.value));
+const libraryItems = computed(() => (isCatalog.value ? catalog.items.value : localItems.value));
+const listLoading = computed(() => (isCatalog.value ? catalog.isLoading.value : isLoading.value));
+const visibleFilters = computed(() =>
+  (isCatalog.value ? catalogFilters(catalogKind.value) : availableFilters.value),
+);
+
+// A source that cannot list the open tab would otherwise leave the strip
+// with no active tab above a permanently empty list.
+watch(visibleFilters, (filters) => {
+  if (filters.length > 0 && !filters.includes(activeFilter.value)) setFilter(filters[0]);
+});
 
 useScrollRestoration(scrollableRef, {
   key: "library-sidebar",
@@ -309,8 +323,8 @@ function handleScroll(event: Event) {
   const isAtBottom
     = target.scrollHeight - scrollTop - target.clientHeight < BOTTOM_THRESHOLD;
 
-  if (isAtBottom && isNdSource.value) {
-    ndLibrary.loadMoreAlbums();
+  if (isAtBottom && isCatalog.value) {
+    catalog.loadMoreAlbums();
   }
 
   if (scrollTop < 50 || isAtBottom) {
