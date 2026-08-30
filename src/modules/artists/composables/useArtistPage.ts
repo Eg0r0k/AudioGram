@@ -21,6 +21,7 @@ import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCat
 import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
+import type { LibraryItem } from "@/modules/library/types";
 
 export type { ArtistChanges } from "@/queries/artist.queries";
 
@@ -121,6 +122,24 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
       : albumsInfiniteData.value?.pages.flatMap(page => page.albums) ?? [],
   );
 
+  // A shelf only catalog artists have: sources that carry no artist
+  // playlists omit the field and the section never renders.
+  const playlistItems = computed<LibraryItem[]>(() =>
+    (remoteQuery.data.value?.playlists ?? []).map(playlist => ({
+      id: playlist.id,
+      type: "playlist",
+      title: playlist.name,
+      image: sourceCoverUrl(remoteKind.value ?? "local", playlist.coverRef, THUMB_SIZE_CARD) || undefined,
+      isPinned: false,
+      isCatalog: true,
+      addedAt: 0,
+      updatedAt: 0,
+      to: routeLocation.playlist(playlist.id),
+      rounded: false,
+      trackCount: playlist.trackCount,
+    })),
+  );
+
   const trackCount = computed(
     () => (isRemote.value ? 0 : tracksInfiniteData.value?.pages[0]?.total ?? 0),
   );
@@ -185,6 +204,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     artist,
     albums,
     albumCovers,
+    playlistItems,
     tracks,
     artistData: artistDataMapped,
     coverUrl,

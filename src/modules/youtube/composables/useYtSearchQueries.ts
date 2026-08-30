@@ -3,13 +3,9 @@ import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import { queryKeys } from "@/queries/query-keys";
 import { youtubeProvider } from "../provider";
 import type {
-  YtAlbumDetail,
-  YtArtistDetail,
   YtMusicEntity,
   YtMusicSearchKind,
-  YtMusicTrack,
   YtPage,
-  YtPlaylistDetail,
   YtSearchResult,
 } from "../types";
 
@@ -78,64 +74,5 @@ export function useYtSearchList(chip: Ref<YtListChip>, query: Ref<string>) {
   });
 }
 
-interface YtPlaylistPage {
-  meta: Omit<YtPlaylistDetail, "tracks"> | null;
-  tracks: YtMusicTrack[];
-  continuation: string | null;
-}
-
-/** Playlist detail with paginated tracks (first page carries the meta). */
-export function useYtPlaylist(id: Ref<string>) {
-  return useInfiniteQuery({
-    queryKey: computed(() => queryKeys.youtube.playlist(id.value)),
-    queryFn: async ({ pageParam }): Promise<YtPlaylistPage> => {
-      if (!pageParam) {
-        const result = await youtubeProvider.playlist(id.value);
-        if (result.isErr()) throw result.error;
-        const { tracks, ...meta } = result.value;
-        return { meta, tracks: tracks.items, continuation: tracks.continuation };
-      }
-      const result = await youtubeProvider.continueMusic(pageParam, "tracks");
-      if (result.isErr()) throw result.error;
-      const tracks = result.value.items.filter(
-        (item): item is Extract<YtMusicEntity, { kind: "track" }> => item.kind === "track",
-      );
-      return { meta: null, tracks, continuation: result.value.continuation };
-    },
-    initialPageParam: "",
-    getNextPageParam: last => last.continuation ?? undefined,
-    enabled: computed(() => youtubeProvider.isAvailable && id.value.length > 0),
-    staleTime: STALE_TIME_MS,
-    retry: 1,
-  });
-}
-
-/** Album detail — bounded, single fetch. */
-export function useYtAlbum(id: Ref<string>) {
-  return useQuery({
-    queryKey: computed(() => queryKeys.youtube.album(id.value)),
-    queryFn: async (): Promise<YtAlbumDetail> => {
-      const result = await youtubeProvider.album(id.value);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    },
-    enabled: computed(() => youtubeProvider.isAvailable && id.value.length > 0),
-    staleTime: STALE_TIME_MS,
-    retry: 1,
-  });
-}
-
-/** Artist detail — top tracks + albums + playlists in one call. */
-export function useYtArtist(id: Ref<string>) {
-  return useQuery({
-    queryKey: computed(() => queryKeys.youtube.artist(id.value)),
-    queryFn: async (): Promise<YtArtistDetail> => {
-      const result = await youtubeProvider.artist(id.value);
-      if (result.isErr()) throw result.error;
-      return result.value;
-    },
-    enabled: computed(() => youtubeProvider.isAvailable && id.value.length > 0),
-    staleTime: STALE_TIME_MS,
-    retry: 1,
-  });
-}
+// Collection detail queries used to live here too; album, artist and
+// playlist pages now go through useSourceCatalog like every other source.

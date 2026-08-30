@@ -90,6 +90,26 @@
                 </ScrollableSlider>
               </LibraryContextMenu>
             </section>
+
+            <section
+              v-if="playlistItems.length > 0"
+              class="px-4 pb-4"
+            >
+              <h2 class="text-xl font-semibold">
+                {{ $t('media.type.playlist') }}
+              </h2>
+
+              <LibraryContextMenu @delete="deleteLibraryItem">
+                <ScrollableSlider class="mt-3">
+                  <AlbumItem
+                    v-for="playlistItem in playlistItems"
+                    :key="playlistItem.id"
+                    :item="playlistItem"
+                    @play="playAlbum"
+                  />
+                </ScrollableSlider>
+              </LibraryContextMenu>
+            </section>
           </template>
 
           <template #sticky>
@@ -189,6 +209,7 @@ const {
   artist,
   albums,
   albumCovers,
+  playlistItems,
   tracks,
   artistData,
   coverUrl,

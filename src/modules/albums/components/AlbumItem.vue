@@ -14,7 +14,7 @@
   >
     <div class="relative aspect-square z-1 overflow-hidden rounded-md bg-muted shadow-sm">
       <EntityCoverImage
-        owner-type="album"
+        :owner-type="coverOwnerType"
         :owner-id="item.id"
         :alt="item.title"
         :fallback-src="item.image"
@@ -72,7 +72,8 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { canOpenLibraryMenu, useLibraryMenu } from "@/modules/library/composables/useLibraryMenu";
 import type { LibraryItem } from "@/modules/library/types";
 import type { QueueSource } from "@/modules/queue/types";
-import type { AlbumId } from "@/types/ids";
+import type { AlbumId, PlaylistId } from "@/types/ids";
+import type { CoverOwnerType } from "@/db/entities";
 import IconPause from "~icons/audiogram/pause-rounded";
 import IconPlay from "~icons/audiogram/play-rounded";
 import IconPinFilled from "~icons/tabler/pin-filled";
@@ -91,10 +92,18 @@ const emit = defineEmits<{
 const router = useRouter();
 const playerStore = usePlayerStore();
 const { openMenu } = useLibraryMenu();
-const source = computed<QueueSource>(() => ({
-  type: "album",
-  albumId: props.item.id as AlbumId,
-}));
+// The card renders any collection that plays as a unit — albums on an
+// artist page, playlists on a catalog artist's shelf. Both the cover owner
+// and the queue source follow item.type rather than assuming "album".
+const coverOwnerType = computed<CoverOwnerType>(() =>
+  (props.item.type === "playlist" ? "playlist" : "album"),
+);
+
+const source = computed<QueueSource>(() =>
+  (props.item.type === "playlist"
+    ? { type: "playlist", playlistId: props.item.id as PlaylistId }
+    : { type: "album", albumId: props.item.id as AlbumId }),
+);
 const { isActiveSource, isPlaying } = usePlaybackState(() => source.value);
 
 function handleClick() {

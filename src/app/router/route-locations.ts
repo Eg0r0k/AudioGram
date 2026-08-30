@@ -1,5 +1,6 @@
 import type { RouteLocationRaw } from "vue-router";
 import { ROUTE_NAMES } from "@/app/router/route-names";
+import { ytAlbumId, ytArtistId, ytPlaylistId } from "@/types/track-ref";
 
 export const routeLocation = {
   home: (): RouteLocationRaw => ({ name: ROUTE_NAMES.HOME }),
@@ -22,7 +23,9 @@ export const routeLocation = {
   settingsTerms: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_TERMS }),
   settingsPrivacy: (): RouteLocationRaw => ({ name: ROUTE_NAMES.SETTINGS_PRIVACY }),
   allMusic: (): RouteLocationRaw => ({ name: ROUTE_NAMES.ALL_MUSIC }),
-  ytPlaylist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_PLAYLIST, params: { id } }),
-  ytAlbum: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_ALBUM, params: { id } }),
-  ytArtist: (id: string): RouteLocationRaw => ({ name: ROUTE_NAMES.YOUTUBE_ARTIST, params: { id } }),
+  // YouTube collections live on the shared pages: these take a raw YouTube
+  // id and brand it, so every call site keeps passing what the API gave it.
+  ytPlaylist: (id: string): RouteLocationRaw => routeLocation.playlist(ytPlaylistId(id)),
+  ytAlbum: (id: string): RouteLocationRaw => routeLocation.album(ytAlbumId(id)),
+  ytArtist: (id: string): RouteLocationRaw => routeLocation.artist(ytArtistId(id)),
 } as const;

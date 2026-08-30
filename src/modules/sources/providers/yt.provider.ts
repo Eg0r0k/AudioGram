@@ -194,6 +194,12 @@ export const ytSourceProvider: SourceProvider = {
         },
         albums: artist.albums.map(mapYtMusicAlbum),
         tracks: artist.topTracks.map(track => ytMusicTrackToDto(track)),
+        playlists: artist.playlists.map(playlist => ({
+          id: ytPlaylistId(playlist.id),
+          name: playlist.title,
+          trackCount: playlist.trackCount ?? 0,
+          coverRef: playlist.thumbnail ?? undefined,
+        })),
       }));
   },
 

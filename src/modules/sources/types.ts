@@ -69,14 +69,16 @@ export interface SourceProvider {
   ResultAsync<SourceAlbumDTO[], SourceError>;
   getAlbum(id: AlbumId): ResultAsync<{ album: SourceAlbumDTO; tracks: SourceTrackDTO[] }, SourceError>;
   /**
-   * `tracks` is the artist's top songs where the source has such a notion
-   * (YouTube's artist page, Subsonic's getTopSongs) — omitted, not empty,
-   * when it does not, so a page can tell "none" from "not offered".
+   * `tracks` is the artist's top songs and `playlists` the shelves an artist
+   * page may carry, where the source has such notions (YouTube's artist page,
+   * Subsonic's getTopSongs). Both are omitted rather than empty when it does
+   * not, so a page can tell "none" from "not offered".
    */
   getArtist(id: ArtistId): ResultAsync<{
     artist: SourceArtistDTO;
     albums: SourceAlbumDTO[];
     tracks?: SourceTrackDTO[];
+    playlists?: SourcePlaylistDTO[];
   }, SourceError>;
   listPlaylists(): ResultAsync<SourcePlaylistDTO[], SourceError>;
   getPlaylist(id: PlaylistId): ResultAsync<{ playlist: SourcePlaylistDTO; tracks: SourceTrackDTO[] }, SourceError>;
