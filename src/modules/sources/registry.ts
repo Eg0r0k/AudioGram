@@ -26,4 +26,22 @@ export const sources = {
   available(): SourceProvider[] {
     return Object.values(providers).filter(provider => provider.isAvailable);
   },
+
+  /**
+   * Kinds the library pages can browse — a source qualifies once it can
+   * enumerate at least one collection. "local" leads and is unconditional:
+   * it is Dexie, not a provider, until its thin wrapper registers above.
+   */
+  browsable(): SourceKind[] {
+    return ["local", ...sources.available()
+      .filter(({ capabilities: caps }) => caps.artists.list || caps.albums.list || caps.playlists.list)
+      .map(provider => provider.id)];
+  },
+
+  /** Kinds that can answer a search query, "local" (the library index) first. */
+  searchable(): SourceKind[] {
+    return ["local", ...sources.available()
+      .filter(provider => provider.capabilities.search)
+      .map(provider => provider.id)];
+  },
 };

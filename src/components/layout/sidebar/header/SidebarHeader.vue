@@ -103,24 +103,16 @@
     >
       <InputGroup class="bg-canvas! rounded-full h-10 flex-1">
         <InputGroupAddon tabindex="-1">
-          <DropdownMenu v-if="isYoutubeAvailable || isNdSearchAvailable">
+          <DropdownMenu v-if="searchSources.length > 1">
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
                 class="h-8 rounded-full px-1.5! gap-0.5 text-muted-foreground"
-                :aria-label="$t(`search.source.${source}`)"
-                :title="$t(`search.source.${source}`)"
+                :aria-label="$t(sourceUI(source).labelKey)"
+                :title="$t(sourceUI(source).labelKey)"
               >
-                <IconBrandYoutube
-                  v-if="source === 'youtube'"
-                  class="size-5"
-                />
-                <IconServer
-                  v-else-if="source === 'nd'"
-                  class="size-5"
-                />
-                <IconSearch
-                  v-else
+                <component
+                  :is="triggerIcon"
                   class="size-5"
                 />
                 <IconChevronDown class="size-3.5" />
@@ -130,33 +122,18 @@
               class="w-44"
               align="start"
             >
-              <DropdownMenuItem @click="selectSource('library')">
-                <IconSearch class="size-5" />
-                {{ $t("search.source.library") }}
-                <IconCheck
-                  v-if="source === 'library'"
-                  class="ml-auto size-4"
-                />
-              </DropdownMenuItem>
               <DropdownMenuItem
-                v-if="isYoutubeAvailable"
-                @click="selectSource('youtube')"
+                v-for="ui in searchSources"
+                :key="ui.kind"
+                @click="selectSource(ui.kind)"
               >
-                <IconBrandYoutube class="size-5" />
-                {{ $t("search.source.youtube") }}
-                <IconCheck
-                  v-if="source === 'youtube'"
-                  class="ml-auto size-4"
+                <component
+                  :is="ui.icon"
+                  class="size-5"
                 />
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                v-if="isNdSearchAvailable"
-                @click="selectSource('nd')"
-              >
-                <IconServer class="size-5" />
-                {{ $t("search.source.nd") }}
+                {{ $t(ui.labelKey) }}
                 <IconCheck
-                  v-if="source === 'nd'"
+                  v-if="source === ui.kind"
                   class="ml-auto size-4"
                 />
               </DropdownMenuItem>
@@ -246,11 +223,9 @@ import IconChevronDown from "~icons/tabler/chevron-down";
 import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
-import { youtubeProvider } from "@/modules/youtube/provider";
-import IconBrandYoutube from "~icons/tabler/brand-youtube-filled";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
-import IconServer from "~icons/tabler/server";
-import { getNdConfig } from "@/modules/sources/navidrome/config";
+import { sources } from "@/modules/sources";
+import { sourceUI } from "@/modules/sources/lib/source-ui";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 
@@ -284,8 +259,14 @@ watch(focusRequests, async () => {
   field?.focus();
 });
 
-const isYoutubeAvailable = youtubeProvider.isAvailable;
-const isNdSearchAvailable = computed(() => getNdConfig() !== null);
+const searchSources = computed(() => sources.searchable().map(sourceUI));
+
+// The trigger sits inside the search field, where the magnifier is the
+// affordance for "this is a search box". Only once a remote source is picked
+// does the icon switch to naming that source.
+const triggerIcon = computed(() =>
+  (source.value === "local" ? IconSearch : sourceUI(source.value).icon),
+);
 
 const downloads = useDownloadsStore();
 const rightPanel = useRightPanelStore();
@@ -302,7 +283,7 @@ function selectSource(next: SearchSource) {
 }
 
 function handleEnter() {
-  if (source.value === "youtube") submitYtSearch();
+  if (source.value === "yt") submitYtSearch();
 }
 
 const themeIcon = computed(() => (theme.isDark.value ? IconSun : IconMoon));

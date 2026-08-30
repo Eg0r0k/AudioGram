@@ -7,6 +7,7 @@ import settings from "./settings.json";
 import nav from "./nav.json";
 import library from "./library.json";
 import search from "./search.json";
+import source from "./source.json";
 import artist from "./artist.json";
 import album from "./album.json";
 import playlist from "./playlist.json";
@@ -29,6 +30,7 @@ export default {
   nav,
   library,
   search,
+  source,
   artist,
   album,
   playlist,

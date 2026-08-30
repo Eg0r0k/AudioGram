@@ -9,7 +9,6 @@ import type { NdConfig } from "./api/subsonic";
  * Pinia context is not up yet).
  */
 export function getNdConfig(): NdConfig | null {
-  // ND requests and streams go through the Rust proxy layer.
   if (!platformCaps.canProxyStream) return null;
   try {
     return buildNdConfig(useSettingsStore().sources.nd);

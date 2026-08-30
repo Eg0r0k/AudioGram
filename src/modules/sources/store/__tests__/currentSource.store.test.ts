@@ -20,6 +20,8 @@ describe("currentSource store", () => {
     expect(store.availableSources).toEqual(["local"]);
   });
 
+  // The list comes from the registry now, so this also pins that a source
+  // which cannot enumerate a catalog (YouTube) stays out of the page axis.
   it("offers and switches to nd when the source is configured", () => {
     configState.current = {};
     const store = useCurrentSourceStore();

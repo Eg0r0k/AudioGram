@@ -1,9 +1,5 @@
 {
   "title": "My Library",
-  "source": {
-    "local": "My library",
-    "nd": "Navidrome"
-  },
   "filterPlaylists": "Playlists",
   "filterArtists": "Artists",
   "filterAlbums": "Albums",

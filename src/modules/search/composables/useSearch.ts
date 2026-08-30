@@ -13,6 +13,7 @@ import {
   searchDocuments,
 } from "../searchIndex";
 import { getLogger } from "@/lib/logger";
+import type { SourceKind } from "@/types/track-ref";
 
 const DEBOUNCE_MS = 150;
 /** YT search fans out to several network requests — pause a bit longer. */
@@ -21,11 +22,13 @@ const TOP_RESULTS_COUNT = 6;
 const MAX_HISTORY_ITEMS = 6;
 const SEARCH_HISTORY_KEY = "audiogram-search-history";
 
-export type SearchSource = "library" | "youtube" | "nd";
+// The search axis speaks the same vocabulary as every other source axis:
+// one name per source, so a dropdown can render straight off the registry.
+export type SearchSource = SourceKind;
 export type YtChip = "all" | "tracks" | "albums" | "artists" | "playlists" | "videos";
 
 const query = ref("");
-const source = ref<SearchSource>("library");
+const source = ref<SearchSource>("local");
 const ytChip = ref<YtChip>("all");
 /**
  * The query YT results search for: typing auto-commits it after a pause,
@@ -89,12 +92,12 @@ watch([query, activeFilter], ([q, filter]) => {
 
 const debouncedYtCommit = useDebounceFn((trimmed: string) => {
   // The source may have switched away during the pause.
-  if (source.value !== "youtube") return;
+  if (source.value !== "yt") return;
   submittedYtQuery.value = trimmed;
 }, YT_DEBOUNCE_MS);
 
 watch(query, (q) => {
-  if (source.value !== "youtube") return;
+  if (source.value !== "yt") return;
   const trimmed = q.trim();
 
   if (!trimmed) {
@@ -161,7 +164,7 @@ export function useSearch() {
   const setSource = (next: SearchSource) => {
     source.value = next;
     // Switching to YouTube with a pending query commits it right away.
-    if (next === "youtube" && query.value.trim() && query.value.trim() !== submittedYtQuery.value) {
+    if (next === "yt" && query.value.trim() && query.value.trim() !== submittedYtQuery.value) {
       submitYtSearch();
     }
   };

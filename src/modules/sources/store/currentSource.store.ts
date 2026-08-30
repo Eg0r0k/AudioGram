@@ -1,35 +1,33 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { getNdConfig } from "../navidrome/config";
+import type { SourceKind } from "@/types/track-ref";
+import { sources } from "../registry";
 
 //
 // The library-pages source axis: pages (Artists/Albums/Album/Playlists) pick
 // their data path from this store. It is a DIFFERENT axis from the search
-// source switcher in SidebarHeader (library/youtube) — that one stays as is.
+// source switcher in SidebarHeader — that one asks the registry for
+// `searchable()` where this one asks for `browsable()`.
+//
+// The list comes from the registry rather than from an ND config check, so a
+// source added later shows up here without touching this file.
 //
 
-/** Sources the library pages can browse. YT keeps its own dedicated pages. */
-export type PageSourceKind = "local" | "nd";
-
 export const useCurrentSourceStore = defineStore("currentSource", () => {
-  const selected = ref<PageSourceKind>("local");
+  const selected = ref<SourceKind>("local");
 
-  const ndAvailable = computed(() => getNdConfig() !== null);
+  const availableSources = computed<SourceKind[]>(() => sources.browsable());
 
-  const availableSources = computed<PageSourceKind[]>(() =>
-    ndAvailable.value ? ["local", "nd"] : ["local"],
+  /** The effective source: one that has gone away falls back to local. */
+  const currentSource = computed<SourceKind>(() =>
+    availableSources.value.includes(selected.value) ? selected.value : "local",
   );
 
-  /** The effective source: a vanished ND config falls back to local. */
-  const currentSource = computed<PageSourceKind>(() =>
-    selected.value === "nd" && !ndAvailable.value ? "local" : selected.value,
-  );
-
-  function setSource(kind: PageSourceKind) {
+  const setSource = (kind: SourceKind) => {
     selected.value = kind;
-  }
+  };
 
-  return { selected, ndAvailable, availableSources, currentSource, setSource };
+  return { selected, availableSources, currentSource, setSource };
 }, {
   persist: { pick: ["selected"] },
 });

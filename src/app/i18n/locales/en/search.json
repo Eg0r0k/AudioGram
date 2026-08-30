@@ -15,11 +15,6 @@
     "album": "Albums",
     "playlist": "Playlists"
   },
-  "source": {
-    "library": "Library",
-    "youtube": "YouTube",
-    "nd": "Navidrome"
-  },
   "ytHint": "Start typing to search YouTube",
   "ytLinkDetected": "Link from YouTube",
   "ytLinkPlaylist": "Open playlist",

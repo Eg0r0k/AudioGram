@@ -10,7 +10,7 @@
       v-if="isSearchOpen"
       class="absolute inset-0 top-[72px] z-20 flex flex-col bg-card overflow-hidden"
     >
-      <LibrarySearchPane v-if="source === 'library'" />
+      <LibrarySearchPane v-if="source === 'local'" />
       <NdSearchPane v-else-if="source === 'nd'" />
       <YtSearchPane v-else />
     </div>

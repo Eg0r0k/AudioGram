@@ -51,6 +51,24 @@ describe("sources registry", () => {
     providerState.isAvailable = true;
     expect(sources.available()).toEqual([ytSourceProvider]);
   });
+
+  // The two dropdowns ask different questions of the same registry: one
+  // wants sources with a browsable catalog, the other sources that answer a
+  // query. YouTube is available and searchable but lists nothing, so it must
+  // appear in exactly one of the two lists.
+  it("browsable() keeps local first and excludes a source that lists nothing", () => {
+    providerState.isAvailable = true;
+
+    expect(sources.browsable()).toEqual(["local"]);
+  });
+
+  it("searchable() keeps local first and includes a search-capable source", () => {
+    providerState.isAvailable = true;
+    expect(sources.searchable()).toEqual(["local", "yt"]);
+
+    providerState.isAvailable = false;
+    expect(sources.searchable()).toEqual(["local"]);
+  });
 });
 
 describe("ytSourceProvider", () => {

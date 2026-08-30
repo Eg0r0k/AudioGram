@@ -5,8 +5,8 @@
         variant="ghost"
         size="icon-lg"
         class="rounded-full shrink-0"
-        :aria-label="$t(`library.source.${store.currentSource}`)"
-        :title="$t(`library.source.${store.currentSource}`)"
+        :aria-label="$t(sourceUI(store.currentSource).labelKey)"
+        :title="$t(sourceUI(store.currentSource).labelKey)"
       >
         <MorphIcon
           :icon="currentSourceIcon"
@@ -21,21 +21,17 @@
       align="end"
     >
       <DropdownMenuItem
-        v-for="kind in store.availableSources"
-        :key="kind"
-        @click="store.setSource(kind)"
+        v-for="ui in sourceOptions"
+        :key="ui.kind"
+        @click="store.setSource(ui.kind)"
       >
-        <IconServer
-          v-if="kind === 'nd'"
+        <component
+          :is="ui.icon"
           class="size-5"
         />
-        <IconDeviceLaptop
-          v-else
-          class="size-5"
-        />
-        {{ $t(`library.source.${kind}`) }}
+        {{ $t(ui.labelKey) }}
         <IconCheck
-          v-if="store.currentSource === kind"
+          v-if="store.currentSource === ui.kind"
           class="ml-auto size-4"
         />
       </DropdownMenuItem>
@@ -55,18 +51,17 @@ import { computed } from "vue";
 import { MorphIcon } from "morphicons/vue";
 import { svgToIcon } from "morphicons/adapters";
 import IconCheck from "~icons/tabler/check";
-import IconDeviceLaptop from "~icons/tabler/device-laptop";
-import IconServer from "~icons/tabler/server";
-import serverRaw from "~icons/tabler/server?raw";
-import laptopRaw from "~icons/tabler/device-laptop?raw";
+import { sourceUI } from "../lib/source-ui";
 import { useCurrentSourceStore } from "../store/currentSource.store";
 
 const store = useCurrentSourceStore();
 
-const serverIcon = svgToIcon(serverRaw);
-const laptopIcon = svgToIcon(laptopRaw);
-const currentSourceIcon = computed(() =>
-  store.currentSource === "nd" ? serverIcon : laptopIcon,
-);
+const sourceOptions = computed(() => store.availableSources.map(sourceUI));
 
+// MorphIcon wants the parsed glyph, and svgToIcon is not free — parse each
+// source's once rather than on every trigger re-render.
+const morphIcons = computed(() =>
+  new Map(sourceOptions.value.map(ui => [ui.kind, svgToIcon(ui.iconRaw)])),
+);
+const currentSourceIcon = computed(() => morphIcons.value.get(store.currentSource));
 </script>

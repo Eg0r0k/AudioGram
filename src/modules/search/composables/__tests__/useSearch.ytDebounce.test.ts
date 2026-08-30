@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 
 vi.mock("../../searchIndex", () => ({
@@ -12,13 +12,13 @@ import { useSearch } from "../useSearch";
 // YT search auto-commits after a typing pause; only explicit submits write
 // the recent-queries history.
 
-describe("useSearch — debounced YouTube auto-commit", () => {
+describe("useSearch вЂ” debounced YouTube auto-commit", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     const search = useSearch();
     search.clear();
     search.clearHistory();
-    search.setSource("library");
+    search.setSource("local");
   });
 
   afterEach(async () => {
@@ -28,7 +28,7 @@ describe("useSearch — debounced YouTube auto-commit", () => {
 
   it("commits the query after the debounce pause without Enter", async () => {
     const search = useSearch();
-    search.setSource("youtube");
+    search.setSource("yt");
 
     search.query.value = "lofi beats";
     await nextTick();
@@ -36,13 +36,13 @@ describe("useSearch — debounced YouTube auto-commit", () => {
 
     await vi.advanceTimersByTimeAsync(500);
     expect(search.submittedYtQuery.value).toBe("lofi beats");
-    // Auto-commits never write history — only explicit submits do.
+    // Auto-commits never write history вЂ” only explicit submits do.
     expect(search.recentQueries.value).toEqual([]);
   });
 
   it("only the last value within the pause is committed", async () => {
     const search = useSearch();
-    search.setSource("youtube");
+    search.setSource("yt");
 
     search.query.value = "lo";
     await nextTick();
@@ -59,7 +59,7 @@ describe("useSearch — debounced YouTube auto-commit", () => {
 
   it("clearing the query resets the committed one immediately", async () => {
     const search = useSearch();
-    search.setSource("youtube");
+    search.setSource("yt");
 
     search.query.value = "lofi";
     await nextTick();
@@ -73,7 +73,7 @@ describe("useSearch — debounced YouTube auto-commit", () => {
 
   it("does not auto-commit while another source is active", async () => {
     const search = useSearch();
-    search.setSource("library");
+    search.setSource("local");
 
     search.query.value = "local song";
     await nextTick();
@@ -84,7 +84,7 @@ describe("useSearch — debounced YouTube auto-commit", () => {
 
   it("explicit submit still commits instantly and records history", async () => {
     const search = useSearch();
-    search.setSource("youtube");
+    search.setSource("yt");
 
     search.query.value = "lofi beats";
     await nextTick();
