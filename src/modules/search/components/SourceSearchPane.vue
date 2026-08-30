@@ -6,6 +6,11 @@
       @update:filter="setFilter($event)"
     />
 
+    <SourceHealthNotice
+      :kind="remoteKind"
+      class="mx-4 mt-2"
+    />
+
     <Scrollable class="flex-1 min-h-0">
       <SearchLoading v-if="results.isLoading.value" />
 
@@ -50,7 +55,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Scrollable } from "@/components/ui/scrollable";
-import { routeLocation } from "@/app/router/route-locations";
+import { searchResultRoute } from "../lib/resultItems";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import type { Track } from "@/modules/player/types";
 import type { SourceKind } from "@/types/track-ref";
@@ -60,6 +65,7 @@ import SearchEmptyPlaceholder from "./SearchEmptyPlaceholder.vue";
 import SearchNoResults from "./SearchNoResults.vue";
 import SearchRecentQueries from "./SearchRecentQueries.vue";
 import SearchResults from "./SearchResults.vue";
+import SourceHealthNotice from "@/modules/sources/components/SourceHealthNotice.vue";
 import { useSearch } from "../composables/useSearch";
 import { useSearchPaneResults } from "../composables/useSearchPaneResults";
 import type { SearchResultItem } from "../types";
@@ -105,26 +111,22 @@ const filteredResults = computed<SearchResultItem[]>(() =>
 // when its tracks are already downloaded under the same branded id.
 const intent = computed(() => ({ catalog: props.kind !== "local" }));
 
+// The library index cannot be unreachable or reject a password.
+const remoteKind = computed(() => (props.kind === "local" ? null : props.kind));
+
 function navigate(item: SearchResultItem) {
   saveQueryToHistory();
-  switch (item.type) {
-    case "artist":
-      router.push(routeLocation.artist(item.entityId, intent.value));
-      break;
-    case "album":
-      router.push(routeLocation.album(item.entityId, intent.value));
-      break;
-    case "playlist":
-      router.push(routeLocation.playlist(item.entityId, intent.value));
-      break;
-    case "track": {
-      // Picking a track result plays that one track; the row is already
-      // loaded, so there is nothing left to fetch.
-      const track = results.trackRows.value.find(row => row.id === item.entityId);
-      if (track) playTracks([track], 0);
-      break;
-    }
+
+  if (item.type === "track") {
+    // Picking a track result plays that one track; the row is already
+    // loaded, so there is nothing left to fetch.
+    const track = results.trackRows.value.find(row => row.id === item.entityId);
+    if (track) playTracks([track], 0);
+    return;
   }
+
+  const to = searchResultRoute(item, intent.value);
+  if (to) router.push(to);
 }
 
 async function playTracks(tracks: Track[], index: number) {

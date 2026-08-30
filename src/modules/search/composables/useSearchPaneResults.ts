@@ -1,14 +1,20 @@
 import { computed, type ComputedRef } from "vue";
 import { refDebounced } from "@vueuse/core";
+import { useI18n } from "vue-i18n";
 import { useQuery } from "@tanstack/vue-query";
 import type { Track } from "@/modules/player/types";
 import type { SourceKind } from "@/types/track-ref";
 import type { TrackId } from "@/types/ids";
 import { queryKeys } from "@/queries/query-keys";
 import { getTracksByIds } from "@/queries/track.queries";
-import { THUMB_SIZE_ROW } from "@/lib/media/cover-sizes";
-import { sourceCoverUrl, sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { sourceTrackToDisplay } from "@/modules/sources/lib/display";
 import { useSourcePlaylists, useSourceSearch } from "@/modules/sources/composables/useSourceCatalog";
+import {
+  albumResultItem,
+  artistResultItem,
+  playlistResultItem,
+  trackResultItem,
+} from "../lib/resultItems";
 import type { SearchResultItem, SearchEntityType } from "../types";
 import { useSearch } from "./useSearch";
 
@@ -71,6 +77,7 @@ const useLibraryResults = (enabled: ComputedRef<boolean>): SearchPaneResults => 
 /** A source's own search. Parks on skipToken while `kind` is null. */
 const useRemoteResults = (kind: ComputedRef<SourceKind | null>): SearchPaneResults => {
   const { query } = useSearch();
+  const { t } = useI18n();
 
   const debounced = refDebounced(computed(() => query.value.trim()), REMOTE_DEBOUNCE_MS);
   const hasQuery = computed(() => kind.value !== null && debounced.value.length > 0);
@@ -78,58 +85,31 @@ const useRemoteResults = (kind: ComputedRef<SourceKind | null>): SearchPaneResul
   const search = useSourceSearch(kind, computed(() => (kind.value ? debounced.value : "")));
   const playlists = useSourcePlaylists(kind);
 
-  const coverFor = (coverRef: string | undefined) =>
-    (kind.value ? sourceCoverUrl(kind.value, coverRef, THUMB_SIZE_ROW) || undefined : undefined);
-
   const trackRows = computed<Track[]>(() =>
     (search.data.value?.tracks ?? []).map(sourceTrackToDisplay),
   );
 
-  const groups = computed<Record<SearchEntityType, SearchResultItem[]>>(() => ({
-    track: trackRows.value.map(track => ({
-      id: track.id,
-      type: "track",
-      title: track.title,
-      artist: track.artist,
-      entityId: track.id,
-      score: 0,
-    })),
-    album: (search.data.value?.albums ?? []).map(album => ({
-      id: album.id,
-      type: "album",
-      title: album.title,
-      artist: album.artistName,
-      entityId: album.id,
-      score: 0,
-      coverPath: coverFor(album.coverRef),
-    })),
-    artist: (search.data.value?.artists ?? []).map(artist => ({
-      id: artist.id,
-      type: "artist",
-      title: artist.name,
-      entityId: artist.id,
-      score: 0,
-      coverPath: coverFor(artist.coverRef),
-    })),
-    // Subsonic's search3 does not cover playlists, so the (cached) playlist
-    // list is filtered by name here instead.
-    playlist: matchPlaylists(),
-  }));
+  const groups = computed<Record<SearchEntityType, SearchResultItem[]>>(() => {
+    const resolved = kind.value;
+    if (!resolved) return EMPTY_GROUPS;
 
-  function matchPlaylists(): SearchResultItem[] {
+    return {
+      track: (search.data.value?.tracks ?? []).map(trackResultItem),
+      album: (search.data.value?.albums ?? []).map(album => albumResultItem(album, resolved)),
+      artist: (search.data.value?.artists ?? []).map(artist => artistResultItem(artist, resolved)),
+      // Subsonic's search3 does not cover playlists, so the (cached) playlist
+      // list is filtered by name here instead.
+      playlist: matchPlaylists(resolved),
+    };
+  });
+
+  function matchPlaylists(resolved: SourceKind): SearchResultItem[] {
     const q = debounced.value.toLowerCase();
     if (!q) return [];
     return (playlists.data.value ?? [])
       .filter(playlist => playlist.name.toLowerCase().includes(q))
       .slice(0, MAX_PLAYLIST_MATCHES)
-      .map(playlist => ({
-        id: playlist.id,
-        type: "playlist" as const,
-        title: playlist.name,
-        entityId: playlist.id,
-        score: 0,
-        coverPath: coverFor(playlist.coverRef),
-      }));
+      .map(playlist => playlistResultItem(playlist, resolved, t));
   }
 
   return {
