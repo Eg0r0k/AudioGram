@@ -3,15 +3,16 @@ import { ytStreamUrl } from "@/lib/stream-url";
 import { youtubeProvider } from "@/modules/youtube/provider";
 import { getYoutubeMusicDetails } from "@/modules/youtube/api/youtubeApi";
 import { ytMusicTrackToDto } from "@/modules/youtube/lib/playable";
-import { proxiedThumbnail, THUMB_SIZE_FULL } from "@/modules/youtube/lib/thumbnail";
+import { ytErrorToSource as mapError } from "@/modules/youtube/lib/errors";
+import { proxiedThumbnail } from "@/modules/youtube/lib/thumbnail";
+import { THUMB_SIZE_FULL } from "@/lib/media/cover-sizes";
 import { parseTrackRef, ytAlbumId, ytArtistId, ytPlaylistId } from "@/types/track-ref";
 import { getLogger } from "@/lib/logger";
 import type {
-  YoutubeError,
-  YtAlbumDetail,
   YtMusicAlbum,
   YtMusicEntity,
-  YtPlaylistDetail,
+  YtMusicPlaylist,
+  YtMusicSearchKind,
 } from "@/modules/youtube/types";
 import type { AlbumId, ArtistId, PlaylistId, TrackId } from "@/types/ids";
 import type {
@@ -19,27 +20,10 @@ import type {
   SourceError,
   SourcePlaylistDTO,
   SourceProvider,
+  SourceSearchHit,
+  SourceSearchScope,
   SourceTrackDTO,
 } from "../types";
-
-function mapError(error: YoutubeError): SourceError {
-  switch (error.kind) {
-    case "UNAVAILABLE":
-    case "UNAVAILABLE_REGION":
-      return { kind: "UNAVAILABLE", message: error.message };
-    case "NETWORK":
-      return { kind: "NETWORK", message: error.message };
-    case "NOT_FOUND":
-      return { kind: "NOT_FOUND", message: error.message };
-    case "CANCELLED":
-      // The generic contract (sources/types.ts) marks a cancelled
-      // downloadToFile with kind "CANCELLED" — the download manager
-      // matches on it to drop the job instead of retrying it.
-      return { kind: "CANCELLED", message: error.message };
-    default:
-      return { kind: "UNKNOWN", message: error.message };
-  }
-}
 
 const unsupported = <T>(what: string): ResultAsync<T, SourceError> =>
   errAsync<T, SourceError>({
@@ -57,8 +41,6 @@ const ytIdOf = (id: TrackId | AlbumId | ArtistId | PlaylistId): string | null =>
   return ref.kind === "yt" ? ref.videoId : null;
 };
 
-const videoIdOf = ytIdOf;
-
 /**
  * How many pages `getPlaylist` walks before giving up on completeness.
  * Callers of getPlaylist want the whole thing — queue-all, download-all —
@@ -68,7 +50,13 @@ const videoIdOf = ytIdOf;
  */
 const MAX_PLAYLIST_PAGES = 20;
 
-const mapYtAlbum = (album: YtAlbumDetail): SourceAlbumDTO => ({
+/**
+ * The album fields every YouTube shape carries. A detail response adds a
+ * track count; a shelf card does not, and the DTO's stays undefined.
+ */
+type YtAlbumLike = Omit<YtMusicAlbum, "albumType"> & { trackCount?: number };
+
+const mapYtAlbum = (album: YtAlbumLike): SourceAlbumDTO => ({
   id: ytAlbumId(album.id),
   title: album.title,
   artistId: album.artists[0]?.id ? ytArtistId(album.artists[0].id) : undefined,
@@ -76,15 +64,6 @@ const mapYtAlbum = (album: YtAlbumDetail): SourceAlbumDTO => ({
   year: album.year ?? undefined,
   coverRef: album.thumbnail ?? undefined,
   trackCount: album.trackCount,
-});
-
-const mapYtMusicAlbum = (album: YtMusicAlbum): SourceAlbumDTO => ({
-  id: ytAlbumId(album.id),
-  title: album.title,
-  artistId: album.artists[0]?.id ? ytArtistId(album.artists[0].id) : undefined,
-  artistName: album.artists.map(artist => artist.name).join(", ") || undefined,
-  year: album.year ?? undefined,
-  coverRef: album.thumbnail ?? undefined,
 });
 
 const trackDtosOf = (page: { items: YtMusicEntity[] }): SourceTrackDTO[] =>
@@ -118,12 +97,15 @@ const collectPlaylistTracks = (
     ));
 };
 
-const mapYtPlaylistMeta = (detail: YtPlaylistDetail): SourcePlaylistDTO => ({
-  id: ytPlaylistId(detail.id),
-  name: detail.title,
+/** Shared by the playlist detail response and an artist shelf's cards. */
+type YtPlaylistLike = Pick<YtMusicPlaylist, "id" | "title" | "trackCount" | "thumbnail">;
+
+const mapYtPlaylist = (playlist: YtPlaylistLike): SourcePlaylistDTO => ({
+  id: ytPlaylistId(playlist.id),
+  name: playlist.title,
   // YouTube's own count is an estimate; the real end is a null continuation.
-  trackCount: detail.trackCount ?? 0,
-  coverRef: detail.thumbnail ?? undefined,
+  trackCount: playlist.trackCount ?? 0,
+  coverRef: playlist.thumbnail ?? undefined,
 });
 
 // The full DTO builder (album/artist IDS included): a search-row download
@@ -131,6 +113,42 @@ const mapYtPlaylistMeta = (detail: YtPlaylistDetail): SourcePlaylistDTO => ({
 // lives — a DTO with only albumTitle pins a coverless track.
 const mapMusicTrack = (entity: YtMusicEntity & { kind: "track" }): SourceTrackDTO =>
   ytMusicTrackToDto(entity);
+
+/** Generic search scope → the YT Music search tab that answers it. */
+const SEARCH_KIND: Record<SourceSearchScope, YtMusicSearchKind> = {
+  all: "all",
+  track: "tracks",
+  album: "albums",
+  artist: "artists",
+  playlist: "playlists",
+};
+
+/**
+ * One search entity as a generic hit. An artist card carries no album count
+ * and a search album card no track count — both stay undefined rather than
+ * being invented as 0, which a page would print as a fact.
+ */
+const entityToHit = (entity: YtMusicEntity): SourceSearchHit[] => {
+  switch (entity.kind) {
+    case "track":
+      return [{ kind: "track", item: mapMusicTrack(entity) }];
+    case "album":
+      return [{ kind: "album", item: mapYtAlbum(entity) }];
+    case "artist":
+      return [{
+        kind: "artist",
+        item: {
+          id: ytArtistId(entity.id),
+          name: entity.name,
+          coverRef: entity.thumbnail ?? undefined,
+        },
+      }];
+    case "playlist":
+      return [{ kind: "playlist", item: mapYtPlaylist(entity) }];
+    default:
+      return [];
+  }
+};
 
 /**
  * Adapter exposing the existing {@link youtubeProvider} through the generic
@@ -192,14 +210,9 @@ export const ytSourceProvider: SourceProvider = {
           coverRef: artist.thumbnail ?? undefined,
           albumCount: artist.albums.length,
         },
-        albums: artist.albums.map(mapYtMusicAlbum),
+        albums: artist.albums.map(mapYtAlbum),
         tracks: artist.topTracks.map(track => ytMusicTrackToDto(track)),
-        playlists: artist.playlists.map(playlist => ({
-          id: ytPlaylistId(playlist.id),
-          name: playlist.title,
-          trackCount: playlist.trackCount ?? 0,
-          coverRef: playlist.thumbnail ?? undefined,
-        })),
+        playlists: artist.playlists.map(mapYtPlaylist),
       }));
   },
 
@@ -221,7 +234,7 @@ export const ytSourceProvider: SourceProvider = {
         detail.tracks.continuation,
         1,
       ).map(tracks => ({
-        playlist: { ...mapYtPlaylistMeta(detail), trackCount: tracks.length },
+        playlist: { ...mapYtPlaylist(detail), trackCount: tracks.length },
         tracks,
       })));
   },
@@ -244,11 +257,24 @@ export const ytSourceProvider: SourceProvider = {
       .playlist(listId)
       .mapErr(mapError)
       .map(detail => ({
-        playlist: mapYtPlaylistMeta(detail),
+        playlist: mapYtPlaylist(detail),
         page: {
           items: detail.tracks.items.map(track => ytMusicTrackToDto(track)),
           cursor: detail.tracks.continuation,
         },
+      }));
+  },
+
+  searchPage(q, scope, cursor) {
+    const kind = SEARCH_KIND[scope];
+
+    return (cursor
+      ? youtubeProvider.continueMusic(cursor, kind)
+      : youtubeProvider.searchMusic(q, kind))
+      .mapErr(mapError)
+      .map(page => ({
+        items: page.items.flatMap(entityToHit),
+        cursor: page.continuation,
       }));
   },
 
@@ -271,7 +297,7 @@ export const ytSourceProvider: SourceProvider = {
   },
 
   getTrack(id) {
-    const videoId = videoIdOf(id);
+    const videoId = ytIdOf(id);
     if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
     return getYoutubeMusicDetails(videoId)
       .mapErr(mapError)
@@ -283,7 +309,7 @@ export const ytSourceProvider: SourceProvider = {
   },
 
   resolveStreamUrl(id) {
-    const videoId = videoIdOf(id);
+    const videoId = ytIdOf(id);
     if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
     return youtubeProvider
       .resolve(videoId)
@@ -292,13 +318,13 @@ export const ytSourceProvider: SourceProvider = {
   },
 
   prefetch(id) {
-    const videoId = videoIdOf(id);
+    const videoId = ytIdOf(id);
     if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
     return youtubeProvider.prefetch(videoId).mapErr(mapError);
   },
 
   downloadToFile(id, onProgress) {
-    const videoId = videoIdOf(id);
+    const videoId = ytIdOf(id);
     if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
     return youtubeProvider
       .download(videoId, onProgress)
@@ -307,7 +333,7 @@ export const ytSourceProvider: SourceProvider = {
   },
 
   cancelDownload(id) {
-    const videoId = videoIdOf(id);
+    const videoId = ytIdOf(id);
     if (!videoId) return errAsync({ kind: "PARSE", message: `Not a YouTube track id: ${id}` });
     return youtubeProvider.cancelDownload(videoId).mapErr(mapError);
   },

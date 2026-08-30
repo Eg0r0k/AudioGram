@@ -6,11 +6,11 @@ import type { YtMusicTrack } from "../types";
 vi.mock("@/lib/environment/userAgent", () => ({ IS_TAURI: false, IS_MOBILE: false }));
 import { setMediaServerBaseForTests } from "@/lib/stream-url";
 import {
-  playableFromMusicTrack,
   ytDownloadDto,
   ytEphemeralTrack,
   ytMusicTrackToDto,
 } from "../lib/playable";
+import type { YtPlayable } from "../types";
 
 setMediaServerBaseForTests("http://127.0.0.1:4321/tok");
 
@@ -31,9 +31,18 @@ const musicTrack: YtMusicTrack = {
   trackNr: null,
 };
 
+// What an "Open with"/queue entry carries: a stream and its display fields,
+// with no catalog identity of its own.
+const playable: YtPlayable = {
+  id: musicTrack.id,
+  title: musicTrack.title,
+  artist: "Серега Пират",
+  thumbnail: musicTrack.thumbnail,
+  duration: musicTrack.duration,
+};
+
 describe("ytDownloadDto", () => {
   it("uses the catalog DTO carried by a search row", () => {
-    const playable = playableFromMusicTrack(musicTrack);
     const track = ytEphemeralTrack(playable, ytMusicTrackToDto(musicTrack));
 
     const dto = ytDownloadDto(track, playable);
@@ -45,7 +54,6 @@ describe("ytDownloadDto", () => {
   });
 
   it("falls back to the playable when no catalog DTO is attached", () => {
-    const playable = playableFromMusicTrack(musicTrack);
     const track = ytEphemeralTrack(playable);
 
     const dto = ytDownloadDto(track, playable);
