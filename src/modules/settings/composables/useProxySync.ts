@@ -1,6 +1,18 @@
 import { watch } from "vue";
+import { watchDebounced } from "@vueuse/core";
 import { useProxySettings } from "../store/proxy";
 import { applyProxy } from "../services/proxy";
+import { queryClient } from "@/queries/client";
+import { invalidateRemoteSources } from "@/queries/source.queries";
+import { checkAvailableSources } from "@/modules/sources/composables/useSourceHealth";
+
+/**
+ * The settings page writes on every keystroke, so a typed host arrives one
+ * character at a time. Handing each of those to Rust is cheap; refetching
+ * every remote query for each is not — the cache is dropped once the URL
+ * settles instead.
+ */
+const INVALIDATE_DEBOUNCE_MS = 400;
 
 /**
  * Keeps the Rust-side proxy state in sync with the persisted proxy settings.
@@ -16,5 +28,18 @@ export const useProxySync = () => {
       applyProxy(url);
     },
     { immediate: true },
+  );
+
+  // Everything already cached from a remote source travelled the old route,
+  // failures included — see invalidateRemoteSources. The health verdicts were
+  // about that route too, so they are re-earned rather than kept. Deliberately
+  // not `immediate`: on launch there is nothing cached to drop.
+  watchDebounced(
+    proxyUrl,
+    () => {
+      invalidateRemoteSources(queryClient);
+      checkAvailableSources();
+    },
+    { debounce: INVALIDATE_DEBOUNCE_MS },
   );
 };
