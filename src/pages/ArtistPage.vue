@@ -143,6 +143,7 @@ import IconChevronRight from "~icons/tabler/chevron-right";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconPlus from "~icons/tabler/plus";
 
+import { sourceKindOf } from "@/modules/sources/lib/display";
 import { useArtistPage } from "@/modules/artists/composables/useArtistPage";
 import { getArtistPageData } from "@/queries/artist.queries";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
@@ -244,7 +245,22 @@ const errorMessage = computed(() => {
   return t("errors.loadFailed");
 });
 
+// Catalog artist: no Dexie rows to page through, but tracks.value already
+// holds the top tracks getArtist returned — queue straight from them.
+const remoteQueueSource = computed(() => {
+  const vm = artistData.value;
+  return vm && sourceKindOf(vm.id) !== "local"
+    ? { type: "artist", artistId: vm.id } as const
+    : null;
+});
+
 function handlePlayAll() {
+  if (remoteQueueSource.value) {
+    if (tracks.value.length > 0) {
+      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
+    }
+    return;
+  }
   if (!artist.value) return;
 
   getArtistPageData(artist.value.id, sortKey.value).then((data) => {
@@ -255,8 +271,6 @@ function handlePlayAll() {
 }
 
 async function handlePlayTrack(index: number) {
-  if (!artist.value) return;
-
   const selectedTrack = tracks.value[index];
   if (!selectedTrack) return;
 
@@ -265,6 +279,12 @@ async function handlePlayTrack(index: number) {
     return;
   }
 
+  if (remoteQueueSource.value) {
+    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
+    return;
+  }
+
+  if (!artist.value) return;
   const data = await getArtistPageData(artist.value.id, sortKey.value);
   const fullIndex = data.tracks.findIndex(track => track.id === selectedTrack.id);
   if (fullIndex === -1) return;
@@ -273,6 +293,12 @@ async function handlePlayTrack(index: number) {
 }
 
 async function handleShuffle() {
+  if (remoteQueueSource.value) {
+    if (tracks.value.length > 0) {
+      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
+    }
+    return;
+  }
   if (!artist.value) return;
 
   const source = { type: "artist", artistId: artist.value.id } as const;

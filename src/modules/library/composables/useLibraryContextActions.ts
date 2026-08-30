@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { sources } from "@/modules/sources";
 import { sourceTrackToDisplay } from "@/modules/sources/lib/display";
-import { enqueueNdAlbumDownload, enqueueNdPlaylistDownload } from "@/modules/downloads/enqueue";
+import { enqueueCollectionDownload } from "@/modules/downloads/enqueue";
 import type { LibraryItem } from "../types";
 import { getAlbumPageData } from "@/queries/album.queries";
 import { getPlaylistPageData } from "@/queries/playlist.queries";
@@ -101,8 +101,8 @@ export function useLibraryContextActions() {
   const downloadCatalog = async (item: LibraryItem) => {
     try {
       const batchId = item.type === "album"
-        ? await enqueueNdAlbumDownload(AlbumId(item.id))
-        : await enqueueNdPlaylistDownload(PlaylistId(item.id));
+        ? await enqueueCollectionDownload("album", AlbumId(item.id))
+        : await enqueueCollectionDownload("playlist", PlaylistId(item.id));
       if (!batchId) toast.info(t("media.nothingToDownload"));
     }
     catch (error) {

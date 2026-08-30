@@ -35,9 +35,8 @@ vi.mock("@/queries/library.queries", () => ({
 import { db } from "@/db";
 import { useDownloadsStore } from "../store/downloads.store";
 import {
+  enqueueCollectionDownload,
   enqueueLocalPlaylistDownload,
-  enqueueNdAlbumDownload,
-  enqueueNdPlaylistDownload,
 } from "../enqueue";
 
 function ndDto(rawId: string): SourceTrackDTO {
@@ -75,7 +74,7 @@ describe("batch downloads", () => {
       downloadedAt: 0,
     });
 
-    const batchId = await enqueueNdAlbumDownload(ndAlbumId("album1"));
+    const batchId = await enqueueCollectionDownload("album", ndAlbumId("album1"));
 
     expect(batchId).not.toBeNull();
 
@@ -99,7 +98,7 @@ describe("batch downloads", () => {
     }));
     providerMock.downloadToFile.mockImplementation(() => errAsync({ kind: "AUTH", message: "upstream status 401" }));
 
-    const batchId = await enqueueNdPlaylistDownload(ndPlaylistId("pl1"));
+    const batchId = await enqueueCollectionDownload("playlist", ndPlaylistId("pl1"));
 
     const store = useDownloadsStore();
     await vi.waitFor(() => {
@@ -143,6 +142,6 @@ describe("batch downloads", () => {
       album: { id: ndAlbumId("album1"), title: "Remote Album" },
       tracks: [],
     }));
-    expect(await enqueueNdAlbumDownload(ndAlbumId("album1"))).toBeNull();
+    expect(await enqueueCollectionDownload("album", ndAlbumId("album1"))).toBeNull();
   });
 });

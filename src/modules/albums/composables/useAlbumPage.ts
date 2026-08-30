@@ -19,7 +19,8 @@ import { getArtistByIdOrThrow } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
-import { remoteCatalogKindOf, useSourceAlbum } from "@/modules/sources/composables/useSourceCatalog";
+import { useSourceAlbum } from "@/modules/sources/composables/useSourceCatalog";
+import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCatalogKind";
 import { sourceAlbumToAlbumData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { AlbumChanges } from "@/queries/album.queries";
@@ -32,9 +33,9 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   const albumId = computed(() => AlbumId(route.params.id as string));
 
-  // Data path picks by id prefix: remote-catalog albums come live from the
-  // source, local ids take the Dexie path.
-  const remoteKind = computed(() => remoteCatalogKindOf(albumId.value, "albums"));
+  // Data path picks by id AND by whether a pinned library row exists under
+  // it: a downloaded remote album is a library entity, not a catalog one.
+  const { remoteKind, isResolved } = useRemoteCatalogKind("albums", albumId);
   const isRemote = computed(() => remoteKind.value !== null);
 
   const remoteQuery = useSourceAlbum(remoteKind, computed(() => (isRemote.value ? albumId.value : null)));
@@ -45,10 +46,12 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => albumQueries.detail(albumId.value, !isRemote.value)));
+  } = useQuery(computed(() => albumQueries.detail(albumId.value, isResolved.value && !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
-  const isAlbumLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value));
+  const isAlbumLoading = computed(() =>
+    (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value)),
+  );
 
   const album = computed(() => albumData.value ?? null);
 

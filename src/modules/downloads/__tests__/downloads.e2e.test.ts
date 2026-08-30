@@ -79,10 +79,10 @@ describe("downloads end-to-end", () => {
       okAsync({ path: `C:/tmp/downloads-tmp/${trackId.slice("nd:".length)}.flac`, format: { codec: "flac" } }));
 
     vi.resetModules();
-    const { enqueueNdAlbumDownload } = await import("../enqueue");
+    const { enqueueCollectionDownload } = await import("../enqueue");
     const { useDownloadsStore } = await import("../store/downloads.store");
 
-    const batchId = await enqueueNdAlbumDownload(ndAlbumId("album1"));
+    const batchId = await enqueueCollectionDownload("album", ndAlbumId("album1"));
 
     // Finished jobs are deleted; offlineCopies below is the ledger.
     await vi.waitFor(async () => {

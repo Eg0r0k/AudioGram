@@ -8,7 +8,7 @@ import { sources } from "@/modules/sources";
 import type { SourceTrackDTO } from "@/modules/sources/types";
 import { playlistRepository, trackRepository } from "@/db/repositories";
 import { parseTrackRef } from "@/types/track-ref";
-import type { AlbumId, PlaylistId } from "@/types/ids";
+import type { AlbumId, PlaylistId, TrackId } from "@/types/ids";
 import { enqueueTrackDownload } from "./manager";
 import { useDownloadsStore } from "./store/downloads.store";
 
@@ -94,17 +94,27 @@ export async function enqueueSourceTracksDownload(tracks: SourceTrackDTO[]): Pro
   return batchId;
 }
 
-/** "Download album" from an ND album page. Returns the batch id, or null
- * when nothing needed downloading. */
-export async function enqueueNdAlbumDownload(albumId: AlbumId): Promise<string | null> {
-  const result = await sources.get("nd").getAlbum(albumId);
-  if (result.isErr()) throw new Error(result.error.message);
-  return enqueueSourceTracksDownload(result.value.tracks);
-}
+/**
+ * "Download everything" for a catalog album or playlist, from whichever
+ * source its branded id names. Returns the batch id, or null when nothing
+ * needed downloading.
+ *
+ * getAlbum and getPlaylist hand over the whole collection — a source that
+ * pages its playlists walks the pages itself — so the batch is never a
+ * partial one that merely looks complete.
+ */
+export async function enqueueCollectionDownload(
+  type: "album" | "playlist",
+  id: AlbumId | PlaylistId,
+): Promise<string | null> {
+  // parseTrackRef only reads the source prefix; any branded id is valid input.
+  const kind = parseTrackRef(id as unknown as TrackId).kind;
+  if (kind === "local") return null;
 
-/** "Download playlist" from an ND playlist page. */
-export async function enqueueNdPlaylistDownload(playlistId: PlaylistId): Promise<string | null> {
-  const result = await sources.get("nd").getPlaylist(playlistId);
+  const provider = sources.get(kind);
+  const result = type === "album"
+    ? await provider.getAlbum(id as AlbumId)
+    : await provider.getPlaylist(id as PlaylistId);
   if (result.isErr()) throw new Error(result.error.message);
   return enqueueSourceTracksDownload(result.value.tracks);
 }

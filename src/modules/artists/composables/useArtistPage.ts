@@ -16,7 +16,8 @@ import {
 import { statsQueries } from "@/queries/stats.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
-import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
+import { useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
+import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCatalogKind";
 import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
@@ -43,8 +44,9 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const artistId = computed(() => ArtistId(route.params.id as string));
 
-  // Data path picks by id prefix: catalog artists live, local ids via Dexie.
-  const remoteKind = computed(() => remoteCatalogKindOf(artistId.value, "artists"));
+  // Data path picks by id AND by whether a pinned library row exists under
+  // it: a downloaded remote artist is a library entity, not a catalog one.
+  const { remoteKind, isResolved } = useRemoteCatalogKind("artists", artistId);
   const isRemote = computed(() => remoteKind.value !== null);
 
   const remoteQuery = useSourceArtist(remoteKind, computed(() => (isRemote.value ? artistId.value : null)));
@@ -55,10 +57,12 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => artistQueries.detail(artistId.value, !isRemote.value)));
+  } = useQuery(computed(() => artistQueries.detail(artistId.value, isResolved.value && !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
-  const isArtistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value));
+  const isArtistLoading = computed(() =>
+    (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value)),
+  );
 
   const artist = computed(() => artistData.value ?? null);
 

@@ -84,10 +84,10 @@ import { useImageColor } from "@/composables/useImageColor";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import {
+  enqueueCollectionDownload,
   enqueueLocalPlaylistDownload,
-  enqueueNdAlbumDownload,
-  enqueueNdPlaylistDownload,
 } from "@/modules/downloads/enqueue";
+import { sources } from "@/modules/sources";
 import { provideMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import MediaHeader from "./MediaHeader.vue";
 import MediaHeroImage from "./MediaHeroImage.vue";
@@ -137,13 +137,17 @@ const canManage = computed(() => {
   return isPlaylist(props.data) ? props.data.isOwner : true;
 });
 
-// M4: batch offline download — ND albums and playlists (a local playlist is
-// filtered to its downloadable tracks at enqueue time).
+// Batch offline download: any catalog collection whose source can hand over
+// files, plus local playlists (filtered to their downloadable tracks at
+// enqueue time). Asks the source rather than naming one.
 const canDownloadOffline = computed(() => {
   if (!IS_TAURI) return false;
   const data = props.data;
-  if (isAlbum(data)) return sourceKindOf(data.id) === "nd";
-  return isPlaylist(data);
+  if (!isAlbum(data) && !isPlaylist(data)) return false;
+
+  const kind = sourceKindOf(data.id);
+  if (kind === "local") return isPlaylist(data);
+  return sources.get(kind).capabilities.download;
 });
 
 async function startOfflineDownload(): Promise<void> {
@@ -151,12 +155,12 @@ async function startOfflineDownload(): Promise<void> {
   try {
     let batchId: string | null = null;
     if (isAlbum(data)) {
-      batchId = await enqueueNdAlbumDownload(data.id);
+      batchId = await enqueueCollectionDownload("album", data.id);
     }
     else if (isPlaylist(data)) {
-      batchId = sourceKindOf(data.id) === "nd"
-        ? await enqueueNdPlaylistDownload(data.id)
-        : await enqueueLocalPlaylistDownload(data.id);
+      batchId = sourceKindOf(data.id) === "local"
+        ? await enqueueLocalPlaylistDownload(data.id)
+        : await enqueueCollectionDownload("playlist", data.id);
     }
     // No "queued" toast: the header download indicator is the feedback.
     if (!batchId) {

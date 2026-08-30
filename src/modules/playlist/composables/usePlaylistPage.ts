@@ -18,7 +18,8 @@ import {
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
-import { remoteCatalogKindOf, useSourcePlaylist } from "@/modules/sources/composables/useSourceCatalog";
+import { useSourcePlaylist } from "@/modules/sources/composables/useSourceCatalog";
+import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCatalogKind";
 import { sourcePlaylistToPlaylistData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { PlaylistChanges } from "@/queries/playlist.queries";
@@ -33,8 +34,9 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
 
   // Remote playlists route as "<kind>:<serverId>" — read-only live pages.
   // The provider takes the branded id and unwraps it itself, exactly like
-  // getAlbum and getArtist.
-  const remoteKind = computed(() => remoteCatalogKindOf(playlistId.value, "playlists"));
+  // getAlbum and getArtist. A pinned library row under the same id wins:
+  // that one is a real playlist, not a catalog page.
+  const { remoteKind, isResolved } = useRemoteCatalogKind("playlists", playlistId);
   const isRemote = computed(() => remoteKind.value !== null);
 
   const remoteQuery = useSourcePlaylist(remoteKind, computed(() => (isRemote.value ? playlistId.value : null)));
@@ -45,10 +47,12 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => playlistQueries.detail(playlistId.value, !isRemote.value)));
+  } = useQuery(computed(() => playlistQueries.detail(playlistId.value, isResolved.value && !isRemote.value)));
 
   const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
-  const isPlaylistLoading = computed(() => (isRemote.value ? remoteQuery.isLoading.value : isLocalPlaylistLoading.value));
+  const isPlaylistLoading = computed(() =>
+    (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalPlaylistLoading.value)),
+  );
 
   const playlist = computed(() => playlistData.value ?? null);
 
