@@ -17,8 +17,7 @@ import { statsQueries } from "@/queries/stats.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { remoteCatalogKindOf, useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
-import { sourceArtistToArtistData, sourceCoverUrl } from "@/modules/sources/lib/display";
-import { THUMB_SIZE_CARD } from "@/modules/youtube/lib/thumbnail";
+import { sourceArtistToArtistData, sourceCoverUrl, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
 

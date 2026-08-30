@@ -1,5 +1,10 @@
 import { platformCaps } from "@/lib/environment/platformCaps";
 import { proxyPathFromUrl, ytImageUrl } from "@/lib/stream-url";
+import { THUMB_SIZE_FULL } from "@/modules/sources/lib/cover-sizes";
+
+// Rendition sizes are shared with every other source; re-exported here so YT
+// call sites keep importing thumbnails and their sizes from one place.
+export { THUMB_SIZE_CARD, THUMB_SIZE_FULL, THUMB_SIZE_ROW } from "@/modules/sources/lib/cover-sizes";
 
 /**
  * googleusercontent/ggpht covers are served at the size encoded in the URL,
@@ -13,13 +18,6 @@ function upscaledThumbnail(url: string, size: number): string {
     .replace(/=w\d+-h\d+/, `=w${size}-h${size}`)
     .replace(/=s\d+/, `=s${size}`);
 }
-
-/** Hero/full-cover rendition (YT Music's standard album cover size). */
-export const THUMB_SIZE_FULL = 544;
-/** Card rendition (~144px cards on hidpi screens). */
-export const THUMB_SIZE_CARD = 320;
-/** List-row rendition — plenty for 40–56px covers on hidpi screens. */
-export const THUMB_SIZE_ROW = 226;
 
 /**
  * Routes a YouTube thumbnail URL through the media server's `ytimg` route so

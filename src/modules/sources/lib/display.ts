@@ -3,7 +3,7 @@ import type { Track } from "@/modules/player/types";
 import type { AlbumData, ArtistData, PlaylistData } from "@/modules/media-hero/types";
 import { AlbumId, PlaylistId } from "@/types/ids";
 import { parseTrackRef, type SourceKind } from "@/types/track-ref";
-import { THUMB_SIZE_FULL, THUMB_SIZE_ROW } from "@/modules/youtube/lib/thumbnail";
+import { THUMB_SIZE_FULL } from "./cover-sizes";
 import { sources } from "../registry";
 import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO } from "../types";
 
@@ -14,10 +14,7 @@ import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO
 // display-only shapes.
 //
 
-export { THUMB_SIZE_FULL, THUMB_SIZE_ROW };
-
-/** Blur-up placeholder size: big enough for colors, cheap to fetch. */
-export const THUMB_SIZE_LQ = 24;
+export { THUMB_SIZE_CARD, THUMB_SIZE_FULL, THUMB_SIZE_LQ, THUMB_SIZE_ROW } from "./cover-sizes";
 
 export function sourceCoverUrl(kind: SourceKind, coverRef: string | undefined, size?: number): string {
   if (!coverRef || kind === "local") return "";
@@ -77,13 +74,19 @@ export function sourceArtistToArtistData(dto: SourceArtistDTO): ArtistData {
   };
 }
 
-/** ND playlists are read-only server pages → isOwner: false. */
+/**
+ * Remote playlists are read-only server pages → isOwner: false.
+ *
+ * The source comes from `id` rather than `dto.id`: playlist DTOs carry the
+ * raw server id, unlike track/album/artist DTOs which leave their mappers
+ * already branded. `id` is the routed `<kind>:<serverId>`.
+ */
 export function sourcePlaylistToPlaylistData(dto: SourcePlaylistDTO, id: PlaylistId): PlaylistData {
   return {
     type: "playlist",
     id,
     title: dto.name,
-    image: sourceCoverUrl("nd", dto.coverRef, THUMB_SIZE_FULL),
+    image: sourceCoverUrl(sourceKindOf(id), dto.coverRef, THUMB_SIZE_FULL),
     isOwner: false,
     trackCount: dto.trackCount,
   };
