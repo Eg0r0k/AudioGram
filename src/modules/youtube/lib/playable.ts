@@ -3,7 +3,6 @@ import {
   isEphemeralTrack,
   type EphemeralTrack,
   type PlayerTrack,
-  type Track,
 } from "@/modules/player/types";
 import { ytStreamUrl, ytVideoIdFromStreamUrl } from "@/lib/stream-url";
 import type { SourceTrackDTO } from "@/modules/sources/types";
@@ -121,25 +120,6 @@ export function playableFromVideo(video: YtSearchResult): YtPlayable {
     thumbnail: video.thumbnail,
     duration: video.duration,
   };
-}
-
-/**
- * Display-only `Track` shape so YT tracks can render through the shared
- * {@link TrackExpanded} row. Only the fields the row reads are filled; it must
- * never reach library flows (likes, menus, queue-by-id) — those are disabled
- * via the row's `actions` slot.
- */
-export function ytDisplayTrack(track: YtMusicTrack): Track {
-  return {
-    kind: "library",
-    id: track.id,
-    title: track.title,
-    artist: track.artists.map(a => a.name).join(", "),
-    artistIds: [],
-    albumName: track.album?.name ?? "",
-    duration: track.duration ?? 0,
-    isLiked: false,
-  } as unknown as Track;
 }
 
 /**

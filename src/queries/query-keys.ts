@@ -10,6 +10,8 @@ export const queryKeys = {
   artists: {
     all: () => ["artists"] as const,
     detail: (id: ArtistId) => ["artists", id] as const,
+    /** Row-or-null lookup; unlike `detail` it does not throw on a miss. */
+    libraryRow: (id: ArtistId | null) => ["artists", id, "libraryRow"] as const,
     search: (query: string) => ["artists", "search", query] as const,
     albums: (id: ArtistId) => ["artists", id, "albums"] as const,
     tracks: (id: ArtistId) => ["artists", id, "tracks"] as const,
@@ -21,6 +23,8 @@ export const queryKeys = {
   albums: {
     all: () => ["albums"] as const,
     detail: (id: AlbumId) => ["albums", id] as const,
+    /** Row-or-null lookup; unlike `detail` it does not throw on a miss. */
+    libraryRow: (id: AlbumId | null) => ["albums", id, "libraryRow"] as const,
     search: (query: string) => ["albums", "search", query] as const,
     tracks: (id: AlbumId) => ["albums", id, "tracks"] as const,
     cover: (id: AlbumId) => ["covers", "album", id] as const,
@@ -33,6 +37,8 @@ export const queryKeys = {
   playlists: {
     all: () => ["playlists"] as const,
     detail: (id: PlaylistId) => ["playlists", id] as const,
+    /** Row-or-null lookup; unlike `detail` it does not throw on a miss. */
+    libraryRow: (id: PlaylistId | null) => ["playlists", id, "libraryRow"] as const,
     tracks: (id: PlaylistId) => ["playlists", id, "tracks"] as const,
     cover: (id: PlaylistId) => ["covers", "playlist", id] as const,
     page: (id: PlaylistId) => ["playlists", id, "page"] as const,
@@ -89,14 +95,15 @@ export const queryKeys = {
     artist: (kind: SourceKind | null, id: ArtistId | null) => ["source", kind, "artist", id] as const,
     playlists: (kind: SourceKind | null) => ["source", kind, "playlists"] as const,
     playlist: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id] as const,
+    playlistMeta: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id, "meta"] as const,
+    playlistPages: (kind: SourceKind | null, id: string | null) => ["source", kind, "playlist", id, "pages"] as const,
     search: (kind: SourceKind | null, q: string) => ["source", kind, "search", q] as const,
   },
   youtube: {
     searchAll: (query: string) => ["youtube", "search", "all", query] as const,
     searchList: (chip: string, query: string) => ["youtube", "search", chip, query] as const,
-    playlist: (id: string) => ["youtube", "playlist", id] as const,
-    album: (id: string) => ["youtube", "album", id] as const,
-    artist: (id: string) => ["youtube", "artist", id] as const,
+    // Collection keys used to live here; albums, artists and playlists are
+    // cached under queryKeys.source now, whatever source they came from.
   },
   stats: {
     all: () => ["stats"] as const,
