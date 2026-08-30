@@ -2,7 +2,7 @@ import { useRouter } from "vue-router";
 import { useLibraryStore } from "../store/library.store";
 import { storeToRefs } from "pinia";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
-import { computed, watch } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { LIBRARY_FILTERS, type FolderLibraryItemType, type LibraryFilter, type LibraryFolderEntry, type LibraryItem } from "../types";
 import { clearAllData } from "@/services/storage-info.service";
@@ -286,12 +286,6 @@ export const useLibrary = () => {
       }
     });
   });
-
-  watch(availableFilters, (filters) => {
-    if (!filters.includes(activeFilter.value)) {
-      store.setFilter("all");
-    }
-  }, { immediate: true });
 
   const createPlaylist = async () => {
     const playlist = await createPlaylistAndSync(queryClient, t("playlist.newPlaylist"));

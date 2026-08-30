@@ -47,6 +47,11 @@
           </Tabs>
         </Scrollable>
 
+        <SourceHealthNotice
+          :kind="catalogKind"
+          class="mx-2 mt-2"
+        />
+
         <LibraryContextMenu
           :inside-folder="!!activeFolder"
           @delete="handleDeleteItem"
@@ -175,7 +180,9 @@ import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import UpdateButton from "@/modules/update/components/UpdateButton.vue";
 import IconPlus from "~icons/tabler/plus";
 import { useCurrentSourceStore } from "@/modules/sources/store/currentSource.store";
-import { catalogFilters, useCatalogLibraryItems } from "@/modules/sources/composables/useCatalogLibraryItems";
+import { useCatalogLibraryItems } from "@/modules/sources/composables/useCatalogLibraryItems";
+import { catalogFilters } from "@/modules/sources/lib/catalog-filters";
+import SourceHealthNotice from "@/modules/sources/components/SourceHealthNotice.vue";
 
 const {
   pinnedItems,
@@ -251,11 +258,13 @@ const visibleFilters = computed(() =>
   (isCatalog.value ? catalogFilters(catalogKind.value) : availableFilters.value),
 );
 
-// A source that cannot list the open tab would otherwise leave the strip
-// with no active tab above a permanently empty list.
+// The one place the tab strip is rendered is the one place its invariant is
+// kept: an active tab that is not in the strip leaves no tab highlighted
+// above a permanently empty list. Applies to both lists — a local collection
+// that emptied out and a source that cannot list the open tab.
 watch(visibleFilters, (filters) => {
   if (filters.length > 0 && !filters.includes(activeFilter.value)) setFilter(filters[0]);
-});
+}, { immediate: true });
 
 useScrollRestoration(scrollableRef, {
   key: "library-sidebar",
@@ -266,19 +275,19 @@ useScrollRestoration(scrollableRef, {
 // The tab strip these swipes drive is only visible at depth 0 — inside a
 // folder an unconditional swipe would switch the (hidden) library tabs
 // underneath.
+// Swipes walk the strip the user can see, not the local library's list: on
+// a catalog those two differ, and stepping onto a hidden tab would leave no
+// tab highlighted.
+const stepFilter = (delta: number) => {
+  if (folderDepth.value !== 0) return;
+  const filters = visibleFilters.value;
+  const next = filters[filters.indexOf(activeFilter.value) + delta];
+  if (next) setFilter(next);
+};
+
 useSwipeControl(rootRef, {
-  onSwipeLeft: () => {
-    if (folderDepth.value !== 0) return;
-    const idx = availableFilters.value.indexOf(activeFilter.value);
-    const next = availableFilters.value[idx + 1];
-    if (next) setFilter(next);
-  },
-  onSwipeRight: () => {
-    if (folderDepth.value !== 0) return;
-    const idx = availableFilters.value.indexOf(activeFilter.value);
-    const prev = availableFilters.value[idx - 1];
-    if (prev) setFilter(prev);
-  },
+  onSwipeLeft: () => stepFilter(1),
+  onSwipeRight: () => stepFilter(-1),
 });
 
 const filterLabels = computed<Record<LibraryFilter, string>>(() => ({
