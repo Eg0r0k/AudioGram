@@ -142,7 +142,7 @@ const playlistResults = computed<SearchResultItem[]>(() => {
       id: playlist.id,
       type: "playlist" as const,
       title: playlist.name,
-      entityId: `nd:${playlist.id}`,
+      entityId: playlist.id,
       score: 0,
       coverPath: coverFor(playlist.coverRef),
     }));

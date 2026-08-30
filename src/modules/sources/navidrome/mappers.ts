@@ -1,4 +1,4 @@
-import { ndAlbumId, ndArtistId, ndTrackId } from "@/types/track-ref";
+import { ndAlbumId, ndArtistId, ndPlaylistId, ndTrackId } from "@/types/track-ref";
 import type { SourceAlbumDTO, SourceArtistDTO, SourcePlaylistDTO, SourceTrackDTO } from "../types";
 import type { SubsonicAlbum, SubsonicArtist, SubsonicPlaylist, SubsonicSong } from "./api/types";
 
@@ -48,7 +48,7 @@ export function mapNdArtist(artist: SubsonicArtist): SourceArtistDTO {
 
 export function mapNdPlaylist(playlist: SubsonicPlaylist): SourcePlaylistDTO {
   return {
-    id: playlist.id,
+    id: ndPlaylistId(playlist.id),
     name: playlist.name,
     trackCount: playlist.songCount ?? 0,
     coverRef: playlist.coverArt,

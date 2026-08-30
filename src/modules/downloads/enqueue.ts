@@ -102,9 +102,9 @@ export async function enqueueNdAlbumDownload(albumId: AlbumId): Promise<string |
   return enqueueSourceTracksDownload(result.value.tracks);
 }
 
-/** "Download playlist" from an ND playlist page (raw server id, no prefix). */
-export async function enqueueNdPlaylistDownload(rawPlaylistId: string): Promise<string | null> {
-  const result = await sources.get("nd").getPlaylist(rawPlaylistId);
+/** "Download playlist" from an ND playlist page. */
+export async function enqueueNdPlaylistDownload(playlistId: PlaylistId): Promise<string | null> {
+  const result = await sources.get("nd").getPlaylist(playlistId);
   if (result.isErr()) throw new Error(result.error.message);
   return enqueueSourceTracksDownload(result.value.tracks);
 }

@@ -155,7 +155,7 @@ async function startOfflineDownload(): Promise<void> {
     }
     else if (isPlaylist(data)) {
       batchId = sourceKindOf(data.id) === "nd"
-        ? await enqueueNdPlaylistDownload(String(data.id).slice("nd:".length))
+        ? await enqueueNdPlaylistDownload(data.id)
         : await enqueueLocalPlaylistDownload(data.id);
     }
     // No "queued" toast: the header download indicator is the feedback.

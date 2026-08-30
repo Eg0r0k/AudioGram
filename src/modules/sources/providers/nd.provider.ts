@@ -2,7 +2,7 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ndCoverUrl, ndSongStreamUrl } from "@/lib/stream-url";
 import { parseTrackRef } from "@/types/track-ref";
-import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, TrackId } from "@/types/ids";
 import { subsonicFetch, type NdConfig } from "../navidrome/api/subsonic";
 import type {
   GetAlbumList2Payload,
@@ -26,7 +26,7 @@ const withConfig = <T>(call: (config: NdConfig) => ResultAsync<T, SourceError>):
   return config ? call(config) : unavailable<T>();
 };
 
-const ndIdOf = (id: TrackId | AlbumId | ArtistId): string | null => {
+const ndIdOf = (id: TrackId | AlbumId | ArtistId | PlaylistId): string | null => {
   const ref = parseTrackRef(id as TrackId);
   return ref.kind === "nd" ? ref.songId : null;
 };
@@ -121,8 +121,10 @@ export const ndSourceProvider: SourceProvider = {
   },
 
   getPlaylist(id) {
+    const playlistId = ndIdOf(id);
+    if (!playlistId) return errAsync({ kind: "PARSE", message: `Not a Navidrome playlist id: ${id}` });
     return withConfig(config =>
-      subsonicFetch<GetPlaylistPayload>(config, "getPlaylist", { id }).andThen((payload) => {
+      subsonicFetch<GetPlaylistPayload>(config, "getPlaylist", { id: playlistId }).andThen((payload) => {
         if (!payload.playlist) return errAsync<never, SourceError>({ kind: "PARSE", message: "getPlaylist returned no playlist" });
         return okAsync({
           playlist: mapNdPlaylist(payload.playlist),

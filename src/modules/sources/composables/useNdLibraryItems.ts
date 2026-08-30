@@ -2,7 +2,6 @@
 import type { LibraryFilter, LibraryItem } from "@/modules/library/types";
 import { routeLocation } from "@/app/router/route-locations";
 import { getLogger } from "@/lib/logger";
-import { PlaylistId } from "@/types/ids";
 import { sourceCoverUrl, THUMB_SIZE_LQ, THUMB_SIZE_ROW } from "../lib/display";
 import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylists } from "./useSourceCatalog";
 
@@ -74,7 +73,7 @@ export function useNdLibraryItems(filter: MaybeRefOrGetter<LibraryFilter>) {
           updatedAt: 0,
           image: sourceCoverUrl("nd", playlist.coverRef, THUMB_SIZE_ROW) || undefined,
           imageLow: sourceCoverUrl("nd", playlist.coverRef, THUMB_SIZE_LQ) || undefined,
-          to: routeLocation.playlist(PlaylistId(`nd:${playlist.id}`)),
+          to: routeLocation.playlist(playlist.id),
           rounded: false,
           trackCount: playlist.trackCount,
         });

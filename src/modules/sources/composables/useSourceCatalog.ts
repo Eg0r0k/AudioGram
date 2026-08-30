@@ -3,7 +3,7 @@ import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/vue-query";
 import { SOURCE_STALE_TIME, sourceQueries } from "@/queries/source.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { unwrapSourceResult } from "@/queries/shared";
-import type { AlbumId, ArtistId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import type { SourceKind } from "@/types/track-ref";
 import { sourceKindOf } from "../lib/display";
 import { sources } from "../registry";
@@ -28,6 +28,17 @@ export const remoteCatalogKindOf = (id: string, entity: SourceEntity): SourceKin
   const kind = sourceKindOf(id);
   if (kind === "local") return null;
   return sources.get(kind).capabilities[entity].open ? kind : null;
+};
+
+/**
+ * The remote source behind an entity id when it can enumerate that whole
+ * collection; null → nothing to list. Distinct from {@link remoteCatalogKindOf}:
+ * a source may open one entity by id without having a browsable catalog.
+ */
+export const remoteListKindOf = (id: string, entity: SourceEntity): SourceKind | null => {
+  const kind = sourceKindOf(id);
+  if (kind === "local") return null;
+  return sources.get(kind).capabilities[entity].list ? kind : null;
 };
 
 /** Reactive availability of a remote source (platform + settings gate). */
@@ -60,7 +71,7 @@ export function useSourcePlaylists(kind: KindInput) {
   return useQuery(computed(() => sourceQueries(toValue(kind)).playlists(available.value)));
 }
 
-export function useSourcePlaylist(kind: KindInput, id: MaybeRefOrGetter<string | null>) {
+export function useSourcePlaylist(kind: KindInput, id: MaybeRefOrGetter<PlaylistId | null>) {
   const available = useSourceAvailable(kind);
   return useQuery(computed(() =>
     sourceQueries(toValue(kind)).playlist(available.value ? toValue(id) : null)));

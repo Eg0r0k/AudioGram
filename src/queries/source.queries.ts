@@ -1,7 +1,7 @@
 import { queryOptions, skipToken } from "@tanstack/vue-query";
 import { sources } from "@/modules/sources";
 import type { SourceKind } from "@/types/track-ref";
-import type { AlbumId, ArtistId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import { queryKeys } from "./query-keys";
 import { unwrapSourceResult } from "./shared";
 
@@ -50,7 +50,7 @@ export function sourceQueries(kind: SourceKind | null) {
           : skipToken,
       }),
 
-    playlist: (id: string | null) =>
+    playlist: (id: PlaylistId | null) =>
       queryOptions({
         queryKey: queryKeys.source.playlist(kind, id),
         staleTime: SOURCE_STALE_TIME,

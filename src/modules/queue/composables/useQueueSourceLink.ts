@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { routeLocation } from "@/app/router/route-locations";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { sourceKindOf } from "@/modules/sources/lib/display";
+import { remoteListKindOf, useSourcePlaylists } from "@/modules/sources/composables/useSourceCatalog";
 import { albumQueries } from "@/queries/album.queries";
 import { artistQueries } from "@/queries/artist.queries";
 import { playlistQueries } from "@/queries/playlist.queries";
@@ -44,8 +45,19 @@ export const useQueueSourceLink = () => {
     artistQueries.detail(artistId.value ?? ArtistId(""), !!artistId.value && isLocalId(artistId.value)),
   ));
   const { data: playlist } = useQuery(computed(() =>
-    playlistQueries.detail(playlistId.value ?? PlaylistId(""), !!playlistId.value),
+    playlistQueries.detail(playlistId.value ?? PlaylistId(""), !!playlistId.value && isLocalId(playlistId.value)),
   ));
+
+  // A remote playlist has no Dexie row and, unlike an album or artist, no
+  // name on the track either. The source's playlist list carries it and is
+  // the same query the sidebar already loads while browsing that source.
+  const remoteKind = computed(() =>
+    (playlistId.value ? remoteListKindOf(playlistId.value, "playlists") : null),
+  );
+  const { data: remotePlaylists } = useSourcePlaylists(remoteKind);
+  const remotePlaylistName = computed(() =>
+    remotePlaylists.value?.find(entry => entry.id === playlistId.value)?.name,
+  );
 
   const link = computed<QueueSourceLink | null>(() => {
     const current = source.value;
@@ -62,7 +74,7 @@ export const useQueueSourceLink = () => {
         return label ? { label, to: routeLocation.artist(current.artistId) } : null;
       }
       case "playlist": {
-        const label = playlist.value?.name;
+        const label = isLocalId(current.playlistId) ? playlist.value?.name : remotePlaylistName.value;
         return label ? { label, to: routeLocation.playlist(current.playlistId) } : null;
       }
       case "liked":

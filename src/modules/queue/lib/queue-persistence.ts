@@ -1,9 +1,11 @@
-import type { QueueItemId } from "@/types/ids";
+import { PlaylistId, type QueueItemId } from "@/types/ids";
 import { REPEAT_MODES, type EphemeralTrack, type PlayerTrack, type RepeatMode, type Track } from "@/modules/player/types";
-import { trackRepository } from "@/db/repositories";
+import { playlistRepository, trackRepository } from "@/db/repositories";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
 import { unique, unwrapResult } from "@/queries/shared";
+import { getLogger } from "@/lib/logger";
 import { migrateProxyUrl } from "@/lib/stream-url";
+import { ndPlaylistId, parseTrackRef } from "@/types/track-ref";
 import type { QueueItem, QueueSource, QueueState } from "../types";
 import { getItemsByOrder } from "./queue-order";
 
@@ -145,9 +147,64 @@ export const buildPersistedQueueSnapshot = (input: {
   };
 };
 
+// parseTrackRef only reads the source prefix, so any branded id string is a
+// valid input; the cast keeps it usable for playlist and ephemeral ids too.
+const sourceKindOfId = (id: string) => parseTrackRef(id as Track["id"]).kind;
+
+const persistedTrackId = (track: PersistedQueueTrack): string =>
+  track.kind === "library" ? track.trackId : track.id;
+
+/**
+ * Snapshots written before ND playlist ids were branded store the raw server
+ * id in a playlist source, which matches neither the sidebar row nor the
+ * playlist route any more.
+ *
+ * Re-branding needs proof rather than a guess: an unprefixed id is exactly
+ * what a local playlist looks like, and a local playlist may legitimately
+ * hold nothing but ND tracks. So an id is only rewritten when no local
+ * playlist owns it AND every track queued under it is an ND track. A failed
+ * lookup rewrites nothing — the entry then behaves as it did before, which
+ * is the outcome this migration is improving on, not one it can worsen.
+ */
+const ndPlaylistSourceRewrites = async (
+  queue: readonly PersistedQueueItem[],
+): Promise<ReadonlyMap<string, PlaylistId>> => {
+  const allTracksAreNd = new Map<string, boolean>();
+
+  for (const item of queue) {
+    if (item.source.type !== "playlist") continue;
+    const id = item.source.playlistId;
+    if (sourceKindOfId(id) !== "local") continue;
+
+    const isNd = sourceKindOfId(persistedTrackId(item.track)) === "nd";
+    allTracksAreNd.set(id, (allTracksAreNd.get(id) ?? true) && isNd);
+  }
+
+  const rewrites = new Map<string, PlaylistId>();
+  for (const [id, isNd] of allTracksAreNd) {
+    if (!isNd) continue;
+    try {
+      const found = await unwrapResult(playlistRepository.findById(PlaylistId(id)));
+      if (!found) rewrites.set(id, ndPlaylistId(id));
+    }
+    catch (error) {
+      getLogger().warn(`[Queue] Playlist source migration skipped for ${id}: ${String(error)}`);
+    }
+  }
+
+  return rewrites;
+};
+
+const migrateSource = (source: QueueSource, rewrites: ReadonlyMap<string, PlaylistId>): QueueSource => {
+  if (source.type !== "playlist") return source;
+  const rewritten = rewrites.get(source.playlistId);
+  return rewritten ? { type: "playlist", playlistId: rewritten } : source;
+};
+
 const rehydrateQueueItem = (
   item: PersistedQueueItem,
   libraryTracksById: ReadonlyMap<Track["id"], PlayerTrack>,
+  rewrites: ReadonlyMap<string, PlaylistId>,
 ): QueueItem | null => {
   if (item.track.kind === "library") {
     const track = libraryTracksById.get(item.track.trackId);
@@ -155,7 +212,7 @@ const rehydrateQueueItem = (
     return {
       id: item.id,
       track,
-      source: item.source,
+      source: migrateSource(item.source, rewrites),
       addedAt: item.addedAt,
       cover: migrateCover(item.cover),
     };
@@ -170,7 +227,7 @@ const rehydrateQueueItem = (
         ? { ...item.track.source, url: migrateProxyUrl(item.track.source.url) }
         : item.track.source,
     },
-    source: item.source,
+    source: migrateSource(item.source, rewrites),
     addedAt: item.addedAt,
     cover: migrateCover(item.cover),
   };
@@ -193,10 +250,11 @@ export const rehydratePersistedQueue = async (
     ? await unwrapResult(trackRepository.findByIds(libraryTrackIds))
     : [];
   const libraryTracksById = new Map(libraryTracks.map(track => [track.id, mapTrackEntityToPlayerTrack(track)]));
+  const playlistSourceRewrites = await ndPlaylistSourceRewrites(snapshot.queue);
 
   // In the snapshot's playback order; library rows gone from the DB drop out.
   const restoredQueue = snapshot.queue.flatMap((item) => {
-    const restored = rehydrateQueueItem(item, libraryTracksById);
+    const restored = rehydrateQueueItem(item, libraryTracksById, playlistSourceRewrites);
     return restored ? [restored] : [];
   });
 

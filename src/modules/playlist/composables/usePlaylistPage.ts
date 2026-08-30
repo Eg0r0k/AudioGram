@@ -32,14 +32,12 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
   const playlistId = computed(() => PlaylistId(route.params.id as string));
 
   // Remote playlists route as "<kind>:<serverId>" — read-only live pages.
+  // The provider takes the branded id and unwraps it itself, exactly like
+  // getAlbum and getArtist.
   const remoteKind = computed(() => remoteCatalogKindOf(playlistId.value, "playlists"));
   const isRemote = computed(() => remoteKind.value !== null);
-  const remotePlaylistId = computed(() => {
-    const kind = remoteKind.value;
-    return kind ? playlistId.value.slice(`${kind}:`.length) : null;
-  });
 
-  const remoteQuery = useSourcePlaylist(remoteKind, remotePlaylistId);
+  const remoteQuery = useSourcePlaylist(remoteKind, computed(() => (isRemote.value ? playlistId.value : null)));
 
   const {
     data: playlistData,

@@ -69,9 +69,6 @@ export function useLibraryContextActions() {
     toast.success(t("queue.added"));
   };
 
-  /** Raw ND playlist id — the sidebar VM carries the prefixed one. */
-  const rawPlaylistId = (id: string) => id.replace(/^nd:/, "");
-
   /**
    * Catalog row (ND browsing): tracks come from the server, not Dexie.
    * Queueing shadow-pins them on play, exactly like the ND album page.
@@ -80,7 +77,7 @@ export function useLibraryContextActions() {
     const provider = sources.get("nd");
     const result = item.type === "album"
       ? await provider.getAlbum(AlbumId(item.id))
-      : await provider.getPlaylist(rawPlaylistId(item.id));
+      : await provider.getPlaylist(PlaylistId(item.id));
 
     if (result.isErr()) {
       getLogger().error(`[ND] Queueing ${item.type} ${item.id} failed: ${result.error.message}`);
@@ -105,7 +102,7 @@ export function useLibraryContextActions() {
     try {
       const batchId = item.type === "album"
         ? await enqueueNdAlbumDownload(AlbumId(item.id))
-        : await enqueueNdPlaylistDownload(rawPlaylistId(item.id));
+        : await enqueueNdPlaylistDownload(PlaylistId(item.id));
       if (!batchId) toast.info(t("media.nothingToDownload"));
     }
     catch (error) {

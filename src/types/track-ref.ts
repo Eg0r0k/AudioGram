@@ -1,4 +1,4 @@
-import { AlbumId, ArtistId, TrackId } from "./ids";
+import { AlbumId, ArtistId, PlaylistId, TrackId } from "./ids";
 
 // "radio" — M6
 export type SourceKind = "local" | "nd" | "yt";
@@ -25,6 +25,7 @@ export const ndTrackId = (songId: string) => TrackId(`${ND_PREFIX}${songId}`);
 export const ytTrackId = (videoId: string) => TrackId(`${YT_PREFIX}${videoId}`);
 export const ndAlbumId = (albumId: string) => AlbumId(`${ND_PREFIX}${albumId}`);
 export const ndArtistId = (artistId: string) => ArtistId(`${ND_PREFIX}${artistId}`);
+export const ndPlaylistId = (playlistId: string) => PlaylistId(`${ND_PREFIX}${playlistId}`);
 // M5: yt album/artist id spaces ("yt:MPREb_…" / "yt:UC…") — the pin cascade
 // can hang shadow album/artist rows off downloaded YT tracks.
 export const ytAlbumId = (browseId: string) => AlbumId(`${YT_PREFIX}${browseId}`);

@@ -1,6 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 import type { AudioFormat } from "@/db/entities";
-import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, TrackId } from "@/types/ids";
 import type {
   SourceAlbumDTO,
   SourceArtistDTO,
@@ -68,7 +68,7 @@ export interface SourceProvider {
   getAlbum(id: AlbumId): ResultAsync<{ album: SourceAlbumDTO; tracks: SourceTrackDTO[] }, SourceError>;
   getArtist(id: ArtistId): ResultAsync<{ artist: SourceArtistDTO; albums: SourceAlbumDTO[] }, SourceError>;
   listPlaylists(): ResultAsync<SourcePlaylistDTO[], SourceError>;
-  getPlaylist(id: string): ResultAsync<{ playlist: SourcePlaylistDTO; tracks: SourceTrackDTO[] }, SourceError>;
+  getPlaylist(id: PlaylistId): ResultAsync<{ playlist: SourcePlaylistDTO; tracks: SourceTrackDTO[] }, SourceError>;
   search(q: string, types: ("track" | "album" | "artist")[], p: { offset: number; limit: number }):
   ResultAsync<{ tracks: SourceTrackDTO[]; albums: SourceAlbumDTO[]; artists: SourceArtistDTO[] }, SourceError>;
 

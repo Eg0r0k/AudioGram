@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { errAsync, okAsync } from "neverthrow";
-import { ndAlbumId, ndArtistId, ndTrackId } from "@/types/track-ref";
+import { ndAlbumId, ndArtistId, ndPlaylistId, ndTrackId } from "@/types/track-ref";
 import { PlaylistId } from "@/types/ids";
 import type { SourceTrackDTO } from "@/modules/sources/types";
 
@@ -94,12 +94,12 @@ describe("batch downloads", () => {
 
   it("failed jobs count into the batch as failures", async () => {
     providerMock.getPlaylist.mockReturnValue(okAsync({
-      playlist: { id: "pl1", name: "Mix", trackCount: 1 },
+      playlist: { id: ndPlaylistId("pl1"), name: "Mix", trackCount: 1 },
       tracks: [ndDto("s9")],
     }));
     providerMock.downloadToFile.mockImplementation(() => errAsync({ kind: "AUTH", message: "upstream status 401" }));
 
-    const batchId = await enqueueNdPlaylistDownload("pl1");
+    const batchId = await enqueueNdPlaylistDownload(ndPlaylistId("pl1"));
 
     const store = useDownloadsStore();
     await vi.waitFor(() => {

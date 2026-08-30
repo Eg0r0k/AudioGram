@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { okAsync } from "neverthrow";
-import { AlbumId, TrackId } from "@/types/ids";
-import { ndAlbumId, ndTrackId } from "@/types/track-ref";
+import { AlbumId, PlaylistId, TrackId } from "@/types/ids";
+import { ndAlbumId, ndPlaylistId, ndTrackId } from "@/types/track-ref";
 
 const subsonicFetchMock = vi.hoisted(() => vi.fn());
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -90,6 +90,42 @@ describe("ndSourceProvider", () => {
       size: 50,
       offset: 0,
     });
+  });
+
+  // Playlists used to be the one entity whose DTO carried the raw server id
+  // while everything else left the mappers branded. Call sites then moved the
+  // prefix by hand, and the sidebar row stopped matching the queue source.
+  it("takes a branded playlist id, unwraps it for Subsonic and brands it back", async () => {
+    subsonicFetchMock.mockReturnValue(okAsync({
+      playlist: { id: "pl1", name: "Road trip", songCount: 1, coverArt: "pl-pl1", entry: [{ id: "s1", title: "Come Together" }] },
+    }));
+
+    const result = await ndSourceProvider.getPlaylist(ndPlaylistId("pl1"));
+
+    expect(subsonicFetchMock).toHaveBeenCalledWith(configState.current, "getPlaylist", { id: "pl1" });
+    expect(result._unsafeUnwrap().playlist).toEqual({
+      id: "nd:pl1",
+      name: "Road trip",
+      trackCount: 1,
+      coverRef: "pl-pl1",
+    });
+  });
+
+  it("rejects an unbranded playlist id instead of querying with it", async () => {
+    const result = await ndSourceProvider.getPlaylist(PlaylistId("pl1"));
+
+    expect(result._unsafeUnwrapErr().kind).toBe("PARSE");
+    expect(subsonicFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("brands playlist ids in listPlaylists", async () => {
+    subsonicFetchMock.mockReturnValue(okAsync({
+      playlists: { playlist: [{ id: "pl1", name: "Road trip", songCount: 3 }] },
+    }));
+
+    const result = await ndSourceProvider.listPlaylists();
+
+    expect(result._unsafeUnwrap()[0].id).toBe("nd:pl1");
   });
 
   it("maps getAlbum onto branded ids and normalized track DTOs", async () => {

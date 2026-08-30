@@ -1,5 +1,5 @@
 import type { AudioFormat } from "@/db/entities";
-import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, TrackId } from "@/types/ids";
 
 //
 // Normalized DTOs. Ids are full branded ids with the source prefix baked in
@@ -37,7 +37,7 @@ export interface SourceArtistDTO {
 }
 
 export interface SourcePlaylistDTO {
-  id: string;
+  id: PlaylistId;
   name: string;
   trackCount: number;
   coverRef?: string;

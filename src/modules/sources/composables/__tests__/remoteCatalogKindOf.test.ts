@@ -10,7 +10,7 @@ vi.mock("../../registry", () => ({
   sources: { get: (kind: string) => ({ capabilities: caps[kind] }) },
 }));
 
-import { remoteCatalogKindOf } from "../useSourceCatalog";
+import { remoteCatalogKindOf, remoteListKindOf } from "../useSourceCatalog";
 
 describe("remoteCatalogKindOf", () => {
   it("returns null for local ids without consulting a provider", () => {
@@ -33,5 +33,18 @@ describe("remoteCatalogKindOf", () => {
     caps.yt.albums = { list: false, open: true };
 
     expect(remoteCatalogKindOf("yt:al1", "albums")).toBe("yt");
+  });
+});
+
+describe("remoteListKindOf", () => {
+  it("returns null for local ids", () => {
+    expect(remoteListKindOf("playlist-123", "playlists")).toBeNull();
+  });
+
+  it("returns the kind only when the source can enumerate the collection", () => {
+    caps.yt.playlists = { list: false, open: true };
+
+    expect(remoteListKindOf("nd:pl1", "playlists")).toBe("nd");
+    expect(remoteListKindOf("yt:pl1", "playlists")).toBeNull();
   });
 });
