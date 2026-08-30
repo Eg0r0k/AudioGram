@@ -10,9 +10,11 @@
       v-if="isSearchOpen"
       class="absolute inset-0 top-[72px] z-20 flex flex-col bg-card overflow-hidden"
     >
-      <LibrarySearchPane v-if="source === 'local'" />
-      <NdSearchPane v-else-if="source === 'nd'" />
-      <YtSearchPane v-else />
+      <YtSearchPane v-if="source === 'yt'" />
+      <SourceSearchPane
+        v-else
+        :kind="source"
+      />
     </div>
   </Transition>
 </template>
@@ -20,8 +22,7 @@
 <script setup lang="ts">
 import { useSearch } from "@/modules/search/composables/useSearch";
 import { registerOverlayBackHandler } from "@/composables/useOverlayBackButton";
-import LibrarySearchPane from "@/modules/search/components/LibrarySearchPane.vue";
-import NdSearchPane from "@/modules/sources/components/NdSearchPane.vue";
+import SourceSearchPane from "@/modules/search/components/SourceSearchPane.vue";
 import YtSearchPane from "@/modules/youtube/components/search/YtSearchPane.vue";
 
 const { isSearchOpen, source, suppressPanelSlide, closeSearch } = useSearch();
