@@ -6,161 +6,130 @@
     <div class="pb-8">
       <SettingsHeader :title="$t('settings.index.sources')" />
 
-      <SettingsGroup>
-        <Item @click="setEnabled(!enabled)">
-          <ItemContent>
-            <ItemTitle>{{ $t("settings.sources.nd.enable") }}</ItemTitle>
-            <ItemSubtitle>
-              {{ $t("settings.sources.nd.description") }}
-            </ItemSubtitle>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              :model-value="enabled"
-              @click.stop
-              @update:model-value="setEnabled"
+      <section
+        v-for="source in sourceList"
+        :key="source.kind"
+        class="mb-6"
+      >
+        <SettingsGroup>
+          <Item>
+            <ItemMedia>
+              <component
+                :is="source.ui.icon"
+                class="size-6 text-muted-foreground"
+              />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{{ $t(source.ui.labelKey) }}</ItemTitle>
+              <ItemSubtitle>{{ statusLabel(source.kind) }}</ItemSubtitle>
+            </ItemContent>
+          </Item>
+        </SettingsGroup>
+
+        <component
+          :is="source.settings"
+          v-if="source.settings"
+        />
+
+        <template v-if="source.canCheck">
+          <Button
+            class="w-full h-14 justify-start mt-2"
+            size="xl"
+            variant="ghost-primary"
+            :disabled="!source.isAvailable || isChecking(source.kind)"
+            @click="check(source.kind)"
+          >
+            <IconLoader2
+              v-if="isChecking(source.kind)"
+              class="size-6 animate-spin"
             />
-          </ItemActions>
-        </Item>
-      </SettingsGroup>
+            <IconPlugConnected
+              v-else
+              class="size-6"
+            />
+            {{ $t("source.status.check") }}
+          </Button>
 
-      <SettingsGroup
-        class="mt-2"
-        :class="{ 'opacity-40 pointer-events-none': !enabled }"
-      >
-        <div class="px-4 py-3 space-y-4">
-          <Input
-            id="nd-base-url"
-            :model-value="baseUrl"
-            :label="$t('settings.sources.nd.baseUrl')"
-            surface="card"
-            placeholder="https://music.example.com"
-            autocomplete="off"
-            spellcheck="false"
-            @update:model-value="(val) => setBaseUrl(String(val))"
-          />
-
-          <Input
-            id="nd-username"
-            :model-value="username"
-            :label="$t('settings.sources.nd.username')"
-            surface="card"
-            autocomplete="off"
-            spellcheck="false"
-            @update:model-value="(val) => setUsername(String(val))"
-          />
-
-          <Input
-            id="nd-password"
-            :model-value="password"
-            :label="$t('settings.sources.nd.password')"
-            type="password"
-            surface="card"
-            autocomplete="off"
-            @update:model-value="(val) => setPassword(String(val))"
-          />
-        </div>
-
-        <Button
-          class="w-full h-14 justify-start"
-          size="xl"
-          variant="ghost-primary"
-          :disabled="!canTest || isTesting"
-          @click="handleTest"
-        >
-          <IconLoader2
-            v-if="isTesting"
-            class="size-6 animate-spin"
-          />
-          <IconPlugConnected
-            v-else
-            class="size-6"
-          />
-          {{ $t("settings.sources.nd.test") }}
-        </Button>
-      </SettingsGroup>
-
-      <div
-        v-if="testState !== 'idle'"
-        class="px-4 mt-2"
-      >
-        <p
-          v-if="testState === 'ok'"
-          class="text-sm text-primary"
-        >
-          {{ $t("settings.sources.nd.testOk") }}
-        </p>
-        <p
-          v-else
-          class="text-sm text-destructive break-words"
-        >
-          {{ testMessage }}
-        </p>
-      </div>
+          <p
+            v-if="failureOf(source.kind)"
+            class="text-sm text-destructive wrap-break-word px-4 mt-2"
+          >
+            {{ failureOf(source.kind)?.message }}
+          </p>
+          <p
+            v-else-if="health(source.kind).state === 'ok'"
+            class="text-sm text-primary px-4 mt-2"
+          >
+            {{ $t("source.status.ok") }}
+          </p>
+        </template>
+      </section>
     </div>
   </Scrollable>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, type Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { Scrollable } from "@/components/ui/scrollable";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-} from "@/components/ui/item";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
+import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
+import ItemSubtitle from "@/components/ui/item/ItemSubtitle.vue";
 import { Button } from "@/components/ui/button";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconPlugConnected from "~icons/tabler/plug-connected";
 import SettingsGroup from "@/modules/settings/components/SettingsGroup.vue";
 import SettingsHeader from "@/modules/settings/components/SettingsHeader.vue";
-import ItemSubtitle from "@/components/ui/item/ItemSubtitle.vue";
-import { useNdSourceSettings } from "@/modules/settings/store/sources";
-import { pingNd } from "@/modules/settings/services/nd";
+import { sources } from "@/modules/sources";
+import { sourceUI } from "@/modules/sources/lib/source-ui";
+import { checkSource } from "@/modules/sources/composables/useSourceHealth";
+import { sourceHealth } from "@/modules/sources/lib/health";
+import NdSettingsSection from "@/modules/sources/components/settings/NdSettingsSection.vue";
+import type { SourceKind } from "@/types/track-ref";
+
+//
+// One section per source the build registers — the page asks the registry
+// what exists instead of knowing. Sources are compiled in statically, so the
+// form a source needs is looked up in a static map here rather than carried
+// on the provider: SourceProvider is a data contract and has no business
+// referencing Vue components.
+//
+// A source with no form (YouTube: nothing to configure) still gets its row,
+// which is where its status is reported.
+//
+
+const SOURCE_SETTINGS: Partial<Record<SourceKind, Component>> = {
+  nd: NdSettingsSection,
+};
 
 const { t } = useI18n();
 
-const {
-  enabled,
-  baseUrl,
-  username,
-  password,
-  ndConfig,
-  setEnabled,
-  setBaseUrl,
-  setUsername,
-  setPassword,
-} = useNdSourceSettings();
+const sourceList = computed(() =>
+  sources.all().map(provider => ({
+    kind: provider.id,
+    ui: sourceUI(provider.id),
+    settings: SOURCE_SETTINGS[provider.id],
+    isAvailable: provider.isAvailable,
+    canCheck: !!provider.checkConnection,
+  })),
+);
 
-const isTesting = ref(false);
-const testState = ref<"idle" | "ok" | "error">("idle");
-const testMessage = ref("");
-
-const canTest = computed(() => ndConfig.value !== null);
-
-const handleTest = async () => {
-  const config = ndConfig.value;
-  if (!config) return;
-
-  isTesting.value = true;
-  testState.value = "idle";
-  testMessage.value = "";
-
-  const result = await pingNd(config);
-  result.match(
-    () => {
-      testState.value = "ok";
-    },
-    (error) => {
-      testState.value = "error";
-      testMessage.value = t("settings.sources.nd.testFailed", { error: error.message });
-    },
-  );
-
-  isTesting.value = false;
+const health = (kind: SourceKind) => sourceHealth(kind);
+const isChecking = (kind: SourceKind) => sourceHealth(kind).state === "checking";
+const failureOf = (kind: SourceKind) => {
+  const current = sourceHealth(kind);
+  return current.state === "failed" ? current.error : null;
 };
+
+const statusLabel = (kind: SourceKind): string => {
+  if (!sources.isAvailable(kind)) return t("source.status.notConfigured");
+
+  switch (sourceHealth(kind).state) {
+    case "checking": return t("source.status.checking");
+    case "ok": return t("source.status.ok");
+    case "failed": return t("source.status.failed");
+    default: return t("source.status.available");
+  }
+};
+
+const check = (kind: SourceKind) => checkSource(kind);
 </script>

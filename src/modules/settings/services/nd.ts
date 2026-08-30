@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { okAsync, ResultAsync } from "neverthrow";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { subsonicAuthParams, subsonicFetch, type NdConfig } from "@/modules/sources/navidrome/api/subsonic";
+import { subsonicAuthParams, type NdConfig } from "@/modules/sources/navidrome/api/subsonic";
 import type { SourceError } from "@/modules/sources/types";
 
 /**
@@ -24,7 +24,3 @@ export const applyNdConfig = (config: NdConfig | null): ResultAsync<void, Source
     (): SourceError => ({ kind: "UNKNOWN", message: "Failed to apply Navidrome config" }),
   );
 };
-
-/** Health/credential check — Subsonic `ping`. */
-export const pingNd = (config: NdConfig): ResultAsync<void, SourceError> =>
-  subsonicFetch(config, "ping").map(() => undefined);

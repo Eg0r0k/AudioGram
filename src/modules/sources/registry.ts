@@ -23,8 +23,26 @@ export const sources = {
     return sources.get(parseTrackRef(id).kind);
   },
 
+  /**
+   * Every source compiled into this build, configured or not — settings has
+   * to offer the one that is currently switched off, which is exactly the
+   * one `available()` leaves out.
+   */
+  all(): SourceProvider[] {
+    return Object.values(providers);
+  },
+
   available(): SourceProvider[] {
     return Object.values(providers).filter(provider => provider.isAvailable);
+  },
+
+  /**
+   * Whether anything can answer for this kind right now. "local" always can;
+   * an unregistered kind never can — so callers may ask about any id's kind
+   * without first knowing which providers are wired up.
+   */
+  isAvailable(kind: SourceKind): boolean {
+    return kind === "local" || (providers[kind]?.isAvailable ?? false);
   },
 
   /**

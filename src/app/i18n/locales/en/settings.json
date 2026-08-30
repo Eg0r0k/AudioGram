@@ -82,10 +82,7 @@
       "description": "Browse and stream your own Navidrome (Subsonic) library.",
       "baseUrl": "Server address",
       "username": "Username",
-      "password": "Password",
-      "test": "Test connection",
-      "testOk": "Connected",
-      "testFailed": "Connection failed: {error}"
+      "password": "Password"
     }
   },
   "about": {
