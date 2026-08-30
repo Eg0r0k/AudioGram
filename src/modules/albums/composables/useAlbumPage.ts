@@ -18,9 +18,8 @@ import { coverQueries } from "@/queries/cover.queries";
 import { getArtistByIdOrThrow } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
-import { sortDisplayTracks } from "@/modules/tracks/lib/sortDisplayTracks";
 import { useSourceAlbum } from "@/modules/sources/composables/useSourceCatalog";
-import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCatalogKind";
+import { useCatalogEntity } from "@/modules/sources/composables/useCatalogEntity";
 import { sourceAlbumToAlbumData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 
 export type { AlbumChanges } from "@/queries/album.queries";
@@ -33,12 +32,10 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
 
   const albumId = computed(() => AlbumId(route.params.id as string));
 
-  // Data path picks by id AND by whether a pinned library row exists under
-  // it: a downloaded remote album is a library entity, not a catalog one.
-  const { remoteKind, isResolved } = useRemoteCatalogKind("albums", albumId);
-  const isRemote = computed(() => remoteKind.value !== null);
+  const path = useCatalogEntity("albums", albumId);
+  const { isRemote, remoteId, localEnabled } = path;
 
-  const remoteQuery = useSourceAlbum(remoteKind, computed(() => (isRemote.value ? albumId.value : null)));
+  const remoteQuery = useSourceAlbum(path.remoteKind, remoteId);
 
   const {
     data: albumData,
@@ -46,17 +43,14 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => albumQueries.detail(albumId.value, isResolved.value && !isRemote.value)));
+  } = useQuery(computed(() => albumQueries.detail(albumId.value, localEnabled.value)));
 
-  const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
-  const isAlbumLoading = computed(() =>
-    (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalAlbumLoading.value)),
-  );
+  const { isError, isLoading: isAlbumLoading } = path.pathState(remoteQuery, {
+    isLoading: isLocalAlbumLoading,
+    isError: isLocalError,
+  });
 
-  // `enabled: false` stops the fetch, not the cache read: a row left by an
-  // earlier library visit would otherwise make the catalog view believe it
-  // has a Dexie entity behind it.
-  const album = computed(() => (isRemote.value ? null : albumData.value ?? null));
+  const album = path.libraryRow(albumData);
 
   const {
     data: infiniteData,
@@ -73,10 +67,16 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     enabled: computed(() => !isRemote.value && !!album.value),
   });
 
-  const remoteTracks = computed(() => {
-    const mapped = (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay);
-    return sortKey.value ? sortDisplayTracks(mapped, sortKey.value) : mapped;
-  });
+  const remoteTracks = computed(() =>
+    (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay),
+  );
+
+  /**
+   * Sorting is a library feature: Dexie sorts by index across every page. A
+   * catalog album would have to be re-sorted in the browser, so it keeps the
+   * order its source gave it — which for an album is the track order anyway.
+   */
+  const canSort = computed(() => !isRemote.value);
 
   const tracks = computed(() =>
     isRemote.value
@@ -177,6 +177,7 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
   return {
     album,
     tracks,
+    canSort,
     albumData: albumDataMapped,
     coverUrl,
     trackCount,

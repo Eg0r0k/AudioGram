@@ -1,9 +1,6 @@
 <template>
   <div class="library-sort-header-container border-b border-border/40 px-4 sm:px-6">
-    <div
-      class="library-sort-header"
-      :class="!sortable && 'pointer-events-none'"
-    >
+    <div class="library-sort-header">
       <div class="index-col flex items-center pl-3">
         <IconHashtag class="size-4" />
       </div>
@@ -11,6 +8,7 @@
       <Button
         variant="ghost"
         class="first-col justify-start gap-2 truncate px-2 font-medium"
+        :disabled="!sortable"
         @click="toggle('title')"
       >
         <span class="truncate">{{ $t('library.sortColumn.title') }}</span>
@@ -27,6 +25,7 @@
       <Button
         variant="ghost"
         class="var1-col justify-start gap-2 truncate px-2 font-medium"
+        :disabled="!sortable"
         @click="toggle('album')"
       >
         <span class="truncate">{{ $t('library.sortColumn.album') }}</span>
@@ -43,6 +42,7 @@
       <Button
         variant="ghost"
         class="var2-col justify-start truncate px-2 font-medium"
+        :disabled="!sortable"
         @click="toggle('dateAdded')"
       >
         <span class="truncate">{{ $t('library.sortColumn.dateAdded') }}</span>
@@ -59,6 +59,7 @@
       <Button
         class="last-col"
         variant="ghost"
+        :disabled="!sortable"
         @click="toggle('duration')"
       >
         <IconClock class="size-5" />
@@ -85,7 +86,12 @@ import { getNextTrackSortKey, TrackSortField } from "../lib/trackSort";
 
 const props = withDefaults(defineProps<{
   sortKey: TrackSortKey | null;
-  /** Static column header without sort interaction (e.g. remote YT lists). */
+  /**
+   * Whether the columns can be sorted by. False keeps the header in place —
+   * it is what labels the columns — and disables the controls: a catalog
+   * list has no sort to offer, and removing the row would shift the whole
+   * list up on a remote page and back down on a local one.
+   */
   sortable?: boolean;
 }>(), {
   sortable: true,

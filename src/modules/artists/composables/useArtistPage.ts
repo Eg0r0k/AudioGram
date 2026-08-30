@@ -17,8 +17,9 @@ import { statsQueries } from "@/queries/stats.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { useSourceArtist } from "@/modules/sources/composables/useSourceCatalog";
-import { useRemoteCatalogKind } from "@/modules/sources/composables/useRemoteCatalogKind";
-import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay, THUMB_SIZE_CARD } from "@/modules/sources/lib/display";
+import { useCatalogEntity } from "@/modules/sources/composables/useCatalogEntity";
+import { THUMB_SIZE_CARD } from "@/lib/media/cover-sizes";
+import { sourceArtistToArtistData, sourceCoverUrl, sourceTrackToDisplay } from "@/modules/sources/lib/display";
 import type { SourceAlbumDTO } from "@/modules/sources/types";
 import type { AlbumEntity } from "@/db/entities";
 import type { LibraryItem } from "@/modules/library/types";
@@ -45,12 +46,10 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
 
   const artistId = computed(() => ArtistId(route.params.id as string));
 
-  // Data path picks by id AND by whether a pinned library row exists under
-  // it: a downloaded remote artist is a library entity, not a catalog one.
-  const { remoteKind, isResolved } = useRemoteCatalogKind("artists", artistId);
-  const isRemote = computed(() => remoteKind.value !== null);
+  const path = useCatalogEntity("artists", artistId);
+  const { remoteKind, isRemote, remoteId, localEnabled } = path;
 
-  const remoteQuery = useSourceArtist(remoteKind, computed(() => (isRemote.value ? artistId.value : null)));
+  const remoteQuery = useSourceArtist(remoteKind, remoteId);
 
   const {
     data: artistData,
@@ -58,18 +57,14 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     isError: isLocalError,
     error,
     refetch,
-  } = useQuery(computed(() => artistQueries.detail(artistId.value, isResolved.value && !isRemote.value)));
+  } = useQuery(computed(() => artistQueries.detail(artistId.value, localEnabled.value)));
 
-  const isError = computed(() => (isRemote.value ? remoteQuery.isError.value : isLocalError.value));
-  const isArtistLoading = computed(() =>
-    (!isResolved.value || (isRemote.value ? remoteQuery.isLoading.value : isLocalArtistLoading.value)),
-  );
+  const { isError, isLoading: isArtistLoading } = path.pathState(remoteQuery, {
+    isLoading: isLocalArtistLoading,
+    isError: isLocalError,
+  });
 
-  // `enabled: false` stops the fetch, not the cache read: a query whose key
-  // was filled by an earlier library visit still hands its row back here.
-  // The catalog view must not see it — that row is what makes the page call
-  // itself a library entity, down to the context menu on its album cards.
-  const artist = computed(() => (isRemote.value ? null : artistData.value ?? null));
+  const artist = path.libraryRow(artistData);
 
   const {
     data: tracksInfiniteData,
@@ -94,6 +89,8 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
       ? (remoteQuery.data.value?.tracks ?? []).map(sourceTrackToDisplay)
       : tracksInfiniteData.value?.pages.flatMap(page => page.tracks) ?? []),
   );
+
+  const canSort = computed(() => !isRemote.value);
 
   const {
     data: albumsInfiniteData,
@@ -210,6 +207,7 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     albumCovers,
     playlistItems,
     tracks,
+    canSort,
     artistData: artistDataMapped,
     coverUrl,
     trackCount,

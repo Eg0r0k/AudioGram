@@ -47,8 +47,6 @@
               @share="handleShare"
             >
               <template #actions>
-                <!-- Writes into the playlist's Dexie row — hidden for a
-                     read-only ND playlist. -->
                 <Button
                   v-if="playlist"
                   variant="ghost"
@@ -65,6 +63,7 @@
           <template #sticky>
             <LibrarySortHeader
               v-model:sort-key="sortKey"
+              :sortable="canSort"
             />
           </template>
 
@@ -122,7 +121,6 @@
 
 <script setup lang="ts">
 import { ref, computed, useTemplateRef } from "vue";
-import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -130,13 +128,13 @@ import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestor
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
 import { Button } from "@/components/ui/button";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { useEntityPlayback } from "@/modules/queue/composables/useEntityPlayback";
+import type { QueueSource } from "@/modules/queue/types";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
 import { PlaylistChanges, usePlaylistPage } from "@/modules/playlist/composables/usePlaylistPage";
-import { getPlaylistPageData } from "@/queries/playlist.queries";
 import EditPlaylistDialog from "@/modules/playlist/components/dialogs/EditPlaylistDialog.vue";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
@@ -150,20 +148,20 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
-import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 
 const { t } = useI18n();
-const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const { openMenu } = useTrackMenu();
-const shuffleQueue = useQueueShuffle();
 const route = useRoute();
 const sortKey = ref<TrackSortKey | null>(null);
 
 const {
   playlist,
   tracks,
+  canSort,
+  isComplete,
+  loadAllTracks,
   playlistData,
   isLoading,
   isError,
@@ -214,80 +212,22 @@ const errorMessage = computed(() => {
   return t("errors.loadFailed");
 });
 
-// ND playlist: read-only live page, tracks.value already holds the full
-// server list — queue straight from it.
-const remoteQueueSource = computed(() => {
+const queueSource = computed<QueueSource | null>(() => {
   const vm = playlistData.value;
-  return vm && sourceKindOf(vm.id) !== "local"
-    ? { type: "playlist", playlistId: vm.id } as const
-    : null;
+  return vm ? { type: "playlist", playlistId: vm.id } : null;
 });
 
-function handlePlayAll() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
-    }
-    return;
-  }
-  if (!playlist.value) return;
-
-  getPlaylistPageData(playlist.value.id, sortKey.value).then((data) => {
-    if (data && data.tracks.length > 0) {
-      queueStore.setQueue(data.tracks, 0, {
-        type: "playlist",
-        playlistId: playlist.value!.id,
-      });
-    }
-  });
-}
-
-async function handlePlayTrack(index: number) {
-  const selectedTrack = tracks.value[index];
-  if (!selectedTrack) return;
-
-  if (currentTrackId.value === selectedTrack.id) {
-    playerStore.togglePlay();
-    return;
-  }
-
-  if (remoteQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
-    return;
-  }
-
-  if (!playlist.value) return;
-
-  const data = await getPlaylistPageData(playlist.value.id, sortKey.value);
-  const fullIndex = data.tracks.findIndex(track => track.id === selectedTrack.id);
-  if (fullIndex === -1) return;
-
-  await queueStore.setQueue(data.tracks, fullIndex, {
-    type: "playlist",
-    playlistId: playlist.value.id,
-  });
-}
-
-async function handleShuffle() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
-    }
-    return;
-  }
-  if (!playlist.value) return;
-
-  const source = {
-    type: "playlist",
-    playlistId: playlist.value.id,
-  } as const;
-  await shuffleQueue(source, async () => (await getPlaylistPageData(playlist.value!.id, sortKey.value)).tracks);
-}
-
-function handleAddToQueue() {
-  if (tracks.value.length === 0) return;
-  queueStore.addMultipleToQueue(tracks.value);
-}
+const {
+  playAll: handlePlayAll,
+  playTrack: handlePlayTrack,
+  shuffle: handleShuffle,
+  addToQueue: handleAddToQueue,
+} = useEntityPlayback({
+  tracks,
+  source: queueSource,
+  isComplete,
+  loadAll: loadAllTracks,
+});
 
 function handleShare() {
   toast.info(t("common.comingSoon"));

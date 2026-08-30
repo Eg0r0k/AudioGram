@@ -49,7 +49,6 @@
                 @add-to-queue="handleAddToQueue"
               >
                 <template #actions>
-                  <!-- Writes into the album's Dexie row — hidden on ND browsing. -->
                   <Button
                     v-if="album"
                     class="text-white"
@@ -64,15 +63,9 @@
             </template>
 
             <template #sticky>
-              <!-- <TrackSelectionBar
-                key="selection"
-                :selected-count="selectedCount"
-                can-delete
-                @cancel="clearSelection"
-                @select-all="selectAll"
-              /> -->
               <LibrarySortHeader
                 v-model:sort-key="sortKey"
+                :sortable="canSort"
               />
             </template>
 
@@ -128,7 +121,8 @@ import { onKeyStroke } from "@vueuse/core";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
 import { Button } from "@/components/ui/button";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { useEntityPlayback } from "@/modules/queue/composables/useEntityPlayback";
+import type { QueueSource } from "@/modules/queue/types";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
@@ -149,7 +143,6 @@ import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useTrackSelection } from "@/modules/tracks/composables/useTrackSelection";
-import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 
 interface AlbumChanges {
   title?: string;
@@ -159,17 +152,16 @@ interface AlbumChanges {
 }
 
 const { t } = useI18n();
-const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const { openMenu } = useTrackMenu();
-const shuffleQueue = useQueueShuffle();
 const route = useRoute();
 const sortKey = ref<TrackSortKey | null>(null);
 
 const {
   album,
   tracks,
+  canSort,
   albumData,
   coverUrl,
   trackCount,
@@ -232,56 +224,28 @@ function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "album" });
 }
 
-// Remote album: no Dexie row, but tracks.value already holds the full list
-// from getAlbum (in the current sort order) — queue straight from it.
-const remoteQueueSource = computed(() => {
+const queueSource = computed<QueueSource | null>(() => {
   const vm = albumData.value;
-  return vm && sourceKindOf(vm.id) !== "local"
-    ? { type: "album", albumId: vm.id } as const
-    : null;
+  return vm ? { type: "album", albumId: vm.id } : null;
 });
 
-function handlePlayAll() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
-    }
-    return;
-  }
-  if (!album.value) return;
-  getAlbumPageData(album.value.id, sortKey.value).then((data) => {
-    if (data?.tracks.length) {
-      queueStore.setQueue(data.tracks, 0, { type: "album", albumId: album.value!.id });
-    }
-  });
-}
-
-async function handlePlayTrack(index: number) {
-  const selectedTrack = tracks.value[index];
-  if (!selectedTrack) return;
-
-  if (currentTrackId.value === selectedTrack.id) {
-    playerStore.togglePlay();
-    return;
-  }
-
-  if (remoteQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
-    return;
-  }
-
-  if (!album.value) return;
-  const data = await getAlbumPageData(album.value.id, sortKey.value);
-  const fullIndex = data.tracks.findIndex(t => t.id === selectedTrack.id);
-  if (fullIndex === -1) return;
-
-  await queueStore.setQueue(data.tracks, fullIndex, { type: "album", albumId: album.value.id });
-}
-
-function handleAddToQueue() {
-  if (tracks.value.length === 0) return;
-  queueStore.addMultipleToQueue(tracks.value);
-}
+const {
+  playAll: handlePlayAll,
+  playTrack: handlePlayTrack,
+  shuffle: handleShuffle,
+  addToQueue: handleAddToQueue,
+} = useEntityPlayback({
+  tracks,
+  source: queueSource,
+  // The catalog path has no Dexie rows to page through — getAlbum handed the
+  // album over whole, already in the page's sort order.
+  isComplete: computed(() => !album.value),
+  loadAll: async () => {
+    const row = album.value;
+    if (!row) return [];
+    return (await getAlbumPageData(row.id, sortKey.value))?.tracks ?? [];
+  },
+});
 
 async function openDeleteDialog() {
   if (!album.value) return;
@@ -316,18 +280,6 @@ async function handleSave(changes: AlbumChanges) {
     const message = e instanceof Error ? e.message : t("album.updateFailed");
     toast.error(message);
   }
-}
-
-async function handleShuffle() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
-    }
-    return;
-  }
-  if (!album.value) return;
-  const source = { type: "album", albumId: album.value.id } as const;
-  await shuffleQueue(source, async () => (await getAlbumPageData(album.value!.id, sortKey.value)).tracks);
 }
 
 const scrollableRef = useTemplateRef("scrollableRef");

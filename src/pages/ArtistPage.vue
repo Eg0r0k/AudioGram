@@ -115,6 +115,7 @@
           <template #sticky>
             <LibrarySortHeader
               v-model:sort-key="sortKey"
+              :sortable="canSort"
             />
           </template>
 
@@ -156,14 +157,14 @@ import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { useEntityPlayback } from "@/modules/queue/composables/useEntityPlayback";
+import type { QueueSource } from "@/modules/queue/types";
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import IconChevronRight from "~icons/tabler/chevron-right";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconPlus from "~icons/tabler/plus";
 
-import { sourceKindOf } from "@/modules/sources/lib/display";
 import { useArtistPage } from "@/modules/artists/composables/useArtistPage";
 import { getArtistPageData } from "@/queries/artist.queries";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
@@ -186,14 +187,12 @@ import { routeLocation } from "@/app/router/route-locations";
 import type { LibraryItem } from "@/modules/library/types";
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.vue";
-import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useRoute, useRouter } from "vue-router";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 
 const { t } = useI18n();
-const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const rightPanelStore = useRightPanelStore();
 const route = useRoute();
@@ -201,7 +200,6 @@ const router = useRouter();
 const { openMenu } = useTrackMenu();
 const { isPinned, deleteItem: deleteLibraryItem } = useLibrary();
 const { playAlbum } = usePlayAlbum();
-const shuffleQueue = useQueueShuffle();
 const sortKey = ref<TrackSortKey | null>(null);
 const artistId = computed(() => route.params.id as string);
 
@@ -211,6 +209,7 @@ const {
   albumCovers,
   playlistItems,
   tracks,
+  canSort,
   artistData,
   coverUrl,
   trackCount,
@@ -267,65 +266,27 @@ const errorMessage = computed(() => {
   return t("errors.loadFailed");
 });
 
-// Catalog artist: no Dexie rows to page through, but tracks.value already
-// holds the top tracks getArtist returned — queue straight from them.
-const remoteQueueSource = computed(() => {
+const queueSource = computed<QueueSource | null>(() => {
   const vm = artistData.value;
-  return vm && sourceKindOf(vm.id) !== "local"
-    ? { type: "artist", artistId: vm.id } as const
-    : null;
+  return vm ? { type: "artist", artistId: vm.id } : null;
 });
 
-function handlePlayAll() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      queueStore.setQueue([...tracks.value], 0, remoteQueueSource.value);
-    }
-    return;
-  }
-  if (!artist.value) return;
-
-  getArtistPageData(artist.value.id, sortKey.value).then((data) => {
-    if (data && data.tracks.length > 0) {
-      queueStore.setQueue(data.tracks, 0, { type: "artist", artistId: artist.value!.id });
-    }
-  });
-}
-
-async function handlePlayTrack(index: number) {
-  const selectedTrack = tracks.value[index];
-  if (!selectedTrack) return;
-
-  if (currentTrackId.value === selectedTrack.id) {
-    playerStore.togglePlay();
-    return;
-  }
-
-  if (remoteQueueSource.value) {
-    await queueStore.setQueue([...tracks.value], index, remoteQueueSource.value);
-    return;
-  }
-
-  if (!artist.value) return;
-  const data = await getArtistPageData(artist.value.id, sortKey.value);
-  const fullIndex = data.tracks.findIndex(track => track.id === selectedTrack.id);
-  if (fullIndex === -1) return;
-
-  await queueStore.setQueue(data.tracks, fullIndex, { type: "artist", artistId: artist.value.id });
-}
-
-async function handleShuffle() {
-  if (remoteQueueSource.value) {
-    if (tracks.value.length > 0) {
-      await shuffleQueue(remoteQueueSource.value, async () => [...tracks.value]);
-    }
-    return;
-  }
-  if (!artist.value) return;
-
-  const source = { type: "artist", artistId: artist.value.id } as const;
-  await shuffleQueue(source, async () => (await getArtistPageData(artist.value!.id, sortKey.value)).tracks);
-}
+const {
+  playAll: handlePlayAll,
+  playTrack: handlePlayTrack,
+  shuffle: handleShuffle,
+} = useEntityPlayback({
+  tracks,
+  source: queueSource,
+  // A catalog artist has no Dexie rows to page through: the top tracks
+  // getArtist returned are all there is of one.
+  isComplete: computed(() => !artist.value),
+  loadAll: async () => {
+    const row = artist.value;
+    if (!row) return [];
+    return (await getArtistPageData(row.id, sortKey.value))?.tracks ?? [];
+  },
+});
 
 async function openDeleteDialog() {
   if (!artist.value) return;
