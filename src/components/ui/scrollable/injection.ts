@@ -19,7 +19,7 @@ export interface ScrollableContext {
   thumbPosition: Ref<number>;
   isDragging: Ref<boolean>;
   handleThumbMouseDown: (e: MouseEvent) => void;
-  scrollTo: (opts: ScrollToOptions) => Promise<void>;
+  scrollTo: (opts: ScrollToOptions) => void;
   scrollToEnd: (behavior?: ScrollBehavior) => void;
   setScrollLocked: (locked: boolean) => void;
   scrollToStart: (behavior?: ScrollBehavior) => void;

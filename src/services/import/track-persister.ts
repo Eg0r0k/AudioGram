@@ -1,12 +1,14 @@
 import pLimit from "p-limit";
 import { db } from "@/db";
-import { AlbumEntity, ArtistEntity, CoverOwnerType, TrackEntity, TrackState } from "@/db/entities";
+import type { AlbumEntity, ArtistEntity, CoverOwnerType, TrackEntity } from "@/db/entities";
+import { TrackState } from "@/db/entities";
 import { albumRepository, artistRepository, coverRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
-import { AlbumId, ArtistId } from "@/types/ids";
+import type { ArtistId } from "@/types/ids";
+import { AlbumId } from "@/types/ids";
 import { unwrapResult } from "@/lib/result";
-import { EntityResolver } from "../entity-resolver";
-import { ImportSuccess, TrackToSave } from "../types";
+import type { EntityResolver } from "../entity-resolver";
+import type { ImportSuccess, TrackToSave } from "../types";
 
 const COVER_MAX_DIMENSION = 500;
 const COVER_QUALITY = 0.8;
@@ -118,7 +120,7 @@ export async function persistTracks(
       id: item.trackId,
       title: item.meta.title,
       artistName: item.meta.artists.join(", "),
-      albumTitle: item.meta.album?.trim() || "",
+      albumTitle: item.meta.album.trim() || "",
       artistIds,
       albumId,
       tagIds: [],
@@ -235,7 +237,7 @@ function collectAlbum(
   now: number,
 ): AlbumId {
   const firstArtistId = artistIds[0] ?? null;
-  const hasAlbum = !!item.meta.album?.trim() && item.meta.album !== "Unknown Album";
+  const hasAlbum = !!item.meta.album.trim() && item.meta.album !== "Unknown Album";
   if (!hasAlbum || !firstArtistId) return AlbumId("");
 
   const entry = resolver.getAlbumEntry(firstArtistId, item.meta.album);

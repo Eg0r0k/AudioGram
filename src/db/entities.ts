@@ -1,4 +1,4 @@
-import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
 
 export enum TrackSource {
   LOCAL_INTERNAL = "local_internal",

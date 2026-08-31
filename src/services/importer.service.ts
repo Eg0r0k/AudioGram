@@ -1,12 +1,13 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
-import { TrackId } from "@/types/ids";
-import { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
+import type { TrackId } from "@/types/ids";
+import type { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
 import { WorkerPool } from "./worker-pool";
-import {
+import type {
   ImportBatchResult,
-  ImportControl,
+  ImportControl } from "./types";
+import {
   ImportError,
   ImportErrorCode,
 } from "./types";

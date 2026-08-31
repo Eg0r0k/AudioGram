@@ -1,6 +1,7 @@
 import vRipple from "@/directives/ripple";
 import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
-import { App, Component, createApp, ref, shallowRef } from "vue";
+import type { App, Component } from "vue";
+import { createApp, ref, shallowRef } from "vue";
 import { getLogger } from "@/lib/logger";
 
 export interface PipOptions {

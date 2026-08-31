@@ -21,6 +21,9 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   writeFile: vi.fn(),
   readDir: vi.fn(),
   exists: vi.fn(),
+  // TauriStorage reads it at construction, so any test whose import graph
+  // reaches @/db/storage needs it present.
+  BaseDirectory: { AppData: 1 },
 }));
 
 vi.mock("@/workers/meta.worker?worker", () => ({

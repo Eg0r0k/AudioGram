@@ -1,6 +1,6 @@
 ﻿import { db } from "@/db";
 import { statsRepository } from "@/db/repositories/stats.repository";
-import { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { createEventHook } from "@vueuse/core";
 import { getLogger } from "@/lib/logger";
 
@@ -51,7 +51,7 @@ class StatsService {
         .where("id")
         .equals(pending.trackId)
         .modify((track) => {
-          track.playCount = (track.playCount ?? 0) + 1;
+          track.playCount += 1;
           track.lastPlayedAt = pending.startedAt;
         })
         .catch(error => getLogger().error(`[Stats] Play count update failed for ${pending.trackId}: ${String(error)}`));

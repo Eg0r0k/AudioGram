@@ -138,17 +138,17 @@ export function useScrollRestoration(
   watch(
     [targetRef, isReady, deps],
     () => {
-      restore();
+      restore().catch(() => {});
     },
     { flush: "post" },
   );
 
   onMounted(() => {
-    restore(true);
+    restore(true).catch(() => {});
   });
 
   onActivated(() => {
-    restore(true);
+    restore(true).catch(() => {});
   });
 
   onDeactivated(() => {

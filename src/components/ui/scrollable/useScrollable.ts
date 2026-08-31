@@ -297,7 +297,7 @@ export default function useScrollable(
     }
   }
 
-  async function scrollTo(opts: ScrollToOptions): Promise<void> {
+  function scrollTo(opts: ScrollToOptions): void {
     const container = containerRef.value;
     if (!container) return;
 
@@ -374,7 +374,7 @@ export default function useScrollable(
 
   nextTick(() => {
     onSizeChange();
-  });
+  }).catch(() => {});
 
   onUnmounted(() => {
     const container = containerRef.value;

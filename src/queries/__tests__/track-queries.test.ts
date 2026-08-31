@@ -42,11 +42,11 @@ const repositories = vi.hoisted(() => ({
 }));
 
 vi.mock("@/db/repositories", () => repositories);
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   searchTracks: vi.fn(),
   upsertSearchDocuments: vi.fn(async () => {}),
 }));
-vi.mock("@/modules/search/buildDocuments", () => ({
+vi.mock("@/modules/search/service/buildDocuments", () => ({
   buildArtistDoc: vi.fn((artist: ArtistEntity) => ({
     id: `artist:${artist.id}`,
     type: "artist",
@@ -62,7 +62,7 @@ vi.mock("@/modules/search/buildDocuments", () => ({
   buildTrackDocFromDb: vi.fn(async () => ({})),
 }));
 
-import { upsertSearchDocuments } from "@/modules/search/searchIndex";
+import { upsertSearchDocuments } from "@/modules/search/service/searchIndex";
 import { queryKeys } from "@/queries/query-keys";
 import {
   getTracksIndexPageData,

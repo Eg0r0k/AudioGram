@@ -1,5 +1,5 @@
 import { storageService } from "@/db/storage";
-import { hasNativeSupport, type IFileStorageWithNativeSupport } from "@/db/storage/IFileStorage";
+import { hasNativeSupport } from "@/db/storage/IFileStorage";
 
 const FINGERPRINT_READ_SIZE = 64 * 1024;
 
@@ -18,7 +18,7 @@ export async function computeFileFingerprint(
     return `${fileSize}:${absolutePath}`;
   }
 
-  const nativeStorage = storageService as IFileStorageWithNativeSupport;
+  const nativeStorage = storageService;
   const readResult = await nativeStorage.readBytes(absolutePath, FINGERPRINT_READ_SIZE);
 
   if (readResult.isErr()) {

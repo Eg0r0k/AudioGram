@@ -1,4 +1,4 @@
-import { RouteRecordRaw } from "vue-router";
+import type { RouteRecordRaw } from "vue-router";
 import { homeRoutes } from "./home";
 import { settingsRoutes } from "./settings";
 import { albumRoutes } from "./album";

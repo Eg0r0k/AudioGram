@@ -82,16 +82,12 @@ import type { TrackSortKey } from "@/modules/tracks/types";
 import IconChevronDown from "~icons/tabler/chevron-down";
 import IconClock from "~icons/tabler/clock-hour-4";
 import IconHashtag from "~icons/tabler/hash";
-import { getNextTrackSortKey, TrackSortField } from "../lib/trackSort";
+import type { TrackSortField } from "../lib/trackSort";
+import { getNextTrackSortKey } from "../lib/trackSort";
 
 const props = withDefaults(defineProps<{
   sortKey: TrackSortKey | null;
-  /**
-   * Whether the columns can be sorted by. False keeps the header in place —
-   * it is what labels the columns — and disables the controls: a catalog
-   * list has no sort to offer, and removing the row would shift the whole
-   * list up on a remote page and back down on a local one.
-   */
+  // Disabled buttons for sort
   sortable?: boolean;
 }>(), {
   sortable: true,

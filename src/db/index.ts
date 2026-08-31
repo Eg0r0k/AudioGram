@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import {
+import type {
   AlbumEntity,
   ArtistEntity,
   AudioFeaturesEntity,
@@ -15,9 +15,10 @@ import {
   TrackEntity,
 } from "./entities";
 import { upgradeToV10, upgradeToV12, upgradeToV14 } from "./migrations";
-import { DbError, toDbError } from "./errors/db.errors";
+import type { DbError } from "./errors/db.errors";
+import { toDbError } from "./errors/db.errors";
 import { getLogger } from "@/lib/logger";
-import { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId, RadioStationId, SidebarFolderId, TagId, TrackId } from "@/types/ids";
 import { err, ok, type Result } from "neverthrow";
 
 export class AppDatabase extends Dexie {

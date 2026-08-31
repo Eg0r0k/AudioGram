@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import type { AudioFeaturesEntity } from "@/db/entities";
 import { BaseRepository } from "./base.repository";
-import { TrackId } from "@/types/ids";
-import { err, ok, Result } from "neverthrow";
+import type { TrackId } from "@/types/ids";
+import type { Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { toDbError } from "@/db/errors/db.errors";
 
 export const CURRENT_ALGORITHM_VERSION = 1;
@@ -19,11 +20,11 @@ class AudioFeaturesRepository extends BaseRepository<AudioFeaturesEntity, TrackI
         .aboveOrEqual(CURRENT_ALGORITHM_VERSION)
         .primaryKeys();
 
-      const analyzedSet = new Set(analyzed as TrackId[]);
+      const analyzedSet = new Set(analyzed);
 
       const allTrackIds = await db.tracks
         .toCollection()
-        .primaryKeys() as TrackId[];
+        .primaryKeys();
 
       return ok(allTrackIds.filter(id => !analyzedSet.has(id)));
     }

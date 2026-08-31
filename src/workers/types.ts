@@ -1,4 +1,4 @@
-import { AudioFormat } from "@/db/entities";
+import type { AudioFormat } from "@/db/entities";
 
 export interface ParseRequest {
   fileId: string;

@@ -1,5 +1,7 @@
-import { useSwipe, UseSwipeOptions } from "@vueuse/core";
-import { MaybeRefOrGetter, watch } from "vue";
+import type { UseSwipeOptions } from "@vueuse/core";
+import { useSwipe } from "@vueuse/core";
+import type { MaybeRefOrGetter } from "vue";
+import { watch } from "vue";
 
 interface SwipeControlOptions extends UseSwipeOptions {
   onSwipeLeft?: () => void;
@@ -50,6 +52,8 @@ export const useSwipeControl = (
         break;
       case "down":
         onSwipeDown?.();
+        break;
+      case "none":
         break;
     }
   });

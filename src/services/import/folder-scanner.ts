@@ -1,5 +1,5 @@
 import { normalizePath } from "@/lib/files/filterFiles";
-import { ScannedFile } from "@/types/watched-folders";
+import type { ScannedFile } from "@/types/watched-folders";
 import { readDir, stat } from "@tauri-apps/plugin-fs";
 import { isValidImportItem } from "@/lib/environment/mimeSupport";
 import { getLogger } from "@/lib/logger";

@@ -57,6 +57,7 @@ import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.stor
 import type { RightPanelAddTracksPayload } from "@/modules/right-panel/types";
 import type { Track } from "@/modules/player/types";
 import { useSelection } from "@/composables/useSelection";
+import { getLogger } from "@/lib/logger";
 
 const props = defineProps<{
   payload: RightPanelAddTracksPayload;
@@ -187,7 +188,7 @@ function handleLoadMore() {
     return;
   }
 
-  fetchNextPage();
+  fetchNextPage().catch(error => getLogger().warn(`[Tracks] Loading the next page of tracks failed: ${String(error)}`));
 }
 
 async function handleConfirm() {

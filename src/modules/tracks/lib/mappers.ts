@@ -8,7 +8,7 @@ export function mapTrack(
 ): Track {
   const artist = artists.length > 0
     ? artists.map(a => a.name).join(", ")
-    : entity.artistName ?? "";
+    : entity.artistName;
 
   return {
     kind: "library",
@@ -17,7 +17,7 @@ export function mapTrack(
     artist,
     artistIds: entity.artistIds,
     albumId: entity.albumId,
-    albumName: album?.title ?? entity.albumTitle ?? "",
+    albumName: album?.title ?? entity.albumTitle,
     storagePath: entity.storagePath ?? "",
     source: entity.source,
     state: entity.state,

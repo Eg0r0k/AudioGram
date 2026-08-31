@@ -11,7 +11,7 @@ export function useIndexTracksPage(sortKey: Ref<TrackSortKey | null>, searchQuer
   const queryState = useInfiniteQuery({
     queryKey: computed(() => queryKeys.tracks.indexInfinite(resolvedSortKey.value, normalizedSearchQuery.value)),
     queryFn: ({ pageParam = 0 }) =>
-      getTracksPaginated(pageParam as number, normalizedSearchQuery.value, undefined, resolvedSortKey.value),
+      getTracksPaginated(pageParam, normalizedSearchQuery.value, undefined, resolvedSortKey.value),
     initialPageParam: 0,
     getNextPageParam: lastPage => lastPage.nextOffset,
     placeholderData: previousData => previousData,

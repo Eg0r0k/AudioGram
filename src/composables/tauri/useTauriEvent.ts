@@ -58,20 +58,28 @@ export default function useTauriEvent<T>(
   }
 
   let removeListener: VoidFunction | undefined;
+  let isDisposed = false;
 
   const setup = async () => {
     try {
       const { listen } = await import("@tauri-apps/api/event");
-      removeListener = await listen<T>(name, callback);
+      const stop = await listen<T>(name, callback);
+
+      if (isDisposed) {
+        stop();
+        return;
+      }
+      removeListener = stop;
     }
     catch (error) {
       getLogger().error(`[useTauriEvent] Failed to listen to "${name}": ${String(error)}`);
     }
   };
 
-  setup();
+  setup().catch(() => {});
 
   const cleanup = () => {
+    isDisposed = true;
     if (removeListener) {
       removeListener();
       removeListener = undefined;

@@ -14,11 +14,11 @@ import type { Track } from "@/modules/player/types";
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   removeSearchDocuments: vi.fn(async () => {}),
   upsertSearchDocuments: vi.fn(async () => {}),
 }));
-vi.mock("@/modules/search/buildDocuments", () => ({
+vi.mock("@/modules/search/service/buildDocuments", () => ({
   buildAlbumDocFromDb: vi.fn(async () => ({})),
   buildArtistDoc: vi.fn(() => ({})),
   buildTrackDocFromDb: vi.fn(async () => ({})),

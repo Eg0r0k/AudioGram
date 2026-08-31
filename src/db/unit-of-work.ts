@@ -1,6 +1,7 @@
-import { err, ok, Result } from "neverthrow";
+import type { Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { db } from ".";
-import { Table } from "dexie";
+import type { Table } from "dexie";
 import { toDbError } from "@/db/errors/db.errors";
 
 type RwCallback<T> = () => Promise<T>;

@@ -7,14 +7,15 @@ import { trackRepository } from "@/db/repositories";
 import { TrackSource } from "@/db/entities";
 import { unwrapResult } from "@/lib/result";
 import { EntityResolver } from "../entity-resolver";
-import {
+import type {
   ImportBatchResult,
   ImportControl,
-  ImportError,
-  ImportErrorCode,
   ImportItem,
   ImportSuccess,
-  TrackToSave,
+  TrackToSave } from "../types";
+import {
+  ImportError,
+  ImportErrorCode,
 } from "../types";
 import {
   DB_BATCH_SIZE,
@@ -22,8 +23,8 @@ import {
   PIPELINE_BATCH_SIZE,
   PROCESS_CONCURRENCY,
 } from "./constants";
-import { ImportItemIO } from "./item-io";
-import { MetadataParser } from "./metadata-parser";
+import type { ImportItemIO } from "./item-io";
+import type { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
 import { isCancelled, yieldToEventLoop } from "./shared";
 import { chunk } from "@/lib/math";

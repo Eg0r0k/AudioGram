@@ -48,7 +48,7 @@ export async function addTagToTrackAndSync(
 ): Promise<TagEntity> {
   const tag = await unwrapResult(tagRepository.findOrCreate(tagName));
 
-  const currentTagIds = track.tagIds ?? [];
+  const currentTagIds = track.tagIds;
   if (!currentTagIds.includes(tag.id)) {
     await unwrapResult(trackRepository.addTagToTrack(track.id, tag.id));
 
@@ -74,7 +74,7 @@ export async function removeTagFromTrackAndSync(
 ): Promise<void> {
   await unwrapResult(trackRepository.removeTagFromTrack(track.id, tagId));
 
-  const currentTagIds = track.tagIds ?? [];
+  const currentTagIds = track.tagIds;
   const nextTagIds = currentTagIds.filter(id => id !== tagId);
 
   const nextTrack: TrackEntity = {

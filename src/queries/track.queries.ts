@@ -9,12 +9,12 @@ import {
   trackRepository,
 } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
-import { buildAlbumDocFromDb, buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/buildDocuments";
+import { buildAlbumDocFromDb, buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/service/buildDocuments";
 import {
   removeSearchDocuments,
   searchTracks as searchIndexedTracks,
   upsertSearchDocuments,
-} from "@/modules/search/searchIndex";
+} from "@/modules/search/service/searchIndex";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import type { SearchDocument } from "@/modules/search/types";
 import { queryKeys } from "@/queries/query-keys";
@@ -39,7 +39,7 @@ import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } 
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
-import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
+import { cleanupOfflineCopyFiles } from "@/modules/downloads/service/removeCopy";
 import { dedupeArtistNames, identityKey } from "@/lib/artist-names";
 import { assertValidName } from "@/lib/limits";
 
@@ -162,7 +162,7 @@ export async function getTracksIndexPageData(
     // Search matches come from the worker index. We re-apply ordering through Dexie
     // so the visible list still follows an indexed database sort instead of in-memory sorting.
     const rawTracks = await unwrapResult(
-      trackRepository.findSortedByIds(searchResult.tracks.map(track => track.id as TrackId), sortKey),
+      trackRepository.findSortedByIds(searchResult.tracks.map(track => track.id), sortKey),
     );
 
     return {
@@ -295,7 +295,7 @@ export async function getAllTracksForQueue(sortKey: TrackSortKey, searchQuery = 
   if (q.length > 0) {
     const searchResult = await searchIndexedTracks(q, 0, undefined);
     const rawTracks = await unwrapResult(
-      trackRepository.findSortedByIds(searchResult.tracks.map(t => t.id as TrackId), sortKey),
+      trackRepository.findSortedByIds(searchResult.tracks.map(t => t.id), sortKey),
     );
     return loadTrackRelations(rawTracks);
   }
@@ -331,7 +331,7 @@ export async function addTracksToAlbumAndSync(
   tracks: Track[],
 ) {
   const album = await getAlbumByIdOrThrow(albumId);
-  const trackIds = unique(tracks.map(track => track.id as TrackId));
+  const trackIds = unique(tracks.map(track => track.id));
   const currentTracks = await unwrapResult(trackRepository.findByIds(trackIds));
   const trackMap = new Map(currentTracks.map(track => [track.id, track]));
 
@@ -380,7 +380,7 @@ export async function addTracksToArtistAndSync(
 ) {
   await getArtistByIdOrThrow(artistId);
 
-  const trackIds = unique(tracks.map(track => track.id as TrackId));
+  const trackIds = unique(tracks.map(track => track.id));
   const currentTracks = await unwrapResult(trackRepository.findByIds(trackIds));
   const trackMap = new Map(currentTracks.map(track => [track.id, track]));
 
@@ -417,7 +417,7 @@ export async function favoriteTracksAndSync(
   queryClient: QueryClient,
   tracks: Track[],
 ) {
-  const trackIds = unique(tracks.map(track => track.id as TrackId));
+  const trackIds = unique(tracks.map(track => track.id));
 
   // Rows already liked keep their original likedAt.
   await unwrapResult(trackRepository.likeMany(trackIds, Date.now()));
@@ -429,7 +429,7 @@ export async function toggleTrackLikeAndSync(
   queryClient: QueryClient,
   track: Track,
 ) {
-  const currentTrack = await unwrapResult(trackRepository.findById(track.id as TrackId));
+  const currentTrack = await unwrapResult(trackRepository.findById(track.id));
 
   if (!currentTrack) {
     throw new Error("Track not found");
@@ -438,7 +438,7 @@ export async function toggleTrackLikeAndSync(
   const nextValue = !track.isLiked;
   const likedAt = nextValue ? Date.now() : undefined;
 
-  await unwrapResult(trackRepository.setLiked(track.id as TrackId, nextValue));
+  await unwrapResult(trackRepository.setLiked(track.id, nextValue));
 
   const nextTrackEntity: TrackEntity = {
     ...currentTrack,
@@ -456,13 +456,13 @@ export async function attachTrackLyricsAndSync(
   track: Track,
   lyricsPath: string,
 ) {
-  const currentTrack = await unwrapResult(trackRepository.findById(track.id as TrackId));
+  const currentTrack = await unwrapResult(trackRepository.findById(track.id));
 
   if (!currentTrack) {
     throw new Error("Track not found");
   }
 
-  await unwrapResult(trackRepository.setLyricsPath(track.id as TrackId, lyricsPath));
+  await unwrapResult(trackRepository.setLyricsPath(track.id, lyricsPath));
 
   const nextTrackEntity: TrackEntity = {
     ...currentTrack,
@@ -514,7 +514,7 @@ export async function updateTrackMetadataAndSync(
   track: Track,
   changes: TrackMetadataChanges,
 ) {
-  const currentTrack = await unwrapResult(trackRepository.findById(track.id as TrackId));
+  const currentTrack = await unwrapResult(trackRepository.findById(track.id));
 
   if (!currentTrack) {
     throw new Error("Track not found");
@@ -617,7 +617,7 @@ export async function deleteTrackAndSync(
   queryClient: QueryClient,
   track: Track,
 ) {
-  const trackId = track.id as TrackId;
+  const trackId = track.id;
   const currentTrack = await unwrapResult(trackRepository.findById(trackId));
 
   if (!currentTrack) {

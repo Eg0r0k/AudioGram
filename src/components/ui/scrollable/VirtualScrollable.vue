@@ -313,7 +313,7 @@ watch([() => props.items, () => props.items.length], ([, newLength], [, oldLengt
       scrollable.updateThumb();
     }
     if (reordered) playFlip();
-  });
+  }).catch(() => {});
 });
 
 watch(
@@ -322,7 +322,7 @@ watch(
     nextTick(() => {
       virtualizer.value.measure();
       scrollable.updateThumb();
-    });
+    }).catch(() => {});
   },
 );
 
@@ -333,7 +333,7 @@ watch(
       nextTick(() => {
         virtualizer.value.measure();
         scrollable.updateThumb();
-      });
+      }).catch(() => {});
     }
   },
 );

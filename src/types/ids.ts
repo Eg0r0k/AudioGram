@@ -1,4 +1,3 @@
-/* eslint-disable sonarjs/no-commented-code */
 import type { Brand } from "./branded";
 
 export type TrackId = Brand<string, "TrackId">;

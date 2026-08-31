@@ -5,7 +5,6 @@ import {
   playlistRepository,
   trackRepository,
 } from "@/db/repositories";
-import type { AlbumId, ArtistId } from "@/types/ids";
 import { queryKeys } from "@/queries/query-keys";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import { unwrapResult } from "./shared";
@@ -29,12 +28,12 @@ export async function getLibrarySummary(): Promise<LibrarySummaryData> {
 
   const albumsWithCounts = albums.map(album => ({
     ...album,
-    trackCount: albumTrackCounts.get(album.id as AlbumId) ?? 0,
+    trackCount: albumTrackCounts.get(album.id) ?? 0,
   }));
 
   const artistsWithCounts = artists.map(artist => ({
     ...artist,
-    trackCount: artistTrackCounts.get(artist.id as ArtistId) ?? 0,
+    trackCount: artistTrackCounts.get(artist.id) ?? 0,
   }));
 
   return {
@@ -76,15 +75,13 @@ export async function invalidateLibraryData(queryClient: QueryClient) {
 }
 
 export async function clearLibraryData(queryClient: QueryClient) {
-  await Promise.all([
-    queryClient.removeQueries({ queryKey: queryKeys.library.summary() }),
-    queryClient.removeQueries({ queryKey: queryKeys.artists.all() }),
-    queryClient.removeQueries({ queryKey: queryKeys.albums.all() }),
-    queryClient.removeQueries({ queryKey: queryKeys.playlists.all() }),
-    queryClient.removeQueries({ queryKey: queryKeys.folders.all() }),
-    queryClient.removeQueries({ queryKey: queryKeys.tracks.all() }),
-    queryClient.removeQueries({ queryKey: queryKeys.covers.all() }),
-  ]);
+  queryClient.removeQueries({ queryKey: queryKeys.library.summary() });
+  queryClient.removeQueries({ queryKey: queryKeys.artists.all() });
+  queryClient.removeQueries({ queryKey: queryKeys.albums.all() });
+  queryClient.removeQueries({ queryKey: queryKeys.playlists.all() });
+  queryClient.removeQueries({ queryKey: queryKeys.folders.all() });
+  queryClient.removeQueries({ queryKey: queryKeys.tracks.all() });
+  queryClient.removeQueries({ queryKey: queryKeys.covers.all() });
 
   await invalidateLibraryData(queryClient);
 }

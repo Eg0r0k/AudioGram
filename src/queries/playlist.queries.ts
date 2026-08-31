@@ -8,8 +8,8 @@ import {
 } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
 import { queryKeys } from "@/queries/query-keys";
-import { buildPlaylistDoc } from "@/modules/search/buildDocuments";
-import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/searchIndex";
+import { buildPlaylistDoc } from "@/modules/search/service/buildDocuments";
+import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/service/searchIndex";
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import type { Track } from "@/modules/player/types";

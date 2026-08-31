@@ -158,9 +158,9 @@ export function useSelection<T extends Selectable>(
         ? [dragStartIndex, currentIndex]
         : [currentIndex, dragStartIndex];
 
-      const next = new Set(snapshotAtDragStart!);
+      const next = new Set(snapshotAtDragStart);
       for (let i = start; i <= end; i++) {
-        const item = items.value[i];
+        const item = items.value[i] as (typeof items.value)[number] | undefined;
         if (!item) continue;
         if (isDragSelecting) next.add(item.id);
         else next.delete(item.id);
@@ -355,7 +355,7 @@ export function useSelection<T extends Selectable>(
     };
 
     const activateTouchDrag = (row: { id: string; index: number }): void => {
-      navigator.vibrate?.(10);
+      if ("vibrate" in navigator) navigator.vibrate(10);
       initDragState(row.index, row.id);
       movedToNewRow = true;
       applyDragRange(row.index);
@@ -420,7 +420,7 @@ export function useSelection<T extends Selectable>(
       // A detached node still receives the events (Chromium) but nothing
       // bubbles to window from a detached tree, so window-level listeners
       // would lose the release and the autoscroll would run forever.
-      const gestureTarget: EventTarget = touch.target ?? window;
+      const gestureTarget: EventTarget = touch.target;
       const stopMove = useEventListener(gestureTarget, "touchmove", onTouchMove, { passive: false });
       const stopEnd = useEventListener(gestureTarget, "touchend", onTouchEnd);
       const stopCancel = useEventListener(gestureTarget, "touchcancel", onTouchEnd);

@@ -1,4 +1,5 @@
-import { MaybeElementRef, unrefElement, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
+import type { MaybeElementRef } from "@vueuse/core";
+import { unrefElement, useEventListener, useIntervalFn, useVibrate } from "@vueuse/core";
 import { ref, computed, readonly } from "vue";
 
 export interface UseHoldActionOptions {

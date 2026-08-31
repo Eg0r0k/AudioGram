@@ -1,27 +1,30 @@
 import pLimit from "p-limit";
-import { ok, err, Result } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { db } from "@/db";
 import { DbError } from "@/db/errors/db.errors";
 import { unitOfWork } from "@/db/unit-of-work";
 import { storageService } from "@/db/storage";
+import type {
+  IFileStorageWithNativeSupport } from "@/db/storage/IFileStorage";
 import {
   hasNativeSupport,
-  IFileStorageWithNativeSupport,
 } from "@/db/storage/IFileStorage";
 import { trackRepository } from "@/db/repositories";
 import { TrackSource } from "@/db/entities";
 import { TrackId } from "@/types/ids";
 import { unwrapResult } from "@/lib/result";
 import { getLogger } from "@/lib/logger";
-import { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
+import type { ScannedFile, SyncResult, WatchedFolder } from "@/types/watched-folders";
 import { computeFileFingerprint } from "./file-fingerprint";
 import { scanFolder } from "./folder-scanner";
 import { EntityResolver } from "../entity-resolver";
 import { cleanupAfterTrackRemoval } from "../library-gc";
-import { ImportError, TrackToSave } from "../types";
+import type { TrackToSave } from "../types";
+import { ImportError } from "../types";
 import { DB_BATCH_SIZE, FINGERPRINT_CONCURRENCY, MAX_METADATA_READ, PIPELINE_BATCH_SIZE, PROCESS_CONCURRENCY } from "./constants";
 import { initialHeadReadSize, m4aHasMoov, mp3HasVbrHeader } from "./head-read";
-import { MetadataParser } from "./metadata-parser";
+import type { MetadataParser } from "./metadata-parser";
 import { persistTracks } from "./track-persister";
 import { chunk } from "@/lib/math";
 import { normalizePath } from "@/lib/files/filterFiles";
@@ -136,7 +139,7 @@ export class FolderSyncService {
   /** Deletes files in managed storage that no track references anymore. */
   async cleanupOrphanedFiles(): Promise<number> {
     if (!hasNativeSupport(storageService)) return 0;
-    const nativeStorage = storageService as IFileStorageWithNativeSupport;
+    const nativeStorage = storageService;
 
     const listResult = await nativeStorage.listFiles("tracks");
     if (listResult.isErr()) return 0;

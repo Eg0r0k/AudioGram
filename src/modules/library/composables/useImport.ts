@@ -2,13 +2,13 @@ import { ref, computed } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { musicLibraryEngine } from "@/services/importer.service";
 import { invalidateLibraryData } from "@/queries/library.queries";
-import { indexImportedTracks } from "@/modules/search/searchIndex";
+import { indexImportedTracks } from "@/modules/search/service/searchIndex";
 import { getLogger } from "@/lib/logger";
 import { filterFilesByExtension } from "@/lib/files/filterFiles";
 import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { requestFiles } from "@/lib/files/requestFiles";
-import { ImportBatchResult, ImportErrorCode } from "@/services/types";
+import type { ImportBatchResult, ImportErrorCode } from "@/services/types";
 
 export type ImportFileStatus = "pending" | "ok" | "error" | "skipped";
 
@@ -203,7 +203,7 @@ export function useImport() {
     pausePromise = null;
   }
 
-  async function cancelImport() {
+  function cancelImport() {
     if (!state.value.isRunning) return;
 
     isCancelRequested = true;

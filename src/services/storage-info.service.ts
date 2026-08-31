@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { storageService } from "@/db/storage";
 import { hasNativeSupport } from "@/db/storage/IFileStorage";
 import { IS_TAURI } from "@/lib/environment/userAgent";
-import { StorageInfo } from "@/types/storage-info";
+import type { StorageInfo } from "@/types/storage-info";
 import { createEventHook } from "@vueuse/core";
 
 // Fired after a full wipe; main.ts subscribes the search-index reset here.
@@ -48,9 +48,11 @@ async function calculateFolderSizeParallel(folders: string[]): Promise<Map<strin
   return new Map(results);
 }
 
+const navigatorStorage = navigator.storage as StorageManager | undefined;
+
 async function getQuotaInfo(): Promise<{ total: number; used: number }> {
-  if (!IS_TAURI && navigator.storage?.estimate) {
-    const estimate = await navigator.storage.estimate();
+  if (!IS_TAURI && navigatorStorage?.estimate) {
+    const estimate = await navigatorStorage.estimate();
     return {
       total: estimate.quota ?? 0,
       used: estimate.usage ?? 0,
@@ -68,9 +70,9 @@ async function getStoragePath(): Promise<string> {
 }
 
 async function getDbSize(): Promise<number> {
-  if (!IS_TAURI && navigator.storage?.estimate) {
+  if (!IS_TAURI && navigatorStorage?.estimate) {
     try {
-      const estimate = await navigator.storage.estimate();
+      const estimate = await navigatorStorage.estimate();
       return estimate.usage ?? 0;
     }
     catch {

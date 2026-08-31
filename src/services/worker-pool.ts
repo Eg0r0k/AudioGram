@@ -204,7 +204,7 @@ export class WorkerPool {
       pending.resolve(e.data.meta);
     }
     else {
-      pending.reject(new Error(e.data.error ?? "Worker parse error"));
+      pending.reject(new Error(e.data.error));
     }
   };
 }

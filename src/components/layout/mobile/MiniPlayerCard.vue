@@ -74,9 +74,6 @@ import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
 import IconPlaylist from "~icons/tabler/playlist";
 import IconPlay from "~icons/tabler/player-play-filled";
 
-// One row of the mini player strip. The current track renders its live
-// controls through the `actions` slot; previewed neighbours fall back to the
-// static icons so the row looks identical when it slides into place.
 defineProps<{
   title: string;
   artist: string;

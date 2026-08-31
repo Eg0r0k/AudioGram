@@ -12,8 +12,8 @@ import {
   buildAlbumDocFromDb,
   buildArtistDoc,
   buildTrackDocFromDb,
-} from "@/modules/search/buildDocuments";
-import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/searchIndex";
+} from "@/modules/search/service/buildDocuments";
+import { removeSearchDocuments, upsertSearchDocuments } from "@/modules/search/service/searchIndex";
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { ArtistId as createArtistId } from "@/types/ids";
@@ -60,6 +60,10 @@ async function getArtistTrackEntities(artistId: ArtistId, sortKey: TrackSortKey 
   }
 
   return sortTracks(artistTracks, sortKey);
+}
+
+export async function getArtistsByIds(artistIds: ArtistId[]): Promise<ArtistEntity[]> {
+  return unwrapResult(artistRepository.findByIds(artistIds));
 }
 
 export async function getArtists() {

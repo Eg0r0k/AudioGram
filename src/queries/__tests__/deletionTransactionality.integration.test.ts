@@ -18,11 +18,11 @@ vi.mock("@/db/storage", () => ({ storageService: storageMock }));
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   removeSearchDocuments: vi.fn(async () => {}),
   upsertSearchDocuments: vi.fn(async () => {}),
 }));
-vi.mock("@/modules/search/buildDocuments", () => ({
+vi.mock("@/modules/search/service/buildDocuments", () => ({
   buildAlbumDocFromDb: vi.fn(async () => ({})),
   buildTrackDocFromDb: vi.fn(async () => ({})),
   buildArtistDoc: vi.fn(() => ({})),
@@ -41,7 +41,7 @@ vi.mock("@/services/library-gc", async (importOriginal) => {
 
 import { db } from "@/db";
 import { artistRepository, offlineCopyRepository } from "@/db/repositories";
-import { removeSearchDocuments } from "@/modules/search/searchIndex";
+import { removeSearchDocuments } from "@/modules/search/service/searchIndex";
 import { deleteAlbumAndSync } from "../album.queries";
 import { deleteArtistAndSync } from "../artist.queries";
 import { deleteTrackAndSync } from "../track.queries";

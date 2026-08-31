@@ -11,7 +11,7 @@ import type { SourceTrackDTO } from "@/modules/sources/types";
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   indexImportedTracks: vi.fn(async () => {}),
   removeSearchDocuments: vi.fn(async () => {}),
   upsertSearchDocuments: vi.fn(async () => {}),
@@ -19,8 +19,8 @@ vi.mock("@/modules/search/searchIndex", () => ({
 }));
 
 import { db } from "@/db";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
-import { buildAllSearchDocuments } from "@/modules/search/buildDocuments";
+import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
+import { buildAllSearchDocuments } from "@/modules/search/service/buildDocuments";
 import { getLibrarySummary } from "../library.queries";
 import { getTracksIndexPageData } from "../track.queries";
 import { getArtistPageData } from "../artist.queries";
