@@ -14,7 +14,8 @@
   </motion.button>
 </template>
 <script lang="ts" setup>
-import { ComponentPublicInstance, HTMLAttributes, inject } from "vue";
+import type { ComponentPublicInstance, HTMLAttributes } from "vue";
+import { inject } from "vue";
 import { motion } from "motion-v";
 import { MorphingDialogKey } from "./context";
 import { cn } from "@/lib/utils";

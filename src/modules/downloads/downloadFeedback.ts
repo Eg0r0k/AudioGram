@@ -2,7 +2,7 @@ import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import { getLogger } from "@/lib/logger";
 import type { SourceTrackDTO } from "@/modules/sources/types";
-import { downloadSubject } from "./enqueue";
+import { downloadSubject } from "./service/enqueue";
 
 /**
  * Queues a download for a remote DTO with user feedback: an existing offline

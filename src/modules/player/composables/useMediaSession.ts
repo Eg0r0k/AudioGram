@@ -3,6 +3,8 @@ import { usePlayerStore } from "../store/player.store";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import { trackCoverOwner, useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
+import { getLogger } from "@/lib/logger";
+import { useCurrentPlayerTrack } from "./useCurrentPlayerTrack";
 import { isLibraryTrack } from "../types";
 
 const POSITION_UPDATE_INTERVAL = 1000;
@@ -90,10 +92,7 @@ export const useMediaSession = () => {
   const forceNextUpdate = ref(false);
   const isMediaSessionSeeking = ref(false);
 
-  const currentTrack = computed(() => player.currentTrack);
-  const libraryTrack = computed(() =>
-    currentTrack.value?.kind === "library" ? currentTrack.value : null,
-  );
+  const { libraryTrack } = useCurrentPlayerTrack();
 
   const { url: coverBlobUrl, blob: coverBlob } = useTrackCover(libraryTrack);
   const coverOwnerId = computed(() => {
@@ -176,10 +175,10 @@ export const useMediaSession = () => {
   };
 
   const handleAndroidAction = (event: Event) => {
-    const detail = (event as CustomEvent<AndroidMediaActionDetail>).detail;
+    const detail = (event as CustomEvent<AndroidMediaActionDetail | null>).detail;
     switch (detail?.action) {
       case "play":
-        player.play();
+        player.play().catch(error => getLogger().error(`[Player] Play from the media session failed: ${String(error)}`));
         break;
       case "pause":
         player.pause();
@@ -188,10 +187,14 @@ export const useMediaSession = () => {
         player.stop();
         break;
       case "next":
-        if (queue.hasNext) queue.next();
+        if (queue.hasNext) {
+          queue.next().catch(error => getLogger().error(`[Queue] Next from the media session failed: ${String(error)}`));
+        }
         break;
       case "previous":
-        if (queue.hasPrevious) queue.previous();
+        if (queue.hasPrevious) {
+          queue.previous().catch(error => getLogger().error(`[Queue] Previous from the media session failed: ${String(error)}`));
+        }
         break;
       case "seekto":
         if (typeof detail.positionMs === "number" && player.canSeek) {
@@ -208,9 +211,14 @@ export const useMediaSession = () => {
         break;
       case "like": {
         const track = player.currentTrack;
-        if (track && isLibraryTrack(track)) toggleTrackLike(track);
+        // mutateAsync rethrows; the user already sees the toast from onError.
+        if (track && isLibraryTrack(track)) {
+          toggleTrackLike(track).catch(error => getLogger().error(`[Player] Toggling like from the media session failed: ${String(error)}`));
+        }
         break;
       }
+      default:
+        break;
     }
   };
 
@@ -275,12 +283,20 @@ export const useMediaSession = () => {
   const updateAvailableActions = () => {
     setActionHandler(
       "nexttrack",
-      queue.hasNext ? () => queue.next() : null,
+      queue.hasNext
+        ? () => {
+            queue.next().catch(error => getLogger().error(`[Queue] Next from the media session failed: ${String(error)}`));
+          }
+        : null,
     );
 
     setActionHandler(
       "previoustrack",
-      queue.hasPrevious ? () => queue.previous() : null,
+      queue.hasPrevious
+        ? () => {
+            queue.previous().catch(error => getLogger().error(`[Queue] Previous from the media session failed: ${String(error)}`));
+          }
+        : null,
     );
 
     if (player.canSeek) {
@@ -328,7 +344,9 @@ export const useMediaSession = () => {
   };
 
   onMounted(() => {
-    setActionHandler("play", () => player.play());
+    setActionHandler("play", () => {
+      player.play().catch(error => getLogger().error(`[Player] Play from the media session failed: ${String(error)}`));
+    });
     setActionHandler("pause", () => player.pause());
     setActionHandler("stop", () => player.stop());
 

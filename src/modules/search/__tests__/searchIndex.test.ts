@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type * as SearchIndexModule from "../searchIndex";
+import type * as SearchIndexModule from "../service/searchIndex";
 import type { SearchDocument, SearchResultItem, WorkerRequest, WorkerResponse } from "../types";
 import { ok } from "neverthrow";
 import { TrackSource, TrackState } from "@/db/entities";
@@ -55,7 +55,7 @@ const { FakeWorker, buildAllSearchDocuments, repositories } = vi.hoisted(() => {
 });
 
 vi.mock("../search.worker?worker", () => ({ default: FakeWorker }));
-vi.mock("../buildDocuments", () => ({ buildAllSearchDocuments }));
+vi.mock("../service/buildDocuments", () => ({ buildAllSearchDocuments }));
 vi.mock("@/db/repositories", () => repositories);
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
@@ -115,7 +115,7 @@ beforeEach(async () => {
   vi.resetModules();
   // Dynamic import on purpose: searchIndex holds module-level client state
   // that must be recreated per test via vi.resetModules().
-  searchIndex = await import("../searchIndex");
+  searchIndex = await import("../service/searchIndex");
 });
 
 afterEach(() => {

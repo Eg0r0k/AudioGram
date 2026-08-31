@@ -1,6 +1,6 @@
 import { EssentiaWASM } from "essentia.js/dist/essentia-wasm.es.js";
 import EssentiaClass from "essentia.js/dist/essentia.js-core.es.js";
-import { AnalysisRequest, AnalysisResponse } from "./types";
+import type { AnalysisRequest, AnalysisResponse } from "./types";
 import decode from "audio-decode";
 
 interface EssentiaVector {
@@ -76,7 +76,7 @@ let essentia: TypedEssentia | null = null;
 
 const initEssentia = (): TypedEssentia => {
   if (essentia) return essentia;
-  essentia = new EssentiaClass(EssentiaWASM) as TypedEssentia;
+  essentia = new EssentiaClass(EssentiaWASM);
   return essentia;
 };
 
@@ -132,7 +132,7 @@ const analyzeAudio = (ess: TypedEssentia, pcm: Float32Array) => {
       "hann", // windowType
     );
 
-    const keyMap: Record<string, number> = {
+    const keyMap: Partial<Record<string, number>> = {
       "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5,
       "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11,
     };
@@ -154,9 +154,9 @@ const analyzeAudio = (ess: TypedEssentia, pcm: Float32Array) => {
 self.onmessage = async (e: MessageEvent<AnalysisRequest>) => {
   const { requestId, trackId, fileData } = e.data;
   try {
-    const ess = await initEssentia();
+    const ess = initEssentia();
     const pcm = await decodeAudio(fileData);
-    const features = await analyzeAudio(ess, pcm);
+    const features = analyzeAudio(ess, pcm);
 
     const response: AnalysisResponse = {
       success: true,

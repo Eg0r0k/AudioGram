@@ -147,10 +147,12 @@ const startEdit = () => {
   isEditing.value = true;
   isInvalid.value = false;
 
+  // Focusing the freshly rendered input is a convenience; if the tick is
+  // dropped the field is still there for the user to click into.
   nextTick(() => {
     inputRef.value?.focus();
     inputRef.value?.select();
-  });
+  }).catch(() => {});
 };
 
 const commitEdit = () => {

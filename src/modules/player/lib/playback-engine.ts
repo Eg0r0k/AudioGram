@@ -77,10 +77,6 @@ const describeError = (err: unknown): string => {
   }
 };
 
-/**
- * Wraps a lyra Player for the store: construction options, event wiring and
- * the "am I still the live instance" guard live here, once.
- */
 export const createPlaybackEngine = (options: PlaybackEngineOptions): PlaybackEngine => {
   const { handlers } = options;
   let playbackRate = options.playbackRate;

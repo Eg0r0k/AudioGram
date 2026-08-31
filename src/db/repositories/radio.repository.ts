@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import type { RadioStationEntity } from "@/db/entities";
 import type { RadioStationId } from "@/types/ids";
-import type { UpdateSpec } from "dexie";
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 
 class RadioStationRepository extends BaseRepository<RadioStationEntity, RadioStationId> {
@@ -19,7 +19,7 @@ class RadioStationRepository extends BaseRepository<RadioStationEntity, RadioSta
         ...changes,
         updatedAt: Date.now(),
       };
-      const count = await this.table.update(id, withTimestamp as UpdateSpec<RadioStationEntity>);
+      const count = await this.table.update(id, withTimestamp);
       return ok(count);
     }
     catch (error) {
@@ -62,7 +62,7 @@ class RadioStationRepository extends BaseRepository<RadioStationEntity, RadioSta
       await this.table.update(id, {
         isFavorite: next,
         updatedAt: Date.now(),
-      } as UpdateSpec<RadioStationEntity>);
+      });
 
       return ok(next);
     }
@@ -75,7 +75,7 @@ class RadioStationRepository extends BaseRepository<RadioStationEntity, RadioSta
     try {
       await this.table.update(id, {
         lastPlayedAt: Date.now(),
-      } as UpdateSpec<RadioStationEntity>);
+      });
       return ok(undefined);
     }
     catch (error) {

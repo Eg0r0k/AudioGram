@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ok } from "neverthrow";
 import type { LibraryItem } from "@/modules/library/types";
-import { albumRepository, artistRepository } from "@/db/repositories";
+import { getAlbumLibraryRow } from "@/queries/album.queries";
+import { getArtistLibraryRow } from "@/queries/artist.queries";
 import { useLibraryMenu } from "../useLibraryMenu";
 
-vi.mock("@/db/repositories", () => ({
-  albumRepository: { findById: vi.fn() },
-  artistRepository: { findById: vi.fn() },
-  playlistRepository: { findById: vi.fn() },
-}));
+vi.mock("@/queries/album.queries", () => ({ getAlbumLibraryRow: vi.fn() }));
+vi.mock("@/queries/artist.queries", () => ({ getArtistLibraryRow: vi.fn() }));
+vi.mock("@/queries/playlist.queries", () => ({ getPlaylistLibraryRow: vi.fn() }));
 
 function item(id: string, type: LibraryItem["type"], isCatalog = false): LibraryItem {
   return {
@@ -38,7 +36,7 @@ describe("useLibraryMenu", () => {
   });
 
   it("opens a remote-prefixed album once its shadow row is found", async () => {
-    vi.mocked(albumRepository.findById).mockResolvedValue(ok({ id: "yt:MPREb_1" } as never));
+    vi.mocked(getAlbumLibraryRow).mockResolvedValue({ id: "yt:MPREb_1" } as never);
     const menu = useLibraryMenu();
 
     menu.openMenu(item("yt:MPREb_1", "album"));
@@ -49,7 +47,7 @@ describe("useLibraryMenu", () => {
   });
 
   it("stays closed for a remote artist without a library row (catalog browsing)", async () => {
-    vi.mocked(artistRepository.findById).mockResolvedValue(ok(undefined));
+    vi.mocked(getArtistLibraryRow).mockResolvedValue(null);
     const menu = useLibraryMenu();
 
     menu.openMenu(item("nd:artist9", "artist"));
@@ -72,7 +70,7 @@ describe("useLibraryMenu", () => {
     expect(menu.activeItem.value?.id).toBe("nd:album1");
     expect(menu.menuFlavor.value).toBe("catalog");
     expect(menu.isContextMenuOpen.value).toBe(true);
-    expect(albumRepository.findById).not.toHaveBeenCalled();
+    expect(getAlbumLibraryRow).not.toHaveBeenCalled();
   });
 
   it("never opens for a catalog artist", () => {
@@ -85,7 +83,7 @@ describe("useLibraryMenu", () => {
   });
 
   it("keeps the library flavor for a downloaded shadow album", async () => {
-    vi.mocked(albumRepository.findById).mockResolvedValue(ok({ id: "yt:MPREb_1" } as never));
+    vi.mocked(getAlbumLibraryRow).mockResolvedValue({ id: "yt:MPREb_1" } as never);
     const menu = useLibraryMenu();
 
     menu.openMenu(item("yt:MPREb_1", "album"));

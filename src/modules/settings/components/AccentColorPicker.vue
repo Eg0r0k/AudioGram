@@ -100,7 +100,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ColorPicker } from "@/components/ui/color-picker";
 import IconColorPicker from "~icons/tabler/palette-filled";
 import type { AccentColorOption } from "@/modules/settings/accent-colors";
-import { AccentColor } from "../schema/appearance";
+import type { AccentColor } from "../schema/appearance";
 
 const props = defineProps<{
   modelValue: AccentColor;

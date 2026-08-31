@@ -43,7 +43,9 @@ let initialized = false;
 export function initZoom(): void {
   if (initialized) return;
   initialized = true;
-  applyZoom(zoom.value);
+  // applyZoom catches and logs a failing webview call itself; startup must not
+  // wait on it, so there is nothing left for this caller to report.
+  applyZoom(zoom.value).catch(() => {});
 }
 
 export function useZoom() {

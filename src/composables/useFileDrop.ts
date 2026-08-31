@@ -75,35 +75,40 @@ export function useFileDrop(options?: UseFileDropOptions) {
   const droppedFiles = ref<File[]>([]);
   const isProcessing = ref(false);
 
-  const setupTauri = async () => {
-    useTauriDragDrop(async (payload) => {
+  const processDroppedPaths = async (droppedPaths: string[]) => {
+    isProcessing.value = true;
+
+    try {
+      const fs = await import("@tauri-apps/plugin-fs");
+      const paths = await collectDroppedPaths(fs, droppedPaths, options?.acceptedExtensions);
+      const files = paths.map((path) => {
+        const name = path.split(/[/\\]/).pop() || path;
+        return Object.assign(new File([], name), {
+          path,
+          relativePath: path,
+        });
+      });
+
+      droppedFiles.value = files;
+      options?.onDrop?.(files);
+    }
+    finally {
+      isProcessing.value = false;
+    }
+  };
+
+  const setupTauri = () => {
+    useTauriDragDrop((payload) => {
       if (payload.type === "over" || payload.type === "enter") {
         isDragging.value = true;
       }
       else if (payload.type === "leave") {
         isDragging.value = false;
       }
-      else if (payload.type === "drop") {
+      else {
         isDragging.value = false;
-        isProcessing.value = true;
-
-        try {
-          const fs = await import("@tauri-apps/plugin-fs");
-          const paths = await collectDroppedPaths(fs, payload.paths, options?.acceptedExtensions);
-          const files = paths.map((path) => {
-            const name = path.split(/[/\\]/).pop() || path;
-            return Object.assign(new File([], name), {
-              path,
-              relativePath: path,
-            }) as File & { path: string };
-          });
-
-          droppedFiles.value = files;
-          options?.onDrop?.(files);
-        }
-        finally {
-          isProcessing.value = false;
-        }
+        processDroppedPaths(payload.paths)
+          .catch(error => getLogger().error(`[FileDrop] Processing dropped paths failed: ${String(error)}`));
       }
     });
   };
@@ -131,10 +136,7 @@ export function useFileDrop(options?: UseFileDropOptions) {
       e.preventDefault();
     };
 
-    const onDropHandler = async (e: DragEvent) => {
-      e.preventDefault();
-      isDragging.value = false;
-      dragCounter = 0;
+    const processBrowserDrop = async (e: DragEvent) => {
       isProcessing.value = true;
 
       try {
@@ -149,6 +151,14 @@ export function useFileDrop(options?: UseFileDropOptions) {
         isProcessing.value = false;
       }
     };
+
+    const onDropHandler = (e: DragEvent) => {
+      e.preventDefault();
+      isDragging.value = false;
+      dragCounter = 0;
+      processBrowserDrop(e)
+        .catch(error => getLogger().error(`[FileDrop] Processing dropped files failed: ${String(error)}`));
+    };
     const { useEventListener } = await import("@vueuse/core");
 
     useEventListener(document, "dragenter", onDragEnter, { passive: false });
@@ -159,7 +169,7 @@ export function useFileDrop(options?: UseFileDropOptions) {
 
   onMounted(async () => {
     if (IS_TAURI) {
-      await setupTauri();
+      setupTauri();
     }
     else {
       await setupBrowser();

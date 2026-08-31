@@ -141,7 +141,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useForm } from "vee-validate";
-import { InferOutput, maxLength, minLength, object, optional, pipe, string } from "valibot";
+import type { InferOutput } from "valibot";
+import { maxLength, minLength, object, optional, pipe, string } from "valibot";
 import { toTypedSchema } from "@vee-validate/valibot";
 
 import {
@@ -213,7 +214,7 @@ const imageError = ref<string | null>(null);
 const hasChanges = computed((): boolean => {
   if (!props.hasEntity) return false;
 
-  const primaryChanged = (primary.value?.trim() ?? "") !== props.initialPrimary;
+  const primaryChanged = primary.value.trim() !== props.initialPrimary;
   const secondaryChanged = (secondary.value?.trim() ?? "") !== props.initialSecondary;
 
   return primaryChanged || secondaryChanged || cover.hasChanged.value;

@@ -45,7 +45,7 @@ export const pickAndroidFolderTreeUri = (): Promise<string | null> => {
   const requestId = crypto.randomUUID();
   return new Promise((resolve) => {
     const onPicked = (event: Event) => {
-      const detail = (event as CustomEvent<FolderPickedDetail>).detail;
+      const detail = (event as CustomEvent<FolderPickedDetail | null>).detail;
       if (!detail || detail.requestId !== requestId) return;
       window.removeEventListener(FOLDER_PICKED_EVENT, onPicked);
       resolve(typeof detail.uri === "string" && detail.uri.length > 0 ? detail.uri : null);

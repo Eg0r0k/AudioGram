@@ -127,7 +127,7 @@ export const useSummonedDialog = <TResult = void>(): SummonedDialogController<TR
   if (!controller) {
     throw new Error("useSummonedDialog() must be used inside a dialog rendered by <DialogSummonHost />");
   }
-  return controller as SummonedDialogController<TResult>;
+  return controller;
 };
 
 // eslint-disable-next-line vue/one-component-per-file -- the per-instance provider only exists for the host below

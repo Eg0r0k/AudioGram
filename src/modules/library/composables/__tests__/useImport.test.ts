@@ -24,7 +24,7 @@ vi.mock("@/services/importer.service", () => ({
   },
 }));
 
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   indexImportedTracks: vi.fn().mockResolvedValue(undefined),
 }));
 

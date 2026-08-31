@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import type { SidebarFolderEntity, SidebarFolderEntryEntity } from "@/db/entities";
 import type { SidebarFolderId } from "@/types/ids";
-import { err, ok, Result } from "neverthrow";
+import type { Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 import { toDbError } from "@/db/errors/db.errors";
 

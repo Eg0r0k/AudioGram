@@ -17,8 +17,8 @@ function handleInputGroupAddonClick(e: MouseEvent) {
   if (target && target.closest("button")) {
     return;
   }
-  if (currentTarget && currentTarget?.parentElement) {
-    currentTarget.parentElement?.querySelector("input")?.focus();
+  if (currentTarget && currentTarget.parentElement) {
+    currentTarget.parentElement.querySelector("input")?.focus();
   }
 }
 </script>

@@ -14,7 +14,7 @@ export function parseCueSheet(content: string): CueTrackEntry[] {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const trackMatch = line.match(/^TRACK\s+(\d+)\s+AUDIO/i);
+    const trackMatch = /^TRACK\s+(\d+)\s+AUDIO/i.exec(line);
     if (trackMatch) {
       if (current && current.time !== undefined) {
         entries.push(current as CueTrackEntry);
@@ -25,19 +25,19 @@ export function parseCueSheet(content: string): CueTrackEntry[] {
 
     if (!current) continue;
 
-    const titleMatch = line.match(/^TITLE\s+"(.*)"/i);
+    const titleMatch = /^TITLE\s+"(.*)"/i.exec(line);
     if (titleMatch) {
       current.title = titleMatch[1];
       continue;
     }
 
-    const performerMatch = line.match(/^PERFORMER\s+"(.*)"/i);
+    const performerMatch = /^PERFORMER\s+"(.*)"/i.exec(line);
     if (performerMatch) {
       current.performer = performerMatch[1];
       continue;
     }
 
-    const indexMatch = line.match(/^INDEX\s+01\s+(\d{2}):(\d{2}):(\d{2})/i);
+    const indexMatch = /^INDEX\s+01\s+(\d{2}):(\d{2}):(\d{2})/i.exec(line);
     if (indexMatch) {
       const [, mm, ss, ff] = indexMatch;
       current.time = Number(mm) * 60 + Number(ss) + Number(ff) / 75;

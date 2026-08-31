@@ -1,4 +1,4 @@
-import { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
+import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 
 export type MediaType = "playlist" | "artist" | "album" | "liked";
 

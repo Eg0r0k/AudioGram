@@ -1,4 +1,5 @@
-import { AUDIO_MIME_TYPES, AudioMimeKey, IMAGE_MIME_TYPES, ImageMimeKey, MimeSupport, SupportLevel } from "@/types/media";
+import type { AudioMimeKey, ImageMimeKey, MimeSupport, SupportLevel } from "@/types/media";
+import { AUDIO_MIME_TYPES, IMAGE_MIME_TYPES } from "@/types/media";
 
 export const VALID_AUDIO_EXTENSIONS = new Set<string>(
   Object.keys(AUDIO_MIME_TYPES).filter(key => !key.includes("-")),
@@ -31,7 +32,7 @@ export const isValidImageMimeType = (mimeType: string): boolean => {
 
 export const canPlayAudioType = (mimeType: string): SupportLevel => {
   if (!audioElement) return "";
-  return audioElement.canPlayType(mimeType) as SupportLevel;
+  return audioElement.canPlayType(mimeType);
 };
 
 export const isValidAudioExtension = (ext: string): boolean => {
@@ -166,5 +167,7 @@ export async function isImageTypeSupported(mimeType: string): Promise<boolean> {
 
 export const getMimeType = (filename: string): string => {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  return AUDIO_MIME_TYPES[ext as AudioMimeKey] || IMAGE_MIME_TYPES[ext as ImageMimeKey] || "";
+  if (ext in AUDIO_MIME_TYPES) return AUDIO_MIME_TYPES[ext as AudioMimeKey];
+  if (ext in IMAGE_MIME_TYPES) return IMAGE_MIME_TYPES[ext as ImageMimeKey];
+  return "";
 };

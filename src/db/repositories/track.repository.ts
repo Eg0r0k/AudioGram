@@ -3,7 +3,8 @@ import type { TrackEntity } from "@/db/entities";
 import type { TrackSortKey } from "@/types/track-sort";
 import type { AlbumId, ArtistId, TagId, TrackId } from "@/types/ids";
 import type { Collection } from "dexie";
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 import { toDbError } from "@/db/errors/db.errors";
 
@@ -256,7 +257,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       await this.table
         .where("albumId")
         .equals(albumId)
-        .each((track) => { total += track.duration ?? 0; });
+        .each((track) => { total += track.duration; });
       return ok(total);
     }
     catch (error) {
@@ -270,7 +271,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       await this.table
         .where("artistIds")
         .equals(artistId)
-        .each((track) => { total += track.duration ?? 0; });
+        .each((track) => { total += track.duration; });
       return ok(total);
     }
     catch (error) {
@@ -287,7 +288,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       await this.table
         .where("id")
         .anyOf(trackIds)
-        .each((track) => { total += track.duration ?? 0; });
+        .each((track) => { total += track.duration; });
       return ok(total);
     }
     catch (error) {
@@ -360,7 +361,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     try {
       let total = 0;
       await this.table.where("pinned").equals(1).each((track) => {
-        total += track.duration ?? 0;
+        total += track.duration;
       });
       return ok(total);
     }
@@ -459,7 +460,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
       await this.table
         .where("likedAt")
         .above(0)
-        .each((track) => { total += track.duration ?? 0; });
+        .each((track) => { total += track.duration; });
       return ok(total);
     }
     catch (error) {
@@ -504,7 +505,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         .where("id")
         .equals(trackId)
         .modify((track) => {
-          const current = track.tagIds ?? [];
+          const current = track.tagIds;
           if (!current.includes(tagId)) track.tagIds = [...current, tagId];
         });
       if (modified === 0) {
@@ -523,7 +524,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         .where("id")
         .equals(trackId)
         .modify((track) => {
-          track.tagIds = (track.tagIds ?? []).filter(id => id !== tagId);
+          track.tagIds = track.tagIds.filter(id => id !== tagId);
         });
       if (modified === 0) {
         return err(new Error(`Track not found: ${trackId}`));
@@ -630,7 +631,7 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
 
   async findAllIds(): Promise<Result<TrackId[], Error>> {
     try {
-      const ids = await this.table.toCollection().primaryKeys() as TrackId[];
+      const ids = await this.table.toCollection().primaryKeys();
       return ok(ids);
     }
     catch (error) {

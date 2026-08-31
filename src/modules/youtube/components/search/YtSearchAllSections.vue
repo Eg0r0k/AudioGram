@@ -79,6 +79,7 @@ import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/Trac
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
 import type { YtChip } from "@/modules/search/composables/useSearch";
 import { hitResultItem, trackArtistRoutes } from "@/modules/search/lib/resultItems";
@@ -146,6 +147,7 @@ const artistRoutes = (row: Track) =>
   (row.sourceDto ? trackArtistRoutes(row.sourceDto, CATALOG) : []);
 
 const play = (index: number) => {
-  queueStore.setQueue(trackRows.value, index, { type: "search" });
+  queueStore.setQueue(trackRows.value, index, { type: "search" })
+    .catch(error => getLogger().error(`[YouTube] Playing a search result failed: ${String(error)}`));
 };
 </script>

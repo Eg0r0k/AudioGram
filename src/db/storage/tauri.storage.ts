@@ -1,4 +1,5 @@
-import { ResultAsync, fromPromise } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
+import { fromPromise } from "neverthrow";
 import {
   writeFile,
   remove,

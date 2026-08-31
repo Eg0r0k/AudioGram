@@ -7,8 +7,8 @@ const mockPlayer = {
   getListenedSeconds: () => mockPlayer.listenedSeconds,
   sleepAfterCurrentTrack: false,
 };
-const mockQueue = { advance: vi.fn() };
-const mockLyrics = { loadFor: vi.fn() };
+const mockQueue = { advance: vi.fn(async () => {}) };
+const mockLyrics = { loadFor: vi.fn(async () => {}) };
 
 vi.mock("../store/player.store", () => ({ usePlayerStore: () => mockPlayer }));
 vi.mock("../store/lyrics.store", () => ({ useLyricsStore: () => mockLyrics }));
@@ -25,7 +25,7 @@ vi.mock("vue-sonner", () => ({ toast: mockToast }));
 vi.mock("@/app/i18n", () => ({
   i18n: { global: { t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) } },
 }));
-vi.mock("../lib/prefetch-next", () => ({ initNextTrackPrefetch: vi.fn(() => () => {}) }));
+vi.mock("../service/prefetch-next", () => ({ initNextTrackPrefetch: vi.fn(() => () => {}) }));
 
 import { useEventBus } from "@vueuse/core";
 import { initPlayerLifecycle } from "../player-lifecycle";
@@ -33,7 +33,7 @@ import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { playbackStalledEvent, trackSkippedEvent } from "@/modules/queue/lib/queue-events";
 import { TrackSource } from "@/db/entities";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
-import { initNextTrackPrefetch } from "../lib/prefetch-next";
+import { initNextTrackPrefetch } from "../service/prefetch-next";
 import { statsService } from "@/services/stats.service";
 import type { PlayerTrack } from "../types";
 

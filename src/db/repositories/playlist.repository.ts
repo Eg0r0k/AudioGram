@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import type { PlaylistEntity } from "@/db/entities";
 import type { PlaylistId, TrackId } from "@/types/ids";
-import type { UpdateSpec } from "dexie";
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 import { toDbError } from "@/db/errors/db.errors";
 
@@ -17,7 +17,7 @@ class PlaylistRepository extends BaseRepository<PlaylistEntity, PlaylistId> {
         ...changes,
         updatedAt: Date.now(),
       };
-      const count = await this.table.update(id, withTimestamp as UpdateSpec<PlaylistEntity>);
+      const count = await this.table.update(id, withTimestamp);
       return ok(count);
     }
     catch (error) {

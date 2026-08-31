@@ -13,14 +13,14 @@ import { queryClient } from "@/queries/client";
 import { getLogger, initLogging } from "./lib/logger";
 import { initMediaServerBase } from "./lib/stream-url";
 import { initPlayerLifecycle } from "@/modules/player/player-lifecycle";
-import { initDownloadManager } from "@/modules/downloads/manager";
+import { initDownloadManager } from "@/modules/downloads/service/manager";
 import { sweepOrphanedEntities } from "@/services/library-gc";
 import { hideAndroidSplash } from "@/lib/android-splash";
 import { initZoom } from "@/modules/settings/composables/useZoom";
 import { statsService } from "@/services/stats.service";
 import { invalidateStatsQueries } from "@/queries/stats.queries";
 import { onAllDataCleared } from "@/services/storage-info.service";
-import { resetSearchIndex } from "@/modules/search/searchIndex";
+import { resetSearchIndex } from "@/modules/search/service/searchIndex";
 import { openDatabase } from "@/db";
 
 await initLogging();
@@ -64,7 +64,11 @@ initPlayerLifecycle();
 
 // Services stay below the query/search layers; their effects on those layers
 // are wired here.
-statsService.onChange(() => invalidateStatsQueries(queryClient));
+statsService.onChange(() => {
+  invalidateStatsQueries(queryClient).catch(error =>
+    getLogger().error(`[Stats] Refreshing stats queries failed: ${String(error)}`),
+  );
+});
 onAllDataCleared(resetSearchIndex);
 
 // Download queue: requeue interrupted jobs, sweep temp orphans, resume.
@@ -92,6 +96,8 @@ app.directive("copy", vCopy);
 
 app.mount("#app");
 
-router.isReady().then(() => {
-  requestAnimationFrame(() => requestAnimationFrame(hideAndroidSplash));
-});
+router.isReady()
+  .then(() => {
+    requestAnimationFrame(() => requestAnimationFrame(hideAndroidSplash));
+  })
+  .catch(error => getLogger().error(`[Boot] Hiding the splash screen failed: ${String(error)}`));

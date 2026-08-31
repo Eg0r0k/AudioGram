@@ -87,8 +87,8 @@ vi.mock("@/services/stats.service", () => ({
 }));
 
 import { db } from "@/db";
-import { downloadSubject } from "../enqueue";
-import { removeTrackFromLibrary } from "@/modules/tracks/lib/libraryMembership";
+import { downloadSubject } from "../service/enqueue";
+import { removeTrackFromLibrary } from "@/modules/tracks/service/libraryMembership";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import type { Track } from "@/modules/player/types";
 

@@ -2,8 +2,9 @@ import { computed, type Ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/vue-query";
 import { ArtistId } from "@/types/ids";
-import { ArtistData } from "@/modules/media-hero/types";
+import type { ArtistData } from "@/modules/media-hero/types";
 import { queryKeys } from "@/queries/query-keys";
+import { getLogger } from "@/lib/logger";
 import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 import {
   artistQueries,
@@ -186,7 +187,8 @@ export function useArtistPage(sortKey: Ref<TrackSortKey | null>) {
     mutationFn: (options: { deleteTracks?: boolean } = {}) =>
       deleteArtistAndSync(queryClient, artistData.value ?? null, options),
     onSuccess: () => {
-      router.push(routeLocation.home());
+      router.push(routeLocation.home())
+        .catch(error => getLogger().error(`[Artist] Navigation home after delete failed: ${String(error)}`));
     },
   });
 

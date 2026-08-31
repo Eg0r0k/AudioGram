@@ -9,7 +9,7 @@ const queue = vi.hoisted(() => ({
 }));
 const player = vi.hoisted(() => ({
   currentTrack: null as { id: string } | null,
-  togglePlay: vi.fn(),
+  togglePlay: vi.fn(async () => {}),
 }));
 const shuffle = vi.hoisted(() => vi.fn());
 

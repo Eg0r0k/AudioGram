@@ -1,4 +1,5 @@
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
+import { errAsync, okAsync } from "neverthrow";
 import { ytStreamUrl } from "@/lib/stream-url";
 import { youtubeProvider } from "@/modules/youtube/provider";
 import { getYoutubeMusicDetails } from "@/modules/youtube/api/youtubeApi";

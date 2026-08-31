@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { sources } from "@/modules/sources";
 import { sourceKindOf, sourceTrackToDisplay } from "@/modules/sources/lib/display";
-import { enqueueCollectionDownload } from "@/modules/downloads/enqueue";
+import { enqueueCollectionDownload } from "@/modules/downloads/service/enqueue";
 import type { LibraryItem } from "../types";
 import { getAlbumPageData } from "@/queries/album.queries";
 import { getPlaylistPageData } from "@/queries/playlist.queries";

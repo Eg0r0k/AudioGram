@@ -1,5 +1,6 @@
 import { onUnmounted, toValue, watch, type MaybeRefOrGetter } from "vue";
 import { useUpdateStore } from "../store/update.store";
+import { getLogger } from "@/lib/logger";
 
 const STARTUP_DELAY_MS = 5000;
 const DEFAULT_INTERVAL_MS = 4 * 60 * 60 * 1000;
@@ -35,10 +36,14 @@ export const useUpdateScheduler = (options: UpdateSchedulerOptions = {}) => {
     intervalTimer = undefined;
   };
 
+  const runCheck = () => {
+    store.check().catch((error: unknown) => getLogger().error(`[Update] Scheduled check failed: ${String(error)}`));
+  };
+
   const start = () => {
     stop();
-    startupTimer = setTimeout(() => store.check(), STARTUP_DELAY_MS);
-    intervalTimer = setInterval(() => store.check(), intervalMs);
+    startupTimer = setTimeout(runCheck, STARTUP_DELAY_MS);
+    intervalTimer = setInterval(runCheck, intervalMs);
   };
 
   watch(

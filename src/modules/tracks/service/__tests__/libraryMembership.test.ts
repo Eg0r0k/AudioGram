@@ -35,7 +35,7 @@ const searchIndex = vi.hoisted(() => ({
   indexImportedTracks: vi.fn(async () => {}),
   removeSearchDocuments: vi.fn(async () => {}),
 }));
-vi.mock("@/modules/search/searchIndex", () => searchIndex);
+vi.mock("@/modules/search/service/searchIndex", () => searchIndex);
 
 import { promoteTrackToLibrary, removeTrackFromLibrary } from "../libraryMembership";
 

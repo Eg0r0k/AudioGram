@@ -54,7 +54,8 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { routeLocation, wantsCatalogView } from "@/app/router/route-locations";
-import { isAlbum, isArtist, isLiked, isPlaylist, MediaData } from "@/modules/media-hero/types";
+import type { MediaData } from "@/modules/media-hero/types";
+import { isAlbum, isArtist, isLiked, isPlaylist } from "@/modules/media-hero/types";
 
 defineProps<{
   data: MediaData;

@@ -43,14 +43,14 @@ const emit = defineEmits<{
 const proxyValue = computed({
   get: () => [props.modelValue],
   set: (val) => {
-    if (val && val.length > 0) {
+    if (val.length > 0) {
       emit("update:modelValue", val[0]);
     }
   },
 });
 
 const onValueCommit = (val: number[]) => {
-  if (val && val.length > 0) {
+  if (val.length > 0) {
     emit("change", val[0]);
   }
 };

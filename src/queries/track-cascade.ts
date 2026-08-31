@@ -1,8 +1,8 @@
 import type { OfflineCopyEntity, PlaylistEntity, TrackEntity } from "@/db/entities";
 import { db } from "@/db";
 import { offlineCopyRepository, playlistRepository, trackRepository } from "@/db/repositories";
-import { cleanupOfflineCopyFiles } from "@/modules/downloads/removeCopy";
-import { removeSearchDocuments } from "@/modules/search/searchIndex";
+import { cleanupOfflineCopyFiles } from "@/modules/downloads/service/removeCopy";
+import { removeSearchDocuments } from "@/modules/search/service/searchIndex";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import type { PlaylistId, TrackId } from "@/types/ids";
 import type { QueryClient } from "@tanstack/vue-query";

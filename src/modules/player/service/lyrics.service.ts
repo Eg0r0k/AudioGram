@@ -66,15 +66,21 @@ export function cleanTitle(title: string): string {
   return removeVersionSuffix(removeFeatParenthetical(title)).trim();
 }
 
+class LyricsFetchError extends Error {
+  constructor(readonly info: LyricsError) {
+    super(info.type);
+  }
+}
+
 const fetchJson = <T>(url: string): ResultAsync<T, LyricsError> => {
   return ResultAsync.fromPromise(
     fetch(url).then((res) => {
-      if (res.status === 404) throw { type: "NOT_FOUND" } satisfies LyricsError;
-      if (!res.ok) throw { type: "NETWORK", cause: res.statusText } satisfies LyricsError;
+      if (res.status === 404) throw new LyricsFetchError({ type: "NOT_FOUND" });
+      if (!res.ok) throw new LyricsFetchError({ type: "NETWORK", cause: res.statusText });
       return res.json() as Promise<T>;
     }),
     (e): LyricsError => {
-      if (e && typeof e === "object" && "type" in e) return e as LyricsError;
+      if (e instanceof LyricsFetchError) return e.info;
       return { type: "NETWORK", cause: e };
     },
   );

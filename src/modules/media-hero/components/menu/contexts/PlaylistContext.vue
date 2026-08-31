@@ -44,7 +44,7 @@ import IconPencil from "~icons/tabler/pencil";
 import IconTrash from "~icons/tabler/trash";
 import IconPlaylistAdd from "~icons/tabler/playlist-add";
 import { useMenuComponents } from "@/modules/media-hero/composables/useMenuComponents";
-import { MediaActions } from "../types";
+import type { MediaActions } from "../types";
 
 defineProps<{
   actions: MediaActions;

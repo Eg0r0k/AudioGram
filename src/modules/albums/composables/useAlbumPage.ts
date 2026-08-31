@@ -6,6 +6,7 @@ import type { AlbumData } from "@/modules/media-hero/types";
 import { stableObjectUrl } from "@/modules/covers/lib/stable-object-url";
 import { queryKeys } from "@/queries/query-keys";
 import { formatTotalDuration } from "@/lib/format/time";
+import { getLogger } from "@/lib/logger";
 import { useI18n } from "vue-i18n";
 import {
   albumQueries,
@@ -159,7 +160,8 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     mutationFn: (options: { deleteTracks?: boolean } = {}) =>
       deleteAlbumAndSync(queryClient, albumData.value ?? null, options),
     onSuccess: () => {
-      router.push(routeLocation.home());
+      router.push(routeLocation.home())
+        .catch(error => getLogger().error(`[Album] Navigation home after delete failed: ${String(error)}`));
     },
   });
 

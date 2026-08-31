@@ -1,5 +1,6 @@
 import type { Table, UpdateSpec } from "dexie";
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { toDbError } from "@/db/errors/db.errors";
 
 export abstract class BaseRepository<TEntity, TId> {
@@ -69,7 +70,7 @@ export abstract class BaseRepository<TEntity, TId> {
   async createMany(entities: TEntity[]): Promise<Result<TId[], Error>> {
     try {
       const ids = await this.table.bulkAdd(entities, { allKeys: true });
-      return ok(ids as TId[]);
+      return ok(ids);
     }
     catch (error) {
       return err(toDbError(error));
@@ -88,7 +89,7 @@ export abstract class BaseRepository<TEntity, TId> {
   async upsertMany(entities: TEntity[]): Promise<Result<TId[], Error>> {
     try {
       const ids = await this.table.bulkPut(entities, { allKeys: true });
-      return ok(ids as TId[]);
+      return ok(ids);
     }
     catch (error) {
       return err(toDbError(error));

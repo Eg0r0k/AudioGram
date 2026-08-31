@@ -28,7 +28,7 @@ export class DbError extends Error {
   }
 }
 
-const NAME_TO_CODE: Record<string, DbErrorCode> = {
+const NAME_TO_CODE: Partial<Record<string, DbErrorCode>> = {
   VersionError: "VERSION",
   UpgradeError: "UPGRADE",
   QuotaExceededError: "QUOTA",

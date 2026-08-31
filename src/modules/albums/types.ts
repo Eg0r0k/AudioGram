@@ -1,4 +1,4 @@
-import { AlbumId, ArtistId, TrackId } from "@/types/ids";
+import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 
 export interface Album {
   id: AlbumId;

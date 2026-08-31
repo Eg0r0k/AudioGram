@@ -67,7 +67,7 @@ const useLibraryResults = (enabled: ComputedRef<boolean>): SearchPaneResults => 
     groups,
     trackRows,
     topTrack: computed(() => {
-      const first = top.value[0];
+      const first = top.value[0] as SearchResultItem | undefined;
       if (first?.type !== "track") return undefined;
       return trackRows.value.find(track => track.id === first.entityId);
     }),

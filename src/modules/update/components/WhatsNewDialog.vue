@@ -45,7 +45,7 @@ import DialogContent from "@/components/ui/dialog/DialogContent.vue";
 const { t } = useI18n();
 const changelogStore = useChangelogStore();
 
-const activeVersion = computed(() => changelogStore.activeVersion ?? __APP_VERSION__);
+const activeVersion = computed(() => changelogStore.activeVersion);
 const activeChangelog = computed(() => {
   const changelog = changelogStore.activeChangelog;
   if (!changelog || changelog === EMPTY_RELEASE_NOTES_MESSAGE) {

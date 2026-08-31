@@ -1,12 +1,11 @@
 ﻿import { computed, toValue, type MaybeRefOrGetter } from "vue";
-import { trackRepository } from "@/db/repositories";
 import { getLogger } from "@/lib/logger";
 import type { PlayerTrack } from "@/modules/player/types";
 import { mapTrackEntityToPlayerTrack } from "@/modules/player/utils/trackEntity";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { ephemeralFilePath } from "@/modules/tracks/lib/trackPredicates";
 import { useImport } from "@/modules/library/composables/useImport";
-import { unwrapResult } from "@/queries/shared";
+import { getTrackEntityById } from "@/queries/track.queries";
 
 /**
  * "Import to library" CTA on an open-with ephemeral track (M3): runs the
@@ -30,7 +29,7 @@ export function useEphemeralImport(track: MaybeRefOrGetter<PlayerTrack | null>) 
     if (!imported) return;
 
     try {
-      const entity = await unwrapResult(trackRepository.findById(imported.trackId));
+      const entity = await getTrackEntityById(imported.trackId);
       if (entity) {
         queueStore.swapEphemeralForLibrary(subject.id, mapTrackEntityToPlayerTrack(entity));
       }

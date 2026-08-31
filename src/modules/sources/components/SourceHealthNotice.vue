@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import IconAlertTriangle from "~icons/tabler/alert-triangle";
 import IconLoader2 from "~icons/tabler/loader-2";
 import { ROUTE_NAMES } from "@/app/router/route-names";
+import { getLogger } from "@/lib/logger";
 import type { SourceKind } from "@/types/track-ref";
 import type { SourceError } from "../types";
 import { useSourceHealth, checkSource } from "../composables/useSourceHealth";
@@ -83,10 +84,16 @@ const title = computed(() => {
 });
 
 const retry = () => {
-  if (props.kind) checkSource(props.kind);
+  // The probe records its own verdict in the health store; only a probe that
+  // threw outright leaves nothing behind, so that is what gets logged.
+  if (props.kind) {
+    checkSource(props.kind)
+      .catch(error => getLogger().error(`[Sources] Re-probing ${String(props.kind)} failed: ${String(error)}`));
+  }
 };
 
 const openSettings = () => {
-  router.push({ name: ROUTE_NAMES.SETTINGS_SOURCES });
+  router.push({ name: ROUTE_NAMES.SETTINGS_SOURCES })
+    .catch(error => getLogger().error(`[Sources] Navigation to the sources settings failed: ${String(error)}`));
 };
 </script>

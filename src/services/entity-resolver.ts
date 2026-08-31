@@ -11,7 +11,7 @@ import { identityKey, splitArtistNames } from "@/lib/artist-names";
 import { AlbumId, ArtistId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 import type { SourceTrackDTO } from "@/types/source-dto";
-import { BaseMetadata } from "@/workers/types";
+import type { BaseMetadata } from "@/workers/types";
 
 //
 // ── Remote pin cascade ────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ export function buildRemoteShadowEntities(
         ...existing.album,
         id: dto.albumId,
         title: albumTitle,
-        artistId: existing.album?.artistId ?? artistIds[0] ?? ArtistId(""),
+        artistId: existing.album?.artistId ?? (artistIds.length > 0 ? artistIds[0] : ArtistId("")),
         pinned: mergePinned(existing.album?.pinned, requestedPinned),
         addedAt: existing.album?.addedAt ?? now,
         updatedAt: now,
@@ -217,7 +217,7 @@ export class EntityResolver {
 
   getArtistIds(meta: BaseMetadata): ArtistId[] {
     return meta.artists
-      .filter(name => name?.trim())
+      .filter(name => name.trim())
       .map(name => this.artists.get(identityKey(name)))
       .filter((id): id is ArtistId => !!id);
   }
@@ -225,7 +225,7 @@ export class EntityResolver {
   private async resolveArtists(metas: BaseMetadata[]): Promise<void> {
     const uniqueKeys = [
       ...new Set(
-        metas.flatMap(m => m.artists).filter(a => a?.trim()).map(identityKey),
+        metas.flatMap(m => m.artists).filter(a => a.trim()).map(identityKey),
       ),
     ];
 
@@ -271,7 +271,7 @@ export class EntityResolver {
     }
 
     for (const meta of metas) {
-      const title = meta.album?.trim();
+      const title = meta.album.trim();
       if (!title || title === "Unknown Album") continue;
 
       const firstArtistId = meta.artists[0] && this.artists.get(identityKey(meta.artists[0]));

@@ -2,6 +2,7 @@ import { watch } from "vue";
 import { watchDebounced } from "@vueuse/core";
 import { useNdSourceSettings } from "../store/sources";
 import { applyNdConfig } from "../services/nd";
+import { getLogger } from "@/lib/logger";
 import { queryClient } from "@/queries/client";
 import { invalidateSource } from "@/queries/source.queries";
 import { checkSource } from "@/modules/sources/composables/useSourceHealth";
@@ -32,8 +33,10 @@ export const useNdSourceSync = () => {
   watchDebounced(
     ndConfig,
     () => {
-      invalidateSource(queryClient, "nd");
-      checkSource("nd");
+      invalidateSource(queryClient, "nd")
+        .catch(error => getLogger().error(`[Settings] Dropping the cached nd data failed: ${String(error)}`));
+      checkSource("nd")
+        .catch(error => getLogger().error(`[Settings] Probing nd failed: ${String(error)}`));
     },
     { debounce: INVALIDATE_DEBOUNCE_MS },
   );

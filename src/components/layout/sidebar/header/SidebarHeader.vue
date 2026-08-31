@@ -228,6 +228,7 @@ import { sources } from "@/modules/sources";
 import { sourceUI } from "@/modules/sources/lib/source-ui";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
+import { getLogger } from "@/lib/logger";
 
 defineProps<{ compact?: boolean }>();
 
@@ -255,7 +256,7 @@ watch(focusRequests, async () => {
   await nextTick();
   const target = inputRef.value;
   const root = target instanceof HTMLElement ? target : target?.$el;
-  const field = root instanceof HTMLInputElement ? root : root?.querySelector?.("input");
+  const field = root instanceof HTMLInputElement ? root : root?.querySelector("input");
   field?.focus();
 });
 
@@ -289,19 +290,23 @@ function handleEnter() {
 const themeIcon = computed(() => (theme.isDark.value ? IconSun : IconMoon));
 
 function handleThemeToggle(event: MouseEvent) {
-  theme.toggleTheme(event);
+  theme.toggleTheme(event)
+    .catch(error => getLogger().error(`[SidebarHeader] Theme toggle failed: ${String(error)}`));
 }
 
 function goFavorite() {
-  router.push(routeLocation.liked());
+  router.push(routeLocation.liked())
+    .catch(error => getLogger().error(`[SidebarHeader] Navigation to liked failed: ${String(error)}`));
 }
 
 function goSettings() {
-  router.push(routeLocation.settings());
+  router.push(routeLocation.settings())
+    .catch(error => getLogger().error(`[SidebarHeader] Navigation to settings failed: ${String(error)}`));
 }
 
 function goStats() {
-  router.push(routeLocation.settingsStats());
+  router.push(routeLocation.settingsStats())
+    .catch(error => getLogger().error(`[SidebarHeader] Navigation to stats failed: ${String(error)}`));
 }
 
 function handleClose() {

@@ -7,6 +7,11 @@ import { unwrapResult } from "./shared";
 
 const NO_TRACK_ID = TrackId("__offline-copy-none__");
 
+/** Imperative read for callers outside a component's query (exports, menus). */
+export async function getOfflineCopy(trackId: TrackId): Promise<OfflineCopyEntity | null> {
+  return (await unwrapResult(offlineCopyRepository.findById(trackId))) ?? null;
+}
+
 export const offlineCopyQueries = {
   /** Pass null to skip (local tracks and ephemeral subjects have no copies). */
   detail: (trackId: TrackId | null) =>

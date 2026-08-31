@@ -66,6 +66,7 @@ import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/Trac
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import TrackRow from "@/modules/tracks/components/TrackRow.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { getLogger } from "@/lib/logger";
 import type { Track } from "@/modules/player/types";
 import type { YtChip } from "@/modules/search/composables/useSearch";
 import { hitResultItem, searchResultRoute, trackArtistRoutes } from "@/modules/search/lib/resultItems";
@@ -134,6 +135,7 @@ const errorText = computed(() => (error.value ? youtubeErrorMessage(error.value,
 const play = (track: Track) => {
   const tracks = rows.value.flatMap(row => (row.track ? [row.track] : []));
   const index = tracks.findIndex(candidate => candidate.id === track.id);
-  queueStore.setQueue(tracks, Math.max(index, 0), { type: "search" });
+  queueStore.setQueue(tracks, Math.max(index, 0), { type: "search" })
+    .catch(error => getLogger().error(`[YouTube] Playing a search result failed: ${String(error)}`));
 };
 </script>

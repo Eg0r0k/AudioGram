@@ -1,17 +1,19 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import {
+import type {
   AudioSettings,
-  DEFAULT_SETTINGS,
   GeneralSettings,
   NdSourceSettings,
   PlaybackSettings,
   ProxySettings,
-  Settings,
+  Settings } from "../schema";
+import {
+  DEFAULT_SETTINGS,
   SettingsSchema,
 } from "../schema";
 import { safeParse } from "valibot";
-import { err, ok, Result } from "neverthrow";
+import type { Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 
 export interface SettingsError {
   code: "PARSE_ERROR" | "VALIDATION_ERROR" | "IMPORT_ERROR";

@@ -141,7 +141,7 @@ const isRemoveDialogOpen = ref(false);
 const folderToRemove = ref<WatchedFolder | null>(null);
 
 function handleScan(folder: WatchedFolder) {
-  scanFolder(folder);
+  scanFolder(folder).catch(error => getLogger().error(`[WatchedFolders] Scanning ${folder.name} failed: ${String(error)}`));
 }
 
 function confirmRemove(id: string) {

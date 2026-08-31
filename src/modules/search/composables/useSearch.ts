@@ -11,7 +11,7 @@ import {
   initSearchIndex,
   rebuildSearchIndex,
   searchDocuments,
-} from "../searchIndex";
+} from "../service/searchIndex";
 import { getLogger } from "@/lib/logger";
 import type { SourceKind } from "@/types/track-ref";
 
@@ -48,7 +48,7 @@ function groupResults(raw: SearchResultItem[]): GroupedResults {
   const grouped = createEmptyResults();
 
   for (const item of raw) {
-    grouped.groups[item.type]?.push(item);
+    grouped.groups[item.type].push(item);
   }
 
   grouped.topResults = raw.slice(0, TOP_RESULTS_COUNT);
@@ -87,7 +87,10 @@ watch([query, activeFilter], ([q, filter]) => {
   }
 
   isSearching.value = true;
-  debouncedSearch(trimmed, filter);
+  // Nothing can surface here: a query failure is caught and logged inside the
+  // debounced body, and a call superseded during the pause is dropped by the
+  // debouncer rather than rejected.
+  debouncedSearch(trimmed, filter).catch(() => {});
 });
 
 const debouncedYtCommit = useDebounceFn((trimmed: string) => {
@@ -105,12 +108,14 @@ watch(query, (q) => {
     return;
   }
 
-  debouncedYtCommit(trimmed);
+  // The debounced body only assigns a ref, and a superseded call is dropped
+  // rather than rejected — there is no failure to report.
+  debouncedYtCommit(trimmed).catch(() => {});
 });
 
 const availableFilters: { label: string; value: SearchFilter }[] = [
   { label: "all", value: "all" },
-  ...SEARCH_ENTITY_TYPES.map(type => ({ label: type, value: type as SearchFilter })),
+  ...SEARCH_ENTITY_TYPES.map(type => ({ label: type, value: type })),
 ];
 
 const isSearchOpen = ref(false);
@@ -185,24 +190,24 @@ export function useSearch() {
     openSearch,
     closeSearch,
     focusRequests: readonly(focusRequests),
-    requestSearchFocus() { focusRequests.value++; },
+    requestSearchFocus: () => { focusRequests.value++; },
 
     setSource,
-    setYtChip(chip: YtChip) { ytChip.value = chip; },
+    setYtChip: (chip: YtChip) => { ytChip.value = chip; },
     submitYtSearch,
 
-    setFilter(filter: SearchFilter) { activeFilter.value = filter; },
+    setFilter: (filter: SearchFilter) => { activeFilter.value = filter; },
     saveQueryToHistory,
     removeHistoryItem,
     clearHistory,
     applyHistoryItem,
 
-    clear() {
+    clear: () => {
       query.value = "";
       activeFilter.value = "all";
       submittedYtQuery.value = "";
     },
-    async rebuildIndex() {
+    rebuildIndex: async () => {
       await rebuildSearchIndex();
     },
   };

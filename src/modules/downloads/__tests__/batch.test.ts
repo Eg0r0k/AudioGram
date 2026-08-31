@@ -25,7 +25,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   readDir: vi.fn(async () => []),
   remove: vi.fn(async () => {}),
 }));
-vi.mock("../finalize", () => ({
+vi.mock("../service/finalize", () => ({
   finalizeOfflineCopy: vi.fn(async () => {}),
 }));
 vi.mock("@/queries/library.queries", () => ({
@@ -37,7 +37,7 @@ import { useDownloadsStore } from "../store/downloads.store";
 import {
   enqueueCollectionDownload,
   enqueueLocalPlaylistDownload,
-} from "../enqueue";
+} from "../service/enqueue";
 
 function ndDto(rawId: string): SourceTrackDTO {
   return {

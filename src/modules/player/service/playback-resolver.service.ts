@@ -6,7 +6,7 @@ import { platformCaps } from "@/lib/environment/platformCaps";
 import { storageService } from "@/db/storage";
 import { offlineCopyRepository } from "@/db/repositories";
 import { sources } from "@/modules/sources";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
+import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
 import { getLogger } from "@/lib/logger";
 import {
   type PlayerTrack,

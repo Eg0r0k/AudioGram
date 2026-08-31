@@ -1,8 +1,8 @@
-import { AudioFeaturesEntity, TrackEntity } from "@/db/entities";
+import type { AudioFeaturesEntity, TrackEntity } from "@/db/entities";
 import { trackRepository } from "@/db/repositories";
 import { audioFeaturesRepository } from "@/db/repositories/audioFeatures.repository";
 import { normalize } from "@/lib/math";
-import { TrackId } from "@/types/ids";
+import type { TrackId } from "@/types/ids";
 import { buildCoOccurrenceMatrix, buildSessions } from "./session-builder.service";
 import { statsRepository } from "@/db/repositories/stats.repository";
 
@@ -34,7 +34,8 @@ async function getRecentlyPlayedIds(count: number): Promise<TrackId[]> {
   const seen = new Set<TrackId>();
   const result: TrackId[] = [];
 
-  for (const e of events.sort((a, b) => b.startedAt - a.startedAt)) {
+  const ordered = [...events].sort((a, b) => b.startedAt - a.startedAt);
+  for (const e of ordered) {
     if (seen.has(e.trackId)) continue;
     seen.add(e.trackId);
     result.push(e.trackId);
@@ -191,5 +192,6 @@ export const getRecommendations = async (
     });
   }
 
-  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
 };

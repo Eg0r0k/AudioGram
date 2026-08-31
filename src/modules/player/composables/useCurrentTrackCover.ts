@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
-import { usePlayerStore } from "@/modules/player/store/player.store";
-import { isEphemeralTrack, isLibraryTrack, type PlayerTrack, type Track } from "@/modules/player/types";
+import { useCurrentPlayerTrack } from "@/modules/player/composables/useCurrentPlayerTrack";
+import { isEphemeralTrack } from "@/modules/player/types";
 
 export const FALLBACK_COVER_URL = "/img/fallback.svg";
 
@@ -11,12 +11,7 @@ export const FALLBACK_COVER_URL = "/img/fallback.svg";
  * with) carry a direct URL. Always yields a renderable src.
  */
 export const useCurrentTrackCover = () => {
-  const playerStore = usePlayerStore();
-
-  const track = computed<PlayerTrack | null>(() => playerStore.currentTrack);
-  const libraryTrack = computed<Track | null>(() =>
-    isLibraryTrack(track.value) ? track.value : null,
-  );
+  const { currentTrack: track, libraryTrack } = useCurrentPlayerTrack();
 
   const { url: coverBlobUrl } = useTrackCover(libraryTrack);
 

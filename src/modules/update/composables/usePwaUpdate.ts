@@ -18,6 +18,7 @@
 import { watch, onUnmounted, toValue, type MaybeRefOrGetter } from "vue";
 import { useRegisterSW } from "virtual:pwa-register/vue";
 import { useQueryClient } from "@tanstack/vue-query";
+import { getLogger } from "@/lib/logger";
 import { useUpdateStore } from "../store/update.store";
 import type { UpdateChannel } from "../types";
 import { latestTagQueryOptions } from "../api/changelogApi";
@@ -43,10 +44,18 @@ export const usePwaUpdate = (
     }
   };
 
+  // A poll that cannot reach the server is expected offline; log it and let
+  // the next tick try again. One helper for both the first poll and the
+  // interval, so the interval callback stays synchronous.
+  const poll = () => {
+    registration?.update()
+      .catch(error => getLogger().warn(`[Update] Service worker poll failed: ${String(error)}`));
+  };
+
   const startPolling = () => {
     if (!registration || updateInterval !== null) return;
-    registration.update();
-    updateInterval = setInterval(() => registration?.update(), POLL_INTERVAL_MS);
+    poll();
+    updateInterval = setInterval(poll, POLL_INTERVAL_MS);
   };
 
   const syncPolling = () => (isEnabled() ? startPolling() : stopPolling());

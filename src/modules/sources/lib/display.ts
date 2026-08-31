@@ -1,7 +1,8 @@
 import { TrackSource, TrackState } from "@/db/entities";
 import type { Track } from "@/modules/player/types";
 import type { AlbumData, ArtistData, PlaylistData } from "@/modules/media-hero/types";
-import { AlbumId, PlaylistId } from "@/types/ids";
+import type { PlaylistId } from "@/types/ids";
+import { AlbumId } from "@/types/ids";
 import { parseTrackRef, type SourceKind } from "@/types/track-ref";
 import { THUMB_SIZE_FULL } from "@/lib/media/cover-sizes";
 import { sources } from "../registry";

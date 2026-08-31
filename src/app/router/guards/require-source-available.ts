@@ -16,7 +16,7 @@ import { sources } from "@/modules/sources";
 
 export const requireSourceAvailable = (paramName: string): NavigationGuardWithThis<undefined> => {
   return (to) => {
-    const value = to.params[paramName];
+    const value = to.params[paramName] as string | string[] | undefined;
     const id = typeof value === "string" ? value : value?.[0];
     if (!id) return true;
 

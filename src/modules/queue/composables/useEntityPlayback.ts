@@ -4,6 +4,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
 import type { QueueSource } from "@/modules/queue/types";
+import { getLogger } from "@/lib/logger";
 
 //
 // Play / play-one / shuffle for an entity page (album, artist, playlist).
@@ -48,11 +49,13 @@ export const useEntityPlayback = (options: EntityPlaybackOptions) => {
   };
 
   const playTrack = async (index: number) => {
-    const selected = toValue(options.tracks)[index];
+    const rows = toValue(options.tracks);
+    const selected = index >= 0 && index < rows.length ? rows[index] : undefined;
     if (!selected) return;
 
     if (currentTrackId.value === selected.id) {
-      playerStore.togglePlay();
+      playerStore.togglePlay()
+        .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
       return;
     }
 

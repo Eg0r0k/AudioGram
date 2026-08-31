@@ -1,6 +1,6 @@
-import { TrackSource } from "@/db/entities";
-import { TrackId } from "@/types/ids";
-import { BaseMetadata } from "@/workers/types";
+import type { TrackSource } from "@/db/entities";
+import type { TrackId } from "@/types/ids";
+import type { BaseMetadata } from "@/workers/types";
 
 export enum ImportErrorCode {
   PARSE_FAILED = "PARSE_FAILED",

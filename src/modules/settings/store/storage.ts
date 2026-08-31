@@ -1,6 +1,6 @@
 import { ref, computed } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { StorageInfo } from "../schema/storage";
+import type { StorageInfo } from "../schema/storage";
 import { collectStorageInfo, clearAllData, clearFoldersData, clearLyricsData, clearOfflineData, clearTimingsData } from "@/services/storage-info.service";
 import { formatBytes } from "@/lib/format/memory";
 import { useLibraryStore } from "@/modules/library/store/library.store";

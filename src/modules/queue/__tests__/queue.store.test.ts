@@ -987,6 +987,77 @@ describe("queue.store", () => {
       expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "rec-1", kind: "library" }));
     });
 
+    it("leaves the track the user started alone when a slow lookup finishes late", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+      const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+      const clearCurrentTrackSpy = vi.spyOn(playerStore, "clearCurrentTrack").mockReturnValue(undefined);
+
+      // The lookup is held open until the user has acted.
+      let releaseRecommendations!: () => void;
+      vi.mocked(getRecommendations).mockReturnValue(new Promise((resolve) => {
+        releaseRecommendations = () => resolve([]);
+      }));
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "off";
+
+      // The tail track ended. player-lifecycle fires advance() off the
+      // trackEnded bus and does not await it.
+      const advancing = store.advance();
+
+      // Meanwhile the user picks another track and it starts playing.
+      await store.jumpTo(0);
+      expect(store.currentIndex).toBe(0);
+
+      releaseRecommendations();
+      await advancing;
+
+      expect(store.currentIndex).toBe(0);
+      expect(stopSpy).not.toHaveBeenCalled();
+      expect(clearCurrentTrackSpy).not.toHaveBeenCalled();
+    });
+
+    it("leaves a replayed tail track alone when a slow lookup finishes late", async () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+      const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+      const clearCurrentTrackSpy = vi.spyOn(playerStore, "clearCurrentTrack").mockReturnValue(undefined);
+
+      let releaseRecommendations!: () => void;
+      vi.mocked(getRecommendations).mockReturnValue(new Promise((resolve) => {
+        releaseRecommendations = () => resolve([]);
+      }));
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 1);
+      store.repeatMode = "off";
+
+      const advancing = store.advance();
+
+      // The user replays the entry that just ended: the selection lands on
+      // the same id, so identity alone cannot tell this from "nothing
+      // happened".
+      await store.jumpTo(1);
+      expect(store.currentIndex).toBe(1);
+
+      releaseRecommendations();
+      await advancing;
+
+      expect(store.currentIndex).toBe(1);
+      expect(stopSpy).not.toHaveBeenCalled();
+      expect(clearCurrentTrackSpy).not.toHaveBeenCalled();
+    });
+
     it("should do nothing when queue is empty", async () => {
       const store = useQueueStore();
       const playerStore = usePlayerStore();

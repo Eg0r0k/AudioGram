@@ -1,3 +1,4 @@
+import { getLogger } from "@/lib/logger";
 import type { PlaybackEngine } from "./playback-engine";
 import { type PlaybackStatus, isAudible } from "./playback-status";
 
@@ -65,7 +66,10 @@ export const createFadeController = (deps: FadeControllerDeps): FadeController =
         deps.engine()?.stop();
         deps.onStopped();
       }
-    });
+    })
+      // A fade that cannot finish leaves the deferred pause/stop undone —
+      // exactly what happens today, minus the unhandled rejection.
+      .catch(error => getLogger().warn(`[Player] Fade-out to ${then} failed: ${String(error)}`));
   };
 
   const start = async () => {

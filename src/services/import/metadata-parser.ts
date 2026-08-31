@@ -1,5 +1,5 @@
 import { normalizeMetadata } from "@/lib/metadata";
-import { WorkerPool } from "../worker-pool";
+import type { WorkerPool } from "../worker-pool";
 
 type NormalizedMetadata = ReturnType<typeof normalizeMetadata>;
 

@@ -1,4 +1,4 @@
-import SearchWorkerCtor from "./search.worker?worker";
+import SearchWorkerCtor from "../search.worker?worker";
 import { buildAlbumDoc, buildAllSearchDocuments, buildArtistDoc, buildTrackDoc } from "./buildDocuments";
 import type {
   SearchDocument,
@@ -6,10 +6,10 @@ import type {
   SearchResultItem,
   WorkerRequest,
   WorkerResponse,
-} from "./types";
+} from "../types";
 import { db } from "@/db";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
-import { countTrackDocuments, trackProjectionMismatch } from "./projectionCheck";
+import { countTrackDocuments, trackProjectionMismatch } from "../projectionCheck";
 import { mapTracks } from "@/modules/tracks/lib/mappers";
 import type { Track } from "@/modules/player/types";
 import type { TrackId } from "@/types/ids";
@@ -207,9 +207,9 @@ export function initSearchIndex(): Promise<void> {
       await getClient().build(documents);
       await assertProjectionInDev(documents);
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
       initPromise = null;
-      return Promise.reject(err);
+      throw err;
     });
 
   return initPromise;

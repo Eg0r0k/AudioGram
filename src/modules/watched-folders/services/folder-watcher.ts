@@ -2,6 +2,7 @@ import { watch as fsWatch, exists } from "@tauri-apps/plugin-fs";
 import { useDebounceFn } from "@vueuse/core";
 import { isValidImportItem } from "@/lib/environment/mimeSupport";
 import { normalizePath } from "@/lib/files/filterFiles";
+import { getLogger } from "@/lib/logger";
 
 export type FileChangeHandler = (paths: string[]) => void;
 export type FolderMissingHandler = () => void;
@@ -44,7 +45,7 @@ export async function startWatching(
       folderPath,
       (event) => {
         if (event.paths.length > 0) {
-          debouncedHandler(event.paths);
+          debouncedHandler(event.paths).catch(error => getLogger().error(`[WatchedFolders] Handling a change in ${folderPath} failed: ${String(error)}`));
         }
       },
       { recursive: true, delayMs: 1000 },
@@ -56,6 +57,6 @@ export async function startWatching(
   }
 
   return () => {
-    unwatch?.();
+    unwatch();
   };
 }

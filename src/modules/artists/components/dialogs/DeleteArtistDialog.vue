@@ -71,7 +71,7 @@ const emit = defineEmits<{
 
 const isDeleting = ref(false);
 
-async function handleDelete() {
+function handleDelete() {
   isDeleting.value = true;
   emit("confirm");
 }

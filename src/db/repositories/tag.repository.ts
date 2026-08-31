@@ -1,7 +1,9 @@
 import { db } from "@/db";
 import type { TagEntity } from "@/db/entities";
-import { TagId, TrackId } from "@/types/ids";
-import { Result, ok, err } from "neverthrow";
+import type { TrackId } from "@/types/ids";
+import { TagId } from "@/types/ids";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 import { toDbError } from "@/db/errors/db.errors";
 
@@ -13,7 +15,7 @@ class TagRepository extends BaseRepository<TagEntity, TagId> {
   async findByTrackId(trackId: TrackId): Promise<Result<TagEntity[], Error>> {
     try {
       const track = await db.tracks.get(trackId);
-      if (!track || !track.tagIds || track.tagIds.length === 0) {
+      if (!track || track.tagIds.length === 0) {
         return ok([]);
       }
       const tags = await this.table.bulkGet(track.tagIds);

@@ -57,11 +57,11 @@ const { openMenu } = useTrackMenu();
 
 async function handlePlayTrack(index: number) {
   const tracks = topTracks.value.map(entry => entry.track);
-  const selectedTrack = tracks[index];
+  const selectedTrack = tracks[index] as Track | undefined;
   if (!selectedTrack) return;
 
   if (playerStore.currentTrack?.id === selectedTrack.id) {
-    playerStore.togglePlay();
+    await playerStore.togglePlay();
     return;
   }
 

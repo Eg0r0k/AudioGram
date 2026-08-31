@@ -3,6 +3,7 @@ import { watch } from "vue";
 import { useI18n } from "vue-i18n";
 import useTauriEvent from "@/composables/tauri/useTauriEvent";
 import { platformCaps } from "@/lib/environment/platformCaps";
+import { getLogger } from "@/lib/logger";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { usePlayerStore } from "../store/player.store";
@@ -83,17 +84,24 @@ export const useTaskbarThumbbar = () => {
   useTauriEvent<ThumbbarAction>(THUMBBAR_ACTION_EVENT, ({ payload }) => {
     switch (payload) {
       case "play-pause":
-        player.togglePlay();
+        player.togglePlay().catch(error => getLogger().error(`[Player] Toggling playback from the taskbar thumbbar failed: ${String(error)}`));
         break;
       case "next":
-        if (queue.hasNext) queue.next();
+        if (queue.hasNext) {
+          queue.next().catch(error => getLogger().error(`[Queue] Next from the taskbar thumbbar failed: ${String(error)}`));
+        }
         break;
       case "previous":
-        if (queue.hasPrevious) queue.previous();
+        if (queue.hasPrevious) {
+          queue.previous().catch(error => getLogger().error(`[Queue] Previous from the taskbar thumbbar failed: ${String(error)}`));
+        }
         break;
       case "like": {
         const track = player.currentTrack;
-        if (track && isLibraryTrack(track)) toggleTrackLike(track);
+        // mutateAsync rethrows; the user already sees the toast from onError.
+        if (track && isLibraryTrack(track)) {
+          toggleTrackLike(track).catch(error => getLogger().error(`[Player] Toggling like from the taskbar thumbbar failed: ${String(error)}`));
+        }
         break;
       }
     }

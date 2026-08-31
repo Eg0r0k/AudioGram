@@ -440,7 +440,7 @@ useEventListener(document, "touchend", onPointerUp);
 watch(
   () => props.modelValue,
   (newValue) => {
-    if (newValue !== undefined && newValue !== internalValue.value) {
+    if (newValue !== internalValue.value) {
       setProgress(newValue);
     }
   },

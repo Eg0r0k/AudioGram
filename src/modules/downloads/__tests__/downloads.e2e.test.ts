@@ -79,7 +79,7 @@ describe("downloads end-to-end", () => {
       okAsync({ path: `C:/tmp/downloads-tmp/${trackId.slice("nd:".length)}.flac`, format: { codec: "flac" } }));
 
     vi.resetModules();
-    const { enqueueCollectionDownload } = await import("../enqueue");
+    const { enqueueCollectionDownload } = await import("../service/enqueue");
     const { useDownloadsStore } = await import("../store/downloads.store");
 
     const batchId = await enqueueCollectionDownload("album", ndAlbumId("album1"));
@@ -105,7 +105,7 @@ describe("downloads end-to-end", () => {
       okAsync({ path: `C:/yt-cache/${trackId.slice("yt:".length)}.m4a` }));
 
     vi.resetModules();
-    const { downloadSubject } = await import("../enqueue");
+    const { downloadSubject } = await import("../service/enqueue");
 
     const dto: SourceTrackDTO = {
       id: ytTrackId("dQw4w9WgXcQ"),
@@ -134,7 +134,7 @@ describe("downloads end-to-end", () => {
       ResultAsync.fromPromise(new Promise(() => {}), e => e as SourceError));
 
     vi.resetModules();
-    const first = await import("../manager");
+    const first = await import("../service/manager");
     await first.enqueueTrackDownload(ndTrackId("s1"));
     await first.enqueueTrackDownload(ndTrackId("s2"));
     await first.enqueueTrackDownload(ndTrackId("s3"));
@@ -149,7 +149,7 @@ describe("downloads end-to-end", () => {
     providerMock.downloadToFile.mockImplementation((trackId: string) =>
       okAsync({ path: `C:/tmp/downloads-tmp/${trackId.slice("nd:".length)}.flac`, format: { codec: "flac" } }));
     vi.resetModules();
-    const second = await import("../manager");
+    const second = await import("../service/manager");
     await second.initDownloadManager();
 
     await vi.waitFor(async () => {

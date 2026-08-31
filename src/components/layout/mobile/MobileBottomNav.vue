@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { ROUTE_NAMES } from "@/app/router/route-names";
 import { routeLocation } from "@/app/router/route-locations";
 import { useSearch } from "@/modules/search/composables/useSearch";
+import { getLogger } from "@/lib/logger";
 
 import IconHome from "~icons/tabler/home";
 import IconHomeFilled from "~icons/tabler/home-filled";
@@ -87,8 +88,6 @@ interface NavItem {
 
 const isHomeRoute = () => route.name === ROUTE_NAMES.HOME;
 
-// Settings is reachable from the sidebar header menu, so the dock keeps to
-// the four destinations that are actually navigated between.
 const items: NavItem[] = [
   {
     key: "home",
@@ -96,7 +95,9 @@ const items: NavItem[] = [
     icon: IconHome,
     activeIcon: IconHomeFilled,
     active: () => isHomeRoute() && !isSearchOpen.value,
-    action: goHome,
+    action: () => {
+      goHome().catch(error => getLogger().error(`[Nav] Going home failed: ${String(error)}`));
+    },
   },
   {
     key: "search",
@@ -104,7 +105,9 @@ const items: NavItem[] = [
     icon: IconSearch,
     activeIcon: IconSearch,
     active: () => isHomeRoute() && isSearchOpen.value,
-    action: goToSearch,
+    action: () => {
+      goToSearch().catch(error => getLogger().error(`[Nav] Opening search failed: ${String(error)}`));
+    },
   },
   {
     key: "library",

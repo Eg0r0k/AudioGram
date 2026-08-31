@@ -79,8 +79,8 @@ export const useAudioSettingsStore = defineStore("audio-settings", () => {
 
   function applyPreset(presetName?: string) {
     const name = presetName ?? currentPreset.value;
+    if (!(name in EQ_PRESETS)) return;
     const preset = EQ_PRESETS[name as keyof typeof EQ_PRESETS];
-    if (!preset) return;
 
     currentPreset.value = name as EQPresetKey;
     preset.gains.forEach((gain, i) => {

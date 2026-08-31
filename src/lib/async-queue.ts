@@ -35,7 +35,9 @@ export class AsyncQueue<T> {
   }
 
   resume(): void {
-    if (!this.running) this.drain();
+    // The drain loop owns its own errors per item and settles on its own;
+    // resume() only kicks it off, so there is nothing here to wait for.
+    if (!this.running) this.drain().catch(() => {});
   }
 
   stop(): void {
@@ -49,13 +51,15 @@ export class AsyncQueue<T> {
   private async drain(): Promise<void> {
     this.running = true;
 
-    while (this.queue.length > 0 && this.running) {
+    while (this.queue.length > 0 && this.isRunning) {
       const item = this.queue.shift()!;
 
       if (this.options.useIdleCallback) {
         await new Promise<void>(resolve =>
           requestIdleCallback(
-            () => this.processor(item).then(resolve).catch(resolve),
+            () => {
+              this.processor(item).then(resolve).catch(resolve);
+            },
             { timeout: this.options.idleTimeout },
           ),
         );

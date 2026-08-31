@@ -29,13 +29,13 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
 }));
 vi.mock("vue-sonner", () => ({ toast: toastMock }));
 // The real finalizer needs native storage — these tests cover the loop only.
-vi.mock("../finalize", () => ({
+vi.mock("../service/finalize", () => ({
   finalizeOfflineCopy: vi.fn(async () => {}),
 }));
 
 import { db } from "@/db";
 
-type Manager = typeof import("../manager");
+type Manager = typeof import("../service/manager");
 
 /** downloadToFile result the test resolves/rejects by hand. */
 function deferredDownload() {
@@ -54,7 +54,7 @@ function deferredDownload() {
 
 async function freshManager(): Promise<Manager> {
   vi.resetModules();
-  return import("../manager");
+  return import("../service/manager");
 }
 
 describe("download manager", () => {

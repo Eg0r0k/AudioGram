@@ -74,7 +74,8 @@ import type { RouteLocationRaw } from "vue-router";
 import type { QueueSource } from "@/modules/queue/types";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";
 import { usePlayerStore } from "@/modules/player/store/player.store";
-import { CoverOwnerType } from "@/db/entities";
+import { getLogger } from "@/lib/logger";
+import type { CoverOwnerType } from "@/db/entities";
 import { computed } from "vue";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 
@@ -106,7 +107,8 @@ const { isActiveSource, isPlaying } = usePlaybackState(
 
 function handlePlay() {
   if (isActiveSource.value) {
-    playerStore.togglePlay();
+    playerStore.togglePlay()
+      .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
   }
   else {
     emit("play");

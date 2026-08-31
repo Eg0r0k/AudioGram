@@ -29,7 +29,7 @@ export function parseLrc(input: string): LyricsLine[] {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const offsetMatch = line.match(OFFSET_RE);
+    const offsetMatch = OFFSET_RE.exec(line);
     if (offsetMatch) {
       offsetSeconds = Number.parseInt(offsetMatch[1], 10) / 1000;
       continue;

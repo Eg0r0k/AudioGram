@@ -65,6 +65,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { getLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";
@@ -107,7 +108,8 @@ const source = computed<QueueSource>(() =>
 const { isActiveSource, isPlaying } = usePlaybackState(() => source.value);
 
 function handleClick() {
-  router.push(props.item.to);
+  router.push(props.item.to)
+    .catch(error => getLogger().error(`[Library] Opening ${props.item.type} ${props.item.id} failed: ${String(error)}`));
 }
 
 function handleContextMenu() {
@@ -116,7 +118,8 @@ function handleContextMenu() {
 
 function handlePlay() {
   if (isActiveSource.value) {
-    playerStore.togglePlay();
+    playerStore.togglePlay()
+      .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
     return;
   }
 

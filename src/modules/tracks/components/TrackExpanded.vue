@@ -219,10 +219,11 @@ import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackL
 import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { useQuery } from "@tanstack/vue-query";
-import type { TrackId } from "@/types/ids";
+import type { ArtistId, TrackId } from "@/types/ids";
 import { useI18n } from "vue-i18n";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
+import { getLogger } from "@/lib/logger";
 import IconCheck from "~icons/tabler/check";
 import IconDots from "~icons/tabler/dots";
 import IconLike from "~icons/tabler/heart";
@@ -385,19 +386,20 @@ async function toggle() {
 function handleArtistClick(index: number) {
   if (props.artistRoutes) {
     const to = props.artistRoutes[index] ?? props.artistRoutes[0];
-    if (to) router.push(to);
+    if (to) router.push(to).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
     return;
   }
-  const artistId = props.track.artistIds?.[index] ?? props.track.artistIds?.[0];
-  if (artistId) router.push(routeLocation.artist(artistId));
+  const artistId = (props.track.artistIds[index] as ArtistId | undefined)
+    ?? props.track.artistIds[0];
+  if (artistId) router.push(routeLocation.artist(artistId)).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
 }
 
 function handleAlbumClick() {
   if (props.artistRoutes || props.albumRoute !== undefined) {
-    if (props.albumRoute) router.push(props.albumRoute);
+    if (props.albumRoute) router.push(props.albumRoute).catch(error => getLogger().error(`[Tracks] Navigation to the album page failed: ${String(error)}`));
     return;
   }
-  if (props.track.albumId) router.push(routeLocation.album(props.track.albumId));
+  if (props.track.albumId) router.push(routeLocation.album(props.track.albumId)).catch(error => getLogger().error(`[Tracks] Navigation to the album page failed: ${String(error)}`));
 }
 </script>
 

@@ -141,8 +141,19 @@ function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
 
   const options = parseBinding(binding);
 
+  const releaseWave = () => {
+    const ripple = el._ripple;
+    if (!ripple || ripple.currentWaveId === undefined) return;
+
+    const wave = ripple.waves.get(ripple.currentWaveId);
+    if (!wave || wave.released) return;
+
+    wave.released = true;
+    scheduleHide(el, ripple.currentWaveId);
+  };
+
   const handlers = {
-    pointerdown(e: PointerEvent) {
+    pointerdown: (e: PointerEvent) => {
       // Middle click
       if (e.button === 1) return;
       const ripple = el._ripple;
@@ -175,24 +186,9 @@ function setupRipple(el: RippleHTMLElement, binding: DirectiveBinding): void {
       });
     },
 
-    pointerup() {
-      const ripple = el._ripple;
-      if (!ripple || ripple.currentWaveId === undefined) return;
-
-      const wave = ripple.waves.get(ripple.currentWaveId);
-      if (!wave || wave.released) return;
-
-      wave.released = true;
-      scheduleHide(el, ripple.currentWaveId);
-    },
-
-    pointercancel() {
-      handlers.pointerup();
-    },
-
-    pointerleave() {
-      handlers.pointerup();
-    },
+    pointerup: releaseWave,
+    pointercancel: releaseWave,
+    pointerleave: releaseWave,
   };
 
   el._ripple = {

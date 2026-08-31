@@ -16,7 +16,7 @@ const forwarded = useForwardPropsEmits(props, emits);
 // not: Vue casts an absent boolean prop to `false` rather than `undefined`, so
 // `props.open ?? emitted` pinned an uncontrolled menu to "closed" forever —
 // the scroll lock never engaged and nothing could tell the menu was open.
-const isOpen = ref(props.defaultOpen ?? false);
+const isOpen = ref(props.defaultOpen);
 useOverlayScrollLock(isOpen);
 // Android's hardware back must dismiss an open menu, and only surfaces that
 // register here are offered the press. Closing goes through reka's own Escape

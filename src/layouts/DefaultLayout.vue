@@ -39,6 +39,7 @@ import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import RightPanelHost from "@/modules/right-panel/components/RightPanelHost.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { panelBackDepth } from "@/modules/right-panel/lib/backChain";
+import { getLogger } from "@/lib/logger";
 
 useOverlayEscape();
 
@@ -53,7 +54,11 @@ const { importFiles } = useImport();
 const { isDragging } = useFileDrop({
   acceptedExtensions: [...ACCEPTED_AUDIO_EXTENSIONS],
   onDrop: (files) => {
-    importFiles(files);
+    // The import pipeline reports its own progress and failures in the UI; this
+    // only records a crash of the drop handler itself.
+    importFiles(files).catch((err: unknown) => {
+      getLogger().error(`[DefaultLayout] Importing dropped files failed: ${String(err)}`);
+    });
   },
 });
 

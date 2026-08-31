@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { computed, type HTMLAttributes } from "vue";
 import { cn } from "@/lib/utils";
 import { svgPathData } from "@/lib/svg";
+import { getLogger } from "@/lib/logger";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import playSvg from "@/assets/icons/play-rounded.svg?raw";
 import pauseSvg from "@/assets/icons/pause-rounded.svg?raw";
@@ -55,7 +56,8 @@ const canInteract = computed(() => !playerStore.showLoadingIndicator);
 
 const toggle = () => {
   if (isLoading.value) return;
-  playerStore.togglePlay();
+  playerStore.togglePlay()
+    .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
 };
 </script>
 

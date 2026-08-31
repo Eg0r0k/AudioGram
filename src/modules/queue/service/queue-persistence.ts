@@ -7,7 +7,7 @@ import { getLogger } from "@/lib/logger";
 import { migrateProxyUrl } from "@/lib/stream-url";
 import { ndPlaylistId, parseTrackRef } from "@/types/track-ref";
 import type { QueueItem, QueueSource, QueueState } from "../types";
-import { getItemsByOrder } from "./queue-order";
+import { getItemsByOrder } from "../lib/queue-order";
 
 export const QUEUE_STORAGE_KEY = "audiogram-queue-v1";
 const LEGACY_PLAYER_STORAGE_KEY = "lyra-player";
@@ -276,7 +276,10 @@ export const rehydratePersistedQueue = async (
 
   // currentItemId survives library deletions that shorten the restored
   // queue; the positional index is only a fallback for older v1 snapshots.
-  const restoredCurrentId = snapshot.currentItemId ?? snapshot.queue[snapshot.currentIndex]?.id ?? null;
+  const positionalItem = snapshot.currentIndex >= 0
+    ? snapshot.queue[snapshot.currentIndex] as PersistedQueueItem | undefined
+    : undefined;
+  const restoredCurrentId = snapshot.currentItemId ?? positionalItem?.id ?? null;
 
   return {
     items: restoredItems,

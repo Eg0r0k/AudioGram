@@ -131,7 +131,7 @@ const cssVariables = computed(() => {
 });
 
 const getOwnerWindow = (): Window => {
-  return containerRef.value?.ownerDocument?.defaultView ?? window;
+  return containerRef.value?.ownerDocument.defaultView ?? window;
 };
 
 const getOwnerDocument = (): Document => {
@@ -229,18 +229,21 @@ const handleVisibilityChange = () => {
   if (doc.visibilityState === "visible") {
     lastContainerSize.value = 0;
     lastContentSize.value = 0;
+    // Overflow measurement is cosmetic: a failed tick just leaves the previous
+    // geometry until the next resize or interval check re-measures.
     nextTick(() => {
       calculateOverflow();
-    });
+    }).catch(() => {});
   }
 };
 
 const handleWindowFocus = () => {
   lastContainerSize.value = 0;
   lastContentSize.value = 0;
+  // Same as above: the next resize or interval tick re-measures anyway.
   nextTick(() => {
     calculateOverflow();
-  });
+  }).catch(() => {});
 };
 
 useResizeObserver(containerRef, () => {
@@ -248,7 +251,7 @@ useResizeObserver(containerRef, () => {
 });
 
 useResizeObserver(contentRef, (entries) => {
-  const entry = entries[0];
+  const entry = entries[0] as ResizeObserverEntry | undefined;
   if (!entry) return;
 
   const newSize = props.vertical
@@ -260,16 +263,19 @@ useResizeObserver(contentRef, (entries) => {
 
     if (wasLarger) {
       forceReset.value = true;
+      // Cosmetic re-measure; the interval check picks the size up regardless.
       nextTick(() => {
         calculateOverflow();
         setTimeout(() => {
           forceReset.value = false;
         }, 50);
-      });
+      }).catch(() => {});
     }
     else {
-      resetAnimation();
-      debouncedCalculate();
+      // Both only restart the scroll animation and re-measure — nothing to
+      // report if a tick throws.
+      resetAnimation().catch(() => {});
+      debouncedCalculate().catch(() => {});
     }
   }
 });
@@ -284,6 +290,8 @@ watch(isOverflowing, (overflowing) => {
 });
 
 onMounted(() => {
+  // The component can be unmounted before this tick runs (marquee rows are
+  // virtualized); a rejected tick means there is no marquee left to set up.
   nextTick(() => {
     const doc = getOwnerDocument();
     const win = getOwnerWindow();
@@ -303,7 +311,7 @@ onMounted(() => {
       () => doc.removeEventListener("visibilitychange", handleVisibilityChange),
       () => win.removeEventListener("focus", handleWindowFocus),
     );
-  });
+  }).catch(() => {});
 });
 
 onUnmounted(() => {

@@ -80,7 +80,7 @@ export const useLibrary = () => {
     id: "liked",
     type: "liked",
     title: t("common.favorite"),
-    subtitle: t("common.trackCount", { count: likedTracks.value?.length ?? 0 }),
+    subtitle: t("common.trackCount", { count: likedTracks.value.length }),
     image: "/img/liked-fallback.svg",
     isPinned: true,
     isSystem: true,
@@ -289,18 +289,18 @@ export const useLibrary = () => {
 
   const createPlaylist = async () => {
     const playlist = await createPlaylistAndSync(queryClient, t("playlist.newPlaylist"));
-    router.push(routeLocation.playlist(playlist.id));
+    await router.push(routeLocation.playlist(playlist.id));
   };
 
   const createArtist = async () => {
     const artist = await createArtistAndSync(queryClient, t("artist.newArtist"));
-    router.push(routeLocation.artist(artist.id));
+    await router.push(routeLocation.artist(artist.id));
   };
 
   const createAlbum = async () => {
     const artist = await createArtistAndSync(queryClient, t("artist.newArtist"));
     const album = await createAlbumAndSync(queryClient, artist.id, t("album.newAlbum"));
-    router.push(routeLocation.album(album.id));
+    await router.push(routeLocation.album(album.id));
   };
 
   const createFolder = async (name = t("library.folder.newFolder")) => {
@@ -357,11 +357,11 @@ export const useLibrary = () => {
   };
 
   const deleteItem = async (item: LibraryItem) => {
-    if (item.type === "liked" || item.type === "allMedia") return;
+    if (item.type !== "artist" && item.type !== "album" && item.type !== "playlist") return;
 
     const result = await summonDialog<DeleteConfirmResult>(DeleteConfirmDialog, {
       data: {
-        type: item.type as "artist" | "album" | "playlist",
+        type: item.type,
         id: item.id as AlbumId | ArtistId | PlaylistId,
         name: item.title,
         trackCount: item.trackCount ?? 0,

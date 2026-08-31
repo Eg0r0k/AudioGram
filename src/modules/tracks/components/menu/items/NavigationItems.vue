@@ -66,7 +66,7 @@ import IconUsers from "~icons/tabler/users";
 import IconLoader2 from "~icons/tabler/loader-2";
 import type { ArtistId } from "@/types/ids";
 import type { ArtistEntity } from "@/db/entities";
-import { db } from "@/db";
+import { getArtistsByIds } from "@/queries/artist.queries";
 
 defineOptions({
   inheritAttrs: false,
@@ -88,24 +88,19 @@ const artists = shallowRef<ArtistEntity[]>([]);
 const isLoading = shallowRef(false);
 let hasLoaded = false;
 
-// Артисты нужны только внутри сабменю «К исполнителям» — грузим их при первом
-// его открытии, а не при каждом показе меню.
 async function onSubOpenChange(open: boolean) {
   if (!open || hasLoaded) return;
   hasLoaded = true;
   isLoading.value = true;
 
   const requestedIds = props.artistIds;
-  const result = await db.artists.bulkGet(requestedIds);
-  // Пока грузили, меню могли переоткрыть на другом треке — результат устарел.
+  const result = await getArtistsByIds(requestedIds);
   if (requestedIds !== props.artistIds) return;
 
-  artists.value = result.filter((a): a is ArtistEntity => !!a);
+  artists.value = result;
   isLoading.value = false;
 }
 
-// Контент меню не размонтируется при смене трека под открытым меню —
-// сбрасываем загруженное под новый набор артистов.
 watch(() => props.artistIds, () => {
   hasLoaded = false;
   isLoading.value = false;

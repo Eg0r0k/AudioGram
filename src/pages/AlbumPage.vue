@@ -143,6 +143,7 @@ import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useTrackSelection } from "@/modules/tracks/composables/useTrackSelection";
+import { getLogger } from "@/lib/logger";
 
 interface AlbumChanges {
   title?: string;
@@ -217,7 +218,11 @@ function openAddTracksPanel() {
 
 function handleLoadMore() {
   if (!hasNextPage.value || isFetchingNextPage.value) return;
-  fetchNextPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more album tracks.
+  fetchNextPage().catch((err: unknown) => {
+    getLogger().warn(`[AlbumPage] Loading the next album tracks page failed: ${String(err)}`);
+  });
 }
 
 function handleContextMenu(track: Track, index: number) {
@@ -243,7 +248,7 @@ const {
   loadAll: async () => {
     const row = album.value;
     if (!row) return [];
-    return (await getAlbumPageData(row.id, sortKey.value))?.tracks ?? [];
+    return (await getAlbumPageData(row.id, sortKey.value)).tracks;
   },
 });
 
@@ -286,7 +291,7 @@ const scrollableRef = useTemplateRef("scrollableRef");
 // Declared after the page state it reads: the hook evaluates `ready`
 // immediately, so placing this any earlier hits the temporal dead zone.
 useScrollRestoration(scrollableRef, {
-  key: () => `album:${route.params.id}`,
+  key: () => `album:${String(route.params.id)}`,
   ready: () => !isLoading.value,
   deps: () => tracks.value.length,
 });

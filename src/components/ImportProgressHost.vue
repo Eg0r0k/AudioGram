@@ -275,6 +275,7 @@ import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue"
 import { routeLocation } from "@/app/router/route-locations";
 import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import { usePlayerStore } from "@/modules/player";
+import { getLogger } from "@/lib/logger";
 import IconCheck from "~icons/tabler/check";
 import IconMinus from "~icons/tabler/minus";
 import IconLoader2 from "~icons/tabler/loader-2";
@@ -435,8 +436,8 @@ function continueImport() {
   resumeImport();
 }
 
-async function confirmCancelImport() {
-  await cancelImport();
+function confirmCancelImport() {
+  cancelImport();
   isCancelDialogOpen.value = false;
   handleClose();
 }
@@ -449,7 +450,8 @@ function handleClose() {
 function goToLibrary() {
   closeSheet();
   reset();
-  router.push(routeLocation.allMusic());
+  router.push(routeLocation.allMusic())
+    .catch(error => getLogger().error(`[ImportProgress] Navigation to library failed: ${String(error)}`));
 }
 </script>
 

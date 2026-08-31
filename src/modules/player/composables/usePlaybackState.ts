@@ -8,7 +8,7 @@ export function usePlaybackState(source: () => QueueSource) {
   const queueStore = useQueueStore();
 
   const isActiveSource = computed(() => {
-    const current = queueStore.queue[queueStore.currentIndex.valueOf()]?.source;
+    const current = queueStore.queue[queueStore.currentIndex.valueOf()]?.source as QueueSource | undefined;
     if (!current) return false;
 
     return isSameQueueSource(current, source());

@@ -55,6 +55,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Scrollable } from "@/components/ui/scrollable";
+import { getLogger } from "@/lib/logger";
 import { searchResultRoute } from "../lib/resultItems";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import type { Track } from "@/modules/player/types";
@@ -104,7 +105,7 @@ const hasResults = computed(() => {
 const filteredResults = computed<SearchResultItem[]>(() =>
   (activeFilter.value === "all"
     ? results.top.value
-    : results.groups.value[activeFilter.value] ?? []),
+    : results.groups.value[activeFilter.value]),
 );
 
 // Results of searching a source open that source's view of the entity, even
@@ -121,12 +122,12 @@ function navigate(item: SearchResultItem) {
     // Picking a track result plays that one track; the row is already
     // loaded, so there is nothing left to fetch.
     const track = results.trackRows.value.find(row => row.id === item.entityId);
-    if (track) playTracks([track], 0);
+    if (track) playTracks([track], 0).catch(error => getLogger().error(`[Search] Playing a track result failed: ${String(error)}`));
     return;
   }
 
   const to = searchResultRoute(item, intent.value);
-  if (to) router.push(to);
+  if (to) router.push(to).catch(error => getLogger().error(`[Search] Navigation to a result failed: ${String(error)}`));
 }
 
 async function playTracks(tracks: Track[], index: number) {

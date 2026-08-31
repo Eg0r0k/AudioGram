@@ -50,8 +50,9 @@ import IconShuffle from "~icons/tabler/arrows-shuffle";
 
 import type { QueueSource } from "@/modules/queue/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
+import { getLogger } from "@/lib/logger";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";
-import { MediaType } from "@/modules/media-hero/types";
+import type { MediaType } from "@/modules/media-hero/types";
 import { Button } from "@/components/ui/button";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 
@@ -76,7 +77,8 @@ const showPauseIcon = computed(() => isActiveSource.value && (isPlaying.value ||
 
 function handlePlay() {
   if (isActiveSource.value) {
-    playerStore.togglePlay();
+    playerStore.togglePlay()
+      .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
   }
   else {
     emit("play");

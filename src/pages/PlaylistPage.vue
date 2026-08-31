@@ -134,7 +134,8 @@ import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.stor
 import TrackContextMenu from "@/modules/tracks/components/menu/context-menu/TrackContextMenu.vue";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import IconLoader2 from "~icons/tabler/loader-2";
-import { PlaylistChanges, usePlaylistPage } from "@/modules/playlist/composables/usePlaylistPage";
+import type { PlaylistChanges } from "@/modules/playlist/composables/usePlaylistPage";
+import { usePlaylistPage } from "@/modules/playlist/composables/usePlaylistPage";
 import EditPlaylistDialog from "@/modules/playlist/components/dialogs/EditPlaylistDialog.vue";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
@@ -148,6 +149,7 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
+import { getLogger } from "@/lib/logger";
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
@@ -199,7 +201,11 @@ function openAddTracksPanel() {
 
 function handleLoadMore() {
   if (!hasNextPage.value || isFetchingNextPage.value) return;
-  fetchNextPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more playlist tracks.
+  fetchNextPage().catch((err: unknown) => {
+    getLogger().warn(`[PlaylistPage] Loading the next playlist tracks page failed: ${String(err)}`);
+  });
 }
 
 function handleContextMenu(track: Track, index: number) {
@@ -270,7 +276,7 @@ const scrollableRef = useTemplateRef("scrollableRef");
 // Declared after the page state it reads: the hook evaluates `ready`
 // immediately, so placing this any earlier hits the temporal dead zone.
 useScrollRestoration(scrollableRef, {
-  key: () => `playlist:${route.params.id}`,
+  key: () => `playlist:${String(route.params.id)}`,
   ready: () => !isLoading.value,
   deps: () => tracks.value.length,
 });

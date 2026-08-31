@@ -72,6 +72,7 @@ import IconPlay from "~icons/audiogram/play-rounded";
 import IconPause from "~icons/audiogram/pause-rounded";
 import type { QueueSource } from "@/modules/queue/types";
 import { usePlayerStore } from "@/modules/player/store/player.store";
+import { getLogger } from "@/lib/logger";
 import { usePlaybackState } from "@/modules/player/composables/usePlaybackState";
 
 import { useGoBack } from "@/composables/useGoBack";
@@ -100,7 +101,8 @@ const showPauseIcon = computed(() => isEntityActive.value && (isPlaying.value ||
 
 const handlePlay = () => {
   if (isEntityActive.value) {
-    playerStore.togglePlay();
+    playerStore.togglePlay()
+      .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
     return;
   }
   emit("play");

@@ -318,7 +318,7 @@ const track = computed<Track | null>(() => {
   return isLibraryTrack(props.payload.track) ? props.payload.track : null;
 });
 
-const artistChips = computed(() => artists.value ?? []);
+const artistChips = computed(() => artists.value);
 
 const artistsError = computed<string | undefined>(() => {
   const fieldErrors = errors.value as Record<string, string | undefined>;
@@ -341,7 +341,7 @@ const toOptionalNumber = (value: string | number): number | undefined => {
 };
 
 const titleInput = computed<string | number>({
-  get: () => title.value ?? "",
+  get: () => title.value,
   set: (value) => {
     title.value = String(value);
   },
@@ -386,10 +386,10 @@ const applyDraft = (source: TrackEditDraft): void => {
 };
 
 const draftValues = computed(() => ({
-  title: title.value ?? "",
-  artists: [...(artists.value ?? [])],
+  title: title.value,
+  artists: [...artists.value],
   albumId: albumId.value,
-  albumLabel: albumLabel.value ?? "",
+  albumLabel: albumLabel.value,
   newAlbumTitle: newAlbumTitle.value,
   trackNo: trackNo.value ?? null,
   diskNo: diskNo.value ?? null,
@@ -425,7 +425,7 @@ const hasChanges = computed(() => {
   const source = track.value;
   if (!source) return false;
 
-  return (title.value?.trim() ?? "") !== source.title
+  return title.value.trim() !== source.title
     || artistChips.value.join("\n") !== splitArtistNames(source.artist).join("\n")
     || albumId.value !== (source.albumId || null)
     || newAlbumTitle.value !== null

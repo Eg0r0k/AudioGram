@@ -1,4 +1,4 @@
-import { AccentColor } from "./schema/appearance";
+import type { AccentColor } from "./schema/appearance";
 
 export interface AccentColorOption {
   value: AccentColor;

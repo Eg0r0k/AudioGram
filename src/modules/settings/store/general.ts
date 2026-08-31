@@ -2,7 +2,8 @@ import { computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useNavigatorLanguage } from "@vueuse/core";
 import { useSettingsStore } from "../store";
-import { GeneralSettings, SupportedLanguage, SUPPORTED_LANGUAGES } from "../schema";
+import type { GeneralSettings, SupportedLanguage } from "../schema";
+import { SUPPORTED_LANGUAGES } from "../schema";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { TAURI_ONLY_KEYS } from "../schema/general";
 import { DEFAULT_LOCALE, isSupportedLocale, setHtmlLangAttribute } from "@/app/i18n/utils";
@@ -95,7 +96,10 @@ export const useGeneralSettings = () => {
     result.match(
       () => store.updateGeneral({ launchAtStartup: value }),
       (err) => {
-        const cause = err.cause ? ` (${String(err.cause)})` : "";
+        let causeText = "";
+        if (typeof err.cause === "string") causeText = err.cause;
+        else if (err.cause instanceof Error) causeText = err.cause.message;
+        const cause = causeText ? ` (${causeText})` : "";
         getLogger().error(`[autostart] ${value ? "enable" : "disable"} failed: ${err.message}${cause}`);
       },
     );

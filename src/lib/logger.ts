@@ -4,6 +4,7 @@ import {
   debug,
   error,
   info,
+  LogLevel,
   trace,
   warn,
 } from "@tauri-apps/plugin-log";
@@ -26,12 +27,19 @@ const LEVEL_STYLES: Record<string, string> = {
   error: "color: #ef4444; font-weight: 600", // red
 };
 
+/**
+ * Fire-and-forget by contract. The Tauri transport is async underneath, but
+ * a log line is never something a caller waits on or recovers from, and a
+ * promise-shaped logger would make every one of the ~80 call sites in the app
+ * a floating promise. The transport's promise is swallowed in
+ * `createTauriLogger` instead.
+ */
 export interface AppLogger {
-  trace: (msg: string) => Promise<void>;
-  debug: (msg: string) => Promise<void>;
-  info: (msg: string) => Promise<void>;
-  warn: (msg: string) => Promise<void>;
-  error: (msg: string) => Promise<void>;
+  trace: (msg: string) => void;
+  debug: (msg: string) => void;
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string) => void;
 }
 
 export type LogError
@@ -63,7 +71,8 @@ export async function initLogging(): Promise<AppLogger> {
 
   _detachConsole = await attachConsole();
   await initConsoleTransport();
-  cleanup().match(() => undefined, () => undefined);
+  // Housekeeping: deleting stale log files must not hold up startup.
+  cleanup().match(() => undefined, () => undefined).catch(() => undefined);
 
   _logger = createTauriLogger();
   return _logger;
@@ -162,8 +171,8 @@ function readLatestLogFile(): ResultAsync<string, LogError> {
     )
     .andThen(({ logDir, entries }) => {
       const logFiles = entries
-        .filter(e => e.name?.endsWith(".log"))
-        .sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
+        .filter(e => e.name.endsWith(".log"))
+        .sort((a, b) => b.name.localeCompare(a.name));
 
       if (logFiles.length === 0) return okAsync("");
 
@@ -191,7 +200,7 @@ function listLogFiles(logDir: string): ResultAsync<string[], LogError> {
     (e): LogError => ({ type: "FS_READ", reason: String(e) }),
   ).map(entries =>
     entries
-      .filter(e => e.name?.endsWith(".log"))
+      .filter(e => e.name.endsWith(".log"))
       .map(e => `${logDir}/${e.name}`),
   );
 }
@@ -222,19 +231,21 @@ function cleanup(): ResultAsync<void, LogError> {
 }
 
 async function initConsoleTransport(): Promise<void> {
+  // LogLevel is Trace=1 … Error=5. Matching on bare numbers had the mapping
+  // backwards, so Rust-side errors printed through console.trace and traces
+  // through console.error.
   await attachLogger(({ level, message }) => {
-    const lvl = level as 1 | 2 | 3 | 4 | 5;
     try {
-      switch (lvl) {
-        case 1: console.error(message);
+      switch (level) {
+        case LogLevel.Error: console.error(message);
           break;
-        case 2: console.warn(message);
+        case LogLevel.Warn: console.warn(message);
           break;
-        case 3: console.info(message);
+        case LogLevel.Info: console.info(message);
           break;
-        case 4: console.debug(message);
+        case LogLevel.Debug: console.debug(message);
           break;
-        case 5: console.trace(message);
+        case LogLevel.Trace: console.trace(message);
           break;
       }
     }
@@ -249,7 +260,7 @@ function isBrokenPipe(err: unknown): boolean {
     typeof err === "object"
     && err !== null
     && "code" in err
-    && (err as { code: unknown }).code === "EPIPE"
+    && (err).code === "EPIPE"
   );
 }
 
@@ -265,7 +276,19 @@ function bufferWebLine(line: string): void {
 }
 
 function createTauriLogger(): AppLogger {
-  return { trace, debug, info, warn, error };
+  // A failed log write is not something the caller can act on — and it must
+  // not surface as an unhandled rejection either.
+  const send = (write: (msg: string) => Promise<void>) => (msg: string): void => {
+    write(msg).catch(() => {});
+  };
+
+  return {
+    trace: send(trace),
+    debug: send(debug),
+    info: send(info),
+    warn: send(warn),
+    error: send(error),
+  };
 }
 
 function createWebLogger(): AppLogger {
@@ -276,16 +299,16 @@ function createWebLogger(): AppLogger {
     bufferWebLine(`${formatISOTimestamp()} ${label} ${msg}`);
   }
 
+  const webLevel = (level: string, consoleFn: (...a: unknown[]) => void) =>
+    (msg: string): void => {
+      log(level, msg, consoleFn);
+    };
+
   return {
-
-    trace: async msg => log("trace", msg, console.trace.bind(console)),
-
-    debug: async msg => log("debug", msg, console.debug.bind(console)),
-
-    info: async msg => log("info", msg, console.info.bind(console)),
-
-    warn: async msg => log("warn", msg, console.warn.bind(console)),
-
-    error: async msg => log("error", msg, console.error.bind(console)),
+    trace: webLevel("trace", console.trace.bind(console)),
+    debug: webLevel("debug", console.debug.bind(console)),
+    info: webLevel("info", console.info.bind(console)),
+    warn: webLevel("warn", console.warn.bind(console)),
+    error: webLevel("error", console.error.bind(console)),
   };
 }

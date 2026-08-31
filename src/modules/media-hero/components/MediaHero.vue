@@ -82,11 +82,12 @@ import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { useImageColor } from "@/composables/useImageColor";
 import { IS_TAURI } from "@/lib/environment/userAgent";
+import { getLogger } from "@/lib/logger";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import {
   enqueueCollectionDownload,
   enqueueLocalPlaylistDownload,
-} from "@/modules/downloads/enqueue";
+} from "@/modules/downloads/service/enqueue";
 import { sources } from "@/modules/sources";
 import { provideMediaContext } from "@/modules/media-hero/composables/useMediaContext";
 import MediaHeader from "./MediaHeader.vue";
@@ -95,7 +96,8 @@ import MediaContextMenu from "./menu/context-menu/MediaContextMenu.vue";
 import MediaHeroMeta from "./MediaHeroMeta.vue";
 import MediaHeroActions from "./MediaHeroActions.vue";
 import type { QueueSource } from "@/modules/queue/types";
-import { isAlbum, isArtist, isLiked, isPlaylist, MediaData } from "../types";
+import type { MediaData } from "../types";
+import { isAlbum, isArtist, isLiked, isPlaylist } from "../types";
 
 const props = withDefaults(defineProps<{
   data: MediaData;
@@ -180,7 +182,8 @@ provideMediaContext({
   canManage,
   canDownloadOffline,
   downloadOffline: () => {
-    startOfflineDownload();
+    startOfflineDownload()
+      .catch(error => getLogger().error(`[Downloads] Starting an offline download failed: ${String(error)}`));
   },
 });
 

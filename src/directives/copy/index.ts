@@ -1,4 +1,5 @@
 import type { Directive, DirectiveBinding } from "vue";
+import { getLogger } from "@/lib/logger";
 
 export interface CopyOptions {
   text?: string;
@@ -6,7 +7,7 @@ export interface CopyOptions {
   onError?: (err: unknown) => void;
 }
 
-type CopyValue = string | CopyOptions;
+type CopyValue = string | CopyOptions | undefined;
 
 const handlerMap = new WeakMap<HTMLElement, () => void>();
 
@@ -14,7 +15,7 @@ function createHandler(el: HTMLElement, binding: DirectiveBinding<CopyValue>) {
   return () => {
     const text = getText(el, binding.value);
     if (!text) return;
-    copy(text, binding);
+    copy(text, binding).catch(err => getLogger().error(`[vCopy] Copy failed: ${String(err)}`));
   };
 }
 
@@ -48,7 +49,7 @@ function resolveOptions(value: CopyValue): CopyOptions {
 
 function getText(el: HTMLElement, value: CopyValue): string {
   const opts = resolveOptions(value);
-  return opts.text ?? el.textContent?.trim() ?? "";
+  return opts.text ?? el.textContent.trim();
 }
 
 export const vCopy: Directive<HTMLElement, CopyValue> = {

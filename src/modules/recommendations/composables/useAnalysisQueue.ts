@@ -1,8 +1,11 @@
 import { computed, readonly, ref } from "vue";
 import { tryOnScopeDispose } from "@vueuse/core";
-import { audioFeaturesRepository, CURRENT_ALGORITHM_VERSION } from "@/db/repositories/audioFeatures.repository";
-import { trackRepository } from "@/db/repositories";
 import { storageService } from "@/db/storage";
+import {
+  getAnalysisSourcePath,
+  getUnanalyzedTrackIds,
+  saveAnalyzedFeatures,
+} from "../service/analysis-features.service";
 import type { TrackId } from "@/types/ids";
 import type { AnalysisRequest, AnalysisResponse } from "../workers/types";
 import EssentiaWorker from "../workers/essentia.worker?worker";
@@ -25,12 +28,7 @@ function handleWorkerMessage(e: MessageEvent<AnalysisResponse>): void {
   pending.delete(requestId);
 
   if (e.data.success) {
-    audioFeaturesRepository.upsert({
-      trackId,
-      ...e.data.features,
-      analyzedAt: Date.now(),
-      algorithmVersion: CURRENT_ALGORITHM_VERSION,
-    })
+    saveAnalyzedFeatures(trackId, e.data.features)
       .then(() => p.resolve())
       .catch(p.reject);
   }
@@ -54,10 +52,10 @@ function getWorker(): Worker {
 }
 
 async function analyzeTrack(trackId: TrackId): Promise<void> {
-  const trackResult = await trackRepository.findById(trackId);
-  if (trackResult.isErr() || !trackResult.value?.storagePath) return;
+  const storagePath = await getAnalysisSourcePath(trackId);
+  if (!storagePath) return;
 
-  const fileResult = await storageService.getFile(trackResult.value.storagePath);
+  const fileResult = await storageService.getFile(storagePath);
   if (fileResult.isErr()) return;
 
   const buffer = await fileResult.value.arrayBuffer();
@@ -76,6 +74,7 @@ export function useAnalysisQueue() {
   const processedCount = ref(0);
   const currentTrackId = ref<TrackId | null>(null);
   let isRunning = false;
+  const stillRunning = () => isRunning;
 
   const queue = new AsyncQueue<TrackId>(
     async (trackId) => {
@@ -95,10 +94,9 @@ export function useAnalysisQueue() {
     if (isRunning) return;
     isRunning = true;
     try {
-      const unanalyzedResult = await audioFeaturesRepository.findUnanalyzedIds();
-      if (unanalyzedResult.isErr()) return;
-      if (!isRunning) return;
-      queue.append(unanalyzedResult.value);
+      const unanalyzed = await getUnanalyzedTrackIds();
+      if (!stillRunning()) return;
+      queue.append(unanalyzed);
     }
     finally {
       isRunning = false;

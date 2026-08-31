@@ -27,7 +27,7 @@ import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCloseBr
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { AlbumId, PlaylistId } from "@/types/ids";
 import { contextMenuTrackComponents, provideTrackMenuComponents } from "../useTrackMenuComponents";
-import { TrackContext } from "../type";
+import type { TrackContext } from "../type";
 import { trackContextComponents } from "../contexts";
 import { useTrackContextActions } from "@/modules/tracks/composables/useTrackContextActions";
 import { useTrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";

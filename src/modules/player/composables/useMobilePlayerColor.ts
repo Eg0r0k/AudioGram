@@ -1,5 +1,5 @@
 import { computed, watch, ref, type Ref } from "vue";
-import { usePlayerStore } from "@/modules/player/store/player.store";
+import { useCurrentPlayerTrack } from "@/modules/player/composables/useCurrentPlayerTrack";
 import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { getColorFromImage, type ColorResult } from "@/composables/useImageColor";
 
@@ -11,17 +11,14 @@ const defaultFallback: ColorResult = {
 };
 
 export function useMobilePlayerColor() {
-  const playerStore = usePlayerStore();
-
-  const libraryTrack = computed(() => {
-    const track = playerStore.currentTrack;
-    return track?.kind === "library" ? track : null;
-  });
+  const { currentTrack, libraryTrack } = useCurrentPlayerTrack();
 
   const { url: coverBlobUrl } = useTrackCover(libraryTrack);
 
+  // Unlike useCurrentTrackCover this one has no fallback image: with no cover
+  // to sample, the colour stays the neutral default below.
   const coverUrl = computed(() => {
-    const track = playerStore.currentTrack;
+    const track = currentTrack.value;
     if (!track) return undefined;
     if (track.kind === "ephemeral") return track.cover;
     return coverBlobUrl.value ?? undefined;

@@ -161,10 +161,10 @@ const typeLabels = computed<Record<FolderLibraryItemType, string>>(() => ({
   playlist: t("library.filterPlaylists"),
 }));
 const chips = computed(() => [
-  { value: "all" as FolderPickerFilter, label: t("library.filterAll"), count: items.value.length },
+  { value: "all", label: t("library.filterAll"), count: items.value.length },
   ...TYPE_ORDER
     .filter(type => counts.value[type] > 0)
-    .map(type => ({ value: type as FolderPickerFilter, label: typeLabels.value[type], count: counts.value[type] })),
+    .map(type => ({ value: type, label: typeLabels.value[type], count: counts.value[type] })),
 ]);
 watch(chips, (next) => {
   if (!next.some(chip => chip.value === filter.value)) filter.value = "all";

@@ -96,7 +96,7 @@ const props = defineProps<{ data: DailyActivityPoint[] }>();
 const monthLabelHeight = 20;
 const dayLabelWidth = 30;
 
-const scrollableRef = ref<InstanceType<typeof Scrollable> | null>(null);
+const scrollableRef = ref<{ scrollToEnd: (behavior?: ScrollBehavior) => void } | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
 const { width: containerWidth } = useElementBounding(containerRef);
 
@@ -126,7 +126,7 @@ const monthLabels = computed(() => {
   let lastMonth = -1;
   const formatter = new Intl.DateTimeFormat(locale.value, { month: "short" });
   weeks.value.forEach((week, weekIndex) => {
-    const first = week[0];
+    const first = week[0] as (typeof week)[number] | undefined;
     if (!first) return;
     const firstDate = new Date(`${first.date}T00:00:00`);
     const month = firstDate.getMonth();

@@ -3,7 +3,7 @@ import { defineComponent, h, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { useUpdateScheduler } from "../composables/useUpdateScheduler";
 
-const mockCheck = vi.hoisted(() => vi.fn());
+const mockCheck = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("../store/update.store", () => ({
   useUpdateStore: () => ({ check: mockCheck }),

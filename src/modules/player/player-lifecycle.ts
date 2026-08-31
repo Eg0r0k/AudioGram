@@ -9,10 +9,9 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { playbackStalledEvent, trackSkippedEvent } from "@/modules/queue/lib/queue-events";
 import { isLibraryTrack } from "./types";
 import { trackChangedEvent, trackEndedEvent } from "./lib/player-events";
-import { initNextTrackPrefetch } from "./lib/prefetch-next";
+import { initNextTrackPrefetch } from "./service/prefetch-next";
 import { statsService } from "@/services/stats.service";
 import { getLogger } from "@/lib/logger";
-import type { TrackId } from "@/types/ids";
 
 /**
  * Cross-domain reactions to player lifecycle events, in one place and in an
@@ -25,11 +24,12 @@ import type { TrackId } from "@/types/ids";
  */
 export function initPlayerLifecycle(): void {
   useEventBus(trackChangedEvent).on((track) => {
-    useLyricsStore().loadFor(track);
+    useLyricsStore().loadFor(track)
+      .catch(error => getLogger().error(`[Lyrics] Loading lyrics failed: ${String(error)}`));
 
     if (!track || !isLibraryTrack(track)) return;
     statsService.startListening(
-      track.id as TrackId,
+      track.id,
       track.artistIds[0],
       track.albumId,
       track.duration,
@@ -48,7 +48,10 @@ export function initPlayerLifecycle(): void {
       player.sleepAfterCurrentTrack = false;
     }
 
-    useQueueStore().advance();
+    // Detached on purpose: the bus handler is synchronous. advance() knows it
+    // may finish late and bails when the user has claimed playback meanwhile.
+    useQueueStore().advance()
+      .catch(error => getLogger().error(`[Queue] Advancing after the track ended failed: ${String(error)}`));
   });
 
   // The queue decides whether to skip or stop; what the user sees is decided
@@ -76,8 +79,10 @@ export function initPlayerLifecycle(): void {
   // through trackChanged, so an already-started player is left alone. The
   // prefetch watcher observes queue/repeat state directly (not events), so
   // it also warms the restored queue and reacts to reorders and mode changes.
-  until(() => usePlayerStore().currentTrack).toBeTruthy().then((track) => {
-    if (usePlayerStore().status === "idle") useLyricsStore().loadFor(track);
-  });
+  until(() => usePlayerStore().currentTrack).toBeTruthy()
+    .then(async (track) => {
+      if (usePlayerStore().status === "idle") await useLyricsStore().loadFor(track);
+    })
+    .catch(error => getLogger().error(`[Lyrics] Loading lyrics for the restored track failed: ${String(error)}`));
   initNextTrackPrefetch();
 }

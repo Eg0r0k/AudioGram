@@ -32,6 +32,7 @@ import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { routeLocation } from "@/app/router/route-locations";
 import { useRouter } from "vue-router";
+import { getLogger } from "@/lib/logger";
 
 defineProps<{
   message: string;
@@ -44,7 +45,8 @@ defineEmits<{
 const { t } = useI18n();
 const router = useRouter();
 const goHome = () => {
-  router.push(routeLocation.home());
+  router.push(routeLocation.home())
+    .catch(error => getLogger().error(`[PageErrorState] Navigation home failed: ${String(error)}`));
 };
 
 </script>

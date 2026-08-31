@@ -37,6 +37,7 @@ import { svgToIcon } from "morphicons/adapters";
 import { Button } from "@/components/ui/button";
 import FloatingActionButton from "@/components/common/FloatingActionButton.vue";
 import { useUpdateStore } from "../store/update.store";
+import { getLogger } from "@/lib/logger";
 import downloadRaw from "~icons/tabler/download?raw";
 import loaderRaw from "~icons/tabler/loader-2?raw";
 import refreshAlertRaw from "~icons/tabler/refresh-alert?raw";
@@ -82,9 +83,9 @@ const label = computed(() => {
 
 function handleClick() {
   if (isError.value) {
-    store.check();
+    store.check().catch((error: unknown) => getLogger().error(`[Update] Check failed: ${String(error)}`));
     return;
   }
-  store.apply();
+  store.apply().catch((error: unknown) => getLogger().error(`[Update] Apply failed: ${String(error)}`));
 }
 </script>

@@ -5,10 +5,11 @@ import {
   computeFileFingerprint,
   computeFileFingerprintFromBlob,
 } from "./file-fingerprint";
-import { StorageError } from "@/db/errors/storage.errors";
+import type { StorageError } from "@/db/errors/storage.errors";
 import { extensionForAudioMimeType } from "@/lib/environment/mimeSupport";
-import { ResultAsync } from "neverthrow";
-import { ImportError, ImportItem } from "../types";
+import type { ResultAsync } from "neverthrow";
+import type { ImportItem } from "../types";
+import { ImportError } from "../types";
 import { HEAD_READ_SIZE, MAX_METADATA_READ } from "./constants";
 
 export function fileNameFromPath(path: string): string {

@@ -273,6 +273,7 @@ import { Button } from "@/components/ui/button";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import ActiveDownloads from "@/modules/downloads/components/ActiveDownloads.vue";
 import WatchedFoldersSection from "@/modules/watched-folders/components/WatchedFoldersSection.vue";
+import { getLogger } from "@/lib/logger";
 
 const {
   isLoading,
@@ -301,6 +302,10 @@ async function handleClearAllConfirm() {
 }
 
 onMounted(() => {
-  refresh();
+  // The panel renders its own loading/error state; the log only records WHY a
+  // storage-usage refresh never produced numbers.
+  refresh().catch((err: unknown) => {
+    getLogger().warn(`[StorageSettings] Refreshing storage usage failed: ${String(err)}`);
+  });
 });
 </script>

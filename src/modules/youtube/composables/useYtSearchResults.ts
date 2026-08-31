@@ -1,5 +1,6 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import { skipToken, useInfiniteQuery } from "@tanstack/vue-query";
+import { getLogger } from "@/lib/logger";
 import { queryKeys } from "@/queries/query-keys";
 import { SourceQueryError } from "@/queries/shared";
 import { useSourceSearchPages } from "@/modules/sources/composables/useSourceCatalog";
@@ -95,7 +96,13 @@ export const useYtSearchResults = (
     error: computed(() => active().error.value),
     fetchNextPage: () => {
       const query = active();
-      if (query.hasNextPage.value && !query.isFetchingNextPage.value) query.fetchNextPage();
+      // The query keeps its own error state for the UI; the log is what tells
+      // us WHY a scroll stopped loading more results.
+      if (query.hasNextPage.value && !query.isFetchingNextPage.value) {
+        query.fetchNextPage().catch((error: unknown) =>
+          getLogger().warn(`[YT] Loading the next search page failed: ${String(error)}`),
+        );
+      }
     },
   };
 };

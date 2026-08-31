@@ -108,7 +108,7 @@ interface VueCropperComponent {
 }
 
 interface FileSelectionError extends Error {
-  message: "CANCELLED" | "NO_FILE_SELECTED" | string;
+  message: string;
 }
 
 function isFileSelectionError(error: unknown): error is FileSelectionError {

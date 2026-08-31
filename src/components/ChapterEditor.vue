@@ -87,14 +87,14 @@ const linePattern = /^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?=[\s\-–])\s*(?:[-–]\s*
 
 /** Seconds encoded by a line that matches `linePattern`. */
 function timeOf(line: string): number {
-  const match = line.match(linePattern);
+  const match = linePattern.exec(line);
   if (!match) return Number.NaN;
   const hours = match[1] ? Number(match[1]) : 0;
   return hours * 3600 + Number(match[2]) * 60 + Number(match[3]);
 }
 
 function parseLine(line: string): { time: number; title: string } | null {
-  const match = line.match(linePattern);
+  const match = linePattern.exec(line);
   if (!match) return null;
   const time = timeOf(line);
   if (time > props.duration) return null;

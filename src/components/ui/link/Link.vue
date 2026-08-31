@@ -38,7 +38,8 @@
 
 <script setup lang="ts">
 import { useExternalLinkDialog } from "@/composables/dialog/useExternalLinkDialog";
-import { computed, HTMLAttributes } from "vue";
+import type { HTMLAttributes } from "vue";
+import { computed } from "vue";
 import { RouterLink, type RouteLocationRaw } from "vue-router";
 
 type TargetType = "_blank" | "_self" | "_parent" | "_top";
@@ -91,9 +92,11 @@ const isExternalLink = computed(() => {
   );
 });
 
+// A non-string `to` never renders through the external <a> branch
+// (isExternal requires a string), so there is no href to build for it.
 const normalizedHref = computed(() => {
   if (props.disabled) return undefined;
-  return typeof props.to === "string" ? props.to : String(props.to);
+  return typeof props.to === "string" ? props.to : undefined;
 });
 
 const handleExternalClick = (event: MouseEvent) => {
@@ -108,17 +111,7 @@ const handleExternalClick = (event: MouseEvent) => {
   }
 };
 
-const computedTarget = computed((): TargetType => {
-  if (props.target) return props.target;
-
-  if (typeof props.to === "string") {
-    if (props.to.startsWith("mailto:") || props.to.startsWith("tel:")) {
-      return "_self";
-    }
-  }
-
-  return "_blank";
-});
+const computedTarget = computed((): TargetType => props.target);
 
 const computedActiveClass = (isActive: boolean, isExactActive: boolean) => {
   const active = props.exactMatch ? isExactActive : isActive;

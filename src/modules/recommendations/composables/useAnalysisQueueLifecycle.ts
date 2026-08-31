@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted, watch } from "vue";
 import { useGeneralSettings } from "@/modules/settings/store/general";
+import { getLogger } from "@/lib/logger";
 import { useAnalysisQueue } from "./useAnalysisQueue";
 
 const STARTUP_DELAY_MS = 3000;
@@ -12,12 +13,14 @@ export const useAnalysisQueueLifecycle = () => {
 
   onMounted(() => {
     if (analyzeTracks.value) {
-      startupTimer = setTimeout(start, STARTUP_DELAY_MS);
+      startupTimer = setTimeout(() => {
+        start().catch(error => getLogger().error(`[Analysis] Starting the analysis queue failed: ${String(error)}`));
+      }, STARTUP_DELAY_MS);
     }
   });
 
   watch(analyzeTracks, (enabled) => {
-    if (enabled) start();
+    if (enabled) start().catch(error => getLogger().error(`[Analysis] Starting the analysis queue failed: ${String(error)}`));
     else stop();
   });
 

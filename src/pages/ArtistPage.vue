@@ -191,6 +191,7 @@ import { Button } from "@/components/ui/button";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useRoute, useRouter } from "vue-router";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
+import { getLogger } from "@/lib/logger";
 
 const { t } = useI18n();
 const playerStore = usePlayerStore();
@@ -252,7 +253,11 @@ function getTrackKey(index: number) {
 
 function handleTrackLoadMore() {
   if (!hasNextTrackPage.value || isFetchingNextTrackPage.value) return;
-  fetchNextTrackPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more artist tracks.
+  fetchNextTrackPage().catch((err: unknown) => {
+    getLogger().warn(`[ArtistPage] Loading the next artist tracks page failed: ${String(err)}`);
+  });
 }
 
 function handleContextMenu(track: Track, index: number) {
@@ -284,7 +289,7 @@ const {
   loadAll: async () => {
     const row = artist.value;
     if (!row) return [];
-    return (await getArtistPageData(row.id, sortKey.value))?.tracks ?? [];
+    return (await getArtistPageData(row.id, sortKey.value)).tracks;
   },
 });
 
@@ -339,7 +344,7 @@ const scrollableRef = useTemplateRef("scrollableRef");
 // Declared after the page state it reads: the hook evaluates `ready`
 // immediately, so placing this any earlier hits the temporal dead zone.
 useScrollRestoration(scrollableRef, {
-  key: () => `artist:${route.params.id}`,
+  key: () => `artist:${String(route.params.id)}`,
   ready: () => !isLoading.value,
   deps: () => tracks.value.length,
 });

@@ -5,7 +5,7 @@ import { IS_ANDROID } from "@/lib/environment/userAgent";
 // Optimisation for Andriod and phones
 const canAnimateThemeChange = (event?: MouseEvent): event is MouseEvent =>
   !!event
-  && !!document.startViewTransition
+  && typeof document.startViewTransition === "function"
   && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 type ThemeMode = "light" | "dark" | "system";

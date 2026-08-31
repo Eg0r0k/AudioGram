@@ -2,6 +2,7 @@ import { watch } from "vue";
 import { watchDebounced } from "@vueuse/core";
 import { useProxySettings } from "../store/proxy";
 import { applyProxy } from "../services/proxy";
+import { getLogger } from "@/lib/logger";
 import { queryClient } from "@/queries/client";
 import { invalidateRemoteSources } from "@/queries/source.queries";
 import { checkAvailableSources } from "@/modules/sources/composables/useSourceHealth";
@@ -37,8 +38,10 @@ export const useProxySync = () => {
   watchDebounced(
     proxyUrl,
     () => {
-      invalidateRemoteSources(queryClient);
-      checkAvailableSources();
+      invalidateRemoteSources(queryClient)
+        .catch(error => getLogger().error(`[Settings] Dropping the cached remote data failed: ${String(error)}`));
+      checkAvailableSources()
+        .catch(error => getLogger().error(`[Settings] Re-probing the configured sources failed: ${String(error)}`));
     },
     { debounce: INVALIDATE_DEBOUNCE_MS },
   );

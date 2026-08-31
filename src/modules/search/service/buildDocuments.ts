@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import type { AlbumEntity, ArtistEntity, PlaylistEntity, TrackEntity } from "@/db/entities";
-import type { SearchDocument } from "./types";
+import type { SearchDocument } from "../types";
 
 export function buildArtistDoc(artist: ArtistEntity): SearchDocument {
   return {
@@ -38,8 +38,8 @@ export function buildTrackDoc(
     id: `track:${track.id}`,
     type: "track",
     title: track.title,
-    artist: artists.length > 0 ? artists.map(a => a.name).join(", ") : track.artistName ?? "",
-    album: album?.title ?? track.albumTitle ?? "",
+    artist: artists.length > 0 ? artists.map(a => a.name).join(", ") : track.artistName,
+    album: album?.title ?? track.albumTitle,
     entityId: track.id,
     duration: track.duration,
   };
@@ -65,8 +65,8 @@ export async function buildTrackDocFromDb(track: TrackEntity): Promise<SearchDoc
     id: `track:${track.id}`,
     type: "track",
     title: track.title,
-    artist: artistEntities.length > 0 ? artistEntities.map(a => a.name).join(", ") : track.artistName ?? "",
-    album: album?.title ?? track.albumTitle ?? "",
+    artist: artistEntities.length > 0 ? artistEntities.map(a => a.name).join(", ") : track.artistName,
+    album: album?.title ?? track.albumTitle,
     entityId: track.id,
     duration: track.duration,
   };

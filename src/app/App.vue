@@ -33,7 +33,8 @@ import { useRoute } from "vue-router";
 import DefaultLayout from "@/layouts/DefaultLayout.vue";
 import BlankLayout from "@/layouts/BlankLayout.vue";
 import MobileLayout from "@/layouts/MobileLayout.vue";
-import { listenForOpenedFiles, OpenedFile } from "@/lib/files/fileOpener";
+import type { OpenedFile } from "@/lib/files/fileOpener";
+import { listenForOpenedFiles } from "@/lib/files/fileOpener";
 import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useSetupRootClasses } from "@/composables/useSetupRootClasses";
 import { usePreventPinchZoom } from "@/composables/usePreventPinchZoom";
@@ -105,7 +106,7 @@ let unlisten: (() => void) | null = null;
 const { init: initGeneral } = useGeneralSettings();
 
 onMounted(async () => {
-  initGeneral();
+  initGeneral().catch(error => log.error(`[App] General settings init failed: ${String(error)}`));
 
   if (IS_TAURI) {
     const [{ useTauriGlobalShortcuts }] = await Promise.all([
@@ -115,7 +116,7 @@ onMounted(async () => {
     useTauriGlobalShortcuts();
   }
 
-  unlisten = await listenForOpenedFiles(async (files: OpenedFile[]) => {
+  unlisten = await listenForOpenedFiles((files: OpenedFile[]) => {
     if (files.length === 0) return;
 
     const tracks = files.map(file =>
@@ -123,10 +124,11 @@ onMounted(async () => {
         title: file.name.replace(/\.[^.]+$/, ""),
       }),
     );
-    await queueStore.setQueue(tracks, 0, { type: "external" });
+    queueStore.setQueue(tracks, 0, { type: "external" })
+      .catch(error => log.error(`[App] Queueing opened files failed: ${String(error)}`));
   });
 
-  init();
+  init().catch(error => log.error(`[App] Watched folders init failed: ${String(error)}`));
 });
 onUnmounted(() => {
   unlisten?.();
@@ -160,7 +162,7 @@ watch(() => currentRoute.fullPath, (fullPath) => {
 });
 
 const stop = useEventListener(document, "click", () => {
-  playerStore.unlockAudio();
+  playerStore.unlockAudio().catch(error => log.error(`[App] Audio unlock on first click failed: ${String(error)}`));
   stop();
 });
 

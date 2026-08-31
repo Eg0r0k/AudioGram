@@ -1,5 +1,5 @@
-import { AudioFeaturesEntity } from "@/db/entities";
-import { TrackId } from "@/types/ids";
+import type { AudioFeaturesEntity } from "@/db/entities";
+import type { TrackId } from "@/types/ids";
 
 export interface AnalysisRequest {
   // UUID for pending responce

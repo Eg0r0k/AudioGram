@@ -1,4 +1,4 @@
-import { ImportControl } from "../types";
+import type { ImportControl } from "../types";
 
 /** Waits while the import is paused, then reports whether it was cancelled. */
 export async function isCancelled(control?: ImportControl): Promise<boolean> {

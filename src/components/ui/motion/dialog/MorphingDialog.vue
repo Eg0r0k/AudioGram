@@ -8,10 +8,11 @@
 
 <script lang="ts" setup>
 
+import type {
+  Transition } from "motion-v";
 import {
   LayoutGroup,
   MotionConfig,
-  Transition,
 } from "motion-v";
 import { useId, ref, provide, computed } from "vue";
 import { MorphingDialogKey } from "./context";

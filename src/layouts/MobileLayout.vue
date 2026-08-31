@@ -60,6 +60,7 @@ import MobileBottomNav from "@/components/layout/mobile/MobileBottomNav.vue";
 import MobileFullPlayer from "@/components/layout/mobile/MobileFullPlayer.vue";
 import MobileRightPanel from "@/modules/right-panel/components/MobileRightPanel.vue";
 import WindowToolbar from "@/components/WindowToolbar.vue";
+import { getLogger } from "@/lib/logger";
 
 const playerStore = usePlayerStore();
 const { color: playerColor } = useMobilePlayerColor();
@@ -98,7 +99,11 @@ const { importFiles } = useImport();
 const { isDragging } = useFileDrop({
   acceptedExtensions: [...ACCEPTED_AUDIO_EXTENSIONS],
   onDrop: (files) => {
-    importFiles(files);
+    // The import pipeline reports its own progress and failures in the UI; this
+    // only records a crash of the drop handler itself.
+    importFiles(files).catch((err: unknown) => {
+      getLogger().error(`[MobileLayout] Importing dropped files failed: ${String(err)}`);
+    });
   },
 });
 </script>

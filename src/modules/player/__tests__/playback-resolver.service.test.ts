@@ -14,7 +14,7 @@ vi.mock("@/db/storage", () => ({ storageService: storageMock }));
 vi.mock("@/db/repositories", () => ({ offlineCopyRepository: offlineCopyMock }));
 vi.mock("@/modules/sources", () => ({ sources: sourcesMock }));
 vi.mock("@/lib/environment/platformCaps", () => ({ platformCaps: platformMock }));
-vi.mock("@/modules/tracks/lib/ensurePinned", () => ({ ensurePinned: ensurePinnedMock }));
+vi.mock("@/modules/tracks/service/ensurePinned", () => ({ ensurePinned: ensurePinnedMock }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ warn: vi.fn(), error: vi.fn() }) }));
 
 import {

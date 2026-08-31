@@ -1,7 +1,7 @@
-import { BaseMetadata } from "@/workers/types";
+import type { BaseMetadata } from "@/workers/types";
 
 export const normalizeMetadata = (file: File, raw: BaseMetadata) => {
-  const artists = (raw.artists?.length ?? 0) > 0
+  const artists = raw.artists.length > 0
     ? raw.artists.filter((a): a is string => !!a && a.trim() !== "")
     : [extractArtistFromPath(file)].filter((a): a is string => !!a && a.trim() !== "");
   const title = sanitizeString(raw.title) || "Unknown Title";

@@ -21,7 +21,8 @@ import {
 import PIPContent from "./PIPContent.vue";
 import { usePictureInPicture } from "@/composables/usePictureInPicture";
 import IconPIPFilled from "~icons/tabler/picture-in-picture-filled";
-import { getActivePinia, Pinia } from "pinia";
+import type { Pinia } from "pinia";
+import { getActivePinia } from "pinia";
 import { i18n } from "@/app/i18n";
 
 const pinia = getActivePinia();

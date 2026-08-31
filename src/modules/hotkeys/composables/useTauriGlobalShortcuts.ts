@@ -3,6 +3,10 @@ import { usePlayerStore } from "@/modules/player";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { tryOnScopeDispose } from "@vueuse/core";
 
+const guarded = (label: string, action: () => Promise<unknown>) => () => {
+  action().catch((err: unknown) => console.warn(`[TauriShortcuts] ${label} failed:`, err));
+};
+
 export const useTauriGlobalShortcuts = () => {
   if (!IS_TAURI) return;
 
@@ -21,7 +25,7 @@ export const useTauriGlobalShortcuts = () => {
     const shortcuts: Array<{ key: string; handler: () => void }> = [
       {
         key: "MediaPlayPause",
-        handler: () => player.togglePlay(),
+        handler: guarded("togglePlay", () => player.togglePlay()),
       },
       {
         key: "MediaStop",
@@ -29,11 +33,11 @@ export const useTauriGlobalShortcuts = () => {
       },
       {
         key: "MediaTrackNext",
-        handler: () => queue.next(),
+        handler: guarded("next", () => queue.next()),
       },
       {
         key: "MediaTrackPrevious",
-        handler: () => queue.previous(),
+        handler: guarded("previous", () => queue.previous()),
       },
     ];
 
@@ -63,7 +67,8 @@ export const useTauriGlobalShortcuts = () => {
     console.warn("[TauriShortcuts] Plugin not available:", err);
   });
 
-  tryOnScopeDispose(async () => {
-    await cleanup?.();
+  // cleanup logs its own failures, so a rejection here has nothing to add.
+  tryOnScopeDispose(() => {
+    cleanup?.().catch(() => {});
   });
 };

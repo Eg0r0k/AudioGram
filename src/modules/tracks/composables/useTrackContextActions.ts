@@ -1,8 +1,9 @@
 import { isLibraryTrack, type PlayerTrack, type Track } from "@/modules/player/types";
 import type { ContextActions, TrackMenuSubject } from "@/modules/tracks/components/menu/type";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
+import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
-import { ArtistId, PlaylistId, QueueItemId, type TrackId } from "@/types/ids";
+import type { ArtistId, PlaylistId, QueueItemId, TrackId } from "@/types/ids";
+
 import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { getLogger } from "@/lib/logger";
@@ -18,13 +19,13 @@ import { routeLocation } from "@/app/router/route-locations";
 import { useAttachTrackLyrics } from "./useAttachTrackLyrics";
 import { useToggleTrackLike } from "./useToggleTrackLike";
 import { isRemoteTrack, trackHasLocalFile } from "@/modules/tracks/lib/trackPredicates";
-import { promoteTrackToLibrary, removeTrackFromLibrary } from "@/modules/tracks/lib/libraryMembership";
-import { downloadSubject } from "@/modules/downloads/enqueue";
-import { cancelTrackDownload } from "@/modules/downloads/manager";
-import { removeOfflineCopy as removeOfflineCopyFile } from "@/modules/downloads/removeCopy";
+import { promoteTrackToLibrary, removeTrackFromLibrary } from "@/modules/tracks/service/libraryMembership";
+import { downloadSubject } from "@/modules/downloads/service/enqueue";
+import { cancelTrackDownload } from "@/modules/downloads/service/manager";
+import { removeOfflineCopy as removeOfflineCopyFile } from "@/modules/downloads/service/removeCopy";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
 import { invalidateLibraryData } from "@/queries/library.queries";
-import { offlineCopyRepository } from "@/db/repositories";
+import { getOfflineCopy } from "@/queries/offlineCopy.queries";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { parseTrackRef } from "@/types/track-ref";
 import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
@@ -67,7 +68,8 @@ export const useTrackContextActions = (
     const existingId = toValue(options.queueItemId)
       ?? queueStore.queue.find(item => item.track.kind === current.kind && item.track.id === current.id)?.id;
     const itemId = existingId ?? queueStore.insertNext(current).id;
-    queueStore.jumpToId(itemId);
+    queueStore.jumpToId(itemId)
+      .catch(error => getLogger().error(`[Queue] Jumping to a queue item failed: ${String(error)}`));
   };
 
   const playNext = () => {
@@ -146,7 +148,8 @@ export const useTrackContextActions = (
   const removeFromQueue = () => {
     const queueItemId = toValue(options.queueItemId);
     if (!queueItemId) return;
-    queueStore.removeFromQueue(queueItemId);
+    queueStore.removeFromQueue(queueItemId)
+      .catch(error => getLogger().error(`[Queue] Removing a queue item failed: ${String(error)}`));
   };
 
   const removeFromPlaylist = async () => {
@@ -173,14 +176,14 @@ export const useTrackContextActions = (
   };
 
   const goToArtist = (artistId: ArtistId) => {
-    router.push(routeLocation.artist(artistId));
+    router.push(routeLocation.artist(artistId)).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
     options.onNavigate?.();
   };
 
   const goToAlbum = () => {
     const current = toValue(track);
     if (!isLibraryTrack(current)) return;
-    router.push(routeLocation.album(current.albumId));
+    router.push(routeLocation.album(current.albumId)).catch(error => getLogger().error(`[Tracks] Navigation to the album page failed: ${String(error)}`));
     options.onNavigate?.();
   };
 
@@ -192,8 +195,7 @@ export const useTrackContextActions = (
   const resolveExportPath = async (current: Track): Promise<string | null> => {
     if (trackHasLocalFile(current)) return current.storagePath;
 
-    const copyResult = await offlineCopyRepository.findById(current.id);
-    const copy = copyResult.isOk() ? copyResult.value : undefined;
+    const copy = await getOfflineCopy(current.id);
     return copy?.storagePath ?? null;
   };
 
@@ -262,7 +264,7 @@ export const useTrackContextActions = (
     const subject = toValue(options.subject);
     if (subject?.kind === "remote") return subject.dto.id;
     const current = toValue(track);
-    return isLibraryTrack(current) ? (current.id as TrackId) : null;
+    return isLibraryTrack(current) ? (current.id) : null;
   };
 
   const downloadOffline = async () => {
@@ -367,26 +369,31 @@ export const useTrackContextActions = (
     await openUrl(url);
   };
 
+  const guarded = <A extends unknown[]>(label: string, action: (...args: A) => Promise<unknown>) =>
+    (...args: A) => {
+      action(...args).catch((error: unknown) => getLogger().error(`[Tracks] Action ${label} failed: ${String(error)}`));
+    };
+
   return {
     play,
     playNext,
     addToQueue,
     showDetails,
     showLyrics,
-    toggleLike,
-    attachLyrics: attachLyricsToTrack,
-    addToPlaylist,
+    toggleLike: guarded("toggleLike", toggleLike),
+    attachLyrics: guarded("attachLyrics", attachLyricsToTrack),
+    addToPlaylist: guarded("addToPlaylist", addToPlaylist),
     removeFromQueue,
-    removeFromPlaylist,
-    removeFromHistory,
+    removeFromPlaylist: guarded("removeFromPlaylist", removeFromPlaylist),
+    removeFromHistory: guarded("removeFromHistory", removeFromHistory),
     goToArtist,
     goToAlbum,
-    exportFile,
-    downloadOffline,
-    cancelOfflineDownload,
-    removeOfflineCopy,
-    addToLibrary,
-    removeFromLibrary,
-    openExternal,
+    exportFile: guarded("exportFile", exportFile),
+    downloadOffline: guarded("downloadOffline", downloadOffline),
+    cancelOfflineDownload: guarded("cancelOfflineDownload", cancelOfflineDownload),
+    removeOfflineCopy: guarded("removeOfflineCopy", removeOfflineCopy),
+    addToLibrary: guarded("addToLibrary", addToLibrary),
+    removeFromLibrary: guarded("removeFromLibrary", removeFromLibrary),
+    openExternal: guarded("openExternal", openExternal),
   };
 };

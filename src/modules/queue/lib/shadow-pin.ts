@@ -1,5 +1,5 @@
 import type { PlayerTrack } from "@/modules/player/types";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
+import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
 import { getLogger } from "@/lib/logger";
 
 /**

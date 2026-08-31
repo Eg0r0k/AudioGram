@@ -24,7 +24,7 @@ const filterLabels: Record<SearchFilter, string> = {
 };
 
 function filterLabel(value: SearchFilter) {
-  return filterLabels[value] ?? value;
+  return filterLabels[value];
 }
 </script>
 

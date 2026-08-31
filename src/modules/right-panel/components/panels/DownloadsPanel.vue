@@ -83,9 +83,8 @@ import { Scrollable } from "@/components/ui/scrollable";
 import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
-import { cancelTrackDownload } from "@/modules/downloads/manager";
-import { trackRepository } from "@/db/repositories";
-import { unwrapResult } from "@/queries/shared";
+import { cancelTrackDownload } from "@/modules/downloads/service/manager";
+import { getTracksByIds } from "@/queries/track.queries";
 import type { TrackId } from "@/types/ids";
 import IconLoader from "~icons/tabler/loader-2";
 import IconClock from "~icons/tabler/clock";
@@ -106,7 +105,7 @@ const trackIds = computed(() => jobs.value.map(job => job.trackId));
 
 const { data: titleRows } = useQuery(computed(() => ({
   queryKey: ["downloads", "panel-titles", trackIds.value] as const,
-  queryFn: async () => unwrapResult(trackRepository.findByIds(trackIds.value)),
+  queryFn: () => getTracksByIds(trackIds.value),
   enabled: trackIds.value.length > 0,
 })));
 

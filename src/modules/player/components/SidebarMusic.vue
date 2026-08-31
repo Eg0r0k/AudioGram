@@ -121,6 +121,7 @@ import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackL
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import TrackDropdown from "@/modules/tracks/components/menu/dropdown/TrackDropdown.vue";
 import { routeLocation } from "@/app/router/route-locations";
+import { getLogger } from "@/lib/logger";
 import { isEphemeralTrack } from "../types";
 
 const { toggleTrackLike } = useToggleTrackLike();
@@ -141,9 +142,10 @@ const artistsList = computed(() => {
 const canNavigateArtists = computed(() => libraryTrack.value !== null);
 
 const goToArtist = (index: number) => {
-  const artistId = libraryTrack.value?.artistIds?.[index];
+  const artistId = libraryTrack.value?.artistIds[index];
   if (artistId) {
-    route.push(routeLocation.artist(artistId));
+    route.push(routeLocation.artist(artistId))
+      .catch(error => getLogger().error(`[Player] Navigation to the artist page failed: ${String(error)}`));
   }
 };
 

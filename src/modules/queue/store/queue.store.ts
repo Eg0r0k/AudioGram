@@ -22,7 +22,7 @@ import {
   readLegacyRepeatMode,
   rehydratePersistedQueue,
   type PersistedQueueSnapshot,
-} from "../lib/queue-persistence";
+} from "../service/queue-persistence";
 import { createAutoplayRecommender } from "../lib/queue-autoplay";
 import { shadowPinRemoteTracks } from "../lib/shadow-pin";
 
@@ -83,6 +83,12 @@ export const useQueueStore = defineStore("queue", () => {
   // async DB read and refuses to commit when the user acted in that gap
   // (open-with launch, an early click) — their state wins over yesterday's.
   let _mutationEpoch = 0;
+
+  // Bumped every time an entry claims playback. A detached advance() compares
+  // it across its await to tell "nothing happened while I was waiting" from
+  // "something else took over" — including a replay of the very same entry,
+  // which currentItemId alone cannot distinguish.
+  let _playbackClaim = 0;
 
   const items = computed(() => state.value.items);
   const playbackOrder = computed(() => state.value.playbackOrder);
@@ -227,12 +233,12 @@ export const useQueueStore = defineStore("queue", () => {
    * playing the already-loaded file, so playback never restarts.
    */
   function swapEphemeralForLibrary(ephemeralTrackId: string, libraryTrack: PlayerTrack): void {
-    let swappedCurrent = false;
+    const swappedCurrent = items.value.some(item => item.id === currentItemId.value
+      && isEphemeralTrack(item.track) && item.track.id === ephemeralTrackId);
 
     commit({
       items: items.value.map((item) => {
         if (!isEphemeralTrack(item.track) || item.track.id !== ephemeralTrackId) return item;
-        if (item.id === currentItemId.value) swappedCurrent = true;
         return { ...item, track: libraryTrack };
       }),
     });
@@ -289,11 +295,15 @@ export const useQueueStore = defineStore("queue", () => {
     player.clearCurrentTrack();
   }
 
+  const itemAt = (index: number): QueueItem | undefined =>
+    (index >= 0 && index < queue.value.length ? queue.value[index] : undefined);
+
   async function playAtIndex(index: number): Promise<Result<void, PlaybackError>> {
-    const item = queue.value[index];
+    const item = itemAt(index);
     if (!item) return err({ kind: "unavailable", reason: `no queue entry at index ${index}` });
 
     commit({ currentItemId: item.id });
+    _playbackClaim++;
 
     try {
       await usePlayerStore().playPlayerTrack(item.track);
@@ -338,7 +348,7 @@ export const useQueueStore = defineStore("queue", () => {
 
   /** Plays one entry; a failure is reported but the queue stays where it is. */
   async function playSingle(index: number): Promise<void> {
-    const item = queue.value[index];
+    const item = itemAt(index);
     if (!item) return;
     const result = await playAtIndex(index);
     if (result.isErr()) reactToFailure(item.track, result.error);
@@ -356,7 +366,7 @@ export const useQueueStore = defineStore("queue", () => {
         if (repeatMode.value !== "all") break;
         index = 0;
       }
-      const item = queue.value[index];
+      const item = itemAt(index);
       if (!item) break;
 
       const result = await playAtIndex(index);
@@ -402,7 +412,8 @@ export const useQueueStore = defineStore("queue", () => {
     if (!snapshot) return;
     // Unknown snapshot shape (e.g. downgrade from a newer build): leave both
     // memory and the stored data untouched rather than mis-parse and wipe.
-    if (snapshot.version !== 1) return;
+    const { version } = snapshot as { version: number };
+    if (version !== 1) return;
 
     const epochAtStart = _mutationEpoch;
 
@@ -513,7 +524,11 @@ export const useQueueStore = defineStore("queue", () => {
       await playFrom(0);
     }
     else {
+      const claimAtStart = _playbackClaim;
       const appendedRecommendations = await ensureAutoplayRecommendations();
+
+      if (_playbackClaim !== claimAtStart) return;
+
       if (appendedRecommendations) {
         await playFrom(currentIndex.value + 1);
         return;
@@ -714,7 +729,7 @@ export const useQueueStore = defineStore("queue", () => {
       };
       const legacyRepeatMode = readLegacyRepeatMode();
       if (legacyRepeatMode) queueStore.repeatMode = legacyRepeatMode;
-      queueStore.restorePersistedQueue();
+      queueStore.restorePersistedQueue().catch(() => {});
     },
   },
 });

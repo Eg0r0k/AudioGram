@@ -85,7 +85,7 @@ export const resolveQueueReorder = (
 ): { from: number; to: number } | null => {
   if (!suggestion.sameList) return null;
 
-  const [from] = suggestion.sourceIndexes;
+  const from = suggestion.sourceIndexes[0] as number | undefined;
   if (from === undefined || from === suggestion.targetIndex) return null;
 
   return { from: from + sliceOffset, to: suggestion.targetIndex + sliceOffset };

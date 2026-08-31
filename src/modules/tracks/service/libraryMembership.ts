@@ -4,7 +4,7 @@ import { unitOfWork } from "@/db/unit-of-work";
 import { storageService } from "@/db/storage";
 import { unwrapResult } from "@/queries/shared";
 import { getLogger } from "@/lib/logger";
-import { indexImportedTracks, removeSearchDocuments } from "@/modules/search/searchIndex";
+import { indexImportedTracks, removeSearchDocuments } from "@/modules/search/service/searchIndex";
 import type { TrackId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 

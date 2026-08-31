@@ -163,14 +163,15 @@ import TrackSortMenu from "@/modules/library/components/TrackSortMenu.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
-import { TrackSortKey } from "@/modules/tracks/types";
+import type { TrackSortKey } from "@/modules/tracks/types";
 import { useIndexTracksPage } from "@/modules/tracks/composables/useIndexTracksPage";
 import { getAllTracksForQueue } from "@/queries/track.queries";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player";
-import { Track } from "@/modules/player/types";
+import type { Track } from "@/modules/player/types";
 import { useGoBack } from "@/composables/useGoBack";
+import { getLogger } from "@/lib/logger";
 const { t } = useI18n();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
@@ -209,7 +210,11 @@ const errorMessage = computed(() =>
 
 function handleLoadMore() {
   if (!hasNextPage.value || isFetchingNextPage.value) return;
-  fetchNextPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more tracks.
+  fetchNextPage().catch((err: unknown) => {
+    getLogger().warn(`[AllMusicPage] Loading the next tracks page failed: ${String(err)}`);
+  });
 }
 
 function getTrackKey(index: number) {
@@ -221,13 +226,13 @@ function handleContextMenu(track: Track, index: number) {
 }
 
 async function handlePlayTrack(index: number) {
-  const track = tracks.value[index];
+  const track = tracks.value[index] as Track | undefined;
   if (!track) {
     return;
   }
 
   if (currentTrackId.value === track.id) {
-    playerStore.togglePlay();
+    await playerStore.togglePlay();
     return;
   }
 

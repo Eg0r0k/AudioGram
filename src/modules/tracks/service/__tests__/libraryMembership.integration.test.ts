@@ -9,7 +9,7 @@ vi.mock("@/db/storage", () => ({
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
-vi.mock("@/modules/search/searchIndex", () => ({
+vi.mock("@/modules/search/service/searchIndex", () => ({
   indexImportedTracks: vi.fn(async () => {}),
   removeSearchDocuments: vi.fn(async () => {}),
 }));

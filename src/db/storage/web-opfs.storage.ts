@@ -1,5 +1,6 @@
-import { ok, err, ResultAsync, fromPromise, errAsync, okAsync } from "neverthrow";
-import { IFileStorage } from "./IFileStorage";
+import type { ResultAsync } from "neverthrow";
+import { ok, err, fromPromise, errAsync, okAsync } from "neverthrow";
+import type { IFileStorage } from "./IFileStorage";
 import { StorageError, StorageErrorCode } from "../errors/storage.errors";
 import { getMimeType } from "@/lib/environment/mimeSupport";
 import { normalizePath } from "./pathUtils";
@@ -82,7 +83,7 @@ export class WebOpfsStorage implements IFileStorage {
         ),
       )
       .andThen((result) => {
-        if ("skip" in result && result.skip) {
+        if ("skip" in result) {
           return ok(undefined);
         }
 

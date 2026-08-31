@@ -115,6 +115,7 @@ import LibraryContextMenu from "@/modules/library/components/LibraryContextMenu.
 import { useLibrary } from "@/modules/library/composables/useLibrary";
 import type { LibraryItem } from "@/modules/library/types";
 import type { TrackSortKey } from "@/modules/tracks/types";
+import { getLogger } from "@/lib/logger";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -170,12 +171,16 @@ const errorMessage = computed(() => {
 
 const loadMore = () => {
   if (!hasNextAlbumPage.value || isFetchingNextAlbumPage.value) return;
-  fetchNextAlbumPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more albums.
+  fetchNextAlbumPage().catch((err: unknown) => {
+    getLogger().warn(`[ArtistAlbumsPage] Loading the next album page failed: ${String(err)}`);
+  });
 };
 
 const scrollableRef = useTemplateRef("scrollableRef");
 useScrollRestoration(scrollableRef, {
-  key: () => `artist-albums:${route.params.id}`,
+  key: () => `artist-albums:${String(route.params.id)}`,
   ready: () => !isLoading.value,
   deps: () => albums.value.length,
 });

@@ -39,7 +39,7 @@ export const useDiscordPresence = () => {
   const clearActivity = () => {
     if (lastSignature === "clear") return;
     lastSignature = "clear";
-    invokeDiscord("discord_clear_activity");
+    invokeDiscord("discord_clear_activity").catch(() => {});
   };
 
   const syncActivity = () => {
@@ -61,7 +61,7 @@ export const useDiscordPresence = () => {
     if (signature === lastSignature) return;
 
     lastSignature = signature;
-    invokeDiscord("discord_set_activity", { payload });
+    invokeDiscord("discord_set_activity", { payload }).catch(() => {});
   };
 
   // Multi-source form on purpose: Vue compares the sources one by one, so

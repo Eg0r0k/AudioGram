@@ -1,6 +1,6 @@
 import type { TrackMenuSubject } from "@/modules/tracks/components/menu/type";
-import { ensurePinned } from "@/modules/tracks/lib/ensurePinned";
-import { promoteTrackToLibrary } from "@/modules/tracks/lib/libraryMembership";
+import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
+import { promoteTrackToLibrary } from "@/modules/tracks/service/libraryMembership";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { queryClient } from "@/queries/client";
 import { unwrapResult } from "@/queries/shared";
@@ -10,7 +10,7 @@ import { playlistRepository, trackRepository } from "@/db/repositories";
 import { parseTrackRef } from "@/types/track-ref";
 import type { AlbumId, PlaylistId, TrackId } from "@/types/ids";
 import { enqueueTrackDownload } from "./manager";
-import { useDownloadsStore } from "./store/downloads.store";
+import { useDownloadsStore, type BatchProgress } from "../store/downloads.store";
 
 /**
  * Search rows can arrive stripped (no duration, no cover, no album id — YT
@@ -40,7 +40,7 @@ export async function completeDtoForPin(dto: SourceTrackDTO): Promise<SourceTrac
     delete defined.artistName;
     delete defined.artistIds;
   }
-  return { ...snapshot, ...defined } as SourceTrackDTO;
+  return { ...snapshot, ...defined };
 }
 
 /**
@@ -87,7 +87,8 @@ export async function enqueueSourceTracksDownload(tracks: SourceTrackDTO[]): Pro
   await invalidateLibraryData(queryClient);
 
   // The manager grew the total per created job; nothing created — no batch.
-  if ((store.batches[batchId]?.total ?? 0) === 0) {
+  const batch = store.batches[batchId] as BatchProgress | undefined;
+  if ((batch?.total ?? 0) === 0) {
     store.clearBatch(batchId);
     return null;
   }
@@ -142,7 +143,8 @@ export async function enqueueLocalPlaylistDownload(playlistId: PlaylistId): Prom
   }
   await invalidateLibraryData(queryClient);
 
-  if ((store.batches[batchId]?.total ?? 0) === 0) {
+  const batch = store.batches[batchId] as BatchProgress | undefined;
+  if ((batch?.total ?? 0) === 0) {
     store.clearBatch(batchId);
     return null;
   }

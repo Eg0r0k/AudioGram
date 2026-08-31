@@ -52,10 +52,6 @@ const effectiveView = computed<Exclude<RightPanelView, "none">>(() => {
     return "current-track";
   }
 
-  if (!rightPanel.isOpen) {
-    return "queue";
-  }
-
   return rightPanel.view;
 });
 

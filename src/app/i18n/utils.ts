@@ -11,7 +11,7 @@ export const setHtmlLangAttribute = (locale: string): void => {
 };
 
 export const getBrowserLocale = (): SupportedLanguage | null => {
-  const browserLang = navigator.language?.split("-")[0];
+  const browserLang = navigator.language.split("-")[0];
   return browserLang && isSupportedLocale(browserLang) ? browserLang : null;
 };
 

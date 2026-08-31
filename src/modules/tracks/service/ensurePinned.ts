@@ -4,13 +4,13 @@ import type { PinnedFlag } from "@/db/entities";
 import { albumRepository, artistRepository, trackRepository } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
 import { getLogger } from "@/lib/logger";
-import { indexImportedTracks } from "@/modules/search/searchIndex";
+import { indexImportedTracks } from "@/modules/search/service/searchIndex";
 import { alignArtists, buildRemoteShadowEntities, type RemotePinExisting } from "@/services/entity-resolver";
 import type { Track } from "@/modules/player/types";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackMenuSubject } from "../components/menu/type";
 import { trackCoverOwner } from "@/modules/covers/composables/useTrackCover";
-import { mapTrack } from "./mappers";
+import { mapTrack } from "../lib/mappers";
 import { ensureShadowCover } from "./shadowAlbumCover";
 
 /**
@@ -77,7 +77,10 @@ export async function ensurePinned(
   // under its own id — the same rule the import pipeline applies to files.
   if (subject.dto.coverRef) {
     const owner = trackCoverOwner(result.value.track);
-    if (owner) ensureShadowCover(owner.ownerType, owner.ownerId, subject.dto.coverRef);
+    if (owner) {
+      ensureShadowCover(owner.ownerType, owner.ownerId, subject.dto.coverRef)
+        .catch(error => getLogger().warn(`[Covers] Shadow cover for ${owner.ownerId} failed: ${String(error)}`));
+    }
   }
 
   // Best-effort: search sync must not fail the action that triggered the pin.

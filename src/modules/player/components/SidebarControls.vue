@@ -170,7 +170,8 @@
 
 <script setup lang="ts">
 import { AnimatePresence, motion } from "motion-v";
-import { App, computed, ref } from "vue";
+import type { App } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { formatDuration } from "@/lib/format/time";
@@ -200,7 +201,8 @@ import IconChevronRight from "~icons/tabler/chevron-right";
 import VolumeButton from "./actions/VolumeButton.vue";
 import { useRouter } from "vue-router";
 import { routeLocation } from "@/app/router/route-locations";
-import { getActivePinia, Pinia } from "pinia";
+import type { Pinia } from "pinia";
+import { getActivePinia } from "pinia";
 import { usePictureInPicture } from "@/composables/usePictureInPicture";
 import { i18n } from "@/app/i18n";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";

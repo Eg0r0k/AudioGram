@@ -53,7 +53,8 @@ const fetchManifest = async (): Promise<Manifest> => {
       lastError = e;
     }
   }
-  throw lastError ?? new Error("no manifest endpoints configured");
+  if (lastError instanceof Error) throw lastError;
+  throw new Error(lastError === null ? "no manifest endpoints configured" : JSON.stringify(lastError));
 };
 
 export const checkUpdateAndroid = (): ResultAsync<UpdateInfo | null, UpdateError> =>

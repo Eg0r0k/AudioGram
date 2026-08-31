@@ -6,10 +6,10 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { TrackId } from "@/types/ids";
 import type { SourceTrackDTO } from "@/modules/sources/types";
-import { downloadSubject } from "../enqueue";
+import { downloadSubject } from "../service/enqueue";
 import SourceDownloadButton from "../components/SourceDownloadButton.vue";
 
-vi.mock("../enqueue", () => ({
+vi.mock("../service/enqueue", () => ({
   downloadSubject: vi.fn(),
 }));
 

@@ -9,11 +9,11 @@ export const getFilesFromEvent = async (
   const dataTransfer
     = e instanceof DragEvent
       ? e.dataTransfer
-      : (e as ClipboardEvent).clipboardData;
+      : (e).clipboardData;
 
   if (!dataTransfer) return files;
 
-  if (dataTransfer.items?.length) {
+  if (dataTransfer.items.length) {
     const entries: FileSystemEntry[] = [];
     for (let i = 0; i < dataTransfer.items.length; i++) {
       const item = dataTransfer.items[i];
@@ -27,8 +27,7 @@ export const getFilesFromEvent = async (
 
     for (const entry of entries) {
       if (entry.isFile) {
-        const file = await getFileFromEntry(entry as FileSystemFileEntry);
-        if (file) files.push(file);
+        files.push(await getFileFromEntry(entry as FileSystemFileEntry));
       }
       else if (entry.isDirectory) {
         const dirFiles = await scanDirectory(
@@ -39,7 +38,7 @@ export const getFilesFromEvent = async (
       }
     }
   }
-  else if (dataTransfer.files?.length) {
+  else if (dataTransfer.files.length) {
     files.push(...Array.from(dataTransfer.files));
   }
 

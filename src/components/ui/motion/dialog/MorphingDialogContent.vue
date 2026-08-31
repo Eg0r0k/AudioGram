@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type {
+  HTMLAttributes } from "vue";
 import {
-  HTMLAttributes,
   inject,
   nextTick,
   onUnmounted,

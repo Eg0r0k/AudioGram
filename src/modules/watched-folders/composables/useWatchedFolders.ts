@@ -6,13 +6,17 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 
-import { db } from "@/db";
-import { unitOfWork } from "@/db/unit-of-work";
 import { useWatchedFoldersStore } from "../store/watched-folders.store";
 import { startWatching, type StopWatchFn } from "../services/folder-watcher";
+import {
+  countFolderTracks,
+  deleteFolderTracks,
+  getFolderTracks,
+  relinkFolderTracks,
+} from "../services/folder-tracks.service";
 import type { WatchedFolder } from "../types";
 import { musicLibraryEngine } from "@/services/importer.service";
-import { cleanupAfterTrackRemoval } from "@/services/library-gc";
+import { getLogger } from "@/lib/logger";
 import { normalizePath } from "@/lib/files/filterFiles";
 import { IS_MOBILE } from "@/lib/environment/userAgent";
 import {
@@ -79,7 +83,7 @@ export function useWatchedFolders() {
     await startFolderWatcher(folder);
   }
 
-  async function handleFolderMissing(folderId: string) {
+  function handleFolderMissing(folderId: string) {
     stopFolderWatcher(folderId);
     store.updateFolderStatus(folderId, "missing", {
       errorMessage: t("watchedFolders.folderMissing"),
@@ -93,28 +97,7 @@ export function useWatchedFolders() {
 
     const nestedPaths = store.getNestedFolderPaths(folder.path);
 
-    const tracksToRemove = await db.tracks
-      .where("storagePath")
-      .startsWith(folder.path + "/")
-      .toArray();
-
-    const filteredTracks = nestedPaths.length > 0
-      ? tracksToRemove.filter(
-          t => !nestedPaths.some(np => t.storagePath?.startsWith(np + "/")),
-        )
-      : tracksToRemove;
-
-    if (filteredTracks.length > 0) {
-      const txResult = await unitOfWork.runScoped(
-        [db.tracks, db.albums, db.artists, db.covers],
-        async () => {
-          await db.tracks.bulkDelete(filteredTracks.map(t => t.id));
-          // Cascade: albums/artists that lost their last reference die with them.
-          await cleanupAfterTrackRemoval(filteredTracks);
-        },
-      );
-      if (txResult.isErr()) throw txResult.error;
-    }
+    await deleteFolderTracks(await getFolderTracks(folder.path, nestedPaths));
 
     const removedPath = folder.path;
     store.removeFolder(id);
@@ -139,10 +122,7 @@ export function useWatchedFolders() {
       const excludedPaths = store.getNestedFolderPaths(folder.path);
       const result = await musicLibraryEngine.syncFolder(folder, undefined, excludedPaths);
 
-      const currentCount = await db.tracks
-        .where("storagePath")
-        .startsWith(normalizePath(folder.path) + "/")
-        .count();
+      const currentCount = await countFolderTracks(normalizePath(folder.path));
 
       store.updateFolderStatus(folder.id, "idle", {
         fileCount: currentCount,
@@ -185,7 +165,7 @@ export function useWatchedFolders() {
     try {
       const excludedPaths = store.getNestedFolderPaths(folder.path);
 
-      const stop = await startWatching(folder.path, async (changedPaths) => {
+      const handleChangedPaths = async (changedPaths: string[]) => {
         let added = 0;
         let removed = 0;
 
@@ -219,6 +199,11 @@ export function useWatchedFolders() {
           invalidateLibrary();
           await recountFolderFiles(folder.id);
         }
+      };
+
+      const stop = await startWatching(folder.path, (changedPaths) => {
+        handleChangedPaths(changedPaths)
+          .catch(error => getLogger().error(`[WatchedFolders] Processing changed paths failed: ${String(error)}`));
       }, () => handleFolderMissing(folder.id), excludedPaths);
 
       activeWatchers.set(folder.id, stop);
@@ -270,22 +255,7 @@ export function useWatchedFolders() {
 
     const nestedPaths = store.getNestedFolderPaths(folder.path);
 
-    let count: number;
-    if (nestedPaths.length > 0) {
-      const allTracks = await db.tracks
-        .where("storagePath")
-        .startsWith(folder.path + "/")
-        .toArray();
-      count = allTracks.filter(
-        t => !nestedPaths.some(np => t.storagePath?.startsWith(np + "/")),
-      ).length;
-    }
-    else {
-      count = await db.tracks
-        .where("storagePath")
-        .startsWith(folder.path + "/")
-        .count();
-    }
+    const count = await countFolderTracks(folder.path, nestedPaths);
 
     store.updateFolderStatus(folder.id, folder.status, { fileCount: count });
   }
@@ -305,7 +275,8 @@ export function useWatchedFolders() {
   }
 
   function invalidateLibrary() {
-    invalidateLibraryData(queryClient);
+    invalidateLibraryData(queryClient)
+      .catch(error => getLogger().error(`[WatchedFolders] Library refresh failed: ${String(error)}`));
   }
 
   async function relinkFolder(folderId: string) {
@@ -326,19 +297,7 @@ export function useWatchedFolders() {
     store.updateFolderStatus(folderId, "scanning");
 
     try {
-      const tracks = await db.tracks
-        .where("storagePath")
-        .startsWith(oldPath + "/")
-        .toArray();
-
-      if (tracks.length > 0) {
-        const updated = tracks.map(track => ({
-          ...track,
-          // Rows came off the storagePath index, so the path is always present.
-          storagePath: newPath + (track.storagePath ?? "").slice(oldPath.length),
-        }));
-        await db.tracks.bulkPut(updated);
-      }
+      await relinkFolderTracks(oldPath, newPath);
 
       store.updateFolderPath(folderId, newPath);
 

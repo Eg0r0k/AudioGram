@@ -36,7 +36,7 @@ export interface RightPanelPayloadMap {
 export interface RightPanelAddTracksPayload {
   entityType: "playlist" | "album" | "artist" | "favorite";
   entityId: string | number;
-  onConfirmed?: () => unknown | Promise<unknown>;
+  onConfirmed?: () => unknown;
 }
 
 /** The sidebar folder the picker adds artists / albums / playlists to. */

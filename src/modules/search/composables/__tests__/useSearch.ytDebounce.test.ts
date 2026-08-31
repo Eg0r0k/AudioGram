@@ -1,7 +1,7 @@
 ﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 
-vi.mock("../../searchIndex", () => ({
+vi.mock("../../service/searchIndex", () => ({
   initSearchIndex: vi.fn(async () => {}),
   rebuildSearchIndex: vi.fn(async () => {}),
   searchDocuments: vi.fn(async () => ({ results: [], total: 0, totalDuration: 0 })),

@@ -1,12 +1,12 @@
 import { ref, watch, onUnmounted } from "vue";
 import { getAccentColorOption } from "../accent-colors";
-import { AccentColor } from "../schema/appearance";
+import type { AccentColor } from "../schema/appearance";
 
 const DEFAULT_ACCENT_COLOR: AccentColor = "blue";
 const DEFAULT_CUSTOM_COLOR = "#8774e1";
 
 const accentColor = ref<AccentColor>(
-  (localStorage.getItem("accent-color") as AccentColor) || DEFAULT_ACCENT_COLOR,
+  (localStorage.getItem("accent-color") as AccentColor | null) || DEFAULT_ACCENT_COLOR,
 );
 const customAccentColor = ref<string>(
   localStorage.getItem("accent-color-custom") || DEFAULT_CUSTOM_COLOR,

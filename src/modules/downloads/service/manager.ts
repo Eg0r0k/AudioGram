@@ -10,7 +10,7 @@ import type { SourceError } from "@/modules/sources";
 import { unwrapResult } from "@/queries/shared";
 import type { TrackId } from "@/types/ids";
 import { finalizeOfflineCopy } from "./finalize";
-import { useDownloadsStore, type DownloadRuntime } from "./store/downloads.store";
+import { useDownloadsStore, type DownloadRuntime } from "../store/downloads.store";
 
 //
 // Download queue worker. Jobs persist in Dexie (downloadJobs) and survive
@@ -84,7 +84,8 @@ export async function enqueueTrackDownload(trackId: TrackId, batchId?: string): 
   const store = useDownloadsStore();
   store.upsert(runtimeOf(job));
   if (batchId) store.growBatch(batchId);
-  pump();
+  // pump() reports its own failures; callers only kick the scheduler.
+  pump().catch(() => {});
   return job.id;
 }
 
@@ -132,7 +133,8 @@ export async function initDownloadManager(): Promise<void> {
   const queued = await unwrapResult(downloadJobRepository.findByStatus("queued"));
   for (const job of queued) store.upsert(runtimeOf(job));
 
-  pump();
+  // pump() reports its own failures; callers only kick the scheduler.
+  pump().catch(() => {});
 }
 
 /**
@@ -163,7 +165,7 @@ function scheduleRetryPump(): void {
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    pump();
+    pump().catch(() => {});
   }, delay);
 }
 
@@ -187,7 +189,7 @@ async function pump(): Promise<void> {
     limit(() => runJob(job.id))
       .finally(() => {
         inFlight.delete(job.id);
-        pump();
+        pump().catch(() => {});
       })
       .catch(error => getLogger().error(`[Downloads] Job ${job.id} crashed: ${String(error)}`));
   }
@@ -208,7 +210,8 @@ async function runJob(jobId: string): Promise<void> {
   retryAt.delete(jobId);
   // A cancel that raced the claim: the source was never invoked, so the
   // CANCELLED failure will not arrive — drop the job here.
-  if (store.jobs[jobId]?.cancelling) {
+  const runtime = store.jobs[jobId] as DownloadRuntime | undefined;
+  if (runtime?.cancelling) {
     await unwrapResult(downloadJobRepository.delete(jobId));
     store.remove(jobId);
     if (job.batchId) store.shrinkBatch(job.batchId);

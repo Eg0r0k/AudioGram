@@ -11,16 +11,16 @@ const providerMock = vi.hoisted(() => ({
 vi.mock("@/modules/sources", () => ({
   sources: { forTrack: () => providerMock },
 }));
-vi.mock("@/modules/tracks/lib/ensurePinned", () => ({ ensurePinned: vi.fn() }));
-vi.mock("@/modules/tracks/lib/libraryMembership", () => ({ promoteTrackToLibrary: vi.fn() }));
+vi.mock("@/modules/tracks/service/ensurePinned", () => ({ ensurePinned: vi.fn() }));
+vi.mock("@/modules/tracks/service/libraryMembership", () => ({ promoteTrackToLibrary: vi.fn() }));
 vi.mock("@/queries/library.queries", () => ({ invalidateLibraryData: vi.fn() }));
 vi.mock("@/queries/client", () => ({ queryClient: {} }));
 vi.mock("@/queries/shared", () => ({ unwrapResult: vi.fn() }));
 vi.mock("@/db/repositories", () => ({ playlistRepository: {}, trackRepository: {} }));
-vi.mock("../manager", () => ({ enqueueTrackDownload: vi.fn() }));
+vi.mock("../service/manager", () => ({ enqueueTrackDownload: vi.fn() }));
 vi.mock("../store/downloads.store", () => ({ useDownloadsStore: vi.fn() }));
 
-import { completeDtoForPin } from "../enqueue";
+import { completeDtoForPin } from "../service/enqueue";
 
 const strippedDto = (): SourceTrackDTO => ({
   id: ytTrackId("v1"),

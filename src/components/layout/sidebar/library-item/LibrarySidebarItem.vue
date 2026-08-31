@@ -8,6 +8,7 @@ import { canOpenLibraryMenu, useLibraryMenu } from "@/modules/library/composable
 import LibraryItemCover from "./LibraryItemCover.vue";
 import LibraryItemInfo from "./LibraryItemInfo.vue";
 import { useLibraryItemView } from "./useLibraryItemView";
+import { getLogger } from "@/lib/logger";
 
 const props = defineProps<{
   item: LibraryItem;
@@ -30,7 +31,8 @@ const handleClick = () => {
     return;
   }
 
-  router.push(props.item.to);
+  router.push(props.item.to)
+    .catch(error => getLogger().error(`[LibrarySidebarItem] Navigation failed: ${String(error)}`));
 };
 </script>
 

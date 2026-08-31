@@ -9,7 +9,6 @@ import type {
   SourceSearchHit,
   SourceTrackDTO,
 } from "@/modules/sources/types";
-import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
 import type { SourceKind } from "@/types/track-ref";
 import type { SearchResultItem } from "../types";
 
@@ -108,9 +107,9 @@ export const searchResultRoute = (
 ): RouteLocationRaw | null => {
   switch (item.type) {
     // Branded ids: search results carry the same `<kind>:<id>` the routes take.
-    case "album": return routeLocation.album(item.entityId as AlbumId, intent);
-    case "artist": return routeLocation.artist(item.entityId as ArtistId, intent);
-    case "playlist": return routeLocation.playlist(item.entityId as PlaylistId, intent);
+    case "album": return routeLocation.album(item.entityId, intent);
+    case "artist": return routeLocation.artist(item.entityId, intent);
+    case "playlist": return routeLocation.playlist(item.entityId, intent);
     default: return null;
   }
 };

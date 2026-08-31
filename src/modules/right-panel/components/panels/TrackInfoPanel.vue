@@ -415,7 +415,9 @@ async function performDelete(): Promise<void> {
   await deleteTrack(currentTrack);
 
   if (queueItemIds.length > 0) {
-    queueStore.removeMultiple(queueItemIds);
+    // Awaited so the success toast and the panel close land after the queue
+    // has actually dropped the entries.
+    await queueStore.removeMultiple(queueItemIds);
   }
 
   toast.success(t("track.deleted"));

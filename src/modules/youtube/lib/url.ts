@@ -1,8 +1,3 @@
-//
-// Recognizes pasted YouTube collection links so the search pane can open the
-// entity directly instead of text-searching the URL string.
-//
-
 export type YtLinkTarget
   = | { kind: "playlist"; id: string }
     | { kind: "album"; id: string }
@@ -24,14 +19,6 @@ const isOpenablePlaylistId = (id: string): boolean =>
 
 const VIDEO_ID_RE = /^[\w-]{11}$/;
 
-/**
- * Maps a pasted YouTube URL onto an in-app target: any `list=` playlist
- * (including OLAK5uy_ album-playlists, which the playlist page resolves),
- * `/browse/MPREb…` music albums, `/channel/UC…` artists, and plain videos —
- * `watch?v=`, `youtu.be/<id>`, `/shorts/<id>`. A mix link (`list=RD…`) falls
- * back to its `v=` video, since the session-generated mix itself cannot be
- * fetched anonymously. Returns null for plain text and foreign hosts.
- */
 export const parseYoutubeCollectionUrl = (input: string): YtLinkTarget | null => {
   const raw = input.trim();
   if (!raw || /\s/.test(raw)) return null;
@@ -51,14 +38,14 @@ export const parseYoutubeCollectionUrl = (input: string): YtLinkTarget | null =>
     return { kind: "playlist", id: list };
   }
 
-  const album = url.pathname.match(/^\/browse\/(MPREb[\w-]+)$/);
+  const album = /^\/browse\/(MPREb[\w-]+)$/.exec(url.pathname);
   if (album) return { kind: "album", id: album[1] };
 
-  const artist = url.pathname.match(/^\/channel\/(UC[\w-]+)$/);
+  const artist = /^\/channel\/(UC[\w-]+)$/.exec(url.pathname);
   if (artist) return { kind: "artist", id: artist[1] };
 
   const video = url.searchParams.get("v")
-    ?? url.pathname.match(/^\/shorts\/([\w-]{11})$/)?.[1]
+    ?? /^\/shorts\/([\w-]{11})$/.exec(url.pathname)?.[1]
     ?? (url.hostname.toLowerCase() === "youtu.be" ? url.pathname.slice(1) : null);
   if (video && VIDEO_ID_RE.test(video)) {
     return { kind: "video", id: video };

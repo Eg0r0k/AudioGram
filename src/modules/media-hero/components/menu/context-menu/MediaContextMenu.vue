@@ -30,7 +30,7 @@ import ArtistContext from "../contexts/ArtistContext.vue";
 import PlaylistContext from "../contexts/PlaylistContext.vue";
 import LikedContext from "../contexts/LikedContext.vue";
 
-import { MediaContext } from "../types";
+import type { MediaContext } from "../types";
 import { contextMenuComponents, provideMenuComponents } from "@/modules/media-hero/composables/useMenuComponents";
 
 provideMenuComponents(contextMenuComponents);

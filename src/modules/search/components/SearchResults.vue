@@ -35,8 +35,8 @@ const slicedPlaylistResults = computed(() => props.playlistResults.slice(0, 4));
 
 const { deleteItem } = useLibrary();
 
-const handleDeleteEntity = (item: LibraryItem) => {
-  deleteItem(item);
+const handleDeleteEntity = async (item: LibraryItem) => {
+  await deleteItem(item);
 };
 </script>
 

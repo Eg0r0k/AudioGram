@@ -54,6 +54,7 @@ import EntityCoverImage from "@/components/ui/EntityCoverImage.vue";
 import { useTopArtists } from "@/composables/useStatsQueries";
 import { formatTotalDuration } from "@/lib/format/time";
 import { routeLocation } from "@/app/router/route-locations";
+import { getLogger } from "@/lib/logger";
 
 const props = defineProps<{ since?: number }>();
 
@@ -64,6 +65,7 @@ const router = useRouter();
 const { topArtists, isLoading } = useTopArtists(TOP_LIMIT, () => props.since);
 
 function goToArtist(id: string) {
-  router.push(routeLocation.artist(id));
+  router.push(routeLocation.artist(id))
+    .catch(error => getLogger().error(`[Stats] Navigation to artist ${id} failed: ${String(error)}`));
 }
 </script>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { HTMLAttributes, inject } from "vue";
+import type { HTMLAttributes } from "vue";
+import { inject } from "vue";
 import { motion } from "motion-v";
 
 import { MorphingDialogKey } from "./context";

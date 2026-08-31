@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
-import { err, ok, Result } from "neverthrow";
+import type { Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { requestFiles } from "@/lib/files/requestFiles";
 import { IMAGE_MIME_TYPES } from "@/types/media";
 import { isValidImageFile } from "@/lib/environment/mimeSupport";

@@ -33,13 +33,11 @@ export const scanDirectory = async (
   for (const entry of entries) {
     if (entry.isFile) {
       const file = await getFileFromEntry(entry as FileSystemFileEntry);
-      if (file) {
-        Object.defineProperty(file, "relativePath", {
-          value: path ? `${path}/${file.name}` : file.name,
-          writable: false,
-        });
-        files.push(file);
-      }
+      Object.defineProperty(file, "relativePath", {
+        value: path ? `${path}/${file.name}` : file.name,
+        writable: false,
+      });
+      files.push(file);
     }
     else if (entry.isDirectory) {
       const subPath = path ? `${path}/${entry.name}` : entry.name;

@@ -229,6 +229,7 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Scrollable } from "@/components/ui/scrollable";
 import { Button } from "@/components/ui/button";
+import { getLogger } from "@/lib/logger";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 import IconMusicOff from "~icons/tabler/music-off";
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
@@ -309,8 +310,9 @@ async function toggleLike(): Promise<void> {
 const { importPath, isRunning: isImportRunning, importCurrent } = useEphemeralImport(currentTrack);
 
 function goToArtist(index: number): void {
-  const artistId = libraryTrack.value?.artistIds?.[index];
+  const artistId = libraryTrack.value?.artistIds[index];
   if (!artistId) return;
-  router.push(routeLocation.artist(artistId));
+  router.push(routeLocation.artist(artistId))
+    .catch(error => getLogger().error(`[RightPanel] Navigation to the artist page failed: ${String(error)}`));
 }
 </script>

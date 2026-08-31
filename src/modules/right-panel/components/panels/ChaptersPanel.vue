@@ -170,7 +170,8 @@ import { usePlayerStore } from "@/modules/player";
 import { useSaveTrackChapters, useTrackChapters } from "@/modules/tracks/composables/useTrackChapters";
 import type { Track } from "@/modules/player/types";
 import type { TrackChapterMark } from "@/db/entities";
-import ChapterEditor, { DraftChapter } from "@/components/ChapterEditor.vue";
+import type { DraftChapter } from "@/components/ChapterEditor.vue";
+import ChapterEditor from "@/components/ChapterEditor.vue";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import RightPanelHeader from "@/modules/right-panel/components/RightPanelHeader.vue";
 import Badge from "@/components/ui/badge/Badge.vue";
@@ -257,10 +258,7 @@ watch(trackId, () => {
 
 const { open: openCueDialog, onChange } = useFileDialog({ accept: ".cue", multiple: false });
 
-onChange(async (files) => {
-  const file = files?.[0];
-  if (!file) return;
-
+const importCueFile = async (file: File) => {
   isImporting.value = true;
   importError.value = null;
   try {
@@ -287,6 +285,14 @@ onChange(async (files) => {
   finally {
     isImporting.value = false;
   }
+};
+
+// importCueFile handles every failure internally (importError + finally),
+// so there is nothing left for this rejection path to report.
+onChange((files) => {
+  const file = files?.[0];
+  if (!file) return;
+  importCueFile(file).catch(() => {});
 });
 
 function handleSeek(time: number): void {

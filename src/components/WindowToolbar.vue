@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { Window } from "@tauri-apps/api/window";
+import type { Window } from "@tauri-apps/api/window";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { IS_MOBILE, IS_TAURI } from "@/lib/environment/userAgent";
@@ -136,16 +136,15 @@ const toggleMaximize = async () => {
 onMounted(async () => {
   if (!IS_TAURI) return;
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  appWindow.value = await getCurrentWindow();
+  appWindow.value = getCurrentWindow();
   isMaximized.value = await appWindow.value.isMaximized();
 
-  useTauriEvent("tauri://resize", async () => {
-    try {
-      isMaximized.value = await appWindow.value?.isMaximized() ?? false;
-    }
-    catch {
-      // noop
-    }
+  useTauriEvent("tauri://resize", () => {
+    appWindow.value?.isMaximized()
+      .then((maximized) => {
+        isMaximized.value = maximized;
+      })
+      .catch(() => {});
   });
 });
 </script>

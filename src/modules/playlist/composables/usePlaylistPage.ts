@@ -3,9 +3,10 @@ import { useRoute, useRouter } from "vue-router";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/vue-query";
 import { PlaylistId } from "@/types/ids";
 import { formatTotalDuration } from "@/lib/format/time";
+import { getLogger } from "@/lib/logger";
 import { useI18n } from "vue-i18n";
 import { usePlaylistCover } from "@/modules/covers/composables/usePlaylistCover";
-import { PlaylistData } from "@/modules/media-hero/types";
+import type { PlaylistData } from "@/modules/media-hero/types";
 import { queryKeys } from "@/queries/query-keys";
 import {
   deletePlaylistAndSync,
@@ -202,14 +203,15 @@ export function usePlaylistPage(sortKey: Ref<TrackSortKey | null>) {
     }
     const current = playlist.value;
     if (!current) return [];
-    return (await getPlaylistPageData(current.id, sortKey.value))?.tracks ?? [];
+    return (await getPlaylistPageData(current.id, sortKey.value)).tracks;
   };
 
   const { mutateAsync: deletePlaylist } = useMutation({
     mutationFn: (options: { deleteTracks?: boolean } = {}) =>
       deletePlaylistAndSync(queryClient, playlist.value, options),
     onSuccess: () => {
-      router.push(routeLocation.home());
+      router.push(routeLocation.home())
+        .catch(error => getLogger().error(`[Playlist] Navigation home after delete failed: ${String(error)}`));
     },
   });
 

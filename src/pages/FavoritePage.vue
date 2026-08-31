@@ -119,6 +119,7 @@ import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useQueueShuffle } from "@/modules/queue/composables/useQueueShuffle";
+import { getLogger } from "@/lib/logger";
 
 const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
@@ -158,7 +159,11 @@ function openAddTracksPanel() {
 
 function handleLoadMore() {
   if (!hasNextPage.value || isFetchingNextPage.value) return;
-  fetchNextPage();
+  // The query keeps its own error state for the UI; the log is what tells us
+  // WHY a scroll stopped loading more liked tracks.
+  fetchNextPage().catch((error: unknown) => {
+    getLogger().warn(`[FavoritePage] Loading the next liked tracks page failed: ${String(error)}`);
+  });
 }
 
 function handleContextMenu(track: Track, index: number) {
@@ -166,21 +171,25 @@ function handleContextMenu(track: Track, index: number) {
 }
 
 function handlePlayAll() {
-  getLikedTracksPageData(sortKey.value).then((data) => {
-    if (data && data.tracks.length > 0) {
-      queueStore.setQueue(data.tracks, 0, {
-        type: "liked",
-      });
-    }
-  });
+  getLikedTracksPageData(sortKey.value)
+    .then((data) => {
+      if (data.tracks.length > 0) {
+        return queueStore.setQueue(data.tracks, 0, {
+          type: "liked",
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      getLogger().error(`[FavoritePage] Playing all liked tracks failed: ${String(error)}`);
+    });
 }
 
 async function handlePlayTrack(index: number) {
-  const selectedTrack = tracks.value[index];
+  const selectedTrack = tracks.value[index] as Track | undefined;
   if (!selectedTrack) return;
 
   if (currentTrackId.value === selectedTrack.id) {
-    playerStore.togglePlay();
+    await playerStore.togglePlay();
     return;
   }
 

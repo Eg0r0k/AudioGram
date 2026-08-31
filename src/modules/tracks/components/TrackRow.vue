@@ -161,7 +161,7 @@ import type { TrackContext } from "@/modules/tracks/components/menu/type";
 import { Button } from "@/components/ui/button";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useRouter, type RouteLocationRaw } from "vue-router";
-import type { QueueItemId } from "@/types/ids";
+import type { ArtistId, QueueItemId } from "@/types/ids";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import { useTrackRowCover } from "@/modules/tracks/composables/useTrackRowCover";
 import { ytPlayableFromEphemeral, ytPlayableToDto } from "@/modules/youtube/lib/playable";
@@ -169,6 +169,7 @@ import { useYoutubeStore } from "@/modules/youtube/store/youtube.store";
 import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { routeLocation } from "@/app/router/route-locations";
+import { getLogger } from "@/lib/logger";
 
 interface Props {
   track: Track;
@@ -266,12 +267,13 @@ const artists = computed(() => {
 const handleArtistClick = (index: number) => {
   if (props.artistRoutes) {
     const to = props.artistRoutes[index] ?? props.artistRoutes[0];
-    if (to) route.push(to);
+    if (to) route.push(to).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
     return;
   }
-  const artistId = props.track.artistIds?.[index] ?? props.track.artistIds?.[0];
+  const artistId = (props.track.artistIds[index] as ArtistId | undefined)
+    ?? props.track.artistIds[0];
   if (artistId) {
-    route.push(routeLocation.artist(artistId));
+    route.push(routeLocation.artist(artistId)).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
   }
 };
 
@@ -319,7 +321,8 @@ const rowStateClass = computed(() => {
 
 const handleClick = () => {
   if (isCurrentTrack.value) {
-    playerStore.togglePlay();
+    playerStore.togglePlay()
+      .catch(error => getLogger().error(`[Player] Toggling playback failed: ${String(error)}`));
   }
   else {
     emit("play", props.track);

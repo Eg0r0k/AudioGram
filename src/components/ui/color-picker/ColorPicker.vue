@@ -39,14 +39,14 @@ const emits = defineEmits<ColorPickerRootEmits>();
 
 const forwarded = useForwardPropsEmits(props, emits);
 
-const format = shallowRef<Format>("Hex");
+const inputFormat = shallowRef<Format>("Hex");
 const formatOptions = Object.keys(INPUTS) as Format[];
 const canvasType = computed<"HSL" | "HSV">(() => {
-  return format.value === "HSL" ? "HSL" : "HSV";
+  return inputFormat.value === "HSL" ? "HSL" : "HSV";
 });
 
 function onFormatChange(value: unknown) {
-  if (typeof value === "string" && value in INPUTS) format.value = value as Format;
+  if (typeof value === "string" && value in INPUTS) inputFormat.value = value as Format;
 }
 
 const ui = {
@@ -87,7 +87,7 @@ const ui = {
     <div class="flex items-center gap-2">
       <!-- eslint-disable-next-line vuejs-accessibility/form-control-has-label -- renderless reka root, the trigger below carries the label -->
       <Select
-        :model-value="format"
+        :model-value="inputFormat"
         :disabled="props.disabled"
         @update:model-value="onFormatChange"
       >
@@ -108,7 +108,7 @@ const ui = {
           </SelectItem>
         </SelectContent>
       </Select>
-      <component :is="INPUTS[format]" />
+      <component :is="INPUTS[inputFormat]" />
     </div>
   </ColorPickerRoot>
 </template>

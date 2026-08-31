@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import type { AlbumEntity } from "@/db/entities";
 import type { AlbumId, ArtistId } from "@/types/ids";
-import type { UpdateSpec } from "dexie";
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { BaseRepository } from "./base.repository";
 import { toDbError } from "@/db/errors/db.errors";
 
@@ -17,7 +17,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
         ...changes,
         updatedAt: Date.now(),
       };
-      const count = await this.table.update(id, withTimestamp as UpdateSpec<AlbumEntity>);
+      const count = await this.table.update(id, withTimestamp);
       return ok(count);
     }
     catch (error) {
@@ -42,7 +42,7 @@ class AlbumRepository extends BaseRepository<AlbumEntity, AlbumId> {
         .where("artistId")
         .equals(artistId)
         .sortBy("year");
-      return ok(albums.reverse());
+      return ok([...albums].reverse());
     }
     catch (error) {
       return err(toDbError(error));

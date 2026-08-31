@@ -32,7 +32,7 @@ import {
 import Button from "@/components/ui/button/Button.vue";
 import { computed, type Component } from "vue";
 import { useMediaContext } from "@/modules/media-hero/composables/useMediaContext";
-import { MediaContext } from "../types";
+import type { MediaContext } from "../types";
 import AlbumContext from "../contexts/AlbumContext.vue";
 import ArtistContext from "../contexts/ArtistContext.vue";
 import IconDots from "~icons/tabler/dots";

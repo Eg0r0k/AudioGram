@@ -83,7 +83,7 @@ export function mapSubsonicErrorCode(code: number | undefined, message: string):
  * transport.
  */
 export function parseSubsonicBody<T>(body: unknown): { ok: true; value: T } | { ok: false; error: SourceError } {
-  const envelope = (body as SubsonicEnvelope)?.["subsonic-response"];
+  const envelope = (body as SubsonicEnvelope | null | undefined)?.["subsonic-response"];
   if (!envelope || typeof envelope !== "object") {
     return { ok: false, error: { kind: "PARSE", message: "Missing subsonic-response envelope" } };
   }

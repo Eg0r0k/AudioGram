@@ -41,19 +41,19 @@ export const useDownloadsStore = defineStore("downloads", () => {
   }
 
   function setStatus(jobId: string, status: DownloadRuntime["status"]): void {
-    const job = jobs.value[jobId];
+    const job = jobs.value[jobId] as DownloadRuntime | undefined;
     if (job) job.status = status;
   }
 
   function setProgress(jobId: string, downloaded: number, total: number | null): void {
-    const job = jobs.value[jobId];
+    const job = jobs.value[jobId] as DownloadRuntime | undefined;
     if (!job) return;
     job.downloaded = downloaded;
     job.total = total;
   }
 
   function markCancelling(jobId: string): void {
-    const job = jobs.value[jobId];
+    const job = jobs.value[jobId] as DownloadRuntime | undefined;
     if (job) job.cancelling = true;
   }
 
@@ -85,7 +85,7 @@ export const useDownloadsStore = defineStore("downloads", () => {
 
   /** A cancelled job leaves its batch entirely (cancel = changed my mind). */
   function shrinkBatch(batchId: string): void {
-    const batch = batches.value[batchId];
+    const batch = batches.value[batchId] as BatchProgress | undefined;
     if (batch) batch.total = Math.max(0, batch.total - 1);
   }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { HTMLAttributes, inject } from "vue";
+import type { HTMLAttributes } from "vue";
+import { inject } from "vue";
 
 import { motion } from "motion-v";
 import type { VariantType } from "motion-v";
@@ -33,7 +34,7 @@ const props = withDefaults(
   },
 );
 
-const dialog = inject(MorphingDialogKey)!;
+const dialog = inject(MorphingDialogKey);
 
 if (!dialog) {
   throw new Error(
@@ -41,9 +42,9 @@ if (!dialog) {
   );
 }
 
-function close() {
+const close = () => {
   dialog.setIsOpen(false);
-}
+};
 </script>
 
 <template>

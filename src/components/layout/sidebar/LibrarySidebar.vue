@@ -281,7 +281,7 @@ useScrollRestoration(scrollableRef, {
 const stepFilter = (delta: number) => {
   if (folderDepth.value !== 0) return;
   const filters = visibleFilters.value;
-  const next = filters[filters.indexOf(activeFilter.value) + delta];
+  const next = filters[filters.indexOf(activeFilter.value) + delta] as LibraryFilter | undefined;
   if (next) setFilter(next);
 };
 
@@ -307,7 +307,7 @@ async function handleDeleteItem(item: LibraryItem) {
 }
 
 function filterLabel(value: LibraryFilter) {
-  return filterLabels.value[value] ?? value;
+  return filterLabels.value[value];
 }
 
 function filterContentKey(filter: LibraryFilter) {
@@ -315,7 +315,7 @@ function filterContentKey(filter: LibraryFilter) {
 }
 
 function getLibraryItemKey(index: number) {
-  const item = libraryItems.value[index];
+  const item = libraryItems.value[index] as (typeof libraryItems.value)[number] | undefined;
   return item ? `${item.type}:${item.id}` : index;
 }
 

@@ -39,7 +39,7 @@ export const backfillTrackNames = (row: { artistName?: string; albumTitle?: stri
   if (row.albumTitle === undefined) row.albumTitle = "";
 };
 
-export const normalizePinned = (row: { pinned?: PinnedFlag | unknown }): void => {
+export const normalizePinned = (row: { pinned?: unknown }): void => {
   row.pinned = row.pinned === 0 ? 0 : 1;
 };
 

@@ -1,6 +1,8 @@
 import { ref, watch } from "vue";
 import type { LibraryItem } from "@/modules/library/types";
-import { albumRepository, artistRepository, playlistRepository } from "@/db/repositories";
+import { getAlbumLibraryRow } from "@/queries/album.queries";
+import { getArtistLibraryRow } from "@/queries/artist.queries";
+import { getPlaylistLibraryRow } from "@/queries/playlist.queries";
 import { getLogger } from "@/lib/logger";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
@@ -39,18 +41,12 @@ watch(isContextMenuOpen, (isOpen) => {
 /** Whether the item is backed by a real library row (shadow rows included). */
 async function hasLibraryRow(item: LibraryItem): Promise<boolean> {
   switch (item.type) {
-    case "album": {
-      const found = await albumRepository.findById(item.id as AlbumId);
-      return found.isOk() && !!found.value;
-    }
-    case "artist": {
-      const found = await artistRepository.findById(item.id as ArtistId);
-      return found.isOk() && !!found.value;
-    }
-    case "playlist": {
-      const found = await playlistRepository.findById(item.id as PlaylistId);
-      return found.isOk() && !!found.value;
-    }
+    case "album":
+      return (await getAlbumLibraryRow(item.id as AlbumId)) !== null;
+    case "artist":
+      return (await getArtistLibraryRow(item.id as ArtistId)) !== null;
+    case "playlist":
+      return (await getPlaylistLibraryRow(item.id as PlaylistId)) !== null;
     default:
       return true;
   }

@@ -1,4 +1,5 @@
-import { Result, ok, err } from "neverthrow";
+import type { Result } from "neverthrow";
+import { ok, err } from "neverthrow";
 import { db } from "@/db";
 import type { DownloadJobEntity, DownloadJobStatus } from "@/db/entities";
 import type { TrackId } from "@/types/ids";

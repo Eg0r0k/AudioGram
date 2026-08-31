@@ -8,7 +8,7 @@ import type { QueueItem, QueueSource } from "@/modules/queue/types";
 import type { AlbumId } from "@/types/ids";
 import MediaHeader from "../MediaHeader.vue";
 
-const togglePlay = vi.fn();
+const togglePlay = vi.fn(async () => {});
 const mockPlayerState = reactive({
   isPlaying: false,
   showLoadingIndicator: false,

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { LibraryFilter, PinnedItem, SortOption } from "../types";
+import type { LibraryFilter, PinnedItem, SortOption } from "../types";
 
 export const useLibraryStore = defineStore("library", () => {
   const pinnedItems = ref<PinnedItem[]>([]);

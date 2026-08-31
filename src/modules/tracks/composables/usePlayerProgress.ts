@@ -20,7 +20,7 @@ export function usePlayerProgress() {
       }
 
       const player = playerStore.player;
-      if (player && player.duration > 0 && isFinite(player.duration as number)) {
+      if (player && player.duration > 0 && isFinite(player.duration)) {
         localProgress.value = ((player.currentTime as number) / (player.duration as number)) * 100;
       }
 
@@ -44,7 +44,7 @@ export function usePlayerProgress() {
 
   const syncProgress = () => {
     const player = playerStore.player;
-    if (player && player.duration > 0 && isFinite(player.duration as number)) {
+    if (player && player.duration > 0 && isFinite(player.duration)) {
       localProgress.value = ((player.currentTime as number) / (player.duration as number)) * 100;
     }
   };

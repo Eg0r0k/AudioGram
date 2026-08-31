@@ -1,4 +1,4 @@
-import { ArtistId, PlaylistId } from "@/types/ids";
+import type { ArtistId, PlaylistId } from "@/types/ids";
 import type { EphemeralTrack, PlayerTrack, Track } from "@/modules/player/types";
 import type { SourceTrackDTO } from "@/modules/sources";
 
