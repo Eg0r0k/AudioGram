@@ -44,3 +44,4 @@ mcp.json
 
 # Heap snapshots
 *.heapsnapshot
+*.tsbuildinfo
