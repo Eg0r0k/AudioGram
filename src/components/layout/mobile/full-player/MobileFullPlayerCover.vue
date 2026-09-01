@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex-1 min-h-0 @container-[size] select-none flex items-center justify-center pb-2 touch-pan-y landscape-short:flex-none landscape-short:basis-[45%] landscape-short:pb-0"
+    class="flex-1 min-h-0 @container-[size] select-none flex items-center justify-center pb-2 touch-pan-y landscape-short:flex-none landscape-short:basis-[50%] landscape-short:pb-0 landscape-short:overflow-x-clip landscape-short:[mask-image:linear-gradient(to_right,transparent,#000_1rem,#000_calc(100%-1rem),transparent)]"
     @pointerdown="startDrag"
   >
     <motion.div
