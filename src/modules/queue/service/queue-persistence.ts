@@ -66,8 +66,8 @@ export const readLegacyRepeatMode = (): RepeatMode | null => {
 };
 
 // The media server's port and token change every launch, so any stored
-// proxy URL (playback or cover, current or legacy stream://-era form)
-// must be re-pointed at the live base; foreign URLs pass through.
+// proxy URL (playback or cover) must be re-pointed at the live base;
+// foreign URLs pass through.
 const migrateCover = (cover: string | null | undefined) =>
   cover ? migrateProxyUrl(cover) : cover;
 

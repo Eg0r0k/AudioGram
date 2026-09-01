@@ -110,11 +110,11 @@ describe("playback-resolver.service", () => {
 
     it("falls back to the source stream, even when the copy lookup itself fails", async () => {
       offlineCopyMock.findById.mockResolvedValue(errAsync(new Error("idb down")));
-      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl: vi.fn(() => okAsync("stream://localhost/yt/abc")) });
+      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl: vi.fn(() => okAsync("http://127.0.0.1:60123/deadbeef/yt/abc")) });
 
       const result = await resolvePlaybackSource(remote());
 
-      expect(result._unsafeUnwrap()).toEqual({ kind: "url", url: "stream://localhost/yt/abc" });
+      expect(result._unsafeUnwrap()).toEqual({ kind: "url", url: "http://127.0.0.1:60123/deadbeef/yt/abc" });
       expect(storageMock.getAudioUrl).not.toHaveBeenCalled();
     });
 

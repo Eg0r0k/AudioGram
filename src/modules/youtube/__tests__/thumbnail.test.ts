@@ -33,11 +33,6 @@ describe("unproxiedThumbnail", () => {
     expect(unproxiedThumbnail(proxiedThumbnail(COVER, THUMB_SIZE_ROW))).toBe(SHARP_ROW);
   });
 
-  it("recovers the URL from the retired ytimg:// scheme", () => {
-    expect(unproxiedThumbnail(`ytimg://localhost/${encodeURIComponent(SHARP_ROW)}`)).toBe(SHARP_ROW);
-    expect(unproxiedThumbnail(`http://ytimg.localhost/${encodeURIComponent(SHARP_ROW)}`)).toBe(SHARP_ROW);
-  });
-
   it("passes plain URLs through and rejects non-URLs", () => {
     expect(unproxiedThumbnail(SHARP_ROW)).toBe(SHARP_ROW);
     expect(unproxiedThumbnail(`${BASE}/yt/dQw4w9WgXcQ`)).toBe(`${BASE}/yt/dQw4w9WgXcQ`);

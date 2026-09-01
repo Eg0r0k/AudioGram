@@ -103,8 +103,8 @@ describe("prefetchIdOf", () => {
     expect(prefetchIdOf(libraryTrack("3f0a2f8e-uuid", "tracks/a.m4a"))).toBe("3f0a2f8e-uuid");
   });
 
-  it("rebuilds a yt: id from an ephemeral stream:// track", () => {
-    const track = ephemeralUrlTrack("stream://localhost/yt/dQw4w9WgXcQ");
+  it("rebuilds a yt: id from an ephemeral proxied track", () => {
+    const track = ephemeralUrlTrack("http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ");
     expect(prefetchIdOf(track)).toBe(ytTrackId("dQw4w9WgXcQ"));
   });
 

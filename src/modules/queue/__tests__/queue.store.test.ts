@@ -2300,7 +2300,7 @@ describe("queue.store", () => {
 
   describe("restorePersistedQueue proxy URL migration", () => {
     // Port and token change every launch — restore must re-point any stored
-    // proxy URL (current or legacy form) at the live server base.
+    // proxy URL at the live server base.
     const LIVE_BASE = "http://127.0.0.1:4321/livetoken";
 
     beforeEach(() => {
@@ -2329,17 +2329,6 @@ describe("queue.store", () => {
       };
     }
 
-    it("rewrites legacy stream:// playback URLs onto the live base", async () => {
-      const store = useQueueStore();
-      store.persistedSnapshot = snapshotWithEphemeral({
-        source: { type: "url", url: "stream://localhost/yt%2FdQw4w9WgXcQ" },
-      });
-
-      await store.restorePersistedQueue();
-
-      expect((store.queue[0].track as any).source.url).toBe(`${LIVE_BASE}/yt/dQw4w9WgXcQ`);
-    });
-
     it("rewrites previous-session server URLs with a stale port and token", async () => {
       const store = useQueueStore();
       store.persistedSnapshot = snapshotWithEphemeral({
@@ -2356,7 +2345,7 @@ describe("queue.store", () => {
       store.persistedSnapshot = snapshotWithEphemeral(
         {
           source: { type: "url", url: "https://radio.example/stream.m3u8" },
-          cover: "http://stream.localhost/nd%2Fcover%2Fal-1%3Fsize%3D300",
+          cover: "http://127.0.0.1:60123/staletoken/nd/cover/al-1?size=300",
         },
         "http://127.0.0.1:60123/staletoken/nd/cover/al-2",
       );
@@ -2379,7 +2368,7 @@ describe("queue.store", () => {
           track: { kind: "library", trackId: "1" as any },
           source: { type: "manual" as const },
           addedAt: 100,
-          cover: "stream://localhost/nd%2Fcover%2Fal-9",
+          cover: "http://127.0.0.1:60123/staletoken/nd/cover/al-9",
         }],
         originalQueueOrder: ["item-1" as any],
         currentIndex: 0,

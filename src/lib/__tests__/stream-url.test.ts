@@ -86,29 +86,20 @@ describe("proxyPathFromUrl", () => {
       .toBe("yt/dQw4w9WgXcQ");
   });
 
-  it("parses every legacy proxy form", () => {
-    // Desktop generalized scheme, whole path percent-encoded.
-    expect(proxyPathFromUrl("stream://localhost/yt%2FdQw4w9WgXcQ")).toBe("yt/dQw4w9WgXcQ");
-    // Windows/android host form.
-    expect(proxyPathFromUrl("http://stream.localhost/nd%2Fsong%2Fs1")).toBe("nd/song/s1");
-    // Cover with the ?size= query embedded in the encoded path.
-    expect(proxyPathFromUrl("http://stream.localhost/nd%2Fcover%2Fal-1%3Fsize%3D300"))
-      .toBe("nd/cover/al-1?size=300");
-    // Pre-generalization ytstream:// carried the bare video id.
-    expect(proxyPathFromUrl("ytstream://localhost/dQw4w9WgXcQ")).toBe("yt/dQw4w9WgXcQ");
-    expect(proxyPathFromUrl("http://ytstream.localhost/dQw4w9WgXcQ")).toBe("yt/dQw4w9WgXcQ");
+  it("no longer recognizes the retired custom schemes", () => {
+    expect(proxyPathFromUrl("stream://localhost/yt%2FdQw4w9WgXcQ")).toBeNull();
+    expect(proxyPathFromUrl("http://stream.localhost/nd%2Fsong%2Fs1")).toBeNull();
+    expect(proxyPathFromUrl("ytstream://localhost/dQw4w9WgXcQ")).toBeNull();
+    expect(proxyPathFromUrl(`ytimg://localhost/${THUMB_ENC}`)).toBeNull();
+    expect(proxyPathFromUrl(`http://ytimg.localhost/${THUMB_ENC}`)).toBeNull();
   });
 
   it("keeps a real query when the server form carries one", () => {
     expect(proxyPathFromUrl(`${BASE}/nd/cover/al-1?size=300`)).toBe("nd/cover/al-1?size=300");
   });
 
-  it("decodes the thumbnail URL out of ytimg forms, current and legacy", () => {
+  it("decodes the thumbnail URL out of the ytimg route", () => {
     expect(proxyPathFromUrl(`${BASE}/ytimg/${THUMB_ENC}`)).toBe(`ytimg/${THUMB}`);
-    // The retired custom scheme, as persisted in older queue snapshots.
-    expect(proxyPathFromUrl(`ytimg://localhost/${THUMB_ENC}`)).toBe(`ytimg/${THUMB}`);
-    expect(proxyPathFromUrl(`http://ytimg.localhost/${THUMB_ENC}`)).toBe(`ytimg/${THUMB}`);
-    expect(proxyPathFromUrl("ytimg://localhost/")).toBeNull();
   });
 
   it("returns null for non-proxy URLs", () => {
@@ -124,17 +115,14 @@ describe("ytVideoIdFromStreamUrl", () => {
     expect(ytVideoIdFromStreamUrl(ytStreamUrl("dQw4w9WgXcQ"))).toBe("dQw4w9WgXcQ");
   });
 
-  it("extracts the id from legacy and previous-session forms", () => {
-    expect(ytVideoIdFromStreamUrl("stream://localhost/yt%2FdQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
-    expect(ytVideoIdFromStreamUrl("http://stream.localhost/yt%2FdQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
-    expect(ytVideoIdFromStreamUrl("ytstream://localhost/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+  it("extracts the id from a previous-session form", () => {
     expect(ytVideoIdFromStreamUrl("http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ"))
       .toBe("dQw4w9WgXcQ");
   });
 
   it("rejects non-yt proxy paths and foreign URLs", () => {
     expect(ytVideoIdFromStreamUrl(`${BASE}/nd/song/s1`)).toBeNull();
-    expect(ytVideoIdFromStreamUrl("stream://localhost/nd/song/1")).toBeNull();
+    expect(ytVideoIdFromStreamUrl("http://127.0.0.1:60123/deadbeef/nd/song/1")).toBeNull();
     expect(ytVideoIdFromStreamUrl("https://example.com/yt/abc")).toBeNull();
     expect(ytVideoIdFromStreamUrl("not a url")).toBeNull();
     expect(ytVideoIdFromStreamUrl(null)).toBeNull();
@@ -142,14 +130,12 @@ describe("ytVideoIdFromStreamUrl", () => {
 });
 
 describe("migrateProxyUrl", () => {
-  it("rebuilds every proxy form onto the current base", () => {
-    expect(migrateProxyUrl("stream://localhost/yt%2FdQw4w9WgXcQ"))
-      .toBe(`${BASE}/yt/dQw4w9WgXcQ`);
-    expect(migrateProxyUrl("ytstream://localhost/dQw4w9WgXcQ"))
+  it("rebuilds every route of a previous session onto the current base", () => {
+    expect(migrateProxyUrl("http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ"))
       .toBe(`${BASE}/yt/dQw4w9WgXcQ`);
     expect(migrateProxyUrl("http://127.0.0.1:60123/deadbeef/nd/song/s1"))
       .toBe(`${BASE}/nd/song/s1`);
-    expect(migrateProxyUrl("http://stream.localhost/nd%2Fcover%2Fal-1%3Fsize%3D300"))
+    expect(migrateProxyUrl("http://127.0.0.1:60123/deadbeef/nd/cover/al-1?size=300"))
       .toBe(`${BASE}/nd/cover/al-1?size=300`);
   });
 
@@ -158,8 +144,7 @@ describe("migrateProxyUrl", () => {
       .toBe(`${BASE}/local/C%3A%2Fmusic%2Fa%20b.mp3`);
   });
 
-  it("moves ytimg:// thumbnails onto the server route without losing their query", () => {
-    expect(migrateProxyUrl(`ytimg://localhost/${THUMB_ENC}`)).toBe(`${BASE}/ytimg/${THUMB_ENC}`);
+  it("moves thumbnails onto the current base without losing their query", () => {
     expect(migrateProxyUrl(`http://127.0.0.1:60123/deadbeef/ytimg/${THUMB_ENC}`))
       .toBe(`${BASE}/ytimg/${THUMB_ENC}`);
   });
@@ -173,7 +158,7 @@ describe("migrateProxyUrl", () => {
 
   it("leaves proxy URLs untouched when the base is missing", () => {
     setMediaServerBaseForTests(null);
-    const legacy = "stream://localhost/yt%2FdQw4w9WgXcQ";
-    expect(migrateProxyUrl(legacy)).toBe(legacy);
+    const stale = "http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ";
+    expect(migrateProxyUrl(stale)).toBe(stale);
   });
 });

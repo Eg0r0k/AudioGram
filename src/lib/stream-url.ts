@@ -15,7 +15,7 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 // The base is fetched ONCE at bootstrap (top-level await in main.ts), so the
 // builders stay synchronous. Port and token change every launch — server
 // URLs must never be persisted as-is; `migrateProxyUrl` rebuilds any stored
-// proxy URL (current or legacy `stream://`-era forms) onto the live base.
+// proxy URL onto the live base.
 //
 
 let serverBase: string | null = null;
@@ -79,45 +79,24 @@ export const ytImageUrl = (thumbnailUrl: string): string => {
 const KNOWN_ROUTES = /^(yt|nd\/song|nd\/cover|local|ytimg)\//;
 
 /**
- * Recognizes every current and historical proxy URL shape and returns the
+ * Recognizes a server URL from this or any previous session
+ * (`http://127.0.0.1:{port}/{token}/…`, any port and token) and returns the
  * decoded route path (`yt/<id>`, `nd/song/<id>`, `nd/cover/<id>?size=<px>`,
- * `local/<abs path>`, `ytimg/<https url>`), or null for anything that never
- * was a proxy URL:
- *
- * - current/previous-session server: `http://127.0.0.1:{port}/{token}/…`
- * - generalized scheme: `stream://localhost/<enc path>` and
- *   `http(s)://stream.localhost/<enc path>` (windows/android form)
- * - pre-generalization: `ytstream://localhost/<videoId>` and
- *   `http(s)://ytstream.localhost/<videoId>`
- * - thumbnail scheme: `ytimg://localhost/<enc https url>` and
- *   `http(s)://ytimg.localhost/<enc https url>`
+ * `local/<abs path>`, `ytimg/<https url>`), or null for anything that is not
+ * a proxy URL.
  */
 export const proxyPathFromUrl = (url: string | null | undefined): string | null => {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    const isYtLegacy = parsed.protocol === "ytstream:" || parsed.hostname === "ytstream.localhost";
-    const isYtimgLegacy = parsed.protocol === "ytimg:" || parsed.hostname === "ytimg.localhost";
-    const isStreamLegacy = parsed.protocol === "stream:" || parsed.hostname === "stream.localhost";
-    const isServer = parsed.hostname === "127.0.0.1";
-    if (!isYtLegacy && !isYtimgLegacy && !isStreamLegacy && !isServer) return null;
+    if (parsed.hostname !== "127.0.0.1") return null;
 
-    let path = decodeURIComponent(parsed.pathname).replace(/^\//, "");
+    // Strip the (session-specific) token segment.
+    const path = decodeURIComponent(parsed.pathname).replace(/^\//, "");
+    const slash = path.indexOf("/");
+    if (slash === -1) return null;
 
-    if (isServer) {
-      // Strip the (session-specific) token segment.
-      const slash = path.indexOf("/");
-      if (slash === -1) return null;
-      path = path.slice(slash + 1);
-    }
-    if (isYtLegacy) {
-      return path ? `yt/${path}` : null;
-    }
-    if (isYtimgLegacy) {
-      return path ? `ytimg/${path}` : null;
-    }
-
-    const withQuery = `${path}${parsed.search}`;
+    const withQuery = `${path.slice(slash + 1)}${parsed.search}`;
     return KNOWN_ROUTES.test(withQuery) ? withQuery : null;
   }
   catch {
@@ -126,7 +105,7 @@ export const proxyPathFromUrl = (url: string | null | undefined): string | null 
 };
 
 /**
- * Extracts the video id from any proxy-form YouTube URL (see
+ * Extracts the video id from a proxied YouTube URL (see
  * {@link proxyPathFromUrl}). Returns null for anything else (local files,
  * nd streams, arbitrary URLs).
  */

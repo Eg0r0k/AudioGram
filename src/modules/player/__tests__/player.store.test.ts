@@ -694,7 +694,7 @@ describe("player.store", () => {
     });
 
     it("falls back to the source stream when no offline copy exists", async () => {
-      const resolveStreamUrl = vi.fn(() => okAsync("stream://localhost/yt/dQw4w9WgXcQ"));
+      const resolveStreamUrl = vi.fn(() => okAsync("http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ"));
       sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
       const store = usePlayerStore();
 
@@ -702,7 +702,7 @@ describe("player.store", () => {
 
       expect(sourcesMock.forTrack).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
       expect(resolveStreamUrl).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
-      expect(mockPlayerMethods.load).toHaveBeenCalledWith("stream://localhost/yt/dQw4w9WgXcQ");
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("http://127.0.0.1:60123/deadbeef/yt/dQw4w9WgXcQ");
       // The offline copy was checked first and came back empty.
       expect(offlineCopyMock.findById).toHaveBeenCalledWith("yt:dQw4w9WgXcQ");
     });
@@ -1606,7 +1606,7 @@ describe("player.store", () => {
     it("retries a failed stream resolution once", async () => {
       const resolveStreamUrl = vi.fn()
         .mockReturnValueOnce(errAsync({ kind: "NETWORK", message: "upstream down" }))
-        .mockReturnValueOnce(okAsync("stream://localhost/yt/x"));
+        .mockReturnValueOnce(okAsync("http://127.0.0.1:60123/deadbeef/yt/x"));
       sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
       offlineCopyMock.findById.mockResolvedValue(ok(undefined));
       const store = usePlayerStore();
@@ -1614,7 +1614,7 @@ describe("player.store", () => {
       await store.playPlayerTrack(createLibraryTrack({ id: "yt:x" as never, source: TrackSource.REMOTE_YT, storagePath: "" }));
 
       expect(resolveStreamUrl).toHaveBeenCalledTimes(2);
-      expect(mockPlayerMethods.load).toHaveBeenCalledWith("stream://localhost/yt/x");
+      expect(mockPlayerMethods.load).toHaveBeenCalledWith("http://127.0.0.1:60123/deadbeef/yt/x");
     });
 
     it("does not retry a missing file or a broken track", async () => {

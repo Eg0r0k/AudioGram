@@ -169,7 +169,7 @@ describe("useTrackMenuCaps", () => {
   it("classifies a YT ephemeral stream as yt and a path ephemeral as local", () => {
     const ytSubject = shallowRef<TrackMenuSubject | null>({
       kind: "ephemeral",
-      track: { kind: "ephemeral", id: "e1", title: "S", source: { type: "url", url: "stream://localhost/yt/abc" } },
+      track: { kind: "ephemeral", id: "e1", title: "S", source: { type: "url", url: "http://127.0.0.1:60123/deadbeef/yt/abc" } },
     });
     const pathSubject = shallowRef<TrackMenuSubject | null>({
       kind: "ephemeral",

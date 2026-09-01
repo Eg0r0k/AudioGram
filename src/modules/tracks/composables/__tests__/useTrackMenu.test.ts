@@ -29,7 +29,7 @@ const ephemeralTrack: EphemeralTrack = {
   kind: "ephemeral",
   id: "eph-1",
   title: "Stream",
-  source: { type: "url", url: "stream://localhost/yt/abc" },
+  source: { type: "url", url: "http://127.0.0.1:60123/deadbeef/yt/abc" },
 };
 
 const remoteSubject: TrackMenuSubject = {

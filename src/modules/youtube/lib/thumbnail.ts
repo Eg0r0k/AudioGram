@@ -31,10 +31,9 @@ export function proxiedThumbnail(url: string, size: number = THUMB_SIZE_FULL): s
 }
 
 /**
- * Recovers the original https thumbnail URL from a proxied one — the current
- * `ytimg/<enc url>` server route or the legacy `ytimg://` scheme persisted in
- * older queue snapshots. Non-proxied URLs pass through unchanged; anything
- * that is not a URL at all yields null.
+ * Recovers the original https thumbnail URL from one proxied through the
+ * `ytimg/<enc url>` server route. Non-proxied URLs pass through unchanged;
+ * anything that is not a URL at all yields null.
  */
 export function unproxiedThumbnail(url: string | null | undefined): string | null {
   if (!url) return null;

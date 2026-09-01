@@ -60,7 +60,7 @@ export const isPlayingStatus = (s: PlaybackStatus): boolean =>
 export const isLoadingStatus = (s: PlaybackStatus): boolean =>
   s.kind === "resolving" || s.kind === "loading" || s.kind === "starting";
 
-/** Flattens the union to lyra's `PlayerState` for consumers of the legacy `status` field. */
+/** Flattens the union to lyra's `PlayerState` — the shape the read-only `status` field exposes. */
 export const toPlayerState = (s: PlaybackStatus): PlayerState => {
   switch (s.kind) {
     case "idle": return "idle";
@@ -77,9 +77,9 @@ export const toPlayerState = (s: PlaybackStatus): PlayerState => {
 };
 
 /**
- * Inverse of {@link toPlayerState} for the legacy writable `status` field.
- * A flat state cannot describe a fade or a switch, so it never produces one;
- * "loading" becomes a switch keyed to `currentRequestId`.
+ * Lifts an engine state change into the union. A flat state cannot describe
+ * a fade or a switch, so it never produces one; "loading" becomes a switch
+ * keyed to `currentRequestId`.
  */
 export const fromPlayerState = (state: PlayerState, currentRequestId: number): PlaybackStatus => {
   switch (state) {

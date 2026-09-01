@@ -114,7 +114,7 @@ describe("download → offline copy plays → remove → streams (integration)",
     storageMock.getAudioUrl.mockReturnValue(okAsync("blob:offline-copy-url"));
     storageMock.deleteFile.mockReturnValue(okAsync(undefined));
     providerMock.downloadToFile.mockReturnValue(okAsync({ path: "C:/tmp/downloads-tmp/song1.flac", format: { codec: "flac" } }));
-    providerMock.resolveStreamUrl.mockReturnValue(okAsync("stream://localhost/nd/song/song1"));
+    providerMock.resolveStreamUrl.mockReturnValue(okAsync("http://127.0.0.1:60123/deadbeef/nd/song/song1"));
   });
 
   it("plays the copy while it exists and falls back to streaming after removal", async () => {

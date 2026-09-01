@@ -133,7 +133,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           "vue-vendor": ["vue", "vue-router", "pinia"],
-          "ui-vendor": ["reka-ui", "vaul-vue", "motion-v"],
+          "ui-vendor": ["reka-ui", "motion-v"],
           "utils-vendor": ["@vueuse/core", "clsx", "tailwind-merge"],
         },
       },
