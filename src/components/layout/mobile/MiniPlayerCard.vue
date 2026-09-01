@@ -54,23 +54,14 @@
       </div>
     </div>
 
-    <div
-      v-if="progress !== undefined"
-      class="absolute bottom-0 left-2 right-2"
-    >
-      <div class="h-0.5 w-full bg-white/50 rounded-full">
-        <div
-          class="h-full bg-white rounded-full"
-          :style="{ width: `${progress}%` }"
-        />
-      </div>
-    </div>
+    <MiniPlayerProgress v-if="showProgress" />
   </div>
 </template>
 
 <script setup lang="ts">
 import NuxtImage from "@/components/ui/image/NuxtImage.vue";
 import MarqueeBlock from "@/components/ui/marquee/MarqueeBlock.vue";
+import MiniPlayerProgress from "./MiniPlayerProgress.vue";
 import IconPlaylist from "~icons/tabler/playlist";
 import IconPlay from "~icons/tabler/player-play-filled";
 
@@ -80,6 +71,6 @@ defineProps<{
   coverUrl?: string;
   background: string;
   gradientColor: string;
-  progress?: number;
+  showProgress?: boolean;
 }>();
 </script>

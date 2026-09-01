@@ -1,5 +1,4 @@
 import type { AlbumId, ArtistId, PlaylistId, TagId, TrackId } from "@/types/ids";
-import type { CoverOwnerType } from "@/db/entities";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import type { SourceKind } from "@/types/track-ref";
 
@@ -27,7 +26,6 @@ export const queryKeys = {
     libraryRow: (id: AlbumId | null) => ["albums", id, "libraryRow"] as const,
     search: (query: string) => ["albums", "search", query] as const,
     tracks: (id: AlbumId) => ["albums", id, "tracks"] as const,
-    cover: (id: AlbumId) => ["covers", "album", id] as const,
     page: (id: AlbumId) => ["albums", id, "page"] as const,
     tracksPage: (id: AlbumId, sortKey?: TrackSortKey | null) => sortKey
       ? ["albums", id, "tracks", "page", sortKey] as const
@@ -40,7 +38,6 @@ export const queryKeys = {
     /** Row-or-null lookup; unlike `detail` it does not throw on a miss. */
     libraryRow: (id: PlaylistId | null) => ["playlists", id, "libraryRow"] as const,
     tracks: (id: PlaylistId) => ["playlists", id, "tracks"] as const,
-    cover: (id: PlaylistId) => ["covers", "playlist", id] as const,
     page: (id: PlaylistId) => ["playlists", id, "page"] as const,
     tracksPage: (id: PlaylistId, sortKey?: TrackSortKey | null) => sortKey
       ? ["playlists", id, "tracks", "page", sortKey] as const
@@ -76,11 +73,6 @@ export const queryKeys = {
     all: () => ["tags"] as const,
     detail: (id: TagId) => ["tags", id] as const,
     byTrack: (trackId: TrackId) => ["tags", "track", trackId] as const,
-  },
-  covers: {
-    all: () => ["covers"] as const,
-    detail: (ownerType: CoverOwnerType, ownerId: string) =>
-      ["covers", ownerType, ownerId] as const,
   },
   recommendations: {
     forTrack: (trackId: TrackId, cacheVersion: number, limit: number) =>

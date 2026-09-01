@@ -3,6 +3,9 @@ import { useCurrentPlayerTrack } from "@/modules/player/composables/useCurrentPl
 import { useTrackCover } from "@/modules/covers/composables/useTrackCover";
 import { getColorFromImage, type ColorResult } from "@/composables/useImageColor";
 
+// Longer than the cover slide (useTrackSwipe's SLIDE_TRANSITION).
+const COLOR_EXTRACTION_DELAY_MS = 400;
+
 const defaultFallback: ColorResult = {
   hex: "#535353",
   rgb: "rgb(83, 83, 83)",
@@ -25,18 +28,30 @@ export function useMobilePlayerColor() {
   });
 
   const color = ref<ColorResult>({ ...defaultFallback });
+  // Extraction decodes the cover and samples it through a canvas. Right
+  // after a track change that lands inside the cover slide, so it waits the
+  // slide out; the colour then crossfades in over 900 ms anyway. The token
+  // drops a result whose cover is no longer current — swiping through
+  // several tracks must not settle on an earlier one's colour.
+  let extractionToken = 0;
   watch(coverUrl, async (newCover) => {
+    const token = ++extractionToken;
     if (!newCover) {
       color.value = { ...defaultFallback };
       return;
     }
 
+    await new Promise(resolve => setTimeout(resolve, COLOR_EXTRACTION_DELAY_MS));
+    if (token !== extractionToken) return;
+
+    let next: ColorResult;
     try {
-      color.value = await getColorFromImage(newCover);
+      next = await getColorFromImage(newCover);
     }
     catch {
-      color.value = { ...defaultFallback };
+      next = { ...defaultFallback };
     }
+    if (token === extractionToken) color.value = next;
   }, { immediate: true });
 
   return {

@@ -78,12 +78,18 @@ const installLayoutStubs = () => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 };
 
-const mountList = (rows: Row[], animateReorder = true, provide: Record<symbol, unknown> = {}) => {
+const mountList = (
+  rows: Row[],
+  animateReorder = true,
+  provide: Record<symbol, unknown> = {},
+  itemHeight: number | null = ROW_HEIGHT,
+) => {
   let current = rows;
   const utils = render(VirtualScrollable<Row>, {
     props: {
       items: current,
-      itemHeight: ROW_HEIGHT,
+      ...(itemHeight === null ? {} : { itemHeight }),
+      estimateSize: ROW_HEIGHT,
       getItemKey: (index: number) => current[index].id,
       animateReorder,
     },
@@ -167,7 +173,21 @@ describe("VirtualScrollable — items watchers", () => {
     expect(animateCalls).toBe(0);
   });
 
-  it("a length change re-measures exactly once", async () => {
+  it("a length change re-measures exactly once when rows are measured", async () => {
+    const rows = makeRows(100);
+    const { setItems } = mountList(rows, false, {}, null);
+    await flush();
+    virtualizerSpy.measure!.mockClear();
+
+    await setItems([...rows, ...makeRows(10, 100)]);
+
+    expect(virtualizerSpy.measure).toHaveBeenCalledTimes(1);
+  });
+
+  it("a length change with a fixed itemHeight needs no re-measure", async () => {
+    // Nothing is cached per row, and measure() would hand every rendered row
+    // a fresh virtualRow — a second render of the visible list (a queue skip
+    // repainted the list twice).
     const rows = makeRows(100);
     const { setItems } = mountList(rows, false);
     await flush();
@@ -175,7 +195,7 @@ describe("VirtualScrollable — items watchers", () => {
 
     await setItems([...rows, ...makeRows(10, 100)]);
 
-    expect(virtualizerSpy.measure).toHaveBeenCalledTimes(1);
+    expect(virtualizerSpy.measure).toHaveBeenCalledTimes(0);
   });
 
   it("a reorder still snapshots the rendered rows and plays FLIP", async () => {

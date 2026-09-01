@@ -309,7 +309,7 @@ watch([() => props.items, () => props.items.length], ([, newLength], [, oldLengt
 
   nextTick(() => {
     if (lengthChanged) {
-      virtualizer.value.measure();
+      if (!props.itemHeight) virtualizer.value.measure();
       scrollable.updateThumb();
     }
     if (reordered) playFlip();

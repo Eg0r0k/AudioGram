@@ -37,14 +37,27 @@ beforeEach(() => {
 });
 
 describe("initMediaServerBase", () => {
-  it("fetches the base from the media_server_base command", async () => {
+  it("fetches the audio and image bases from their commands", async () => {
     setMediaServerBaseForTests(null);
-    mocks.invoke.mockResolvedValueOnce("http://127.0.0.1:999/abc");
+    mocks.invoke.mockImplementation((command: string) =>
+      Promise.resolve(command === "image_server_base" ? "http://127.0.0.1:998/abc" : "http://127.0.0.1:999/abc"),
+    );
 
     await initMediaServerBase();
 
     expect(mocks.invoke).toHaveBeenCalledWith("media_server_base");
+    expect(mocks.invoke).toHaveBeenCalledWith("image_server_base");
     expect(ytStreamUrl("dQw4w9WgXcQ")).toBe("http://127.0.0.1:999/abc/yt/dQw4w9WgXcQ");
+    // Covers and thumbnails use the image origin, audio the media origin, so
+    // a burst of slow covers never occupies the audio connection pool.
+    expect(ndCoverUrl("al-1", 300)).toBe("http://127.0.0.1:998/abc/nd/cover/al-1?size=300");
+    expect(ytImageUrl(THUMB)).toBe(`http://127.0.0.1:998/abc/ytimg/${THUMB_ENC}`);
+    expect(ndSongStreamUrl("s1")).toBe("http://127.0.0.1:999/abc/nd/song/s1");
+    // A cover stored under a previous session's single-port base re-points
+    // onto the image origin.
+    expect(migrateProxyUrl("http://127.0.0.1:5000/oldtoken/nd/cover/al-1?size=64"))
+      .toBe("http://127.0.0.1:998/abc/nd/cover/al-1?size=64");
+    mocks.invoke.mockReset();
   });
 });
 

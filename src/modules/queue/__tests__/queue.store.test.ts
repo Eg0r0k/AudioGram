@@ -1319,6 +1319,7 @@ describe("queue.store", () => {
         { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
       ]);
       seedCurrentIndex(store, 0);
+      playerStore.playbackState = { kind: "playing" };
 
       store.removeFromQueue("item-1" as any);
 
@@ -1753,6 +1754,7 @@ describe("queue.store", () => {
         const playerStore = usePlayerStore();
         const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
         seedQueue(store, ["1", "2", "3", "4", "5"], 2);
+        playerStore.playbackState = { kind: "playing" };
 
         store.removeMultiple(["item-1", "item-3"] as any);
 
@@ -1820,6 +1822,126 @@ describe("queue.store", () => {
 
         expect(playSpy).toHaveBeenCalledTimes(1);
         expect(store.currentIndex).toBe(-1);
+      });
+    });
+
+    describe("repeat-one restarts on the loaded media", () => {
+      it("rewinds the current track instead of resolving and loading it again", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const restartSpy = vi.spyOn(playerStore, "restartCurrent").mockResolvedValue(true);
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        seedQueue(store, ["1", "2"], 0);
+        store.repeatMode = "one";
+
+        await store.advance();
+
+        expect(restartSpy).toHaveBeenCalledTimes(1);
+        expect(playSpy).not.toHaveBeenCalled();
+        expect(store.currentIndex).toBe(0);
+      });
+
+      it("falls back to the full load path when the engine holds no media", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        vi.spyOn(playerStore, "restartCurrent").mockResolvedValue(false);
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        seedQueue(store, ["1"], 0);
+        store.repeatMode = "one";
+
+        await store.advance();
+
+        expect(playSpy).toHaveBeenCalledWith(createTrack("1"));
+      });
+    });
+
+    describe("skipping unplayable entries cheaply", () => {
+      it("passes over a track flagged broken without selecting or loading it", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        const selected: (string | undefined)[] = [];
+        watch(() => store.currentTrack?.id, id => selected.push(id));
+        seedQueueItems(store, [
+          { id: "item-1" as any, track: { ...createTrack("1"), state: TrackState.BROKEN }, source: { type: "manual" }, addedAt: Date.now() },
+          { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" }, addedAt: Date.now() },
+        ]);
+        seedCurrentIndex(store, -1);
+
+        await store.next();
+        await nextTick();
+
+        expect(playSpy).toHaveBeenCalledTimes(1);
+        expect(playSpy).toHaveBeenCalledWith(createTrack("2"));
+        expect(selected).toEqual(["2"]);
+      });
+
+      it("stops after ten consecutive skips instead of draining a long queue of missing files", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const stopSpy = vi.spyOn(playerStore, "stop").mockReturnValue(undefined);
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockImplementation(
+          async track => { throw new PlaybackFailure({ kind: "unavailable", reason: "gone" }, track); },
+        );
+        const stalled = vi.fn();
+        const skipped = vi.fn();
+        const offStalled = useEventBus(playbackStalledEvent).on(stalled);
+        const offSkipped = useEventBus(trackSkippedEvent).on(skipped);
+        seedQueue(store, Array.from({ length: 30 }, (_, i) => String(i + 1)), -1);
+
+        await store.next();
+
+        expect(playSpy).toHaveBeenCalledTimes(10);
+        expect(skipped).toHaveBeenCalledTimes(10);
+        expect(stalled).toHaveBeenCalledTimes(1);
+        expect(stalled.mock.calls[0][0]).toMatchObject({ failures: 10 });
+        expect(stopSpy).toHaveBeenCalled();
+        expect(store.currentIndex).toBe(-1);
+        offStalled();
+        offSkipped();
+      });
+    });
+
+    describe("removing the current entry", () => {
+      it("plays the successor while playback is on", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        seedQueue(store, ["1", "2", "3"], 0);
+        playerStore.playbackState = { kind: "playing" };
+
+        await store.removeFromQueue("item-1" as any);
+
+        expect(playSpy).toHaveBeenCalledWith(createTrack("2"));
+        expect(store.currentTrack?.id).toBe("2");
+      });
+
+      it("only selects the successor while paused", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const playSpy = vi.spyOn(playerStore, "playPlayerTrack").mockResolvedValue(undefined);
+        const selectSpy = vi.spyOn(playerStore, "selectTrack").mockReturnValue(undefined);
+        seedQueue(store, ["1", "2", "3"], 1);
+        playerStore.playbackState = { kind: "paused" };
+
+        await store.removeFromQueue("item-2" as any);
+
+        expect(playSpy).not.toHaveBeenCalled();
+        expect(selectSpy).toHaveBeenCalledWith(createTrack("3"));
+        expect(store.currentTrack?.id).toBe("3");
+      });
+
+      it("selects the new last entry when the paused tail is removed", async () => {
+        const store = useQueueStore();
+        const playerStore = usePlayerStore();
+        const selectSpy = vi.spyOn(playerStore, "selectTrack").mockReturnValue(undefined);
+        seedQueue(store, ["1", "2", "3"], 2);
+        playerStore.playbackState = { kind: "paused" };
+
+        await store.removeFromQueue("item-3" as any);
+
+        expect(selectSpy).toHaveBeenCalledWith(createTrack("2"));
+        expect(store.currentIndex).toBe(1);
       });
     });
 
@@ -1922,6 +2044,7 @@ describe("queue.store", () => {
           .mockRejectedValueOnce(new PlaybackFailure({ kind: "broken", trackId: "2" }, createTrack("2")))
           .mockResolvedValue(undefined);
         seedQueue(store, ["1", "2", "3"], 0);
+        playerStore.playbackState = { kind: "playing" };
 
         await store.removeFromQueue("item-1" as any);
 

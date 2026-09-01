@@ -22,20 +22,36 @@ use tauri::{AppHandle, Runtime};
 /// pass-through upstream bodies).
 pub(crate) type Body = BoxBody<bytes::Bytes, std::io::Error>;
 
-/// Bound address + the per-launch path token, managed as tauri state and
-/// handed to the frontend via the `media_server_base` command.
+/// Bound addresses + the per-launch path token, managed as tauri state and
+/// handed to the frontend via the `media_server_base` / `image_server_base`
+/// commands.
+///
+/// Two ports, one server: the webview allows six HTTP/1.1 connections per
+/// host, and a burst of proxied covers (a few remote pages opened in a row,
+/// an upstream or a proxy that answers slowly) held all six — the media
+/// element's own request for a LOCAL file then queued behind them for as
+/// long as those covers took to fail. Images on their own origin get their
+/// own pool; audio never waits for a cover.
 pub struct MediaServerState {
     pub port: u16,
+    pub image_port: u16,
     pub token: String,
 }
 
-/// The frontend prefixes every media URL with this base:
+/// The frontend prefixes every audio URL with this base:
 /// `http://127.0.0.1:{port}/{token}`. Queried once at bootstrap (top-level
 /// await in main.ts) — the socket is bound before the webview exists, so
 /// this can never race server readiness.
 #[tauri::command]
 pub fn media_server_base(state: tauri::State<'_, MediaServerState>) -> String {
     format!("http://127.0.0.1:{}/{}", state.port, state.token)
+}
+
+/// Same server, same routes, second port: the base for proxied covers and
+/// thumbnails (see [`MediaServerState`]).
+#[tauri::command]
+pub fn image_server_base(state: tauri::State<'_, MediaServerState>) -> String {
+    format!("http://127.0.0.1:{}/{}", state.image_port, state.token)
 }
 
 /// What a `Range` header means for a resource of `total` bytes.
@@ -560,15 +576,24 @@ pub(crate) async fn handle<T: RemoteRoutes>(
 
 // ── Server lifecycle ─────────────────────────────────────────────────
 
-/// Binds `127.0.0.1:0` and mints the token. Called BEFORE the webview
-/// exists so the frontend can never observe a non-listening server.
-pub fn bind_on_loopback() -> std::io::Result<(std::net::TcpListener, MediaServerState)> {
+/// Binds `127.0.0.1:0` twice (audio, images) and mints the token. Called
+/// BEFORE the webview exists so the frontend can never observe a
+/// non-listening server.
+pub fn bind_on_loopback() -> std::io::Result<(
+    std::net::TcpListener,
+    std::net::TcpListener,
+    MediaServerState,
+)> {
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
+    let image_listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
     let port = listener.local_addr()?.port();
+    let image_port = image_listener.local_addr()?.port();
     Ok((
         listener,
+        image_listener,
         MediaServerState {
             port,
+            image_port,
             token: new_token(),
         },
     ))
@@ -620,24 +645,39 @@ pub(crate) async fn run_accept_loop<T: RemoteRoutes>(
     }
 }
 
-/// Entry point for `lib.rs`: wraps the app handle and spawns the loop on
-/// tauri's async runtime. The listener is already bound (before the webview
-/// existed), so requests can never race server readiness.
-pub fn spawn<R: Runtime>(app: AppHandle<R>, token: String, listener: std::net::TcpListener) {
+fn into_tokio(listener: std::net::TcpListener) -> Option<tokio::net::TcpListener> {
+    if let Ok(addr) = listener.local_addr() {
+        log::info!("media server listening on {addr}");
+    }
+    if let Err(e) = listener.set_nonblocking(true) {
+        log::error!("media server: set_nonblocking failed: {e}");
+        return None;
+    }
+    match tokio::net::TcpListener::from_std(listener) {
+        Ok(listener) => Some(listener),
+        Err(e) => {
+            log::error!("media server: listener conversion failed: {e}");
+            None
+        }
+    }
+}
+
+/// Entry point for `lib.rs`: wraps the app handle and spawns one accept loop
+/// per listener on tauri's async runtime. Both serve every route; only the
+/// origin the frontend uses for each kind of resource differs. The listeners
+/// are already bound (before the webview existed), so requests can never
+/// race server readiness.
+pub fn spawn<R: Runtime>(
+    app: AppHandle<R>,
+    token: String,
+    listener: std::net::TcpListener,
+    image_listener: std::net::TcpListener,
+) {
     tauri::async_runtime::spawn(async move {
-        if let Ok(addr) = listener.local_addr() {
-            log::info!("media server listening on {addr}");
-        }
-        if let Err(e) = listener.set_nonblocking(true) {
-            log::error!("media server: set_nonblocking failed: {e}");
+        let (Some(listener), Some(image_listener)) =
+            (into_tokio(listener), into_tokio(image_listener))
+        else {
             return;
-        }
-        let listener = match tokio::net::TcpListener::from_std(listener) {
-            Ok(listener) => listener,
-            Err(e) => {
-                log::error!("media server: listener conversion failed: {e}");
-                return;
-            }
         };
         use tauri::Manager;
         let transcode_cache = app
@@ -648,7 +688,14 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>, token: String, listener: std::net::T
         if let Some(cache) = &transcode_cache {
             crate::transcode::clean_stale_tmp(cache);
         }
-        run_accept_loop(AppRoutes(app), token, transcode_cache, listener).await;
+        let routes = AppRoutes(app);
+        tauri::async_runtime::spawn(run_accept_loop(
+            routes.clone(),
+            token.clone(),
+            transcode_cache.clone(),
+            image_listener,
+        ));
+        run_accept_loop(routes, token, transcode_cache, listener).await;
     });
 }
 
@@ -952,7 +999,7 @@ mod integration_tests {
     /// Real server on `:0` + the current-runtime accept loop; returns the
     /// base URL and the token.
     async fn spawn_test_server() -> (String, String) {
-        let (listener, state) = bind_on_loopback().expect("bind loopback");
+        let (listener, _image_listener, state) = bind_on_loopback().expect("bind loopback");
         listener.set_nonblocking(true).expect("nonblocking");
         let tokio_listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
         let base = format!("http://127.0.0.1:{}", state.port);

@@ -1,26 +1,17 @@
 import type { CoverOwnerType } from "@/db/entities";
 import { coverRepository } from "@/db/repositories";
-import { queryKeys } from "@/queries/query-keys";
-import { queryOptions } from "@tanstack/vue-query";
 import { unwrapResult } from "./shared";
 
-export async function getCoverBlob(
+/**
+ * The covers of `ownerIds` (one owner type) as one index read; owners without
+ * a cover are absent. The only read path into Dexie covers — consumers go
+ * through the cover cache (modules/covers/lib/cover-cache.ts), which batches
+ * and holds the results.
+ */
+export async function getCoverBlobsByOwners(
   ownerType: CoverOwnerType,
-  ownerId: string,
-) {
-  const cover = await unwrapResult(coverRepository.findByOwner(ownerType, ownerId));
-  return cover?.blob ?? null;
+  ownerIds: readonly string[],
+): Promise<Map<string, Blob>> {
+  const covers = await unwrapResult(coverRepository.findByOwners(ownerType, ownerIds));
+  return new Map(covers.map(cover => [cover.ownerId, cover.blob]));
 }
-
-export const coverQueries = {
-  detail: (
-    ownerType: CoverOwnerType,
-    ownerId: string,
-    enabled = true,
-  ) =>
-    queryOptions({
-      queryKey: queryKeys.covers.detail(ownerType, ownerId),
-      queryFn: () => getCoverBlob(ownerType, ownerId),
-      enabled,
-    }),
-} as const;

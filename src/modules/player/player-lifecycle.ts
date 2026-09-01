@@ -44,10 +44,6 @@ export function initPlayerLifecycle(): void {
         .catch(err => getLogger().error(`[Stats] ${String(err)}`));
     }
 
-    if (player.sleepAfterCurrentTrack) {
-      player.sleepAfterCurrentTrack = false;
-    }
-
     // Detached on purpose: the bus handler is synchronous. advance() knows it
     // may finish late and bails when the user has claimed playback meanwhile.
     useQueueStore().advance()
@@ -66,7 +62,9 @@ export function initPlayerLifecycle(): void {
       }
       return;
     }
-    toast.warning(i18n.global.t("queue.trackSkipped", { title: track.title }));
+    // One toast that updates its text: a run of unplayable entries would
+    // otherwise stack a notification per track.
+    toast.warning(i18n.global.t("queue.trackSkipped", { title: track.title }), { id: "queue-track-skipped" });
   });
 
   useEventBus(playbackStalledEvent).on(({ failures }) => {

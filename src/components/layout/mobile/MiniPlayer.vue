@@ -37,7 +37,7 @@
           :cover-url="slot.coverUrl"
           :background="cardBackground"
           :gradient-color="gradientColor"
-          :progress="slot.role === 'center' ? displayProgress : undefined"
+          :show-progress="slot.role === 'center'"
         >
           <template
             v-if="slot.role === 'center'"
@@ -65,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, provide, ref, useTemplateRef } from "vue";
+import { miniPlayerProgressKey } from "./mini-player-context";
 import { useElementSize } from "@vueuse/core";
 import { motion, useMotionValue, useTransform, type PanInfo } from "motion-v";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
@@ -96,6 +97,7 @@ const cardBackground = computed(() => `color-mix(in oklch, ${playerColor.value.h
 const gradientColor = computed(() => playerColor.value.hsl);
 
 const { displayProgress } = usePlayerProgress();
+provide(miniPlayerProgressKey, displayProgress);
 
 // Pointer travel (px) / release velocity (px/s) of an upward pull that opens
 // the full player; either the distance or a fast flick is enough.

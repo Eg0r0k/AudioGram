@@ -9,6 +9,8 @@
 use futures_util::TryStreamExt;
 use http_body_util::{BodyExt, StreamBody};
 
+const COVER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// `/{token}/nd/cover/<coverId>?size=<px>` → `getCoverArt.view`. Proxied so
 /// the canvas stays untainted for palette extraction; the body streams
 /// through without buffering.
@@ -32,7 +34,12 @@ pub(crate) async fn serve_cover(
     };
 
     let url = config.rest_url("getCoverArt.view", cover_id, &size);
-    let response = match client.get(&url).send().await {
+    // A whole-request deadline on top of the shared client's connect and
+    // read gaps: a cover is small, and one that has not arrived in this long
+    // (a stalled proxy, an upstream busy resizing) is better shown as the
+    // fallback art than as an `<img>` that holds a connection for the full
+    // connect timeout.
+    let response = match client.get(&url).timeout(COVER_TIMEOUT).send().await {
         Ok(response) => response,
         Err(e) => {
             // reqwest errors can embed the URL (auth token) — never log it.

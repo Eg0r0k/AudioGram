@@ -5,7 +5,6 @@ const mockPlayer = {
   currentTime: 0,
   listenedSeconds: 0,
   getListenedSeconds: () => mockPlayer.listenedSeconds,
-  sleepAfterCurrentTrack: false,
 };
 const mockQueue = { advance: vi.fn(async () => {}) };
 const mockLyrics = { loadFor: vi.fn(async () => {}) };
@@ -61,7 +60,6 @@ describe("player lifecycle", () => {
     mockPlayer.currentTrack = null;
     mockPlayer.currentTime = 0;
     mockPlayer.listenedSeconds = 0;
-    mockPlayer.sleepAfterCurrentTrack = false;
   });
 
   it("wires the next-track prefetch watcher exactly once at init", () => {
@@ -111,20 +109,12 @@ describe("player lifecycle", () => {
     expect(stopOrder).toBeLessThan(nextOrder);
   });
 
-  it("consumes the sleep-after-current-track flag on track end", () => {
-    mockPlayer.sleepAfterCurrentTrack = true;
-
-    trackEndedBus.emit();
-
-    expect(mockPlayer.sleepAfterCurrentTrack).toBe(false);
-  });
-
   it("tells the user about a skipped track, except for quiet storage failures", () => {
     const bus = useEventBus(trackSkippedEvent);
     const track = { ...libraryTrack, title: "Song", source: TrackSource.LOCAL_INTERNAL } as unknown as PlayerTrack;
 
     bus.emit({ track, error: { kind: "source", cause: { kind: "NETWORK", message: "down" } } });
-    expect(mockToast.warning).toHaveBeenLastCalledWith('queue.trackSkipped:{"title":"Song"}');
+    expect(mockToast.warning).toHaveBeenLastCalledWith('queue.trackSkipped:{"title":"Song"}', { id: "queue-track-skipped" });
 
     bus.emit({ track, error: { kind: "storage", cause: StorageError.readFailed("/x") } });
     expect(mockToast.warning).toHaveBeenCalledTimes(1);

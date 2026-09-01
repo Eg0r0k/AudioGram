@@ -1,8 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { queryClient } from "@/queries/client";
-import { queryKeys } from "@/queries/query-keys";
+import { coverCache } from "@/modules/covers/lib/cover-cache";
 import { ytAlbumId, ytTrackId } from "@/types/track-ref";
 import { ensureShadowCover } from "../shadowAlbumCover";
 
@@ -21,7 +20,9 @@ describe("ensureShadowCover", () => {
   beforeEach(async () => {
     await db.open();
     await Promise.all(db.tables.map(table => table.clear()));
-    queryClient.clear();
+    coverCache.invalidateAll();
+    URL.createObjectURL = vi.fn(() => "blob:mock");
+    URL.revokeObjectURL = vi.fn();
     vi.restoreAllMocks();
     logger.warn.mockClear();
   });
@@ -45,17 +46,16 @@ describe("ensureShadowCover", () => {
 
     const cover = await db.covers.where("[ownerType+ownerId]").equals(["track", trackId]).first();
     expect(cover).toMatchObject({ ownerType: "track", ownerId: trackId });
-    expect(queryClient.getQueryData<Blob>(queryKeys.covers.detail("track", trackId))).toBeInstanceOf(Blob);
+    expect(coverCache.entryFor({ ownerType: "track", ownerId: trackId })?.blob).toBeInstanceOf(Blob);
   });
 
-  it("syncs the freshly stored cover into the query cache", async () => {
+  it("publishes the freshly stored cover to the cover cache", async () => {
     const blob = new Blob(["img"], { type: "image/jpeg" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(blob, { status: 200 })));
 
     await ensureShadowCover("album", albumId, "ref");
 
-    const cached = queryClient.getQueryData<Blob>(queryKeys.covers.detail("album", albumId));
-    expect(cached).toBeInstanceOf(Blob);
+    expect(coverCache.entryFor({ ownerType: "album", ownerId: albumId })?.blob).toBeInstanceOf(Blob);
   });
 
   it("does nothing when the owner already has a cover", async () => {

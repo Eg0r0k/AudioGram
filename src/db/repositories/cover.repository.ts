@@ -22,6 +22,24 @@ class CoverRepository {
     }
   }
 
+  async findByOwners(
+    ownerType: CoverOwnerType,
+    ownerIds: readonly string[],
+  ): Promise<Result<CoverEntity[], Error>> {
+    if (ownerIds.length === 0) return ok([]);
+    try {
+      const covers = await db.covers
+        .where("[ownerType+ownerId]")
+        .anyOf(ownerIds.map(id => [ownerType, id]))
+        .toArray();
+
+      return ok(covers);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async getAlbumCover(
     albumId: AlbumId,
   ): Promise<Result<CoverEntity | undefined, Error>> {

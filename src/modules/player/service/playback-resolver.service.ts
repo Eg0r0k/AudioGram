@@ -8,6 +8,8 @@ import { offlineCopyRepository } from "@/db/repositories";
 import { sources } from "@/modules/sources";
 import { ensurePinned } from "@/modules/tracks/service/ensurePinned";
 import { getLogger } from "@/lib/logger";
+import { ytVideoIdFromStreamUrl } from "@/lib/stream-url";
+import { parseTrackRef } from "@/types/track-ref";
 import {
   type PlayerTrack,
   type EphemeralTrack,
@@ -65,6 +67,27 @@ export const describePlaybackError = (error: PlaybackError, track: PlayerTrack):
 export const isRetryablePlaybackError = (error: PlaybackError): boolean =>
   error.kind === "source" || error.kind === "engine";
 
+/**
+ * The engine itself is suspect — its load threw or hung — and only then is
+ * recreating it worth a new AudioContext. Every other failure happened
+ * before the engine was touched.
+ */
+export const isEngineFailure = (error: PlaybackError): boolean =>
+  error.kind === "engine" || (error.kind === "timeout" && error.phase === "loading");
+
+const RESOLVE_TIMEOUT_MS = 15_000;
+// A cold yt-dlp run (sidecar start, bot-check challenge, format probing)
+// routinely takes longer than a local lookup or a Subsonic stream URL.
+const YT_RESOLVE_TIMEOUT_MS = 45_000;
+
+/** How long resolvePlaybackSource may take for this track before the watchdog gives up. */
+export const resolveTimeoutMsFor = (track: PlayerTrack): number => {
+  const isYt = isEphemeralTrack(track)
+    ? track.source.type === "url" && ytVideoIdFromStreamUrl(track.source.url) !== null
+    : parseTrackRef(track.id).kind === "yt";
+  return isYt ? YT_RESOLVE_TIMEOUT_MS : RESOLVE_TIMEOUT_MS;
+};
+
 /** Wraps whatever the engine threw so every failure leaving the store carries a kind. */
 export const toPlaybackFailure = (thrown: unknown, track: PlayerTrack): PlaybackFailure => {
   if (thrown instanceof PlaybackFailure) return thrown;
@@ -76,6 +99,11 @@ export const toPlaybackFailure = (thrown: unknown, track: PlayerTrack): Playback
 export const checkPlayable = (track: PlayerTrack): Result<void, PlaybackError> => {
   if (isLibraryTrack(track) && track.state === TrackState.BROKEN) {
     return err({ kind: "broken", trackId: track.id });
+  }
+  // A dropped File does not survive persistence: the restored entry carries
+  // an empty object where the handle was, and no load can fix that.
+  if (isEphemeralTrack(track) && track.source.type === "file" && !(track.source.file instanceof File)) {
+    return err({ kind: "unavailable", reason: "the dropped file did not survive a reload" });
   }
   return ok(undefined);
 };

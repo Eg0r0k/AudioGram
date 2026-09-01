@@ -8,7 +8,16 @@ import { useCurrentPlayerTrack } from "./useCurrentPlayerTrack";
 import { isLibraryTrack } from "../types";
 
 const POSITION_UPDATE_INTERVAL = 1000;
+// Both the browser's media session and Android's extrapolate the position
+// from the last report and its playback rate, so a periodic re-push while
+// playing only costs a bridge hop a second. What they cannot see is a jump
+// — a seek, a stall, a rate the bridge cannot carry — so the store position
+// is checked against where the last report should have advanced to, and a
+// report goes out only when the two disagree by this much.
+const POSITION_DRIFT_TOLERANCE_S = 1.5;
 const ANDROID_ARTWORK_SIZE = 512;
+// Longer than the cover slide (useTrackSwipe's SLIDE_TRANSITION).
+const ARTWORK_ENCODE_DELAY_MS = 400;
 
 /**
  * Native bridge injected by MainActivity on Android (Tauri). The WebView
@@ -86,7 +95,6 @@ export const useMediaSession = () => {
   let lastPositionUpdate = 0;
   let lastReportedPosition = 0;
 
-  let positionInterval: ReturnType<typeof setInterval> | null = null;
   let seekCommitTimer: ReturnType<typeof setTimeout> | null = null;
 
   const forceNextUpdate = ref(false);
@@ -124,15 +132,63 @@ export const useMediaSession = () => {
     updateAndroidMetadata();
   };
 
+  // Every bridge method is a synchronous hop into the Java side, and a track
+  // change fires several watchers in one flush (metadata, actions, position,
+  // playback state) — inside the very frame that renders the change, where
+  // the hops added up to ~15 ms on a phone. Each push only marks what is
+  // stale; one task later a single setMetadata and setPlaybackState carry
+  // the latest state.
+  const NO_POSITION_OVERRIDE = Symbol("noPositionOverride");
+  let bridgeFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  let metadataStale = false;
+  let playbackStale = false;
+  let playbackPositionOverrideMs: number | typeof NO_POSITION_OVERRIDE = NO_POSITION_OVERRIDE;
+
+  const flushBridge = () => {
+    bridgeFlushTimer = null;
+    if (metadataStale) {
+      metadataStale = false;
+      pushAndroidMetadata();
+    }
+    if (playbackStale) {
+      playbackStale = false;
+      const override = playbackPositionOverrideMs;
+      playbackPositionOverrideMs = NO_POSITION_OVERRIDE;
+      pushAndroidPlayback(override === NO_POSITION_OVERRIDE ? undefined : override);
+    }
+  };
+
+  const scheduleBridgeFlush = () => {
+    if (bridgeFlushTimer === null) bridgeFlushTimer = setTimeout(flushBridge, 0);
+  };
+
+  const cancelBridgeFlush = () => {
+    if (bridgeFlushTimer !== null) clearTimeout(bridgeFlushTimer);
+    bridgeFlushTimer = null;
+    metadataStale = false;
+    playbackStale = false;
+    playbackPositionOverrideMs = NO_POSITION_OVERRIDE;
+  };
+
   const updateAndroidPlayback = (positionOverrideMs?: number) => {
+    if (!androidBridge || !player.currentTrack) return;
+    playbackStale = true;
+    if (positionOverrideMs !== undefined) playbackPositionOverrideMs = positionOverrideMs;
+    scheduleBridgeFlush();
+  };
+
+  const pushAndroidPlayback = (positionOverrideMs?: number) => {
     if (!androidBridge || !player.currentTrack) return;
 
     const track = player.currentTrack;
     const canLike = isLibraryTrack(track);
 
+    const positionMs = positionOverrideMs ?? Math.max(0, player.currentTime * 1000);
+    lastPositionUpdate = Date.now();
+    lastReportedPosition = positionMs / 1000;
     androidBridge.setPlaybackState(
       player.isPlaybackIntended,
-      positionOverrideMs ?? Math.max(0, player.currentTime * 1000),
+      positionMs,
       Math.max(0, (player.duration ?? 0) * 1000),
       player.canSeek,
       queue.hasNext,
@@ -155,11 +211,23 @@ export const useMediaSession = () => {
   const updateAndroidMetadata = () => {
     if (!androidBridge) return;
 
-    const track = player.currentTrack;
-    if (!track) {
+    if (!player.currentTrack) {
+      // Nothing to show any more: the session goes away right now, and a
+      // push still pending for the previous track must not resurrect it.
+      cancelBridgeFlush();
       androidBridge.release();
       return;
     }
+
+    metadataStale = true;
+    scheduleBridgeFlush();
+  };
+
+  const pushAndroidMetadata = () => {
+    if (!androidBridge) return;
+
+    const track = player.currentTrack;
+    if (!track) return;
 
     const artwork = coverOwnerId.value !== null && coverOwnerId.value === artworkOwnerId
       ? artworkBase64
@@ -171,7 +239,8 @@ export const useMediaSession = () => {
       track.albumName || "",
       artwork,
     );
-    updateAndroidPlayback();
+    // The flush pushes playback right after metadata.
+    playbackStale = true;
   };
 
   const handleAndroidAction = (event: Event) => {
@@ -256,7 +325,7 @@ export const useMediaSession = () => {
     try {
       navigator.mediaSession.setPositionState({
         duration: player.duration ?? 0,
-        playbackRate: 1.0,
+        playbackRate: player.playbackRate,
         position,
       });
 
@@ -373,11 +442,6 @@ export const useMediaSession = () => {
       setActionHandler(action, null);
     }
 
-    if (positionInterval) {
-      clearInterval(positionInterval);
-      positionInterval = null;
-    }
-
     if (seekCommitTimer) {
       clearTimeout(seekCommitTimer);
       seekCommitTimer = null;
@@ -389,6 +453,7 @@ export const useMediaSession = () => {
 
     if (androidBridge) {
       window.removeEventListener("audiogram-media-action", handleAndroidAction);
+      cancelBridgeFlush();
       androidBridge.release();
     }
   });
@@ -416,21 +481,29 @@ export const useMediaSession = () => {
       }
       updatePositionState(true);
       updateAndroidPlayback();
-
-      if (isPlaying) {
-        if (!positionInterval) {
-          positionInterval = setInterval(() => {
-            updatePositionState();
-            updateAndroidPlayback();
-          }, POSITION_UPDATE_INTERVAL);
-        }
-      }
-      else if (positionInterval) {
-        clearInterval(positionInterval);
-        positionInterval = null;
-      }
     },
     { immediate: true },
+  );
+
+  const expectedPosition = () =>
+    lastReportedPosition + ((Date.now() - lastPositionUpdate) / 1000) * player.playbackRate;
+
+  watch(
+    () => player.currentTime,
+    (position) => {
+      if (!player.isPlaybackIntended || isMediaSessionSeeking.value) return;
+      if (Math.abs(position - expectedPosition()) < POSITION_DRIFT_TOLERANCE_S) return;
+      updatePositionState(true);
+      updateAndroidPlayback();
+    },
+  );
+
+  watch(
+    () => player.playbackRate,
+    () => {
+      updatePositionState(true);
+      updateAndroidPlayback();
+    },
   );
 
   watch(
@@ -458,6 +531,11 @@ export const useMediaSession = () => {
       if (!androidBridge) return;
       const owner = coverOwnerId.value;
       const token = ++androidArtworkToken;
+      // Decoding and re-encoding the cover is main-thread work that would
+      // otherwise land inside the cover slide that follows a track change;
+      // the notification can show its art a moment later.
+      if (blob) await new Promise(resolve => setTimeout(resolve, ARTWORK_ENCODE_DELAY_MS));
+      if (token !== androidArtworkToken) return;
       const encoded = blob ? await coverArtworkBase64(blob) : "";
       if (token !== androidArtworkToken) return;
       artworkOwnerId = blob && owner ? owner : null;

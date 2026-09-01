@@ -1,7 +1,6 @@
 <template>
   <div class="track-expanded-container">
     <div
-      ref="rowRef"
       v-ripple
       role="button"
       tabindex="0"
@@ -30,25 +29,24 @@
             />
           </button>
           <span
-            v-else-if="!showCover && isRowHovered && !isDisabled"
-            key="hover-state"
-            class="flex items-center justify-center"
-          >
-            <IconPause
-              v-if="isCurrentTrack && isPlaying"
-              class="size-4 text-foreground"
-            />
-            <IconPlay
-              v-else
-              class="size-4 text-foreground"
-            />
-          </span>
-          <span
             v-else
             key="index"
-            :class="styles.index"
+            class="relative flex items-center justify-center"
           >
-            {{ index }}
+            <span :class="[styles.index, canSwapIndexOnHover && 'index-hover-idle']">{{ index }}</span>
+            <span
+              v-if="canSwapIndexOnHover"
+              class="index-hover-icon absolute inset-0 flex items-center justify-center"
+            >
+              <IconPause
+                v-if="isCurrentTrack && isPlaying"
+                class="size-4 text-foreground"
+              />
+              <IconPlay
+                v-else
+                class="size-4 text-foreground"
+              />
+            </span>
           </span>
         </Transition>
       </div>
@@ -69,19 +67,16 @@
           <div
             :class="[
               styles.imageOverlay,
-              showOverlay && !isSelecting ? 'opacity-100' : 'opacity-0',
+              isCurrentTrack && !isSelecting ? 'opacity-100' : 'opacity-0',
+              !isSelecting && 'group-hover:opacity-100',
             ]"
           >
-            <span
-              v-if="isCurrentTrack && isPlaying && !isRowHovered"
-              class="playing-pulse-dot"
-            >
-              <span /><span /><span />
-            </span>
-            <IconPause
-              v-else-if="isCurrentTrack && isPlaying && isRowHovered"
-              class="size-4 text-white"
-            />
+            <template v-if="isCurrentTrack && isPlaying">
+              <span class="playing-pulse-dot group-hover:hidden">
+                <span /><span /><span />
+              </span>
+              <IconPause class="hidden size-4 text-white group-hover:block" />
+            </template>
             <IconPlay
               v-else
               class="size-4 text-white"
@@ -202,9 +197,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
+import { computed, shallowRef } from "vue";
 import { cva } from "class-variance-authority";
-import { useElementHover } from "@vueuse/core";
 import { useDeviceLayout } from "@/composables/useDeviceLayout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -217,6 +211,7 @@ import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useToggleTrackLike } from "@/modules/tracks/composables/useToggleTrackLike";
 import SourceDownloadButton from "@/modules/downloads/components/SourceDownloadButton.vue";
+import type { OfflineCopyEntity } from "@/db/entities";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { useQuery } from "@tanstack/vue-query";
 import type { ArtistId, TrackId } from "@/types/ids";
@@ -317,8 +312,6 @@ const { locale } = useI18n();
 const { openDropdown } = useTrackMenu();
 const { toggleTrackLike } = useToggleTrackLike();
 
-const rowRef = useTemplateRef("rowRef");
-const isRowHovered = useElementHover(() => rowRef.value);
 const coverUrl = useTrackRowCover(() => props.track, () => props.coverSrc);
 
 const isCurrentTrack = computed(
@@ -326,7 +319,9 @@ const isCurrentTrack = computed(
 );
 const isPlaying = computed(() => playerStore.isPlaying);
 const isActivePlayback = computed(() => props.isActive || isCurrentTrack.value);
-const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
+// Hover states are CSS (`group-hover`, `.index-hover-*`): a JS hover tracker
+// per row re-rendered the rows under the pointer on every scroll step.
+const canSwapIndexOnHover = computed(() => !props.showCover && !props.isDisabled);
 const isExplicit = computed(() => Boolean(props.track.isExplicit));
 const isLiked = computed(() => props.track.isLiked);
 // Like writes to the library row — remote catalog rows (sourceDto) have
@@ -336,7 +331,11 @@ const isLibraryRow = computed(() => !props.track.sourceDto);
 // The downloaded check by the title: catalog rows carry their DTO id, YT
 // display rows pass downloadId explicitly.
 const offlineTrackId = computed(() => props.downloadId ?? props.track.sourceDto?.id ?? null);
-const { data: offlineCopy } = useQuery(computed(() => offlineCopyQueries.detail(offlineTrackId.value)));
+// A local library row has no offline copy to look up: no query observer for
+// it. Rows are keyed by track id, so a row never turns remote after mount.
+const offlineCopy = offlineTrackId.value === null
+  ? shallowRef<OfflineCopyEntity | null | undefined>(undefined)
+  : useQuery(computed(() => offlineCopyQueries.detail(offlineTrackId.value))).data;
 const isDownloaded = computed(() => !!offlineCopy.value);
 const relativeAddedAt = computed(() =>
   props.track.addedAt ? formatRelativeTime(props.track.addedAt, locale.value) : "",
@@ -434,6 +433,27 @@ function handleAlbumClick() {
 .index-swap-leave-to {
   opacity: 0;
   transform: scale(0.7);
+}
+
+/* Index ↔ play/pause swap on hover, in CSS: the same crossfade the
+   Transition above plays for the selection checkbox. */
+.index-hover-idle,
+.index-hover-icon {
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+.index-hover-icon {
+  opacity: 0;
+  transform: scale(0.7);
+}
+@media (hover: hover) {
+  .track-expanded:hover .index-hover-idle {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  .track-expanded:hover .index-hover-icon {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @container (max-width: 900px) {

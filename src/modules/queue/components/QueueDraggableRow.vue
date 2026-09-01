@@ -1,56 +1,51 @@
 <template>
   <div
-    ref="rowRef"
     class="queue-sortable-row relative bg-card px-2"
-    :class="isDragging && 'opacity-30'"
+    :class="isLifted && 'opacity-0'"
+    :style="shiftStyle"
+    @pointerdown="onPointerDown"
   >
     <slot />
-    <div
-      v-if="dropEdge"
-      class="pointer-events-none absolute left-3 right-3 z-10 h-0.5 rounded-full bg-primary"
-      :class="dropEdge === 'top' ? 'top-0' : 'bottom-0'"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
-import { makeDraggable } from "@vue-dnd-kit/core";
-import type { QueueItem } from "../types";
+import { computed, inject } from "vue";
+import type { QueueItemId } from "@/types/ids";
+import { queueDragKey, rowShift } from "../lib/queue-drag";
 
-// id keeps drag identity stable while the virtual list unmounts/remounts
-// rows mid-drag; the payload feeds suggestSort in QueueUpNext's onDrop.
+// The row never moves with the pointer itself: the ghost in QueueUpNext does.
+// This row only slides out of the way of the gap, and hides while its own
+// item is the one being dragged (or still gliding into place after a drop).
+//
+// The slide is a CSS transition on an inline transform rather than a motion
+// animation on purpose: a drop reorders the virtualizer's wrappers in one
+// Vue render and must zero this shift in that same render, and motion writes
+// its values a frame later — long enough for the neighbour to flash at the
+// old offset over its new slot. QueueUpNext turns the transition off for the
+// render that lands the drop.
 const props = defineProps<{
-  id: string;
+  id: QueueItemId;
   index: number;
-  items: QueueItem[];
 }>();
 
-const rowRef = useTemplateRef<HTMLElement>("rowRef");
+const dragContext = inject(queueDragKey);
+if (!dragContext) throw new Error("QueueDraggableRow must be rendered inside QueueUpNext");
 
-const { isDragging, isDragOver } = makeDraggable(rowRef, {
-  id: props.id,
-  dragHandle: "[data-drag-handle]",
-  activation: { distance: 5 },
-}, () => [props.index, props.items]);
+const isLifted = computed(() =>
+  dragContext.drag.value?.item.id === props.id || dragContext.settlingId.value === props.id,
+);
 
-const dropEdge = computed(() => {
-  if (isDragging.value) return null;
-  const placement = isDragOver.value;
-  if (placement?.top) return "top";
-  if (placement?.bottom) return "bottom";
-  return null;
+const shiftStyle = computed(() => {
+  const drag = dragContext.drag.value;
+  const shift = drag ? rowShift(props.index, drag.from, drag.to) : 0;
+  return shift === 0 ? undefined : { transform: `translateY(${shift * dragContext.itemHeight}px)` };
 });
-</script>
 
-<style>
-/* The default drag preview clones the row markup into a fixed container on
-   <body> — non-scoped on purpose. The row itself is transparent, so give
-   the floating clone a card look. */
-.dnd-kit-preview .queue-sortable-row {
-  background: var(--color-accent);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
-  opacity: 0.95;
-}
-</style>
+const onPointerDown = (event: PointerEvent) => {
+  if (event.button !== 0) return;
+  if (!(event.target as HTMLElement | null)?.closest("[data-drag-handle]")) return;
+  event.preventDefault();
+  dragContext.startDrag(props.index, event);
+};
+</script>

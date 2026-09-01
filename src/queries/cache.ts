@@ -22,6 +22,7 @@ import type {
   PlaylistPageData,
   TracksIndexPageData,
 } from "./types";
+import { coverCache } from "@/modules/covers/lib/cover-cache";
 
 function setQueryDataIfPresent<T>(
   queryClient: QueryClient,
@@ -288,12 +289,16 @@ export function removePlaylistCaches(queryClient: QueryClient, playlistId: Playl
 }
 
 export function updateCoverCache(
-  queryClient: QueryClient,
   ownerType: CoverOwnerType,
   ownerId: string,
   blob: Blob | null,
 ) {
-  queryClient.setQueryData(queryKeys.covers.detail(ownerType, ownerId), blob);
+  coverCache.set({ ownerType, ownerId }, blob);
+}
+
+/** A cover row is gone (its owner was deleted or re-parented). */
+export function removeCoverCache(ownerType: CoverOwnerType, ownerId: string) {
+  coverCache.invalidate({ ownerType, ownerId });
 }
 
 export function syncPlaylistTrackRemoval(

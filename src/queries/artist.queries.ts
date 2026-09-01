@@ -25,6 +25,7 @@ import {
   removeArtistCaches,
   syncArtistCaches,
   updateCoverCache,
+  removeCoverCache,
 } from "./cache";
 import { assertValidName } from "@/lib/limits";
 import { sortTracks, unwrapResult, unique } from "./shared";
@@ -266,11 +267,11 @@ export async function updateArtistAndSync(
 ) {
   if (changes.coverBlob) {
     await unwrapResult(coverRepository.upsertArtistCover(currentArtist.id, changes.coverBlob));
-    updateCoverCache(queryClient, "artist", currentArtist.id, changes.coverBlob);
+    updateCoverCache("artist", currentArtist.id, changes.coverBlob);
   }
   else if (changes.removeCover) {
     await unwrapResult(coverRepository.deleteArtistCover(currentArtist.id));
-    updateCoverCache(queryClient, "artist", currentArtist.id, null);
+    updateCoverCache("artist", currentArtist.id, null);
   }
 
   const updateData: Partial<ArtistEntity> = {};
@@ -410,7 +411,7 @@ export async function deleteArtistAndSync(
 
   for (const album of albums) {
     removeAlbumCaches(queryClient, album.id, artistEntity.id);
-    queryClient.removeQueries({ queryKey: queryKeys.albums.cover(album.id), exact: true });
+    removeCoverCache("album", album.id);
   }
   await removeSearchDocuments([
     `artist:${artistEntity.id}`,
@@ -424,7 +425,7 @@ export async function deleteArtistAndSync(
   }
 
   removeArtistCaches(queryClient, artistEntity.id);
-  queryClient.removeQueries({ queryKey: queryKeys.covers.detail("artist", artistEntity.id), exact: true });
+  removeCoverCache("artist", artistEntity.id);
 
   await invalidateForArtistMutation(queryClient, {
     kind: "removal",

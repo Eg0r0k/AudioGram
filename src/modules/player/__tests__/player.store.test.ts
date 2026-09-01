@@ -129,7 +129,7 @@ vi.mock("@/lib/logger", () => ({ getLogger: () => loggerMock }));
 import { useEventBus } from "@vueuse/core";
 import { ok, okAsync, errAsync, ResultAsync } from "neverthrow";
 import { usePlayerStore } from "../store/player.store";
-import { trackEndedEvent } from "../lib/player-events";
+import { trackChangedEvent, trackEndedEvent } from "../lib/player-events";
 import { PlaybackFailure } from "../service/playback-resolver.service";
 import { StorageError, StorageErrorCode } from "@/db/errors/storage.errors";
 
@@ -1831,7 +1831,7 @@ describe("player.store", () => {
       expect(store.currentTrack?.id).toBe("track-b");
     });
 
-    it("settles into error and discards the engine when source resolution throws", async () => {
+    it("settles into error and keeps the engine when source resolution throws", async () => {
       const store = usePlayerStore();
       await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never }));
       storageMock.getAudioUrl.mockReturnValueOnce(
@@ -1848,7 +1848,7 @@ describe("player.store", () => {
 
       // Not stuck in "resolving" with the event filter latched.
       expect(store.playbackState.kind).toBe("error");
-      expect(store.player).toBeNull();
+      expect(store.player).not.toBeNull();
       expect(store.currentTrack).toBeNull();
     });
 
@@ -1921,7 +1921,8 @@ describe("player.store", () => {
 
       expect((await failure)?.error).toEqual({ kind: "timeout", phase: "resolving" });
       expect(store.status).toBe("error");
-      expect(store.player).toBeNull();
+      // The engine did nothing wrong: it survives for the next attempt.
+      expect(store.player).not.toBeNull();
       // The track stays on screen so the UI can show what failed.
       expect(store.currentTrack).not.toBeNull();
     });
@@ -2027,6 +2028,393 @@ describe("player.store", () => {
 
       expect(store.currentTrack?.title).toBe("Imported");
       expect(mockPlayerMethods.load).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cancelling a pending play", () => {
+    type EngineMock = { trigger: (event: string, ...args: unknown[]) => void };
+    const engine = () => mockPlayer as unknown as EngineMock;
+
+    const parkLoad = () => {
+      let finish!: () => void;
+      mockPlayerMethods.load.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finish = resolve; }),
+      );
+      return () => finish();
+    };
+
+    it("clearing the track mid-load never starts the abandoned load", async () => {
+      const store = usePlayerStore();
+      const finishLoad = parkLoad();
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+      expect(store.status).toBe("loading");
+
+      // What queue.clear() does.
+      store.stop();
+      store.clearCurrentTrack();
+
+      finishLoad();
+      await pending;
+      await flushPromises();
+
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.fadeIn).not.toHaveBeenCalled();
+      expect(store.currentTrack).toBeNull();
+      expect(store.status).toBe("idle");
+    });
+
+    it("stop() mid-load abandons the load instead of letting it play later", async () => {
+      const store = usePlayerStore();
+      const finishLoad = parkLoad();
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+
+      store.stop();
+      finishLoad();
+      await pending;
+      await flushPromises();
+
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+      expect(store.isPlaying).toBe(false);
+    });
+
+    it("stop() during the fade-in does not retry the interrupted start on a fresh engine", async () => {
+      const store = usePlayerStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 3;
+      let rejectFadeIn!: (e: Error) => void;
+      mockPlayerMethods.fadeIn.mockImplementationOnce(
+        () => new Promise<void>((_, reject) => { rejectFadeIn = reject; }),
+      );
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("starting");
+
+      store.stop();
+      rejectFadeIn(new Error("The play() request was interrupted"));
+      await pending;
+      await flushPromises();
+
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1);
+      expect(store.status).not.toBe("error");
+    });
+
+    it("togglePlay while loading cancels the load and reads paused, without a second load", async () => {
+      const store = usePlayerStore();
+      const finishLoad = parkLoad();
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+      expect(store.isLoading).toBe(true);
+
+      Object.defineProperty(mockPlayer, "isReady", { get: () => false });
+      await store.togglePlay();
+      expect(store.status).toBe("paused");
+      expect(store.isPlaybackIntended).toBe(false);
+
+      finishLoad();
+      await pending;
+      await flushPromises();
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+      expect(store.currentTrack).not.toBeNull();
+    });
+
+    it("a play after a cancelled load reloads the track rather than trusting the engine's media", async () => {
+      const store = usePlayerStore();
+      const finishLoad = parkLoad();
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+      await store.togglePlay();
+      finishLoad();
+      await pending;
+      await flushPromises();
+      // lyra finished the cancelled load: the element is technically ready.
+      engine().trigger("statechange", { to: "ready" });
+
+      await store.play();
+
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(2);
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+      expect(store.playbackState.kind).toBe("starting");
+    });
+
+    it("togglePlay during the fade-in pauses instead of restarting the load", async () => {
+      const store = usePlayerStore();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeInDuration = 3;
+      let finishFadeIn!: () => void;
+      mockPlayerMethods.fadeIn.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFadeIn = resolve; }),
+      );
+      const pending = store.playPlayerTrack(createLibraryTrack());
+      await flushPromises();
+      expect(store.playbackState.kind).toBe("starting");
+
+      await store.togglePlay();
+
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+      expect(store.status).toBe("paused");
+      finishFadeIn();
+      await pending;
+      await flushPromises();
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+
+      // The media is this track's: resuming needs no reload.
+      mockPlayerMethods.fadeIn.mockResolvedValueOnce(undefined);
+      await store.play();
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.fadeIn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("silencing the outgoing track", () => {
+    const parkResolve = () => {
+      let settle!: (url: string) => void;
+      storageMock.getAudioUrl.mockImplementationOnce(
+        () => new ResultAsync(new Promise((resolve) => { settle = url => resolve(ok(url)); })),
+      );
+      return (url: string) => settle(url);
+    };
+    const playingEngine = () => {
+      Object.defineProperty(mockPlayer, "isPlaying", { get: () => true, configurable: true });
+    };
+
+    it("pauses the previous track as soon as the switch begins, before its source resolves", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "a" as never }));
+      playingEngine();
+      const settle = parkResolve();
+
+      const switching = store.playPlayerTrack(createLibraryTrack({ id: "b" as never }));
+      await flushPromises();
+
+      expect(store.playbackState.kind).toBe("resolving");
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+      expect(mockPlayerMethods.fadeOut).not.toHaveBeenCalled();
+
+      settle("blob:b");
+      await switching;
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(2);
+    });
+
+    it("ramps the previous track out when fades are enabled, then pauses it", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "a" as never }));
+      playingEngine();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 2;
+      let finishFadeOut!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFadeOut = resolve; }),
+      );
+      const settle = parkResolve();
+
+      const switching = store.playPlayerTrack(createLibraryTrack({ id: "b" as never }));
+      await flushPromises();
+      expect(mockPlayerMethods.fadeOut).toHaveBeenCalledWith(2);
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+
+      finishFadeOut();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).toHaveBeenCalledTimes(1);
+
+      settle("blob:b");
+      await switching;
+    });
+
+    it("does not pause the new track when its load lands inside the ramp", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "a" as never }));
+      playingEngine();
+      mockAudioSettings.isFadeEnabled = true;
+      mockAudioSettings.fadeOutDuration = 2;
+      let finishFadeOut!: () => void;
+      mockPlayerMethods.fadeOut.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { finishFadeOut = resolve; }),
+      );
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "b" as never }));
+      expect(store.playbackState.kind).toBe("starting");
+
+      finishFadeOut();
+      await flushPromises();
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+
+    it("leaves an engine that is not playing alone", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "a" as never }));
+      mockPlayerMethods.pause.mockClear();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "b" as never }));
+
+      expect(mockPlayerMethods.pause).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cold start announces the track", () => {
+    it("emits trackChanged for a restored track so a stats session opens for it", async () => {
+      const store = usePlayerStore();
+      const onChanged = vi.fn();
+      const off = useEventBus(trackChangedEvent).on(onChanged);
+      store.presentTrack(createLibraryTrack({ id: "restored" as never }));
+      store.currentTime = 30;
+
+      await store.play();
+
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(onChanged.mock.calls[0][0]).toMatchObject({ id: "restored" });
+      off();
+    });
+
+    it("does not announce a track that was already announced by the switch", async () => {
+      const store = usePlayerStore();
+      const onChanged = vi.fn();
+      const off = useEventBus(trackChangedEvent).on(onChanged);
+      mockPlayerMethods.load.mockRejectedValueOnce(new Error("decode failed")).mockRejectedValueOnce(new Error("decode failed"));
+      await store.playPlayerTrack(createLibraryTrack()).catch(() => null);
+      expect(onChanged).toHaveBeenCalledTimes(1);
+
+      await store.play();
+
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      off();
+    });
+  });
+
+  describe("engine survival across failures", () => {
+    it("keeps the engine and silences the outgoing track when the source cannot be resolved", async () => {
+      const store = usePlayerStore();
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-a" as never }));
+      mockPlayerMethods.dispose.mockClear();
+      storageMock.getAudioUrl.mockReturnValueOnce(
+        errAsync(new StorageError(StorageErrorCode.FILE_NOT_FOUND, "gone")),
+      );
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "track-b" as never })).catch(() => null);
+
+      expect(store.playbackState.kind).toBe("error");
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+      expect(store.player).not.toBeNull();
+      // Track A's media must not keep playing under an error screen.
+      expect(mockPlayerMethods.stop).toHaveBeenCalled();
+    });
+
+    it("still discards an engine whose load failed", async () => {
+      const store = usePlayerStore();
+      mockPlayerMethods.load
+        .mockRejectedValueOnce(new Error("decode failed"))
+        .mockRejectedValueOnce(new Error("decode failed"));
+
+      await store.playPlayerTrack(createLibraryTrack()).catch(() => null);
+
+      expect(mockPlayerMethods.dispose).toHaveBeenCalledTimes(2);
+      expect(store.player).toBeNull();
+    });
+
+    it("retries a failed stream resolution on the same engine", async () => {
+      const resolveStreamUrl = vi.fn()
+        .mockReturnValueOnce(errAsync({ kind: "NETWORK", message: "upstream down" }))
+        .mockReturnValueOnce(okAsync("http://127.0.0.1:60123/deadbeef/yt/x"));
+      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
+      offlineCopyMock.findById.mockResolvedValue(ok(undefined));
+      const store = usePlayerStore();
+
+      await store.playPlayerTrack(createLibraryTrack({ id: "yt:x" as never, source: TrackSource.REMOTE_YT, storagePath: "" }));
+
+      expect(mockPlayerMethods.dispose).not.toHaveBeenCalled();
+      expect(store.playbackState.kind).toBe("starting");
+    });
+  });
+
+  describe("restartCurrent", () => {
+    it("rewinds the loaded media and plays it again without a reload", async () => {
+      const store = usePlayerStore();
+      const onChanged = vi.fn();
+      const off = useEventBus(trackChangedEvent).on(onChanged);
+      await store.playPlayerTrack(createLibraryTrack());
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void }).trigger("ended");
+      mockPlayerMethods.load.mockClear();
+      mockPlayerMethods.play.mockClear();
+      onChanged.mockClear();
+
+      const restarted = await store.restartCurrent();
+
+      expect(restarted).toBe(true);
+      expect(mockPlayerMethods.load).not.toHaveBeenCalled();
+      expect(mockPlayerMethods.seek).toHaveBeenCalledWith(0);
+      expect(mockPlayerMethods.play).toHaveBeenCalledTimes(1);
+      // A loop is a new listen: the lifecycle opens a fresh stats session.
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      off();
+    });
+
+    it("declines when the engine holds no media for the current track", async () => {
+      const store = usePlayerStore();
+      store.presentTrack(createLibraryTrack());
+
+      expect(await store.restartCurrent()).toBe(false);
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("selectTrack", () => {
+    it("shows a track without playing it and drops the previous media", async () => {
+      const store = usePlayerStore();
+      const onChanged = vi.fn();
+      const off = useEventBus(trackChangedEvent).on(onChanged);
+      await store.playPlayerTrack(createLibraryTrack({ id: "a" as never }));
+      (mockPlayer as { trigger: (e: string, ...a: unknown[]) => void }).trigger("statechange", { to: "paused" });
+      statsMock.stopListening.mockClear();
+      mockPlayerMethods.load.mockClear();
+      mockPlayerMethods.play.mockClear();
+      onChanged.mockClear();
+
+      store.selectTrack(createLibraryTrack({ id: "b" as never }));
+
+      expect(store.currentTrack?.id).toBe("b");
+      expect(store.isPlaying).toBe(false);
+      expect(store.currentTime).toBe(0);
+      expect(store.duration).toBeNull();
+      expect(mockPlayerMethods.stop).toHaveBeenCalled();
+      expect(mockPlayerMethods.play).not.toHaveBeenCalled();
+      expect(statsMock.stopListening).toHaveBeenCalledWith(expect.any(Number), { skipped: true });
+      expect(onChanged).toHaveBeenCalledTimes(1);
+
+      // The engine still holds A's media: playing B must load it.
+      await store.play();
+      expect(mockPlayerMethods.load).toHaveBeenCalledTimes(1);
+      off();
+    });
+  });
+
+  describe("per-source resolve deadline", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("gives a YouTube resolve a longer leash than a local file", async () => {
+      const resolveStreamUrl = vi.fn(() => new ResultAsync(new Promise<never>(() => {})));
+      sourcesMock.forTrack.mockReturnValue({ resolveStreamUrl });
+      offlineCopyMock.findById.mockResolvedValue(ok(undefined));
+      const store = usePlayerStore();
+
+      const failure = store.playPlayerTrack(createLibraryTrack({ id: "yt:x" as never, source: TrackSource.REMOTE_YT, storagePath: "" }))
+        .then(() => null, (e: unknown) => e as PlaybackFailure);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(store.playbackState.kind).toBe("resolving");
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect((await failure)?.error).toEqual({ kind: "timeout", phase: "resolving" });
     });
   });
 

@@ -38,13 +38,13 @@
               fallback-src="/img/fallback.svg"
               :alt="slot.track.title"
               loading="eager"
-              decoding="sync"
+              decoding="async"
               class="size-full object-cover"
             />
           </motion.div>
           <CoverStateOverlay :visible="slot.role === 'center' && isScrubbing">
             <span class="text-2xl font-semibold tabular-nums text-white">
-              {{ scrubTime }}
+              {{ scrubTimeDisplay }}
             </span>
           </CoverStateOverlay>
         </motion.div>
@@ -64,11 +64,9 @@ import {
   useTrackSwipe,
   type SwipeSlotRole,
 } from "@/modules/player/composables/useTrackSwipe";
+import { useMobilePlayerProgress } from "./progress-context";
 
-defineProps<{
-  isScrubbing: boolean;
-  scrubTime: string;
-}>();
+const { isScrubbing, scrubTimeDisplay } = useMobilePlayerProgress();
 
 const coverRef = useTemplateRef<HTMLDivElement>("coverRef");
 const { width: coverWidth } = useElementSize(coverRef);
@@ -85,6 +83,10 @@ const {
   handleDragEnd,
 } = useTrackSwipe({ width: slotWidth, offsetThreshold: 70 });
 
+// Slot images decode asynchronously: the only image that is new after a
+// swipe is the neighbour sliding in, and it fades in anyway. A synchronous
+// decode of full-size album art landed in the frame that switched tracks —
+// 15 ms of an 80 ms frame on a phone.
 const COVER_SLOT_CLASS: Record<SwipeSlotRole, string> = {
   previous: "pointer-events-none absolute top-0 right-[calc(100%+32px)] size-full rounded-2xl bg-muted overflow-hidden shadow-lg",
   center: "relative z-10 size-full rounded-2xl bg-muted overflow-hidden shadow-lg",

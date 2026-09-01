@@ -14,6 +14,17 @@ export const useLyricsStore = defineStore("lyrics", () => {
   const status = ref<LyricsStatus>("idle");
 
   let requestId = 0;
+  // What the current lines were loaded for. The same track is announced
+  // more than once (a cold start after a restore, a repeat-one loop) and
+  // reloading would blank the panel for nothing. A lyrics file attached to
+  // the track changes its key, so that still reloads.
+  let loadedKey: string | null = null;
+
+  const keyOf = (track: PlayerTrack | null): string | null => {
+    if (!track) return null;
+    const lyricsPath = isLibraryTrack(track) ? track.lyricsPath ?? "" : "";
+    return `${track.kind}:${track.id}:${lyricsPath}`;
+  };
 
   const activeLineIndex = computed(() => {
     if (lines.value.length === 0) return -1;
@@ -21,6 +32,9 @@ export const useLyricsStore = defineStore("lyrics", () => {
   });
 
   const loadFor = async (track: PlayerTrack | null): Promise<void> => {
+    const key = keyOf(track);
+    if (key !== null && key === loadedKey && status.value !== "error") return;
+    loadedKey = key;
     const id = ++requestId;
     lines.value = [];
     // Ephemeral tracks with metadata also resolve lyrics (lrclib lookup).

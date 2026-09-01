@@ -70,12 +70,38 @@ describe("lyrics.store", () => {
     const first = store.loadFor(createLibraryTrack());
 
     loader.mockResolvedValueOnce({ lines: [{ time: 0, text: "new" }], status: "ready" });
-    await store.loadFor(createLibraryTrack());
+    await store.loadFor({ ...createLibraryTrack(), id: "track-2" as Track["id"] });
 
     resolveFirst({ lines: [{ time: 0, text: "stale" }], status: "ready" });
     await first;
 
     expect(store.lines).toEqual([{ time: 0, text: "new" }]);
+  });
+
+  it("does not reload lyrics already held for the same track", async () => {
+    const store = useLyricsStore();
+    loader.mockResolvedValue({ lines: [{ time: 0, text: "line" }], status: "ready" });
+    await store.loadFor(createLibraryTrack());
+
+    // A cold start or a repeat-one loop announces the same track again.
+    await store.loadFor(createLibraryTrack());
+
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(store.lines).toHaveLength(1);
+  });
+
+  it("reloads when the same track gains a lyrics file or the last load failed", async () => {
+    const store = useLyricsStore();
+    loader.mockResolvedValueOnce({ lines: [], status: "error" });
+    await store.loadFor(createLibraryTrack());
+    loader.mockResolvedValueOnce({ lines: [{ time: 0, text: "retry" }], status: "ready" });
+    await store.loadFor(createLibraryTrack());
+    expect(loader).toHaveBeenCalledTimes(2);
+
+    loader.mockResolvedValueOnce({ lines: [{ time: 0, text: "attached" }], status: "ready" });
+    await store.loadFor({ ...createLibraryTrack(), lyricsPath: "lyrics/track-1.lrc" });
+    expect(loader).toHaveBeenCalledTimes(3);
+    expect(store.lines).toEqual([{ time: 0, text: "attached" }]);
   });
 
   it("tracks the active line against player time", async () => {

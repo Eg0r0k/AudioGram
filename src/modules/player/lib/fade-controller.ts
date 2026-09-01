@@ -34,6 +34,14 @@ export interface FadeController {
   interrupt: () => boolean;
   /** Completes a fade-out's deferred pause right now, ahead of a seek. */
   settleBeforeSeek: () => void;
+  /**
+   * Silences the OUTGOING track the moment a switch begins: the resolve of a
+   * remote source takes seconds, and until load() replaces the media the old
+   * audio would keep playing under the new track's card. Ramps out when
+   * fades are enabled; the deferred pause lands only while `stillSwitching`
+   * holds, so a load that finishes inside the ramp is not paused by it.
+   */
+  silenceForSwitch: (stillSwitching: () => boolean) => void;
 }
 
 /**
@@ -165,5 +173,22 @@ export const createFadeController = (deps: FadeControllerDeps): FadeController =
     deps.engine()?.cancelFade();
   };
 
-  return { start, pause, stop, interrupt, settleBeforeSeek };
+  const silenceForSwitch = (stillSwitching: () => boolean) => {
+    const e = deps.engine();
+    if (!e?.isPlaying) return;
+    const settings = deps.settings();
+    if (!settings.enabled || settings.fadeOutSec <= 0) {
+      e.pause();
+      return;
+    }
+    // No state transition: the store already reads "resolving" for the new
+    // track, and the engine's own events are dropped for the whole switch.
+    e.fadeOut(settings.fadeOutSec)
+      .then(() => {
+        if (stillSwitching()) deps.engine()?.pause();
+      })
+      .catch(error => getLogger().warn(`[Player] Fade-out before a switch failed: ${String(error)}`));
+  };
+
+  return { start, pause, stop, interrupt, settleBeforeSeek, silenceForSwitch };
 };

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, markRaw, ref, shallowRef } from "vue";
 import { useEventBus } from "@vueuse/core";
 import { ok, err, type Result } from "neverthrow";
-import { toPlaybackFailure, type PlaybackError } from "@/modules/player/service/playback-resolver.service";
+import { checkPlayable, toPlaybackFailure, type PlaybackError } from "@/modules/player/service/playback-resolver.service";
 import { QueueItemId } from "@/types/ids";
 import {
   isEphemeralTrack,
@@ -31,6 +31,10 @@ const RESTART_THRESHOLD = 3;
 // tracks: stop there instead of burning through the whole queue while the
 // network is down.
 const MAX_CONSECUTIVE_TRANSIENT_FAILURES = 3;
+// Skips of any kind within one advance before the queue gives up: a folder
+// of vanished files would otherwise be walked entry by entry, each one a
+// commit, a lyrics load, a stats event and a toast.
+const MAX_CONSECUTIVE_SKIPS = 10;
 
 const EMPTY_STATE: QueueState = { items: [], playbackOrder: null, currentItemId: null };
 
@@ -363,10 +367,13 @@ export const useQueueStore = defineStore("queue", () => {
   /**
    * Plays the entry at `startIndex`, moving forward past entries that fail
    * (wrapping to the head under repeat-all) until one plays, the attempts
-   * run out, or a run of transient failures says the environment is down.
+   * run out, a run of transient failures says the environment is down, or
+   * too many entries in a row were skipped. An entry known to be unplayable
+   * up front is passed over without ever being selected.
    */
   async function playFrom(startIndex: number, maxAttempts: number = queue.value.length): Promise<void> {
     let index = startIndex;
+    let skipped = 0;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (index >= queue.value.length) {
         if (repeatMode.value !== "all") break;
@@ -375,9 +382,15 @@ export const useQueueStore = defineStore("queue", () => {
       const item = itemAt(index);
       if (!item) break;
 
-      const result = await playAtIndex(index);
+      const playable = checkPlayable(item.track);
+      const result = playable.isErr() ? playable : await playAtIndex(index);
       if (result.isOk()) return;
       if (!reactToFailure(item.track, result.error)) break;
+      if (++skipped >= MAX_CONSECUTIVE_SKIPS) {
+        playbackStalledBus.emit({ track: item.track, error: result.error, failures: skipped });
+        _transientFailures = 0;
+        break;
+      }
       index++;
     }
 
@@ -511,10 +524,17 @@ export const useQueueStore = defineStore("queue", () => {
     if (queue.value.length === 0) return;
 
     if (repeatMode.value === "one") {
+      const item = currentItem.value;
+      // The media is still in the engine: rewind it rather than resolve and
+      // load the same track again (a network round trip for a stream).
+      _playbackClaim++;
+      if (await usePlayerStore().restartCurrent()) {
+        _transientFailures = 0;
+        return;
+      }
       // The player retries a transient failure itself; if the restart still
       // fails, give up explicitly instead of leaving playback in a silent
       // half-error state with the selection intact.
-      const item = currentItem.value;
       const result = await playAtIndex(currentIndex.value);
       if (result.isErr()) {
         if (item) reactToFailure(item.track, result.error);
@@ -618,12 +638,22 @@ export const useQueueStore = defineStore("queue", () => {
     }
 
     if (wasCurrentRemoved) {
-      // The successor may be unplayable too: keep going, as next() would.
       const successorIndex = Math.min(
         Math.max(oldIndex - removedBeforeCurrent, 0),
         queue.value.length - 1,
       );
-      await playFrom(successorIndex);
+      const player = usePlayerStore();
+      // Removing what is playing hands playback to the successor (which may
+      // be unplayable too: keep going, as next() would). Removing a paused
+      // entry only moves the selection — the user did not ask for sound.
+      if (player.isPlaybackIntended) {
+        await playFrom(successorIndex);
+        return;
+      }
+      const successor = itemAt(successorIndex);
+      if (!successor) return;
+      commit({ currentItemId: successor.id });
+      player.selectTrack(successor.track);
     }
   }
 

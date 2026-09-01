@@ -5,6 +5,10 @@ import {
   invalidateLibraryData,
 } from "../library.queries";
 import { queryKeys } from "../query-keys";
+vi.mock("@/modules/covers/lib/cover-cache", () => ({
+  coverCache: { invalidateAll: vi.fn(), invalidate: vi.fn(), set: vi.fn() },
+}));
+import { coverCache } from "@/modules/covers/lib/cover-cache";
 
 const createMockQueryClient = (): QueryClient => {
   const mocks = {
@@ -43,9 +47,6 @@ describe("library.queries", () => {
       expect(queryClient.removeQueries).toHaveBeenCalledWith({
         queryKey: queryKeys.tracks.all(),
       });
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.covers.all(),
-      });
     });
 
     it("should invalidate queries after removing", async () => {
@@ -79,9 +80,8 @@ describe("library.queries", () => {
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: queryKeys.tracks.all(),
       });
-      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.covers.all(),
-      });
+      // Covers live outside vue-query: the cover cache is told instead.
+      expect(coverCache.invalidateAll).toHaveBeenCalled();
     });
   });
 });

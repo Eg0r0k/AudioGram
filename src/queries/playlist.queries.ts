@@ -24,6 +24,7 @@ import {
   syncPlaylistTrackAddition,
   syncPlaylistTrackRemoval,
   updateCoverCache,
+  removeCoverCache,
 } from "./cache";
 import { assertValidName } from "@/lib/limits";
 import { sortTracks, unique, unwrapResult } from "./shared";
@@ -223,11 +224,11 @@ export async function updatePlaylistAndSync(
       currentPlaylist.id,
       changes.coverBlob,
     ));
-    updateCoverCache(queryClient, "playlist", currentPlaylist.id, changes.coverBlob);
+    updateCoverCache("playlist", currentPlaylist.id, changes.coverBlob);
   }
   else if (changes.removeCover) {
     await unwrapResult(coverRepository.deletePlaylistCover(currentPlaylist.id));
-    updateCoverCache(queryClient, "playlist", currentPlaylist.id, null);
+    updateCoverCache("playlist", currentPlaylist.id, null);
   }
 
   const updateData: Partial<PlaylistEntity> = {};
@@ -305,7 +306,7 @@ export async function deletePlaylistAndSync(
   await removeSearchDocuments([`playlist:${currentPlaylist.id}`]);
 
   removePlaylistCaches(queryClient, currentPlaylist.id);
-  queryClient.removeQueries({ queryKey: queryKeys.playlists.cover(currentPlaylist.id), exact: true });
+  removeCoverCache("playlist", currentPlaylist.id);
 
   if (trackIds.length > 0) {
     // A playlist's tracks span arbitrary albums and artists, and the purge may

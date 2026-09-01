@@ -6,17 +6,12 @@
     <MobileFullPlayerHeader @close="closePlayer" />
 
     <div class="flex min-h-0 flex-1 flex-col w-full mx-auto px-6 pt-4 pb-6 max-w-md overflow-x-clip [mask-image:linear-gradient(to_right,transparent,#000_1.5rem,#000_calc(100%-1.5rem),transparent)] landscape-short:max-w-4xl landscape-short:flex-row landscape-short:items-stretch landscape-short:gap-6 landscape-short:px-4 landscape-short:pt-2 landscape-short:pb-4 landscape-short:[mask-image:linear-gradient(to_right,transparent,#000_1rem,#000_calc(100%-1rem),transparent)]">
-      <MobileFullPlayerCover
-        :is-scrubbing="isScrubbing"
-        :scrub-time="scrubTimeDisplay"
-      />
+      <MobileFullPlayerCover />
 
       <div class="flex flex-col landscape-short:min-w-0 landscape-short:flex-1 landscape-short:justify-center">
         <MobileFullPlayerTrackInfo @close="closePlayer" />
 
         <MobileFullPlayerProgress
-          :progress="displayProgress"
-          :transition-enabled="isTransitionEnabled"
           @scrub-start="onScrubStart"
           @scrub="onScrub"
           @scrub-end="onScrubEnd"
@@ -30,11 +25,12 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
+import { computed, provide, useTemplateRef } from "vue";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { usePlayerProgress } from "@/modules/tracks/composables/usePlayerProgress";
 import { useSwipeControl } from "@/composables/useSwipeControl";
 import { formatDuration } from "@/lib/format/time";
+import { mobilePlayerProgressKey } from "@/components/layout/mobile/full-player/progress-context";
 
 import MobileFullPlayerHeader from "@/components/layout/mobile/full-player/MobileFullPlayerHeader.vue";
 import MobileFullPlayerCover from "@/components/layout/mobile/full-player/MobileFullPlayerCover.vue";
@@ -67,6 +63,8 @@ const scrubTimeDisplay = computed(() => {
   const target = (scrubValue.value / 100) * duration;
   return `${formatDuration(target)} / ${formatDuration(duration)}`;
 });
+
+provide(mobilePlayerProgressKey, { displayProgress, isTransitionEnabled, isScrubbing, scrubTimeDisplay });
 
 useSwipeControl(rootRef, {
   threshold: 50,

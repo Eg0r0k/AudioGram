@@ -33,6 +33,7 @@ import {
   syncTrackLikeCaches,
   syncTrackMetadataCaches,
   updateCoverCache,
+  removeCoverCache,
 } from "./cache";
 import { unique, unwrapResult } from "./shared";
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
@@ -568,10 +569,10 @@ export async function updateTrackMetadataAndSync(
       const albumCover = await unwrapResult(coverRepository.findByOwner("album", album.id));
       if (!albumCover) {
         await unwrapResult(coverRepository.upsertOwnerCover("album", album.id, trackCover.blob));
-        updateCoverCache(queryClient, "album", album.id, trackCover.blob);
+        updateCoverCache("album", album.id, trackCover.blob);
       }
       await unwrapResult(coverRepository.deleteByOwner("track", currentTrack.id));
-      queryClient.removeQueries({ queryKey: queryKeys.covers.detail("track", currentTrack.id), exact: true });
+      removeCoverCache("track", currentTrack.id);
     }
   }
 
@@ -584,7 +585,7 @@ export async function updateTrackMetadataAndSync(
       const albumCover = await unwrapResult(coverRepository.findByOwner("album", currentTrack.albumId));
       if (albumCover) {
         await unwrapResult(coverRepository.upsertOwnerCover("track", currentTrack.id, albumCover.blob));
-        updateCoverCache(queryClient, "track", currentTrack.id, albumCover.blob);
+        updateCoverCache("track", currentTrack.id, albumCover.blob);
       }
     }
   }
@@ -666,7 +667,7 @@ export async function deleteTrackAndSync(
   }
   removeTracksFromCaches(queryClient, [trackId]);
   queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(trackId), exact: true });
-  queryClient.removeQueries({ queryKey: queryKeys.covers.detail("track", trackId), exact: true });
+  removeCoverCache("track", trackId);
   await removeSearchDocuments([`track:${trackId}`]);
 
   await invalidateForTrackMutation(queryClient, {

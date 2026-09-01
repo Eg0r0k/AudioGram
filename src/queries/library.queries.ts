@@ -6,6 +6,7 @@ import {
   trackRepository,
 } from "@/db/repositories";
 import { queryKeys } from "@/queries/query-keys";
+import { coverCache } from "@/modules/covers/lib/cover-cache";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import { unwrapResult } from "./shared";
 import type { LibrarySummaryData } from "./types";
@@ -70,8 +71,8 @@ export async function invalidateLibraryData(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: queryKeys.playlists.all() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.folders.all() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tracks.all() }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.covers.all() }),
   ]);
+  coverCache.invalidateAll();
 }
 
 export async function clearLibraryData(queryClient: QueryClient) {
@@ -81,7 +82,6 @@ export async function clearLibraryData(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: queryKeys.playlists.all() });
   queryClient.removeQueries({ queryKey: queryKeys.folders.all() });
   queryClient.removeQueries({ queryKey: queryKeys.tracks.all() });
-  queryClient.removeQueries({ queryKey: queryKeys.covers.all() });
 
   await invalidateLibraryData(queryClient);
 }

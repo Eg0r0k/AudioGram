@@ -132,7 +132,7 @@ pub fn run() {
     // non-listening media server. Binding loopback:0 only fails on a broken
     // network stack — without the playback transport the app is useless, so
     // failing fast beats limping on.
-    let (media_listener, media_state) =
+    let (media_listener, image_listener, media_state) =
         media_server::bind_on_loopback().expect("failed to bind the loopback media server");
     let media_token = media_state.token.clone();
 
@@ -190,6 +190,7 @@ pub fn run() {
         app_data_folder_size,
         import_local_file,
         media_server::media_server_base,
+        media_server::image_server_base,
         discord::discord_set_activity,
         discord::discord_clear_activity,
         thumbbar::thumbbar_set_state,
@@ -221,6 +222,7 @@ pub fn run() {
         app_data_folder_size,
         import_local_file,
         media_server::media_server_base,
+        media_server::image_server_base,
         proxy::set_proxy,
         proxy::proxy_check,
         nd::nd_set_config,
@@ -234,7 +236,12 @@ pub fn run() {
             // The config windows are created after setup returns, so the
             // accept loop is live before the first frontend request (and the
             // bound socket's backlog would hold early connections anyway).
-            media_server::spawn(app.handle().clone(), media_token, media_listener);
+            media_server::spawn(
+                app.handle().clone(),
+                media_token,
+                media_listener,
+                image_listener,
+            );
 
             #[cfg(desktop)]
             {

@@ -3,7 +3,6 @@ import { useRoute, useRouter } from "vue-router";
 import { useMutation, useQuery, useQueryClient, useInfiniteQuery, skipToken } from "@tanstack/vue-query";
 import { AlbumId } from "@/types/ids";
 import type { AlbumData } from "@/modules/media-hero/types";
-import { stableObjectUrl } from "@/modules/covers/lib/stable-object-url";
 import { queryKeys } from "@/queries/query-keys";
 import { formatTotalDuration } from "@/lib/format/time";
 import { getLogger } from "@/lib/logger";
@@ -15,13 +14,13 @@ import {
   type AlbumChanges,
   updateAlbumAndSync,
 } from "@/queries/album.queries";
-import { coverQueries } from "@/queries/cover.queries";
 import { getArtistByIdOrThrow } from "@/queries/artist.queries";
 import { routeLocation } from "@/app/router/route-locations";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { useSourceAlbum } from "@/modules/sources/composables/useSourceCatalog";
 import { useCatalogEntity } from "@/modules/sources/composables/useCatalogEntity";
 import { sourceAlbumToAlbumData, sourceTrackToDisplay } from "@/modules/sources/lib/display";
+import { useEntityCover } from "@/modules/covers/composables/useEntityCover";
 
 export type { AlbumChanges } from "@/queries/album.queries";
 
@@ -119,18 +118,12 @@ export function useAlbumPage(sortKey: Ref<TrackSortKey | null>) {
     artistData.value ? { id: artistData.value.id, name: artistData.value.name } : null,
   );
 
-  const {
-    data: coverBlob,
-    isLoading: isCoverLoading,
-  } = useQuery(computed(() => coverQueries.detail("album", albumId.value, !isRemote.value)));
-
-  // Stable across remounts (unlike useObjectUrl) so the hero cover doesn't
-  // replay its load animation on every navigation back to the page.
-  const coverUrl = computed(() => {
-    const blob = coverBlob.value;
-    if (!blob || !albumId.value) return undefined;
-    return stableObjectUrl(`album:${albumId.value}`, blob);
-  });
+  // Remote albums show their source's art; only a library album has a
+  // Dexie cover to look up.
+  const { url: coverUrl, isLoading: isCoverLoading } = useEntityCover(
+    () => (isRemote.value ? null : "album"),
+    albumId,
+  );
 
   const isLoading = computed(() =>
     isAlbumLoading.value || isCoverLoading.value || isTracksLoading.value,

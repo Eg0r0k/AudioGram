@@ -5,7 +5,6 @@ import { sources } from "@/modules/sources";
 import type { TrackId } from "@/types/ids";
 import { parseTrackRef } from "@/types/track-ref";
 import { updateCoverCache } from "@/queries/cache";
-import { queryClient } from "@/queries/client";
 import { unwrapResult } from "@/queries/shared";
 
 /**
@@ -37,7 +36,7 @@ export async function ensureShadowCover(
 
     await unwrapResult(coverRepository.upsertOwnerCover(ownerType, ownerId, blob));
     // Surfaces mounted before the fetch landed hold a cached null.
-    updateCoverCache(queryClient, ownerType, ownerId, blob);
+    updateCoverCache(ownerType, ownerId, blob);
   }
   catch (error) {
     getLogger().warn(`[Covers] Shadow cover failed for ${ownerType} ${ownerId}: ${String(error)}`);

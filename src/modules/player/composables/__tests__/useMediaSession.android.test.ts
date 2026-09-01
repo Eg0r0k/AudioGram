@@ -24,12 +24,16 @@ vi.mock("@/queries/track.queries", () => ({
 
 const getCoverBlobMock = vi.hoisted(() => vi.fn());
 vi.mock("@/queries/cover.queries", () => ({
-  getCoverBlob: getCoverBlobMock,
+  getCoverBlobsByOwners: async (type: string, ids: string[]) => {
+    const found = await Promise.all(ids.map(async id => [id, await getCoverBlobMock(type, id)] as const));
+    return new Map(found.filter(([, blob]) => blob).map(([id, blob]) => [id, blob as Blob]));
+  },
 }));
 
 import { usePlayerStore } from "../../store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useMediaSession } from "../useMediaSession";
+import { coverCache } from "@/modules/covers/lib/cover-cache";
 
 const createLibraryTrack = (id: string, albumId: string): Track => ({
   kind: "library",
@@ -77,6 +81,8 @@ describe("useMediaSession (android bridge)", () => {
     URL.createObjectURL = vi.fn(() => "blob:mock");
     URL.revokeObjectURL = vi.fn();
     getCoverBlobMock.mockResolvedValue(null);
+    // The cover cache is a process singleton: forget what earlier tests saw.
+    coverCache.invalidateAll();
   });
 
   it("never reports paused to the notification while a track switch is loading", async () => {
@@ -100,7 +106,27 @@ describe("useMediaSession (android bridge)", () => {
     await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(false));
   });
 
-  it("reports the seek target immediately instead of the stale store position", async () => {
+  it("re-reports the position only when it drifts from what the system extrapolates", async () => {
+    mountSession();
+    const player = usePlayerStore();
+    player.currentTrack = createLibraryTrack("t1", "album-a");
+    player.duration = 300;
+    player.playbackState = { kind: "playing" };
+    await vi.waitFor(() => expect(bridge.setPlaybackState.mock.lastCall?.[0]).toBe(true));
+    bridge.setPlaybackState.mockClear();
+
+    // Ordinary progress: the notification is already moving on its own.
+    player.currentTime = 0.5;
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(bridge.setPlaybackState).not.toHaveBeenCalled();
+
+    // A jump (in-app seek, stall recovery) is what needs a fresh report.
+    player.currentTime = 42;
+    await vi.waitFor(() => expect(bridge.setPlaybackState).toHaveBeenCalledTimes(1));
+    expect(bridge.setPlaybackState.mock.lastCall?.[1]).toBe(42_000);
+  });
+
+  it("reports the seek target instead of the stale store position", async () => {
     mountSession();
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1", "album-a");
@@ -115,9 +141,12 @@ describe("useMediaSession (android bridge)", () => {
 
     // The store's currentTime only updates on the next engine timeupdate; the
     // bridge must be told the seek target, or the lock-screen scrubber snaps
-    // back to the old position for a second.
-    const [, positionMs] = bridge.setPlaybackState.mock.lastCall!;
-    expect(positionMs).toBe(150_000);
+    // back to the old position for a second. Pushes are coalesced into the
+    // next task, so the target arrives there rather than synchronously.
+    await vi.waitFor(() => {
+      const [, positionMs] = bridge.setPlaybackState.mock.lastCall!;
+      expect(positionMs).toBe(150_000);
+    });
   });
 
   it("cycles repeat mode from the notification and reports it back", async () => {

@@ -71,7 +71,21 @@ export const readLegacyRepeatMode = (): RepeatMode | null => {
 const migrateCover = (cover: string | null | undefined) =>
   cover ? migrateProxyUrl(cover) : cover;
 
+// Queue items are never edited in place — every change is a new object — so
+// the serialized form of an item can be reused for as long as the item
+// lives. A commit that only moves the selection then rebuilds the snapshot
+// without re-serializing a single entry.
+const serializedItems = new WeakMap<QueueItem, PersistedQueueItem | null>();
+
 const serializeQueueItem = (item: QueueItem): PersistedQueueItem | null => {
+  const cached = serializedItems.get(item);
+  if (cached !== undefined) return cached;
+  const serialized = serializeQueueItemUncached(item);
+  serializedItems.set(item, serialized);
+  return serialized;
+};
+
+const serializeQueueItemUncached = (item: QueueItem): PersistedQueueItem | null => {
   if (item.track.kind === "library") {
     return {
       id: item.id,

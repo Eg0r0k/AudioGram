@@ -21,9 +21,11 @@ import {
   PlaybackFailure,
   toPlaybackFailure,
   isRetryablePlaybackError,
+  isEngineFailure,
   checkPlayable,
   isStreamingTrack,
   resolvePlaybackSource,
+  resolveTimeoutMsFor,
 } from "../service/playback-resolver.service";
 import {
   type PlaybackStatus,
@@ -62,7 +64,6 @@ export const usePlayerStore = defineStore("player", () => {
   // playPlayerTrack; this store never reads the queue.
   const currentTrack = ref<PlayerTrack | null>(null);
   const graphRevision = ref(0);
-  const sleepAfterCurrentTrack = ref(false);
 
   const {
     endsAt: sleepTimerEndsAt,
@@ -77,6 +78,29 @@ export const usePlayerStore = defineStore("player", () => {
   // request waking up after an await could still call load() *after* the
   // newer one and win by "last call" semantics — the token drops it first.
   let _playRequestId = 0;
+  // The engine's media belongs to `currentTrack`: set once a load for the
+  // live request resolves, cleared whenever that stops being true (a new
+  // switch, a cancelled or failed load, a discarded engine). lyra's isReady
+  // alone cannot tell — after a cancelled load the element is "ready" with
+  // media nobody armed a session for.
+  let _mediaLoaded = false;
+  // `currentTrack` has been announced over trackChanged. A restored session
+  // is presented without an announcement, so its first play() must make one
+  // for the stats session to exist.
+  let _trackAnnounced = false;
+
+  const announceTrack = (track: PlayerTrack | null) => {
+    _trackAnnounced = track !== null;
+    trackChangedBus.emit(track);
+  };
+
+  // Abandons whatever play request is in flight: a stale attempt waking up
+  // after its await sees a newer token and returns without touching the
+  // engine. Media loaded for the abandoned request is not this track's.
+  const invalidatePlayRequest = () => {
+    _playRequestId++;
+    _mediaLoaded = false;
+  };
 
   // The one place the player's state lives — see playback-status.ts for the
   // variants. shallowRef: the fadingOut variant carries an AbortController
@@ -195,18 +219,24 @@ export const usePlayerStore = defineStore("player", () => {
       stopListeningAndSync({ skipped: true });
     }
     listenSession.reset();
-    // Clearing the track mid-switch releases the event filter: whatever the
-    // engine does next has to reach the store again.
-    if (isSwitchingTrack()) setState({ kind: "idle" });
+    // A play still in flight would otherwise finish loading and start the
+    // audio under an empty UI. Clearing mid-switch also releases the event
+    // filter: whatever the engine does next has to reach the store again.
+    if (isLoadingStatus(state.value)) {
+      invalidatePlayRequest();
+      setState({ kind: "idle" });
+    }
+    _mediaLoaded = false;
     currentTrack.value = null;
     currentTime.value = 0;
     duration.value = null;
-    trackChangedBus.emit(null);
+    announceTrack(null);
   };
 
   const discardEngine = () => {
     const broken = engine.value;
     engine.value = null;
+    _mediaLoaded = false;
     broken?.dispose().catch(() => {});
   };
 
@@ -332,8 +362,8 @@ export const usePlayerStore = defineStore("player", () => {
   // Android WebView the ended → next → resolve → load chain can stall on any
   // of them, and a store that then honestly reports "loading" for the rest
   // of the session is worse than a skipped track. Starting values — tune
-  // against real devices; streams get a longer leash than local files.
-  const RESOLVE_TIMEOUT_MS = 15_000;
+  // against real devices; streams get a longer leash than local files, and
+  // the resolve deadline depends on the source (see resolveTimeoutMsFor).
   const LOAD_TIMEOUT_MS = 30_000;
   const HLS_LOAD_TIMEOUT_MS = 60_000;
 
@@ -367,6 +397,9 @@ export const usePlayerStore = defineStore("player", () => {
     // from the zeroed duration) visible while the source URL resolves.
     // Opening the switch also abandons any fade in flight.
     setState({ kind: "resolving", requestId });
+    // The engine still holds the previous track and would play it audibly
+    // until load() lands — seconds, for a remote resolve.
+    fades.silenceForSwitch(() => requestId === _playRequestId && isSwitchingTrack());
 
     for (let retry = 0; ; retry++) {
       try {
@@ -376,7 +409,15 @@ export const usePlayerStore = defineStore("player", () => {
       catch (err) {
         if (requestId !== _playRequestId) return;
         const failure = toPlaybackFailure(err, track);
-        discardEngine();
+        _mediaLoaded = false;
+        // Only a load that failed or hung says anything about the engine;
+        // recreating it costs a new AudioContext (suspended until a user
+        // gesture on some platforms) and a rebuilt EQ graph. A source that
+        // could not be resolved leaves a healthy engine that still holds the
+        // OUTGOING track's media — silence that rather than let it play on
+        // under an error screen.
+        if (isEngineFailure(failure.error)) discardEngine();
+        else engine.value?.stop();
         if (retry < 1 && isRetryablePlaybackError(failure.error)) {
           getLogger().warn(`[Player] Retrying "${track.title}" after a ${failure.error.kind} failure`);
           setState({ kind: "resolving", requestId });
@@ -404,7 +445,7 @@ export const usePlayerStore = defineStore("player", () => {
     {
       const resolved = await withTimeout(
         resolvePlaybackSource(track),
-        RESOLVE_TIMEOUT_MS,
+        resolveTimeoutMsFor(track),
         () => new PlaybackFailure({ kind: "timeout", phase: "resolving" }, track),
       );
       if (requestId !== _playRequestId) return;
@@ -423,6 +464,7 @@ export const usePlayerStore = defineStore("player", () => {
 
       // Only now is this track the engine's media — positions sampled before
       // this point still belonged to the previous track.
+      _mediaLoaded = true;
       listenSession.arm();
       applyLoudnessMetadata(e, track);
       // The loaded media belongs to THIS track now, so the switching window
@@ -438,18 +480,21 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const play = async () => {
-    if (engine.value?.isReady) {
+    if (engine.value?.isReady && _mediaLoaded) {
       await fades.start();
       return;
     }
-    // No playable media in the engine: a session restored after reload, or a
-    // switch that togglePlay interrupted mid-load. Start the current track
-    // from where it was; a failure is logged, not thrown — the callers here
-    // are UI handlers, and the store already reads "error".
+    // No media for this track in the engine: a session restored after
+    // reload, a load that togglePlay cancelled, a failed attempt. Start the
+    // current track from where it was; a failure is logged, not thrown — the
+    // callers here are UI handlers, and the store already reads "error".
     const track = currentTrack.value;
     if (!track) return;
     try {
       throwIfUnplayable(track);
+      // A restored track was presented, never announced: the lifecycle has
+      // no stats session for it until now.
+      if (!_trackAnnounced) announceTrack(track);
       await loadAndPlay(track, { resumeAt: currentTime.value });
     }
     catch (err) {
@@ -463,17 +508,43 @@ export const usePlayerStore = defineStore("player", () => {
     fades.pause();
   };
 
+  // A pause pressed on the spinner. Before the media is loaded there is
+  // nothing to pause: the request is abandoned and play() reloads later.
+  // Once loaded (the fade-in is running) the element is paused in place and
+  // the media stays this track's, so play() resumes without a reload. Either
+  // way the interrupted attempt sees a stale token and does not retry.
+  const cancelPendingPlay = () => {
+    const wasStarting = state.value.kind === "starting";
+    _playRequestId++;
+    if (wasStarting) {
+      engine.value?.pause();
+      engine.value?.cancelFade();
+    }
+    else {
+      _mediaLoaded = false;
+    }
+    setState({ kind: "paused" });
+  };
+
   const togglePlay = async () => {
     if (fades.interrupt()) return;
+    if (isLoadingStatus(state.value)) {
+      cancelPendingPlay();
+      return;
+    }
     if (isPlaying.value) pause();
     else await play();
   };
 
   const stop = () => {
     if (!engine.value) return;
-    // Stopping mid-switch releases the event filter: the engine's next
-    // transition (the in-flight load resolving) has to reach the store again.
-    if (isSwitchingTrack()) setState({ kind: "idle" });
+    // A play still in flight must not come back to life after the stop:
+    // abandon it, and release the event filter so the engine's next
+    // transition reaches the store again.
+    if (isLoadingStatus(state.value)) {
+      invalidatePlayRequest();
+      setState({ kind: "idle" });
+    }
     fades.stop();
   };
 
@@ -496,8 +567,9 @@ export const usePlayerStore = defineStore("player", () => {
 
     currentTime.value = 0;
     duration.value = null;
+    _mediaLoaded = false;
     currentTrack.value = track;
-    trackChangedBus.emit(track);
+    announceTrack(track);
 
     await loadAndPlay(track);
   };
@@ -511,6 +583,49 @@ export const usePlayerStore = defineStore("player", () => {
    */
   const presentTrack = (track: PlayerTrack) => {
     currentTrack.value = track;
+  };
+
+  /**
+   * Show `track` as the current one with nothing loaded for it — the queue
+   * removed the paused current entry and moved the selection to its
+   * successor. Whatever the engine holds is the previous track's: it is
+   * stopped and forgotten, and the next play() loads this track. Unlike
+   * playPlayerTrack nothing is loaded now, so nothing can fail here.
+   */
+  const selectTrack = (track: PlayerTrack) => {
+    if (isLibraryTrack(currentTrack.value)) {
+      stopListeningAndSync({ skipped: true });
+    }
+    listenSession.reset();
+    if (isLoadingStatus(state.value)) invalidatePlayRequest();
+    _mediaLoaded = false;
+    engine.value?.stop();
+    if (state.value.kind !== "idle") setState({ kind: "paused" });
+    currentTime.value = 0;
+    duration.value = null;
+    currentTrack.value = track;
+    announceTrack(track);
+  };
+
+  /**
+   * Plays the current track again from the top on the media the engine
+   * already holds — repeat-one after a natural end. A loop is a new listen,
+   * so the track is announced again and a fresh session armed. Returns false
+   * when the engine holds no media for this track (nothing loaded, a
+   * discarded engine); the caller then takes the full load path.
+   */
+  const restartCurrent = async (): Promise<boolean> => {
+    const track = currentTrack.value;
+    const e = engine.value;
+    if (!track || !e?.isReady || !_mediaLoaded) return false;
+    if (isLibraryTrack(track)) stopListeningAndSync();
+    listenSession.reset();
+    listenSession.arm();
+    currentTime.value = 0;
+    announceTrack(track);
+    e.seek(0);
+    await fades.start();
+    return true;
   };
 
   const seekTo = (seconds: number) => {
@@ -546,7 +661,7 @@ export const usePlayerStore = defineStore("player", () => {
   };
 
   const dispose = async () => {
-    _playRequestId++;
+    invalidatePlayRequest();
     setState({ kind: "idle" });
     cancelSleepTimer();
     clearCurrentTrack();
@@ -579,7 +694,6 @@ export const usePlayerStore = defineStore("player", () => {
     sleepTimerEndsAt,
     sleepTimerRemainingMs,
     isSleepTimerActive,
-    sleepAfterCurrentTrack,
     progress,
     canPlay,
     isLiveStream,
@@ -602,6 +716,8 @@ export const usePlayerStore = defineStore("player", () => {
     cancelSleepTimer,
     clearCurrentTrack,
     presentTrack,
+    selectTrack,
+    restartCurrent,
     unlockAudio,
   };
 }, {

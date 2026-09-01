@@ -20,6 +20,7 @@ import {
   removeAlbumCaches,
   syncAlbumCaches,
   updateCoverCache,
+  removeCoverCache,
 } from "./cache";
 import { assertValidName } from "@/lib/limits";
 import { sortTracks, unwrapResult, unique } from "./shared";
@@ -222,11 +223,11 @@ export async function updateAlbumAndSync(
 
   if (changes.coverBlob) {
     await unwrapResult(coverRepository.upsertAlbumCover(currentAlbum.id, changes.coverBlob));
-    updateCoverCache(queryClient, "album", currentAlbum.id, changes.coverBlob);
+    updateCoverCache("album", currentAlbum.id, changes.coverBlob);
   }
   else if (changes.removeCover) {
     await unwrapResult(coverRepository.deleteAlbumCover(currentAlbum.id));
-    updateCoverCache(queryClient, "album", currentAlbum.id, null);
+    updateCoverCache("album", currentAlbum.id, null);
   }
 
   if (changes.title && changes.title !== currentAlbum.title) {
@@ -328,7 +329,7 @@ export async function deleteAlbumAndSync(
 
   removeAlbumCaches(queryClient, albumEntity.id, albumEntity.artistId);
 
-  queryClient.removeQueries({ queryKey: queryKeys.albums.cover(albumEntity.id), exact: true });
+  removeCoverCache("album", albumEntity.id);
 
   await invalidateForAlbumMutation(queryClient, {
     kind: "removal",

@@ -8,17 +8,22 @@ import { IS_TAURI } from "@/lib/environment/userAgent";
 //
 //   http://127.0.0.1:{port}/{token}/yt/<videoId>
 //   http://127.0.0.1:{port}/{token}/nd/song/<songId>
-//   http://127.0.0.1:{port}/{token}/nd/cover/<coverId>?size=<px>
 //   http://127.0.0.1:{port}/{token}/local/<encoded absolute path>
-//   http://127.0.0.1:{port}/{token}/ytimg/<encoded https thumbnail url>
+//   http://127.0.0.1:{imagePort}/{token}/nd/cover/<coverId>?size=<px>
+//   http://127.0.0.1:{imagePort}/{token}/ytimg/<encoded https thumbnail url>
 //
-// The base is fetched ONCE at bootstrap (top-level await in main.ts), so the
-// builders stay synchronous. Port and token change every launch — server
-// URLs must never be persisted as-is; `migrateProxyUrl` rebuilds any stored
-// proxy URL onto the live base.
+// Images live on a second port of the same server: the webview allows six
+// connections per host, and a burst of slow proxied covers used to hold all
+// six while the media element's request for a local file queued behind them.
+//
+// The bases are fetched ONCE at bootstrap (top-level await in main.ts), so
+// the builders stay synchronous. Ports and token change every launch —
+// server URLs must never be persisted as-is; `migrateProxyUrl` rebuilds any
+// stored proxy URL onto the live base.
 //
 
 let serverBase: string | null = null;
+let imageBase: string | null = null;
 
 /**
  * Fetches `http://127.0.0.1:{port}/{token}` from the backend. Must complete
@@ -28,12 +33,16 @@ let serverBase: string | null = null;
  */
 export const initMediaServerBase = async (): Promise<void> => {
   if (!IS_TAURI) return;
-  serverBase = await invoke<string>("media_server_base");
+  [serverBase, imageBase] = await Promise.all([
+    invoke<string>("media_server_base"),
+    invoke<string>("image_server_base"),
+  ]);
 };
 
-/** Test seam: the base is process-global, tests set it directly. */
-export const setMediaServerBaseForTests = (base: string | null): void => {
+/** Test seam: the bases are process-global, tests set them directly. */
+export const setMediaServerBaseForTests = (base: string | null, images: string | null = base): void => {
   serverBase = base;
+  imageBase = images;
 };
 
 const requireBase = (): string => {
@@ -41,6 +50,13 @@ const requireBase = (): string => {
     throw new Error("media server base is not initialized — initMediaServerBase must run at bootstrap");
   }
   return serverBase;
+};
+
+const requireImageBase = (): string => {
+  if (!imageBase) {
+    throw new Error("image server base is not initialized — initMediaServerBase must run at bootstrap");
+  }
+  return imageBase;
 };
 
 /** Builds the playable URL for a YouTube track routed through the server. */
@@ -64,7 +80,7 @@ export const localFileStreamUrl = (absolutePath: string): string => {
 /** Builds the proxied Navidrome cover URL. */
 export const ndCoverUrl = (coverId: string, size?: number): string => {
   const query = size ? `?size=${size}` : "";
-  return `${requireBase()}/nd/cover/${encodeURIComponent(coverId)}${query}`;
+  return `${requireImageBase()}/nd/cover/${encodeURIComponent(coverId)}${query}`;
 };
 
 /**
@@ -73,7 +89,7 @@ export const ndCoverUrl = (coverId: string, size?: number): string => {
  * it back and enforces the host allowlist.
  */
 export const ytImageUrl = (thumbnailUrl: string): string => {
-  return `${requireBase()}/ytimg/${encodeURIComponent(thumbnailUrl)}`;
+  return `${requireImageBase()}/ytimg/${encodeURIComponent(thumbnailUrl)}`;
 };
 
 const KNOWN_ROUTES = /^(yt|nd\/song|nd\/cover|local|ytimg)\//;
