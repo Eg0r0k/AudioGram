@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createApp, nextTick } from "vue";
+import { createApp, isReactive, nextTick, watch } from "vue";
 import type { QueueItem } from "../types";
 import { createPinia, setActivePinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
@@ -2066,6 +2066,37 @@ describe("queue.store", () => {
       expectSnapshotMatches();
       await store.jumpTo(0);
       expectSnapshotMatches();
+    });
+
+    it("keeps the persisted snapshot out of deep reactivity", async () => {
+      // Every store subscriber (the persist plugin, devtools) deep-walks the
+      // state on each mutation; a reactive snapshot makes that walk — and
+      // the JSON.stringify behind it — cost a proxy trap per field of every
+      // entry, so a skip on a long queue turned into a long task.
+      const store = await seeded();
+      await store.jumpTo(1);
+
+      const snapshot = store.persistedSnapshot!;
+      expect(isReactive(snapshot)).toBe(false);
+      expect(isReactive(snapshot.queue)).toBe(false);
+      expect(isReactive(snapshot.queue[0])).toBe(false);
+
+      let walked = 0;
+      const stop = watch(
+        () => store.persistedSnapshot,
+        () => {},
+        {
+          deep: true,
+          onTrack: () => {
+            walked++;
+          },
+        },
+      );
+      await store.jumpTo(0);
+      await nextTick();
+      stop();
+      // Only the ref itself is tracked, not a dependency per entry field.
+      expect(walked).toBeLessThan(10);
     });
 
     it("an empty shuffle is still a shuffle, and is persisted as one", () => {

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef } from "vue";
+import { computed, markRaw, ref, shallowRef } from "vue";
 import { useEventBus } from "@vueuse/core";
 import { ok, err, type Result } from "neverthrow";
 import { toPlaybackFailure, type PlaybackError } from "@/modules/player/service/playback-resolver.service";
@@ -71,7 +71,12 @@ export const useQueueStore = defineStore("queue", () => {
   // items are never edited in place — every change is a new array — and
   // deep-proxying a thousand queue entries is pure overhead.
   const state = shallowRef<QueueState>(EMPTY_STATE);
-  const persistedSnapshot = ref<PersistedQueueSnapshot | null>(null);
+  // Shallow and raw for the same reason as `state`: the persist plugin (and
+  // devtools) deep-walk the store state on every mutation, and a reactive
+  // snapshot costs a proxy trap per field of every entry on that walk and
+  // again in JSON.stringify — 60 ms+ per skip on a 2000-entry queue. Only
+  // the ref itself is a dependency; the object is replaced whole on commit.
+  const persistedSnapshot = shallowRef<PersistedQueueSnapshot | null>(null);
   const trackSkippedBus = useEventBus(trackSkippedEvent);
   const playbackStalledBus = useEventBus(playbackStalledEvent);
   let _transientFailures = 0;
@@ -194,12 +199,13 @@ export const useQueueStore = defineStore("queue", () => {
     state.value = next;
     _mutationEpoch++;
     if (options.persist !== false) {
-      persistedSnapshot.value = buildPersistedQueueSnapshot({
+      const snapshot = buildPersistedQueueSnapshot({
         queue: queue.value,
         items: items.value,
         currentItemId: currentItemId.value,
         isShuffled: isShuffled.value,
       });
+      persistedSnapshot.value = snapshot ? markRaw(snapshot) : null;
     }
   };
 
