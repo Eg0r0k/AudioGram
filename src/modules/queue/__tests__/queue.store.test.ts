@@ -484,6 +484,31 @@ describe("queue.store", () => {
 
       expect(store.queue[0].track).toStrictEqual(trackToInsert);
     });
+
+    it("insertMultipleNext places all tracks after the current one, in order, in one commit", () => {
+      const store = useQueueStore();
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 0);
+
+      const inserted = store.insertMultipleNext([createTrack("a"), createTrack("b"), createTrack("c")]);
+
+      expect(inserted).toHaveLength(3);
+      expect(store.queue.map(item => item.track.id)).toEqual(["1", "a", "b", "c", "2"]);
+    });
+
+    it("insertMultipleNext with an empty list is a no-op", () => {
+      const store = useQueueStore();
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 0);
+
+      expect(store.insertMultipleNext([])).toEqual([]);
+      expect(store.queue.map(item => item.track.id)).toEqual(["1"]);
+    });
   });
 
   describe("removeFromQueue", () => {

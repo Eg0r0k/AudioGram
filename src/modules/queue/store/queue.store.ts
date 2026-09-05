@@ -516,6 +516,28 @@ export const useQueueStore = defineStore("queue", () => {
     return item;
   }
 
+  function insertMultipleNext(
+    tracks: PlayerTrack[],
+    source: QueueSource = { type: "manual" },
+  ): QueueItem[] {
+    if (tracks.length === 0) return [];
+    const added = tracks.map(t => createItem(t, source));
+    const current = currentItem.value;
+
+    const originalAt = current
+      ? items.value.findIndex(candidate => candidate.id === current.id) + 1
+      : 0;
+    const playbackAt = currentIndex.value >= 0 ? currentIndex.value + 1 : 0;
+
+    commit({
+      items: insertAt(items.value, originalAt, ...added),
+      playbackOrder: playbackOrder.value
+        ? insertAt(playbackOrder.value, playbackAt, ...added.map(item => item.id))
+        : null,
+    });
+    return added;
+  }
+
   /**
    * The current track ended on its own: repeat-one restarts it, otherwise
    * the queue moves on exactly like `next()`.
@@ -734,6 +756,7 @@ export const useQueueStore = defineStore("queue", () => {
     addToQueue,
     addMultipleToQueue,
     insertNext,
+    insertMultipleNext,
     next,
     advance,
     previous,
