@@ -39,7 +39,7 @@
       <Motion
         v-for="(action, i) in visibleActions"
         :key="action.key"
-        :initial="reduced ? false : { opacity: 0, y: 6 }"
+        :initial="{ opacity: 0, y: 6 }"
         :animate="{ opacity: 1, y: 0 }"
         :transition="{ duration: 0.18, delay: i * 0.02, ease: EASE }"
       >
@@ -98,7 +98,7 @@
       </DropdownMenu>
 
       <Motion
-        :initial="reduced ? false : { opacity: 0, y: 6 }"
+        :initial="{ opacity: 0, y: 6 }"
         :animate="{ opacity: 1, y: 0 }"
         :transition="{ duration: 0.18, delay: visibleActions.length * 0.02, ease: EASE }"
       >
@@ -169,7 +169,7 @@
 import { computed, shallowRef, useTemplateRef } from "vue";
 import type { Component } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { Motion, useReducedMotion } from "motion-v";
+import { Motion } from "motion-v";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import {
@@ -221,7 +221,6 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 const NARROW_PX = 540;
 
 const { t } = useI18n();
-const reduced = useReducedMotion();
 
 const rootRef = useTemplateRef<HTMLElement>("rootRef");
 const { width } = useElementSize(rootRef);

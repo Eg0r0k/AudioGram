@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef, watch } from "vue";
-import { animate, useDragControls, useMotionValue, useReducedMotion, type PanInfo } from "motion-v";
+import { animate, useDragControls, useMotionValue, type PanInfo } from "motion-v";
+import { MotionGlobalConfig } from "motion-utils";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { isSameTrack, useQueueNeighbors } from "@/modules/queue/composables/useQueueNeighbors";
@@ -66,7 +67,6 @@ export const useTrackSwipe = (options: TrackSwipeOptions) => {
 
   const playerStore = usePlayerStore();
   const queueStore = useQueueStore();
-  const prefersReduced = useReducedMotion();
 
   const viewAnchor = ref<PlayerTrack | null>(null);
   const neighbors = useQueueNeighbors({
@@ -153,7 +153,9 @@ export const useTrackSwipe = (options: TrackSwipeOptions) => {
     if (center === keyOf(previous, "next")) shift = 1;
     else if (center === keyOf(previous, "previous")) shift = -1;
     if (shift === 0) return;
-    if (prefersReduced.value) {
+    // A skipped animate() still lands on the next frame, so the pre-jump to
+    // the old position would flash for one frame; stay centred instead.
+    if (MotionGlobalConfig.skipAnimations) {
       x.jump(0);
       return;
     }

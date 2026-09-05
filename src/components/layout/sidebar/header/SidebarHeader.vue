@@ -207,7 +207,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { AnimatePresence, Motion, useReducedMotion } from "motion-v";
+import { AnimatePresence, Motion } from "motion-v";
 import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useSearch, type SearchSource } from "@/modules/search/composables/useSearch";
 import IconMenu2 from "~icons/tabler/menu-2";
@@ -235,13 +235,7 @@ defineProps<{ compact?: boolean }>();
 const { t } = useI18n();
 const router = useRouter();
 const theme = useTheme();
-const prefersReduced = useReducedMotion();
-
-const headerTransition = computed(() =>
-  prefersReduced.value
-    ? { duration: 0 }
-    : { duration: 0.3, ease: [0.23, 1, 0.32, 1] as const },
-);
+const headerTransition = { duration: 0.3, ease: [0.23, 1, 0.32, 1] as const };
 
 const { query, source, setSource, isSearchOpen, openSearch, closeSearch, submitYtSearch, clear, focusRequests }
   = useSearch();

@@ -7,7 +7,7 @@
       y: show ? 0 : 80,
       pointerEvents: show ? 'auto' : 'none'
     }"
-    :transition="prefersReduced ? { duration: 0.1 } : {
+    :transition="{
       type: 'spring',
       stiffness: 300,
       damping: 25
@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { Motion, useReducedMotion } from "motion-v";
+import { Motion } from "motion-v";
 
 // The absolute variant sits at bottom-4 plus --keyboard-inset: a host panel
 // that measures the on-screen keyboard (useKeyboardInset) sets the variable
@@ -31,5 +31,4 @@ defineProps<{
   inline?: boolean;
 }>();
 
-const prefersReduced = useReducedMotion();
 </script>

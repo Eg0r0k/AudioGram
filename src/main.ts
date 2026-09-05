@@ -7,6 +7,7 @@ import vRipple from "./directives/ripple";
 import "./style.css";
 import { i18n } from "@/app/i18n";
 import App from "@/app/App.vue";
+import { installReducedMotion } from "@/app/reduced-motion";
 import { IS_TAURI } from "./lib/environment/userAgent";
 import { vCopy } from "./directives/copy";
 import { queryClient } from "@/queries/client";
@@ -44,6 +45,8 @@ if (dbOpen.isErr()) {
 
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
+
+installReducedMotion();
 
 const app = createApp(App);
 

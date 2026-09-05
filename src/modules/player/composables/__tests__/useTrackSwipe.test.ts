@@ -21,7 +21,6 @@ vi.mock("motion-v", () => ({
   animate: motion.animate,
   useMotionValue: (initial: number) => ({ get: () => initial, jump: motion.jump, set: vi.fn() }),
   useDragControls: () => ({ start: vi.fn() }),
-  useReducedMotion: () => ref(false),
 }));
 
 import { useQueueStore } from "@/modules/queue/store/queue.store";

@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { computed, provide, ref, watch, onUnmounted } from "vue";
 import { useEventListener } from "@vueuse/core";
-import { animate, useReducedMotion } from "motion-v";
+import { animate } from "motion-v";
 import { useSidebar } from "@/composables/useSidebar";
 import { useSearch } from "@/modules/search/composables/useSearch";
 import {
@@ -39,8 +39,6 @@ import {
 
 const { leftSidebar: sidebar, setLeftSidebarWidth } = useSidebar();
 const { isSearchOpen } = useSearch();
-const prefersReduced = useReducedMotion();
-
 const isCompact = computed(() => sidebar.value.width < SIDEBAR_EXPANDED_MIN_WIDTH);
 provide(SIDEBAR_COMPACT_KEY, isCompact);
 
@@ -53,7 +51,7 @@ watch(() => sidebar.value.width, (target) => {
   widthAnimation?.stop();
   widthAnimation = null;
 
-  if (isResizing.value || prefersReduced.value) {
+  if (isResizing.value) {
     displayWidth.value = target;
     return;
   }

@@ -330,6 +330,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* motion-v is switched off in src/app/reduced-motion.ts; this covers CSS
+     transitions, keyframes and Vue <Transition>. Spinners keep turning: a
+     frozen loader reads as a hang. */
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   .playing-pulse-dot > span {
     animation: none;
     transform: scaleY(0.7);

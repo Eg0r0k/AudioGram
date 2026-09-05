@@ -208,7 +208,7 @@ import TrackSortMenu from "@/modules/library/components/TrackSortMenu.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useI18n } from "vue-i18n";
 import { computed, ref, useTemplateRef } from "vue";
-import { AnimatePresence, Motion, useReducedMotion } from "motion-v";
+import { AnimatePresence, Motion } from "motion-v";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { useIndexTracksPage } from "@/modules/tracks/composables/useIndexTracksPage";
 import { getAllTrackIds, getAllTracksForQueue } from "@/queries/track.queries";
@@ -298,13 +298,10 @@ const {
   },
 });
 
-const reduced = useReducedMotion();
 const SHOWN = { opacity: 1, y: 0 };
 const SORT_HIDDEN = { opacity: 0, y: -12 };
 const BAR_HIDDEN = { opacity: 0, y: 12 };
-const headerTransition = computed(() =>
-  reduced.value ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const },
-);
+const headerTransition = { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const };
 
 const emptyLabel = computed(() =>
   normalizedSearchQuery.value

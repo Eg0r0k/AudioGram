@@ -1,5 +1,5 @@
 import { useEventListener } from "@vueuse/core";
-import { animate, useMotionValue, useReducedMotion } from "motion-v";
+import { animate, useMotionValue } from "motion-v";
 import { onUnmounted, ref, type Ref } from "vue";
 
 // Distance (px) the mouse has to travel before a press turns into a drag.
@@ -16,7 +16,6 @@ const clamp = (value: number, min: number, max: number) =>
 
 const useDragScroll = (containerRef: Readonly<Ref<HTMLElement | null>>) => {
   const isDragging = ref(false);
-  const prefersReduced = useReducedMotion();
 
   // Every scrollLeft write goes through this motion value: during the drag
   // it is set from the pointer, after release `animate` drives it with an
@@ -44,8 +43,6 @@ const useDragScroll = (containerRef: Readonly<Ref<HTMLElement | null>>) => {
   };
 
   const startFling = (container: HTMLElement) => {
-    if (prefersReduced.value) return;
-
     const velocity = clamp(
       position.getVelocity(),
       -MAX_FLING_VELOCITY,
