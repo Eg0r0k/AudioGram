@@ -9,6 +9,10 @@ import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 // tracks → orphaned albums → orphaned artists. An artist goes only when
 // neither their tracks nor their albums remain.
 //
+// Every check below is one index query over the whole candidate set, never
+// one query per candidate: the cascade runs inside the caller's write
+// transaction, and a whole-library delete hands it thousands of candidates.
+//
 
 /** The pieces of a deleted track the cascade needs. */
 export interface RemovedTrackRef {
@@ -17,25 +21,32 @@ export interface RemovedTrackRef {
   artistIds?: ArtistId[];
 }
 
-async function albumIsOrphan(albumId: AlbumId): Promise<boolean> {
-  return (await db.tracks.where("albumId").equals(albumId).count()) === 0;
-}
+type OwnerKey = [string, string];
 
-async function artistIsOrphan(artistId: ArtistId): Promise<boolean> {
-  const [trackCount, albumCount] = await Promise.all([
-    db.tracks.where("artistIds").equals(artistId).count(),
-    db.albums.where("artistId").equals(artistId).count(),
+const coverOwnerKeys = (ownerType: "album" | "track", ids: readonly string[]): OwnerKey[] =>
+  ids.map(id => [ownerType, id]);
+
+/** Album ids among `candidates` that still have at least one track. */
+const albumsWithTracks = async (candidates: readonly AlbumId[]): Promise<Set<AlbumId>> => {
+  if (candidates.length === 0) return new Set();
+  return new Set(await db.tracks.where("albumId").anyOf([...candidates]).keys() as AlbumId[]);
+};
+
+/** Artist ids among `candidates` still referenced by a track or an album. */
+const artistsReferenced = async (candidates: readonly ArtistId[]): Promise<Set<ArtistId>> => {
+  if (candidates.length === 0) return new Set();
+  const [byTracks, byAlbums] = await Promise.all([
+    db.tracks.where("artistIds").anyOf([...candidates]).keys(),
+    db.albums.where("artistId").anyOf([...candidates]).keys(),
   ]);
-  return trackCount === 0 && albumCount === 0;
-}
+  return new Set([...byTracks, ...byAlbums] as ArtistId[]);
+};
 
-async function deleteAlbums(ids: AlbumId[]): Promise<void> {
+const deleteAlbumsWithCovers = async (ids: readonly AlbumId[]): Promise<void> => {
   if (ids.length === 0) return;
-  await db.albums.bulkDelete(ids);
-  for (const id of ids) {
-    await db.covers.where("[ownerType+ownerId]").equals(["album", id]).delete();
-  }
-}
+  await db.albums.bulkDelete([...ids]);
+  await db.covers.where("[ownerType+ownerId]").anyOf(coverOwnerKeys("album", ids)).delete();
+};
 
 /**
  * Cascade for freshly deleted tracks: drops their albums that lost the last
@@ -43,32 +54,31 @@ async function deleteAlbums(ids: AlbumId[]): Promise<void> {
  * track rows are gone.
  */
 export async function cleanupAfterTrackRemoval(removed: RemovedTrackRef[]): Promise<void> {
+  if (removed.length === 0) return;
+
   // Track-owned covers (album-less imports) die with their track.
-  if (removed.length > 0) {
-    await db.covers.where("[ownerType+ownerId]")
-      .anyOf(removed.map(track => ["track", track.id] as [string, string]))
-      .delete();
-  }
+  await db.covers.where("[ownerType+ownerId]")
+    .anyOf(coverOwnerKeys("track", removed.map(track => track.id)))
+    .delete();
 
   const candidateAlbums = [...new Set(
     removed.map(track => track.albumId).filter((id): id is AlbumId => !!id),
   )];
-  const candidateArtists = new Set(removed.flatMap(track => track.artistIds ?? []));
+  const candidateArtists = new Set(
+    removed.flatMap(track => track.artistIds ?? []).filter((id): id is ArtistId => !!id),
+  );
 
-  const orphanAlbums: AlbumId[] = [];
-  for (const albumId of candidateAlbums) {
-    if (await albumIsOrphan(albumId)) orphanAlbums.push(albumId);
-  }
+  const survivingAlbums = await albumsWithTracks(candidateAlbums);
+  const orphanAlbums = candidateAlbums.filter(id => !survivingAlbums.has(id));
+
   // A deleted album can orphan its artist even when the track didn't list them.
   for (const album of await db.albums.bulkGet(orphanAlbums)) {
     if (album) candidateArtists.add(album.artistId);
   }
-  await deleteAlbums(orphanAlbums);
+  await deleteAlbumsWithCovers(orphanAlbums);
 
-  const orphanArtists: ArtistId[] = [];
-  for (const artistId of candidateArtists) {
-    if (artistId && await artistIsOrphan(artistId)) orphanArtists.push(artistId);
-  }
+  const referencedArtists = await artistsReferenced([...candidateArtists]);
+  const orphanArtists = [...candidateArtists].filter(id => !referencedArtists.has(id));
   if (orphanArtists.length > 0) {
     await db.artists.bulkDelete(orphanArtists);
   }
@@ -83,26 +93,25 @@ export async function sweepOrphanedEntities(): Promise<{ albums: number; artists
   // One transaction: the sweep runs at startup concurrently with the
   // download-manager init and queue restore.
   const result = await unitOfWork.run(async () => {
-    const orphanAlbums: AlbumId[] = [];
-    for (const album of await db.albums.toArray()) {
-      if (await albumIsOrphan(album.id)) orphanAlbums.push(album.id);
-    }
-    await deleteAlbums(orphanAlbums);
+    const referencedAlbums = new Set(await db.tracks.orderBy("albumId").uniqueKeys() as AlbumId[]);
+    const orphanAlbums = (await db.albums.toCollection().primaryKeys()).filter(id => !referencedAlbums.has(id));
+    await deleteAlbumsWithCovers(orphanAlbums);
 
-    const orphanArtists: ArtistId[] = [];
-    for (const artist of await db.artists.toArray()) {
-      if (await artistIsOrphan(artist.id)) orphanArtists.push(artist.id);
-    }
+    const [artistsByTracks, artistsByAlbums] = await Promise.all([
+      db.tracks.orderBy("artistIds").uniqueKeys(),
+      db.albums.orderBy("artistId").uniqueKeys(),
+    ]);
+    const referencedArtists = new Set([...artistsByTracks, ...artistsByAlbums] as ArtistId[]);
+    const orphanArtists = (await db.artists.toCollection().primaryKeys()).filter(id => !referencedArtists.has(id));
     if (orphanArtists.length > 0) {
       await db.artists.bulkDelete(orphanArtists);
     }
 
     // Track-owned covers have no implicit-entity cascade of their own, so any
     // deletion path that skips cleanupAfterTrackRemoval self-heals here.
-    const orphanCoverIds: string[] = [];
-    for (const cover of await db.covers.where("ownerType").equals("track").toArray()) {
-      if (!(await db.tracks.get(cover.ownerId as TrackId))) orphanCoverIds.push(cover.id);
-    }
+    const trackIds = new Set<string>(await db.tracks.toCollection().primaryKeys());
+    const trackCovers = await db.covers.where("ownerType").equals("track").toArray();
+    const orphanCoverIds = trackCovers.filter(cover => !trackIds.has(cover.ownerId)).map(cover => cover.id);
     if (orphanCoverIds.length > 0) {
       await db.covers.bulkDelete(orphanCoverIds);
     }
