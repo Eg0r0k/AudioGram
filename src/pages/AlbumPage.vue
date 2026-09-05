@@ -1,6 +1,5 @@
 <template>
   <div
-    ref="tracksListRef"
     class="track-list-grid flex-1 min-h-0"
   >
     <template v-if="isLoading">
@@ -76,11 +75,8 @@
                   :track="item"
                   :index="index + 1"
                   :is-active="currentTrackId === item.id"
-                  :is-selected="isSelected(item.id)"
-                  :is-selecting="isSelecting"
                   menu-target="album"
                   @play="handlePlayTrack(index)"
-                  @select="(track, event) => handleTrackSelect(track, event)"
                   @contextmenu="handleContextMenu(item, index)"
                 />
               </div>
@@ -111,13 +107,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, watch } from "vue";
+import { ref, computed, useTemplateRef } from "vue";
 import { sourceKindOf } from "@/modules/sources/lib/display";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
-import { onKeyStroke } from "@vueuse/core";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
 import PageErrorState from "@/components/common/PageErrorState.vue";
 import { Button } from "@/components/ui/button";
@@ -142,7 +137,6 @@ import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import type { Track } from "@/modules/player/types";
 import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
-import { useTrackSelection } from "@/modules/tracks/composables/useTrackSelection";
 import { getLogger } from "@/lib/logger";
 
 interface AlbumChanges {
@@ -177,23 +171,6 @@ const {
   isTracksLoading,
   isFetchingNextPage,
 } = useAlbumPage(sortKey);
-
-const tracksListRef = useTemplateRef<HTMLElement>("tracksListRef");
-
-const {
-  isSelecting,
-  isSelected,
-  clearSelection,
-  handleTrackSelect,
-} = useTrackSelection(tracks, tracksListRef);
-
-watch(() => route.params.id, () => clearSelection());
-
-onKeyStroke("Escape", (event) => {
-  if (!isSelecting.value) return;
-  event.preventDefault();
-  clearSelection();
-});
 
 const showEditDialog = ref(false);
 const currentTrackId = computed(() => playerStore.currentTrack?.id ?? null);
