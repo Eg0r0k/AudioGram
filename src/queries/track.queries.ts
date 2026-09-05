@@ -1,17 +1,13 @@
 import type { AlbumEntity, ArtistEntity, TrackEntity } from "@/db/entities";
-import { db } from "@/db";
 import {
   albumRepository,
   artistRepository,
   coverRepository,
-  offlineCopyRepository,
-  playlistRepository,
   trackRepository,
 } from "@/db/repositories";
 import { unitOfWork } from "@/db/unit-of-work";
 import { buildAlbumDocFromDb, buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/service/buildDocuments";
 import {
-  removeSearchDocuments,
   searchDocuments,
   searchTracks as searchIndexedTracks,
   upsertSearchDocuments,
@@ -26,10 +22,7 @@ import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 import { queryOptions, type QueryClient } from "@tanstack/vue-query";
 import {
   invalidateForTrackMutation,
-  removeTracksFromCaches,
   syncAlbumCaches,
-  syncPlaylistCaches,
-  syncPlaylistTrackRemoval,
   syncArtistCaches,
   syncTrackLikeCaches,
   syncTrackMetadataCaches,
@@ -46,8 +39,6 @@ import {
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
-import { cleanupAfterTrackRemoval } from "@/services/library-gc";
-import { cleanupOfflineCopyFiles } from "@/modules/downloads/service/removeCopy";
 import { dedupeArtistNames, identityKey } from "@/lib/artist-names";
 import { assertValidName } from "@/lib/limits";
 
@@ -698,62 +689,6 @@ export async function deleteTrackAndSync(
   queryClient: QueryClient,
   track: Track,
 ) {
-  const trackId = track.id;
-  const currentTrack = await unwrapResult(trackRepository.findById(trackId));
-
-  if (!currentTrack) {
-    throw new Error("Track not found");
-  }
-
-  const now = Date.now();
-  // Rows die inside the transaction, the copy's file after it.
-  const copies = await unwrapResult(offlineCopyRepository.findByIds([trackId]));
-
-  const txResult = await unitOfWork.runScoped(
-    [db.tracks, db.albums, db.artists, db.playlists, db.covers, db.offlineCopies],
-    async () => {
-      // Playlists are read inside the tx and written back as partial updates,
-      // so a rename racing the delete survives.
-      const playlists = await unwrapResult(playlistRepository.findAll());
-      const nextPlaylists = playlists
-        .filter(playlist => playlist.trackIds.includes(trackId))
-        .map(playlist => ({
-          ...playlist,
-          trackIds: playlist.trackIds.filter(id => id !== trackId),
-          updatedAt: now,
-        }));
-      if (nextPlaylists.length > 0) {
-        await unwrapResult(playlistRepository.updateMany(nextPlaylists.map(playlist => ({
-          key: playlist.id,
-          changes: { trackIds: playlist.trackIds, updatedAt: playlist.updatedAt },
-        }))));
-      }
-      if (copies.length > 0) {
-        await unwrapResult(offlineCopyRepository.deleteMany(copies.map(copy => copy.trackId)));
-      }
-      await unwrapResult(trackRepository.delete(trackId));
-      // The album dies with its last track, the artist with their last album.
-      await cleanupAfterTrackRemoval([currentTrack]);
-      return nextPlaylists;
-    },
-  );
-  if (txResult.isErr()) throw txResult.error;
-  const nextPlaylists = txResult.value;
-
-  await cleanupOfflineCopyFiles(copies);
-  for (const nextPlaylist of nextPlaylists) {
-    syncPlaylistCaches(queryClient, nextPlaylist);
-    syncPlaylistTrackRemoval(queryClient, nextPlaylist.id, trackId);
-  }
-  removeTracksFromCaches(queryClient, [trackId]);
-  queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(trackId), exact: true });
-  removeCoverCache("track", trackId);
-  await removeSearchDocuments([`track:${trackId}`]);
-
-  await invalidateForTrackMutation(queryClient, {
-    kind: "removal",
-    albumIds: [currentTrack.albumId],
-    artistIds: currentTrack.artistIds,
-    playlistIds: nextPlaylists.map(playlist => playlist.id),
-  });
+  const deleted = await deleteTracksAndSync(queryClient, [track.id]);
+  if (deleted === 0) throw new Error("Track not found");
 }
