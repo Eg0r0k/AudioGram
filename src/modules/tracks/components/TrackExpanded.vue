@@ -116,7 +116,7 @@
                 <button
                   type="button"
                   class="cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
-                  @click.stop="handleArtistClick(artistIndex)"
+                  @click.stop="handleArtistClick(artistIndex, $event)"
                 >
                   {{ artist }}
                 </button>
@@ -134,7 +134,7 @@
           v-if="track.albumName"
           type="button"
           class="block w-full min-w-0 cursor-pointer truncate text-left underline-offset-2 hover:text-foreground hover:underline"
-          @click.stop="handleAlbumClick"
+          @click.stop="handleAlbumClick($event)"
         >
           {{ track.albumName }}
         </button>
@@ -382,7 +382,13 @@ async function toggle() {
   await toggleTrackLike(props.track);
 }
 
-function handleArtistClick(index: number) {
+// Navigating away in select mode unmounts the page and drops the selection,
+// so the links become part of the row's select surface instead.
+function handleArtistClick(index: number, event: MouseEvent) {
+  if (props.isSelecting) {
+    emit("select", props.track, event);
+    return;
+  }
   if (props.artistRoutes) {
     const to = props.artistRoutes[index] ?? props.artistRoutes[0];
     if (to) router.push(to).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
@@ -393,7 +399,11 @@ function handleArtistClick(index: number) {
   if (artistId) router.push(routeLocation.artist(artistId)).catch(error => getLogger().error(`[Tracks] Navigation to the artist page failed: ${String(error)}`));
 }
 
-function handleAlbumClick() {
+function handleAlbumClick(event: MouseEvent) {
+  if (props.isSelecting) {
+    emit("select", props.track, event);
+    return;
+  }
   if (props.artistRoutes || props.albumRoute !== undefined) {
     if (props.albumRoute) router.push(props.albumRoute).catch(error => getLogger().error(`[Tracks] Navigation to the album page failed: ${String(error)}`));
     return;
