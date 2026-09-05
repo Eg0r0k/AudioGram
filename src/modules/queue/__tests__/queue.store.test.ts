@@ -821,6 +821,81 @@ describe("queue.store", () => {
     });
   });
 
+  describe("syncTracksMetadata", () => {
+    it("patches every listed track in one commit and leaves the rest alone", () => {
+      const store = useQueueStore();
+      const track1 = createTrack("1");
+      const track2 = createTrack("2");
+      const track3 = createTrack("3");
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: track2, source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-3" as any, track: track3, source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 2);
+
+      const before = store.queue;
+
+      store.syncTracksMetadata([
+        { ...track1, isLiked: true, title: "Renamed 1" } as Track,
+        { ...track2, isLiked: true, title: "Renamed 2" } as Track,
+      ]);
+
+      expect((store.queue[0].track as Track).isLiked).toBe(true);
+      expect(store.queue[0].track.title).toBe("Renamed 1");
+      expect((store.queue[1].track as Track).isLiked).toBe(true);
+      expect(store.queue[1].track.title).toBe("Renamed 2");
+      expect((store.queue[2].track as Track).isLiked).toBe(false);
+      expect(store.queue[2].track.title).toBe(track3.title);
+      expect(store.queue).not.toBe(before);
+      expect(store.queue[2]).toBe(before[2]);
+    });
+
+    it("hands the patched current track to the player once", () => {
+      const store = useQueueStore();
+      const playerStore = usePlayerStore();
+      const presentSpy = vi.spyOn(playerStore, "presentTrack");
+      const track1 = createTrack("1");
+      const track2 = createTrack("2");
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: track2, source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 0);
+
+      store.syncTracksMetadata([
+        { ...track1, isLiked: true } as Track,
+        { ...track2, isLiked: true } as Track,
+      ]);
+
+      expect(presentSpy).toHaveBeenCalledTimes(1);
+      expect((store.currentTrack as Track).isLiked).toBe(true);
+    });
+
+    it("is a no-op for an empty list and for ephemeral-only tracks", () => {
+      const store = useQueueStore();
+      const track1 = createTrack("1");
+
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: track1, source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, 0);
+
+      const before = store.queue;
+
+      store.syncTracksMetadata([]);
+      expect(store.queue).toBe(before);
+
+      store.syncTracksMetadata([
+        { kind: "ephemeral", id: "1", title: "Eph", source: { type: "url", url: "https://example.com/a.mp3" } } as any,
+      ]);
+      expect(store.queue).toBe(before);
+      expect(store.queue[0].track.title).toBe(track1.title);
+    });
+  });
+
   describe("jumpTo", () => {
     it("should jump to specific index and play", async () => {
       const store = useQueueStore();

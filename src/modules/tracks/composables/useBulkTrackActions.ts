@@ -89,11 +89,11 @@ export const useBulkTrackActions = (options: UseBulkTrackActionsOptions) => {
     const changed = await setTracksLikedAndSync(queryClient, idList, liked);
 
     const idSet = new Set<string>(idList);
-    for (const item of queueStore.queue) {
-      if (item.track.kind === "library" && idSet.has(item.track.id)) {
-        queueStore.syncTrackMetadata({ ...item.track, isLiked: liked });
-      }
-    }
+    queueStore.syncTracksMetadata(
+      queueStore.queue
+        .filter(item => item.track.kind === "library" && idSet.has(item.track.id))
+        .map(item => ({ ...item.track, isLiked: liked })),
+    );
     toast.success(t(liked ? "library.selection.liked" : "library.selection.unliked", changed));
   });
 

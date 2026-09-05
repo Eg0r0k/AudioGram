@@ -236,6 +236,34 @@ export const useQueueStore = defineStore("queue", () => {
   }
 
   /**
+   * Bulk edits (liking a whole-library selection) would otherwise be one
+   * commit per queued track — array copy, invariant check and persisted
+   * snapshot each time. One pass, one commit, one presentTrack.
+   */
+  function syncTracksMetadata(nextTracks: PlayerTrack[]): void {
+    const patches = new Map<string, PlayerTrack>();
+    for (const nextTrack of nextTracks) {
+      if (isEphemeralTrack(nextTrack)) continue;
+      patches.set(nextTrack.id, nextTrack);
+    }
+    if (patches.size === 0) return;
+
+    commit({
+      items: items.value.map((item) => {
+        const patch = patches.get(item.track.id);
+        if (!patch || patch.kind !== item.track.kind) return item;
+        return { ...item, track: { ...item.track, ...patch } };
+      }),
+    });
+
+    const current = currentItem.value;
+    const currentPatch = current ? patches.get(current.track.id) : undefined;
+    if (current && currentPatch && currentPatch.kind === current.track.kind) {
+      usePlayerStore().presentTrack(current.track);
+    }
+  }
+
+  /**
    * Import-from-player (M3): every queue entry holding the ephemeral track
    * becomes the freshly imported library track — item identity (id, source,
    * addedAt) survives. If the current entry swaps, the player is told the
@@ -769,6 +797,7 @@ export const useQueueStore = defineStore("queue", () => {
     shuffle,
     unshuffle,
     syncTrackMetadata,
+    syncTracksMetadata,
     swapEphemeralForLibrary,
     toggleShuffle,
     toggleRepeat,

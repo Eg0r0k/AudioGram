@@ -18,7 +18,7 @@ const queue = vi.hoisted(() => ({
   insertMultipleNext: vi.fn(),
   addMultipleToQueue: vi.fn(),
   removeMultiple: vi.fn(async () => {}),
-  syncTrackMetadata: vi.fn(),
+  syncTracksMetadata: vi.fn(),
 }));
 
 vi.mock("@/queries/track.queries", () => queries);
@@ -110,7 +110,8 @@ describe("useBulkTrackActions", () => {
     await actions.toggleLike();
 
     expect(queries.setTracksLikedAndSync).toHaveBeenCalledWith({ tag: "qc" }, ["t1", "t2"], true);
-    expect(queue.syncTrackMetadata).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", isLiked: true }));
+    expect(queue.syncTracksMetadata).toHaveBeenCalledTimes(1);
+    expect(queue.syncTracksMetadata).toHaveBeenCalledWith([expect.objectContaining({ id: "t1", isLiked: true })]);
     expect(toast.success).toHaveBeenCalledWith("library.selection.liked");
   });
 
