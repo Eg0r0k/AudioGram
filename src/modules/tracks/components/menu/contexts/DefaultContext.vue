@@ -5,6 +5,11 @@
     @add-to-queue="actions.addToQueue"
   />
 
+  <SelectItem
+    v-if="enterSelection"
+    @select="enterSelection(track.id)"
+  />
+
   <component :is="Separator" />
 
   <LikeItem
@@ -51,7 +56,9 @@ import DetailsItem from "../items/DetailsItem.vue";
 import LikeItem from "../items/LikeItem.vue";
 import MoreSub from "../items/MoreSub.vue";
 import OfflineItem from "../items/OfflineItem.vue";
+import SelectItem from "../items/SelectItem.vue";
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
+import { useTrackSelectionEntry } from "../useTrackSelectionEntry";
 import { trackHasLyrics } from "@/modules/tracks/lib/trackPredicates";
 import type { ContextActions } from "../type";
 import type { TrackMenuCaps } from "@/modules/tracks/composables/useTrackMenuCaps";
@@ -64,4 +71,5 @@ defineProps<{
 }>();
 
 const { Separator } = useTrackMenuComponents();
+const enterSelection = useTrackSelectionEntry();
 </script>
