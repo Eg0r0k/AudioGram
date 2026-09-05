@@ -81,7 +81,7 @@
           ref="tracksListRef"
           class="track-list-grid relative flex min-h-0 flex-col"
         >
-          <div class="relative shrink-0">
+          <div class="relative shrink-0 overflow-hidden">
             <Motion
               :animate="isSelectMode ? SORT_HIDDEN : SHOWN"
               :transition="headerTransition"
