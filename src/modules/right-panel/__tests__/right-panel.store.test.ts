@@ -70,6 +70,17 @@ describe("right-panel.store", () => {
     expect(store.scope).toEqual({ type: "global" });
   });
 
+  it("opens the import panel at depth 0", () => {
+    const store = useRightPanelStore();
+
+    store.openImport();
+
+    expect(store.isOpen).toBe(true);
+    expect(store.view).toBe("import");
+    expect(store.depth).toBe(0);
+    expect(store.payload).toBeUndefined();
+  });
+
   it("opens folder-add at depth 1 with the folder scope by default", () => {
     const store = useRightPanelStore();
 

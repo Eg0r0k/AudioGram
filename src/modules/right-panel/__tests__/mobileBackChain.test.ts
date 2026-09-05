@@ -96,6 +96,7 @@ describe("mobile right-panel back chain", () => {
     expect(panelBackDepth(true, "track-info", "queue")).toBe(2);
     expect(panelBackDepth(true, "add-tracks", "none")).toBe(1);
     expect(panelBackDepth(true, "downloads", "none")).toBe(1);
+    expect(panelBackDepth(true, "import", "none")).toBe(1);
     expect(panelBackDepth(true, "edit-track", "none")).toBe(2);
     expect(panelBackDepth(true, "entity-select", "none")).toBe(3);
   });

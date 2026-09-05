@@ -1,6 +1,6 @@
 import type { PlayerTrack, Track } from "@/modules/player/types";
 
-export type RightPanelView = "queue" | "current-track" | "lyrics" | "track-info" | "edit-track" | "add-tracks" | "chapters" | "downloads" | "entity-select" | "folder-add" | "none";
+export type RightPanelView = "queue" | "current-track" | "lyrics" | "track-info" | "edit-track" | "add-tracks" | "chapters" | "downloads" | "import" | "entity-select" | "folder-add" | "none";
 export type RightPanelBackView = "queue" | "current-track" | "none";
 
 export type RightPanelScope
@@ -28,6 +28,7 @@ export interface RightPanelPayloadMap {
   "add-tracks": RightPanelAddTracksPayload;
   "chapters": RightPanelChaptersPayload;
   "downloads": undefined;
+  "import": undefined;
   "entity-select": RightPanelEntitySelectPayload;
   "folder-add": RightPanelFolderAddPayload;
   "none": undefined;
