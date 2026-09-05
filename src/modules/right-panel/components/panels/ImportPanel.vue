@@ -33,11 +33,11 @@
           :disabled="isCancelling"
           @click="togglePause"
         >
-          <IconPlayerPlay
+          <IconPlay
             v-if="isPaused"
             class="size-4"
           />
-          <IconPlayerPause
+          <IconPause
             v-else
             class="size-4"
           />
@@ -55,50 +55,16 @@
     </div>
 
     <div
-      v-else
-      class="flex flex-col gap-3 px-4 pb-3"
+      v-else-if="successCount > 0"
+      class="flex justify-end px-4 pb-3"
     >
-      <span class="text-sm font-medium">{{ t("common.import.doneTitle") }}</span>
-      <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1 text-sm">
-        <dt class="text-right font-medium tabular-nums">
-          {{ successCount }}
-        </dt>
-        <dd class="text-muted-foreground">
-          {{ t("common.import.counts.imported") }}
-        </dd>
-        <dt
-          class="text-right font-medium tabular-nums"
-          :class="errorCount > 0 ? 'text-destructive' : ''"
-        >
-          {{ errorCount }}
-        </dt>
-        <dd class="text-muted-foreground">
-          {{ t("common.import.counts.failed") }}
-        </dd>
-        <dt class="text-right font-medium tabular-nums">
-          {{ skippedCount }}
-        </dt>
-        <dd class="text-muted-foreground">
-          {{ t("common.import.counts.skipped") }}
-        </dd>
-      </dl>
-      <div class="flex items-center justify-between gap-2 pt-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          @click="finish"
-        >
-          {{ t("common.done") }}
-        </Button>
-        <Button
-          v-if="successCount > 0"
-          variant="ghost-primary"
-          size="sm"
-          @click="goToLibrary"
-        >
-          {{ t("common.import.goToLibrary") }}
-        </Button>
-      </div>
+      <Button
+        variant="ghost-primary"
+        size="sm"
+        @click="goToLibrary"
+      >
+        {{ t("common.import.goToLibrary") }}
+      </Button>
     </div>
 
     <Tabs
@@ -212,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useImport, type ImportFileItem, type ImportFileStatus } from "@/modules/library/composables/useImport";
@@ -230,8 +196,8 @@ import IconCheck from "~icons/tabler/check";
 import IconMinus from "~icons/tabler/minus";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconAlertCircle from "~icons/tabler/alert-circle";
-import IconPlayerPause from "~icons/tabler/player-pause";
-import IconPlayerPlay from "~icons/tabler/player-play";
+import IconPlay from "~icons/audiogram/play-rounded";
+import IconPause from "~icons/audiogram/pause-rounded";
 
 type FilterKey = "all" | "error" | "skipped";
 
@@ -326,6 +292,14 @@ const finish = () => {
   reset();
   rightPanel.close();
 };
+
+// Leaving the panel after the import finished dismisses the session so the
+// ring and menu entry do not outlive the results the user has already seen.
+onUnmounted(() => {
+  if (isRunning.value) return;
+  closeSheet();
+  reset();
+});
 
 const confirmCancelImport = () => {
   cancelImport();

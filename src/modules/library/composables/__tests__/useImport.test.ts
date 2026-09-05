@@ -4,7 +4,7 @@ import { toast } from "vue-sonner";
 import { i18n } from "@/app/i18n";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { musicLibraryEngine } from "@/services/importer.service";
-import { useImport } from "../useImport";
+import { IMPORT_AUTO_DISMISS_MS, useImport } from "../useImport";
 import type { ImportBatchResult, ImportControl } from "@/services/importer.service";
 
 vi.mock("@tanstack/vue-query", () => ({
@@ -37,7 +37,7 @@ vi.mock("vue-sonner", () => ({
   },
 }));
 
-const rightPanelMocks = vi.hoisted(() => ({ openImport: vi.fn() }));
+const rightPanelMocks = vi.hoisted(() => ({ openImport: vi.fn(), isOpen: false, view: "none" }));
 vi.mock("@/modules/right-panel/store/right-panel.store", () => ({
   useRightPanelStore: () => rightPanelMocks,
 }));
@@ -296,5 +296,64 @@ describe("useImport completion feedback", () => {
 
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();
+  });
+});
+
+describe("useImport auto dismiss", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    rightPanelMocks.isOpen = false;
+    rightPanelMocks.view = "none";
+    useImport().reset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const finishedImport = async () => {
+    vi.mocked(musicLibraryEngine.importFiles).mockResolvedValue(createResult({
+      successful: [{ trackId: "a" as never, fileName: "a.mp3", title: "A", artist: "Artist", album: "Album" }],
+      total: 1,
+    }));
+    const importer = useImport();
+    await importer.importFiles([createFile("a.mp3")]);
+    return importer;
+  };
+
+  it("clears the finished session after the dismiss delay", async () => {
+    const importer = await finishedImport();
+    expect(importer.isOpen.value).toBe(true);
+
+    vi.advanceTimersByTime(IMPORT_AUTO_DISMISS_MS - 1);
+    expect(importer.isOpen.value).toBe(true);
+
+    vi.advanceTimersByTime(1);
+    expect(importer.isOpen.value).toBe(false);
+    expect(importer.files.value).toEqual([]);
+  });
+
+  it("keeps the session while the import panel is showing it", async () => {
+    rightPanelMocks.isOpen = true;
+    rightPanelMocks.view = "import";
+    const importer = await finishedImport();
+
+    vi.advanceTimersByTime(IMPORT_AUTO_DISMISS_MS);
+    expect(importer.isOpen.value).toBe(true);
+  });
+
+  it("drops the pending dismissal when a new import starts", async () => {
+    const importer = await finishedImport();
+    const gate = createDeferred<ImportBatchResult>();
+    vi.mocked(musicLibraryEngine.importFiles).mockImplementation(() => gate.promise);
+
+    const second = importer.importFiles([createFile("b.mp3")]);
+    vi.advanceTimersByTime(IMPORT_AUTO_DISMISS_MS);
+    expect(importer.isOpen.value).toBe(true);
+    expect(importer.isRunning.value).toBe(true);
+
+    gate.resolve(createResult({ total: 1 }));
+    await second;
   });
 });

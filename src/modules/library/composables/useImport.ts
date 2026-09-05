@@ -39,6 +39,7 @@ export interface ImportState {
 
 const ACCEPTED_EXTENSIONS = ACCEPTED_AUDIO_EXTENSIONS;
 const MAX_VISIBLE_IMPORT_FILES = 500;
+export const IMPORT_AUTO_DISMISS_MS = 10_000;
 
 const state = ref<ImportState>({
   isOpen: false,
@@ -58,6 +59,12 @@ let isCancelRequested = false;
 let activeImportId = 0;
 let pausePromise: Promise<void> | null = null;
 let pauseResolver: (() => void) | null = null;
+let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearDismissTimer = () => {
+  if (dismissTimer) clearTimeout(dismissTimer);
+  dismissTimer = null;
+};
 
 const notifyBatchFinished = (result: ImportBatchResult) => {
   const { t } = i18n.global;
@@ -127,6 +134,7 @@ export function useImport() {
       isPaused: false,
       isCancelling: false,
     };
+    clearDismissTimer();
     isCancelRequested = false;
     activeImportId++;
     pauseResolver?.();
@@ -196,6 +204,7 @@ export function useImport() {
     const visibleFiles = fileNames.slice(0, MAX_VISIBLE_IMPORT_FILES);
 
     activeImportId = importId;
+    clearDismissTimer();
     state.value = {
       isOpen: true,
       isRunning: true,
@@ -300,7 +309,21 @@ export function useImport() {
 
     state.value.isRunning = false;
     notifyBatchFinished(result);
+    scheduleAutoDismiss(importId);
   }
+
+  // The finished session lingers so the ring and menu entry can be noticed,
+  // then clears itself unless the panel is showing the results.
+  const scheduleAutoDismiss = (importId: number) => {
+    clearDismissTimer();
+    dismissTimer = setTimeout(() => {
+      dismissTimer = null;
+      if (importId !== activeImportId || state.value.isRunning) return;
+      const rightPanel = useRightPanelStore();
+      if (rightPanel.isOpen && rightPanel.view === "import") return;
+      reset();
+    }, IMPORT_AUTO_DISMISS_MS);
+  };
 
   /**
    * Opens a file picker and imports the selection. In Tauri we MUST use the

@@ -103,7 +103,7 @@ describe("ImportPanel", () => {
     expect(state.resumeImport).toHaveBeenCalledOnce();
   });
 
-  it("shows the summary rows and actions when finished", async () => {
+  it("lists results with reasons when finished and dismisses the session on unmount", async () => {
     state.isRunning.value = false;
     state.files.value = [
       file("a.mp3", "ok", { title: "Alpha", artist: "Artist" }),
@@ -114,19 +114,23 @@ describe("ImportPanel", () => {
     state.successCount.value = 1;
     state.errorCount.value = 1;
     state.skippedCount.value = 1;
-    renderPanel();
+    const { unmount } = renderPanel();
 
-    expect(screen.getByText("Import complete")).toBeInTheDocument();
-    expect(screen.getByText("imported")).toBeInTheDocument();
-    expect(screen.getByText("failed")).toBeInTheDocument();
-    expect(screen.getByText("skipped")).toBeInTheDocument();
     expect(screen.getByText("Alpha — Artist")).toBeInTheDocument();
     expect(screen.getByText("Couldn't read track metadata")).toBeInTheDocument();
+    expect(screen.queryByText("Importing tracks")).toBeNull();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    unmount();
     expect(state.closeSheet).toHaveBeenCalledOnce();
     expect(state.reset).toHaveBeenCalledOnce();
-    expect(rightPanel.close).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the session when unmounted while the import is running", () => {
+    const { unmount } = renderPanel();
+
+    unmount();
+    expect(state.closeSheet).not.toHaveBeenCalled();
+    expect(state.reset).not.toHaveBeenCalled();
   });
 
   it("navigates to the library from the finished state", async () => {
@@ -135,7 +139,7 @@ describe("ImportPanel", () => {
     renderPanel();
 
     await fireEvent.click(screen.getByRole("button", { name: "Go to library" }));
-    expect(state.reset).toHaveBeenCalledOnce();
+    expect(state.reset).toHaveBeenCalled();
     expect(rightPanel.close).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledOnce();
   });
