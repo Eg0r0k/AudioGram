@@ -78,11 +78,49 @@
 
         <div
           v-else
+          ref="tracksListRef"
           class="track-list-grid relative flex min-h-0 flex-col"
         >
-          <LibrarySortHeader
-            v-model:sort-key="sortKey"
-          />
+          <div class="relative shrink-0">
+            <Motion
+              :animate="isSelectMode ? SORT_HIDDEN : SHOWN"
+              :transition="headerTransition"
+              :inert="isSelectMode || undefined"
+            >
+              <LibrarySortHeader
+                v-model:sort-key="sortKey"
+              />
+            </Motion>
+
+            <AnimatePresence>
+              <Motion
+                v-if="isSelectMode"
+                key="selection-bar"
+                :initial="BAR_HIDDEN"
+                :animate="SHOWN"
+                :exit="BAR_HIDDEN"
+                :transition="headerTransition"
+                class="absolute inset-0 bg-background"
+              >
+                <TrackSelectionBar
+                  :count="selectedCount"
+                  :all-selected="isAllSelected"
+                  :all-liked="allLiked"
+                  :busy="busy"
+                  :selecting-all="isSelectingAll"
+                  @exit="exitSelection"
+                  @select-all="selectAll"
+                  @deselect-all="deselectAll"
+                  @play="play"
+                  @play-next="playNext"
+                  @add-to-queue="addToQueue"
+                  @toggle-like="toggleLike"
+                  @add-to-playlist="addToPlaylist"
+                  @delete="deleteSelected"
+                />
+              </Motion>
+            </AnimatePresence>
+          </div>
 
           <VirtualScrollable
             :items="tracks"
@@ -101,7 +139,10 @@
                   :track="item"
                   :index="index + 1"
                   :is-active="currentTrackId === item.id"
+                  :is-selected="isSelected(item.id)"
+                  :is-selecting="isSelectMode"
                   @play="handlePlayTrack(index)"
+                  @select="handleTrackSelect"
                   @contextmenu="handleContextMenu(item, index)"
                 />
               </div>
@@ -162,16 +203,21 @@ import LibrarySortHeader from "@/modules/library/components/LibrarySortHeader.vu
 import TrackSortMenu from "@/modules/library/components/TrackSortMenu.vue";
 import TrackExpanded from "@/modules/tracks/components/TrackExpanded.vue";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
+import { AnimatePresence, Motion, useReducedMotion } from "motion-v";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { useIndexTracksPage } from "@/modules/tracks/composables/useIndexTracksPage";
-import { getAllTracksForQueue } from "@/queries/track.queries";
+import { getAllTrackIds, getAllTracksForQueue } from "@/queries/track.queries";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { usePlayerStore } from "@/modules/player";
 import type { Track } from "@/modules/player/types";
 import { useGoBack } from "@/composables/useGoBack";
 import { getLogger } from "@/lib/logger";
+import TrackSelectionBar from "@/modules/tracks/components/TrackSelectionBar.vue";
+import { useTrackSelectionMode } from "@/modules/tracks/composables/useTrackSelectionMode";
+import { useBulkTrackActions } from "@/modules/tracks/composables/useBulkTrackActions";
+import { provideTrackSelectionEntry } from "@/modules/tracks/components/menu/useTrackSelectionEntry";
 const { t } = useI18n();
 const sortKey = ref<TrackSortKey | null>(null);
 const searchQuery = ref("");
@@ -179,6 +225,7 @@ const {
   normalizedSearchQuery,
   resolvedSortKey,
   tracks,
+  total,
   isLoading,
   isError,
   error,
@@ -193,6 +240,54 @@ const playerStore = usePlayerStore();
 const { openMenu } = useTrackMenu();
 
 const currentTrackId = computed(() => playerStore.currentTrack?.id ?? null);
+
+const tracksListRef = useTemplateRef<HTMLElement>("tracksListRef");
+
+const {
+  isSelectMode,
+  isSelectingAll,
+  isAllSelected,
+  isSelected,
+  selectedIds,
+  selectedCount,
+  handleTrackSelect,
+  enter: enterSelection,
+  exit: exitSelection,
+  selectAll,
+  deselectAll,
+} = useTrackSelectionMode(tracks, tracksListRef, {
+  getAllIds: () => getAllTrackIds(resolvedSortKey.value, normalizedSearchQuery.value),
+  total,
+  resetKey: computed(() => `${resolvedSortKey.value}|${normalizedSearchQuery.value}`),
+});
+
+provideTrackSelectionEntry(enterSelection);
+
+const {
+  busy,
+  allLiked,
+  play,
+  playNext,
+  addToQueue,
+  toggleLike,
+  addToPlaylist,
+  deleteSelected,
+} = useBulkTrackActions({
+  selectedIds,
+  loadedTracks: tracks,
+  sortKey: resolvedSortKey,
+  onDone: (action) => {
+    if (action === "play" || action === "delete") exitSelection();
+  },
+});
+
+const reduced = useReducedMotion();
+const SHOWN = { opacity: 1, y: 0 };
+const SORT_HIDDEN = { opacity: 0, y: -12 };
+const BAR_HIDDEN = { opacity: 0, y: 12 };
+const headerTransition = computed(() =>
+  reduced.value ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] as const },
+);
 
 const emptyLabel = computed(() =>
   normalizedSearchQuery.value
