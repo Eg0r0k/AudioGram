@@ -216,7 +216,9 @@ const emit = defineEmits<{
 }>();
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const NARROW_PX = 620;
+// A 1280px window with both side panels open leaves a ~610px column, so a
+// higher threshold made the wide bar unreachable on a normal desktop.
+const NARROW_PX = 540;
 
 const { t } = useI18n();
 const reduced = useReducedMotion();
