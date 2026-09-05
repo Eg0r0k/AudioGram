@@ -9,7 +9,7 @@ import { useCurrentTrackChapters } from "@/modules/tracks/composables/useCurrent
 
 const playerStore = usePlayerStore();
 const { displayProgress, isTransitionEnabled, onScrubStart, onScrub, onScrubEnd } = usePlayerProgress();
-const { chapters, addMarkAt } = useCurrentTrackChapters();
+const { chapters } = useCurrentTrackChapters();
 </script>
 
 <template>
@@ -30,10 +30,8 @@ const { chapters, addMarkAt } = useCurrentTrackChapters();
             :chapters="chapters"
             :use-transform="true"
             :with-transition="false"
-            allow-marking
             :disable-transition="!isTransitionEnabled"
             :disabled="!playerStore.canSeek"
-            @add-mark="addMarkAt"
             @mousedown="onScrubStart"
             @scrub="onScrub"
             @mouseup="onScrubEnd"

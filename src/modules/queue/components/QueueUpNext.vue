@@ -12,7 +12,7 @@
       :padding-bottom="8"
       :get-item-key="getItemKey"
       class="queue-up-next-list flex-1 bg-card"
-      :class="isSettling && 'is-settling'"
+      :class="[isSettling && 'is-settling', drag && 'is-dragging']"
     >
       <template #default="{ item, index }">
         <QueueDraggableRow
@@ -221,6 +221,10 @@ onUnmounted(stopAutoScroll);
 
 .queue-up-next-list .queue-sortable-row {
   transition: transform 0.16s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.queue-up-next-list.is-dragging .queue-sortable-row {
+  will-change: transform;
 }
 
 .queue-up-next-list.is-settling [data-index],

@@ -21,7 +21,10 @@
         v-if="playerStore.currentTrack"
         class="pointer-events-auto px-2"
       >
-        <MiniPlayer @click="isFullPlayerOpen = true" />
+        <MiniPlayer
+          :live="!isFullPlayerOpen"
+          @click="isFullPlayerOpen = true"
+        />
       </div>
       <div class="px-2">
         <MobileBottomNav class="pointer-events-auto" />
@@ -65,6 +68,9 @@ import { getLogger } from "@/lib/logger";
 const playerStore = usePlayerStore();
 const { color: playerColor } = useMobilePlayerColor();
 
+// The mini player idles under the full player: track changes there do not
+// render into the dock. It catches up the moment the full player starts to
+// close, so the closing slide already uncovers the current track.
 const isFullPlayerOpen = ref(false);
 
 // The mini-player + nav dock floats over the pages instead of taking a strip

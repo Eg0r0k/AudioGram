@@ -15,7 +15,10 @@
         />
       </div>
 
-      <div class="flex-1 min-w-0 flex flex-col gap-px">
+      <div
+        v-if="marquee"
+        class="flex-1 min-w-0 flex flex-col gap-px"
+      >
         <MarqueeBlock
           :duration="10"
           animate-on-overflow-only
@@ -41,6 +44,17 @@
           </span>
         </MarqueeBlock>
       </div>
+      <div
+        v-else
+        class="flex-1 min-w-0 flex flex-col gap-px"
+      >
+        <span class="truncate text-sm font-medium leading-snug text-white">
+          {{ title }}
+        </span>
+        <span class="truncate text-[11px] text-white/80">
+          {{ artist }}
+        </span>
+      </div>
 
       <div class="flex items-center gap-1 shrink-0">
         <slot name="actions">
@@ -65,12 +79,16 @@ import MiniPlayerProgress from "./MiniPlayerProgress.vue";
 import IconPlaylist from "~icons/tabler/playlist";
 import IconPlay from "~icons/tabler/player-play-filled";
 
-defineProps<{
+// The neighbour cards are dimmed previews: plain truncated text there saves
+// two marquees (a ResizeObserver and layout reads each) per card on every
+// track change.
+withDefaults(defineProps<{
   title: string;
   artist: string;
   coverUrl?: string;
   background: string;
   gradientColor: string;
   showProgress?: boolean;
-}>();
+  marquee?: boolean;
+}>(), { marquee: true });
 </script>

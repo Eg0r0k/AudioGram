@@ -14,9 +14,7 @@
       :disabled="!playerStore.canSeek"
       :show-thumb="true"
       :show-tooltip="false"
-      allow-marking
       style="--range-height-hover: 4px; --range-radius: 9999px;"
-      @add-mark="addMarkAt"
       @mousedown="emit('scrubStart')"
       @scrub="value => emit('scrub', value)"
       @mouseup="emit('scrubEnd')"
@@ -45,7 +43,7 @@ const emit = defineEmits<{
 }>();
 
 const playerStore = usePlayerStore();
-const { chapters, addMarkAt } = useCurrentTrackChapters();
+const { chapters } = useCurrentTrackChapters();
 
 const { currentTime: displayedTime, duration: displayedDuration } = useDisplayedPlaybackTime();
 

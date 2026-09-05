@@ -1,79 +1,64 @@
 <!-- eslint-disable vuejs-accessibility/form-control-has-label -->
 <template>
-  <ContextMenu>
-    <ContextMenuTrigger
-      as-child
-      :disabled="!allowMarking || disabled"
-    >
+  <div
+    ref="containerRef"
+    :class="containerClasses"
+  >
+    <div class="range-selector__track">
       <div
-        ref="containerRef"
-        :class="containerClasses"
-      >
-        <div class="range-selector__track">
-          <div
-            v-for="(segment, i) in segments"
-            :key="i"
-            class="range-selector__segment"
-            :class="{ 'range-selector__segment--hover': hoverSegmentIndex === i }"
-            :style="segmentStyle(segment)"
-          />
-        </div>
+        v-for="(segment, i) in segments"
+        :key="i"
+        class="range-selector__segment"
+        :class="{ 'range-selector__segment--hover': hoverSegmentIndex === i }"
+        :style="segmentStyle(segment)"
+      />
+    </div>
 
-        <div
-          ref="hoverFilledRef"
-          class="range-selector__hover-filled"
-          style="display: none"
-        />
-        <div
-          ref="filledRef"
-          class="range-selector__filled"
-        />
-        <div
-          v-if="showThumb"
-          ref="thumbRef"
-          class="range-selector__thumb"
-        />
+    <div
+      ref="hoverFilledRef"
+      class="range-selector__hover-filled"
+      style="display: none"
+    />
+    <div
+      ref="filledRef"
+      class="range-selector__filled"
+    />
+    <div
+      v-if="showThumb"
+      ref="thumbRef"
+      class="range-selector__thumb"
+    />
 
-        <div
-          v-if="showTooltip && (isHovering || mousedown) && hoverTimeLabel"
-          class="range-selector__tooltip"
-          :style="tooltipStyle"
-        >
-          <span
-            v-if="hoverChapterTitle"
-            class="range-selector__tooltip-title"
-          >{{ hoverChapterTitle }}</span>
-          <span class="range-selector__tooltip-time">{{ hoverTimeLabel }}</span>
-        </div>
+    <div
+      v-if="showTooltip && (isHovering || mousedown) && hoverTimeLabel"
+      class="range-selector__tooltip"
+      :style="tooltipStyle"
+    >
+      <span
+        v-if="hoverChapterTitle"
+        class="range-selector__tooltip-title"
+      >{{ hoverChapterTitle }}</span>
+      <span class="range-selector__tooltip-time">{{ hoverTimeLabel }}</span>
+    </div>
 
-        <input
-          ref="seekRef"
-          class="range-selector__input"
-          type="range"
-          :disabled="disabled"
-          :step="step"
-          :min="min"
-          :max="max"
-          :value="internalValue"
-          :aria-label="$t('common.progress')"
-          @input="onInput"
-          @keydown="onKeyDown"
-        >
-      </div>
-    </ContextMenuTrigger>
-
-    <ContextMenuContent v-if="allowMarking">
-      <ContextMenuItem @select="handleAddMark">
-        {{ $t("player.addMarkAt", { time: formatTime(pendingMarkTime) }) }}
-      </ContextMenuItem>
-    </ContextMenuContent>
-  </ContextMenu>
+    <input
+      ref="seekRef"
+      class="range-selector__input"
+      type="range"
+      :disabled="disabled"
+      :step="step"
+      :min="min"
+      :max="max"
+      :aria-label="$t('common.progress')"
+      @input="onInput"
+      @keydown="onKeyDown"
+    >
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useElementBounding, useEventListener } from "@vueuse/core";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { clamp } from "@/lib/math";
 import { isRTL } from "@/lib/environment/lang";
 
@@ -110,7 +95,6 @@ export interface RangeSelectorProps {
   chapters?: RangeSelectorChapter[];
   duration?: number;
   showTooltip?: boolean;
-  allowMarking?: boolean;
 }
 const props = withDefaults(defineProps<RangeSelectorProps>(), {
   min: 0,
@@ -126,7 +110,6 @@ const props = withDefaults(defineProps<RangeSelectorProps>(), {
   chapters: () => [],
   duration: undefined,
   showTooltip: true,
-  allowMarking: false,
 });
 
 const emit = defineEmits<{
@@ -134,7 +117,6 @@ const emit = defineEmits<{
   "mousedown": [event: GrabEvent];
   "mouseup": [event: GrabEvent];
   "scrub": [value: number];
-  "addMark": [value: number];
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -144,13 +126,18 @@ const thumbRef = ref<HTMLDivElement | null>(null);
 const hoverFilledRef = ref<HTMLDivElement | null>(null);
 
 const mousedown = ref(false);
+// Not bound in the template: the value lands on the <input> and the bar by
+// direct DOM writes (setProgress), so a progress tick re-renders nothing.
 const internalValue = ref(props.modelValue);
 
 const isHovering = ref(false);
 const hoverPercent = ref(0);
-const pendingMarkTime = ref(0);
 
-const { width, height, left, bottom } = useElementBounding(containerRef);
+// Next-frame: the sync default re-measures inside the mutation observer
+// microtask of every class change, which on a track change means a forced
+// layout in the middle of the frame that re-keys the cover strip (~10 ms on
+// a phone). At the next frame's start the layout is already clean.
+const { width, height, left, bottom } = useElementBounding(containerRef, { updateTiming: "next-frame" });
 
 const keyStep = computed(() => props.keyboardStep ?? (props.max - props.min) / 20);
 
@@ -416,21 +403,10 @@ function onKeyDown(e: KeyboardEvent): void {
   addProgress(step);
 }
 
-function onContextMenuCapture(e: MouseEvent): void {
-  if (!props.allowMarking || props.disabled) return;
-  const percent = calcPercentFromPosition(e.clientX, e.clientY);
-  pendingMarkTime.value = props.min + (percent / 100) * (props.max - props.min);
-}
-
-function handleAddMark(): void {
-  emit("addMark", pendingMarkTime.value);
-}
-
 useEventListener(containerRef, "mousedown", onPointerDown);
 useEventListener(containerRef, "touchstart", onPointerDown, { passive: true });
 useEventListener(containerRef, "mousemove", onContainerHover);
 useEventListener(containerRef, "mouseleave", onContainerLeave);
-useEventListener(containerRef, "contextmenu", onContextMenuCapture);
 
 useEventListener(document, "mousemove", onPointerMove);
 useEventListener(document, "mouseup", onPointerUp);
@@ -444,8 +420,11 @@ watch(
       setProgress(newValue);
     }
   },
-  { immediate: true },
 );
+
+onMounted(() => {
+  setProgress(props.modelValue);
+});
 
 defineExpose({
   setProgress,

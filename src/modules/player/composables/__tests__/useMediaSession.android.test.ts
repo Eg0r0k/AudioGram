@@ -32,7 +32,7 @@ vi.mock("@/queries/cover.queries", () => ({
 
 import { usePlayerStore } from "../../store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
-import { useMediaSession } from "../useMediaSession";
+import { ARTWORK_WAIT_MS, useMediaSession } from "../useMediaSession";
 import { coverCache } from "@/modules/covers/lib/cover-cache";
 
 const createLibraryTrack = (id: string, albumId: string): Track => ({
@@ -186,7 +186,7 @@ describe("useMediaSession (android bridge)", () => {
     });
   });
 
-  it("never pushes the previous album's artwork with a new track's metadata", async () => {
+  it("pushes a new track's metadata together with its artwork, never text first", async () => {
     let resolveCoverB!: (blob: Blob) => void;
     getCoverBlobMock.mockImplementation(async (_type: string, id: string) => {
       if (id === "album-a") return new Blob(["cover-a"]);
@@ -199,32 +199,59 @@ describe("useMediaSession (android bridge)", () => {
     const player = usePlayerStore();
     player.currentTrack = createLibraryTrack("t1", "album-a");
 
-    // Album A's cover arrives and is pushed with real bytes.
     await vi.waitFor(() => {
       const call = bridge.setMetadata.mock.lastCall!;
       expect(call[0]).toBe("Track t1");
       expect(call[3]).not.toBe("");
     });
 
-    // Switch to a track from album B whose cover is still loading: the
-    // metadata push must carry NO artwork rather than album A's stale bytes.
+    // Album B's cover is still loading: nothing goes out for t2 yet — a
+    // text-only push would pin the placeholder on MIUI's notification.
     bridge.setMetadata.mockClear();
     player.currentTrack = createLibraryTrack("t2", "album-b");
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(bridge.setMetadata).not.toHaveBeenCalled();
 
+    resolveCoverB(new Blob(["cover-b"]));
     await vi.waitFor(() => {
       expect(bridge.setMetadata).toHaveBeenCalled();
     });
     for (const call of bridge.setMetadata.mock.calls) {
       expect(call[0]).toBe("Track t2");
-      expect(call[3]).toBe("");
-    }
-
-    // Once album B's cover lands, it is pushed for the current track.
-    resolveCoverB(new Blob(["cover-b"]));
-    await vi.waitFor(() => {
-      const call = bridge.setMetadata.mock.lastCall!;
-      expect(call[0]).toBe("Track t2");
       expect(call[3]).not.toBe("");
+    }
+  });
+
+  it("pushes the metadata without artwork once the artwork wait runs out", async () => {
+    vi.useFakeTimers();
+    try {
+      getCoverBlobMock.mockImplementation(() => new Promise<Blob>(() => {}));
+      mountSession();
+      const player = usePlayerStore();
+      player.currentTrack = createLibraryTrack("t1", "album-a");
+
+      await vi.advanceTimersByTimeAsync(ARTWORK_WAIT_MS - 100);
+      expect(bridge.setMetadata).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(200);
+      expect(bridge.setMetadata).toHaveBeenCalledTimes(1);
+      expect(bridge.setMetadata.mock.lastCall![0]).toBe("Track t1");
+      expect(bridge.setMetadata.mock.lastCall![3]).toBe("");
+    }
+    finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pushes a track without a cover right away", async () => {
+    mountSession();
+    const player = usePlayerStore();
+    player.currentTrack = createLibraryTrack("t1", "album-none");
+
+    await vi.waitFor(() => {
+      expect(bridge.setMetadata).toHaveBeenCalled();
     });
+    expect(bridge.setMetadata.mock.lastCall![0]).toBe("Track t1");
+    expect(bridge.setMetadata.mock.lastCall![3]).toBe("");
   });
 });

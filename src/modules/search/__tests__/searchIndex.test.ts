@@ -1,285 +1,94 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as SearchIndexModule from "../service/searchIndex";
-import type { SearchDocument, SearchResultItem, WorkerRequest, WorkerResponse } from "../types";
+import type { SearchDocument } from "../types";
 import { ok } from "neverthrow";
 import { TrackSource, TrackState } from "@/db/entities";
 
-type WorkerListener = (event: unknown) => void;
-
-const { FakeWorker, buildAllSearchDocuments, repositories } = vi.hoisted(() => {
-  class FakeWorker {
-    static instances: FakeWorker[] = [];
-    posted: unknown[] = [];
-    terminated = false;
-    private listeners = new Map<string, Set<(event: unknown) => void>>();
-
-    constructor() {
-      FakeWorker.instances.push(this);
-    }
-
-    addEventListener(type: string, listener: (event: unknown) => void): void {
-      let set = this.listeners.get(type);
-      if (!set) {
-        set = new Set();
-        this.listeners.set(type, set);
-      }
-      set.add(listener);
-    }
-
-    removeEventListener(type: string, listener: (event: unknown) => void): void {
-      this.listeners.get(type)?.delete(listener);
-    }
-
-    postMessage(msg: unknown): void {
-      this.posted.push(msg);
-    }
-
-    terminate(): void {
-      this.terminated = true;
-    }
-
-    emit(type: string, event: unknown): void {
-      for (const listener of [...(this.listeners.get(type) ?? [])]) {
-        listener(event);
-      }
-    }
-  }
-
-  const repositories = {
+const { buildAllSearchDocuments, repositories } = vi.hoisted(() => ({
+  buildAllSearchDocuments: vi.fn(),
+  repositories: {
     trackRepository: { findByIds: vi.fn() },
     artistRepository: { findByIds: vi.fn() },
     albumRepository: { findByIds: vi.fn() },
-  };
+  },
+}));
 
-  return { FakeWorker, buildAllSearchDocuments: vi.fn(), repositories };
-});
-
-vi.mock("../search.worker?worker", () => ({ default: FakeWorker }));
 vi.mock("../service/buildDocuments", () => ({ buildAllSearchDocuments }));
 vi.mock("@/db/repositories", () => repositories);
+vi.mock("@/db", () => ({ db: { tracks: { where: () => ({ equals: () => ({ count: async () => 0 }) }) } } }));
 vi.mock("@/lib/logger", () => ({
   getLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
 }));
 
 let searchIndex: typeof SearchIndexModule;
 
-function emitToWorker(worker: InstanceType<typeof FakeWorker>, msg: WorkerResponse): void {
-  worker.emit("message", { data: msg });
-}
-
-function isSearchRequest(msg: unknown): msg is Extract<WorkerRequest, { action: "search" }> {
-  return typeof msg === "object" && msg !== null && "action" in msg && msg.action === "search";
-}
-
-async function initIndex(): Promise<InstanceType<typeof FakeWorker>> {
-  const ready = searchIndex.initSearchIndex();
-  await vi.waitFor(() => {
-    expect(FakeWorker.instances.length).toBeGreaterThan(0);
-    const worker = FakeWorker.instances.at(-1);
-    expect(worker?.posted.length).toBeGreaterThan(0);
-  });
-  const worker = FakeWorker.instances.at(-1);
-  if (!worker) throw new Error("no worker spawned");
-  emitToWorker(worker, { action: "ready", count: 0 });
-  await ready;
-  return worker;
-}
-
-async function answerNextSearch(worker: InstanceType<typeof FakeWorker>): Promise<void> {
-  await vi.waitFor(() => {
-    expect(worker.posted.some(isSearchRequest)).toBe(true);
-  });
-  const request = worker.posted.find(isSearchRequest);
-  if (!request) throw new Error("no search request posted");
-  emitToWorker(worker, {
-    action: "results",
-    results: [],
-    id: request.id,
-    total: 0,
-    totalDuration: 0,
-  });
-}
-
-const someDoc: SearchDocument = {
+const alphaDoc: SearchDocument = {
   id: "track:t1",
   type: "track",
   title: "Alpha Song",
   artist: "Some Artist",
   entityId: "t1",
+  duration: 100,
 };
 
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
-  FakeWorker.instances.length = 0;
   buildAllSearchDocuments.mockReset().mockResolvedValue([]);
   vi.resetModules();
-  // Dynamic import on purpose: searchIndex holds module-level client state
-  // that must be recreated per test via vi.resetModules().
+  // Dynamic import on purpose: the module holds the live index, recreated per test.
   searchIndex = await import("../service/searchIndex");
 });
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-describe("searchIndex worker error swallowing", () => {
-  it("discards the client after an id-less worker error and rebuilds on next search", async () => {
-    const worker = await initIndex();
+describe("searchIndex lifecycle", () => {
+  it("builds once and serves later searches from the same index", async () => {
+    buildAllSearchDocuments.mockResolvedValue([alphaDoc]);
 
-    await searchIndex.upsertSearchDocuments([someDoc]);
-    // Worker-side failure of the fire-and-forget add: error carries no id.
-    emitToWorker(worker, { action: "error", message: "cannot discard document" });
+    const first = await searchIndex.searchDocuments("alpha", "all");
+    const second = await searchIndex.searchDocuments("alpha", "track");
 
-    const search = searchIndex.searchDocuments("alpha", "all");
-    await vi.waitFor(() => {
-      expect(FakeWorker.instances.length).toBe(2);
-    });
-    expect(worker.terminated).toBe(true);
-
-    const second = FakeWorker.instances[1];
-    await vi.waitFor(() => {
-      expect(second.posted.length).toBeGreaterThan(0);
-    });
-    emitToWorker(second, { action: "ready", count: 0 });
-    await answerNextSearch(second);
-
-    await expect(search).resolves.toEqual({ results: [], total: 0, totalDuration: 0 });
-    expect(buildAllSearchDocuments).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("searchIndex worker lifecycle", () => {
-  it("spawns a fresh worker after a worker error event", async () => {
-    const worker = await initIndex();
-
-    worker.emit("error", new Event("error"));
-
-    const search = searchIndex.searchDocuments("beta", "all");
-    await vi.waitFor(() => {
-      expect(FakeWorker.instances.length).toBe(2);
-    });
-    expect(worker.terminated).toBe(true);
-
-    const second = FakeWorker.instances[1];
-    await vi.waitFor(() => {
-      expect(second.posted.length).toBeGreaterThan(0);
-    });
-    emitToWorker(second, { action: "ready", count: 0 });
-    await answerNextSearch(second);
-    await expect(search).resolves.toEqual({ results: [], total: 0, totalDuration: 0 });
+    expect(first.results.map(r => r.entityId)).toEqual(["t1"]);
+    expect(second.total).toBe(1);
+    expect(buildAllSearchDocuments).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects an in-flight search when the worker errors", async () => {
-    const worker = await initIndex();
-
-    const pending = searchIndex.searchDocuments("query", "all");
-    await vi.waitFor(() => {
-      expect(worker.posted.some(isSearchRequest)).toBe(true);
-    });
-
-    let settled = false;
-    pending.then(
-      () => { settled = true; },
-      () => { settled = true; },
-    );
-
-    worker.emit("error", new Event("error"));
-
-    await vi.waitFor(() => {
-      expect(settled).toBe(true);
-    });
-    await expect(pending).rejects.toThrow();
-  });
-
-  it("times out a search when the worker never responds", async () => {
-    const worker = await initIndex();
-    expect(worker.terminated).toBe(false);
-
-    vi.useFakeTimers();
-    const pending = searchIndex.searchDocuments("query", "all");
-
-    let settled = false;
-    pending.then(
-      () => { settled = true; },
-      () => { settled = true; },
-    );
-
-    await vi.advanceTimersByTimeAsync(30_001);
-    expect(settled).toBe(true);
-    await expect(pending).rejects.toThrow(/timed out/i);
-    vi.useRealTimers();
-
-    // A wedged worker is poisoned: the next search starts over on a new one.
-    const search = searchIndex.searchDocuments("again", "all");
-    await vi.waitFor(() => {
-      expect(FakeWorker.instances.length).toBe(2);
-    });
-    const second = FakeWorker.instances[1];
-    await vi.waitFor(() => {
-      expect(second.posted.length).toBeGreaterThan(0);
-    });
-    emitToWorker(second, { action: "ready", count: 0 });
-    await answerNextSearch(second);
-    await expect(search).resolves.toEqual({ results: [], total: 0, totalDuration: 0 });
-  });
-});
-
-describe("resetSearchIndex", () => {
-  it("discards the live index; the next search rebuilds from scratch", async () => {
-    const worker = await initIndex();
+  it("resetSearchIndex discards the index; the next search rebuilds from scratch", async () => {
+    await searchIndex.initSearchIndex();
 
     searchIndex.resetSearchIndex();
-    expect(worker.terminated).toBe(true);
+    buildAllSearchDocuments.mockResolvedValue([alphaDoc]);
+    const response = await searchIndex.searchDocuments("alpha", "all");
 
-    const search = searchIndex.searchDocuments("anything", "all");
-    await vi.waitFor(() => {
-      expect(FakeWorker.instances.length).toBe(2);
-    });
-    const second = FakeWorker.instances[1];
-    await vi.waitFor(() => {
-      expect(second.posted.length).toBeGreaterThan(0);
-    });
-    emitToWorker(second, { action: "ready", count: 0 });
-    await answerNextSearch(second);
-
-    await expect(search).resolves.toEqual({ results: [], total: 0, totalDuration: 0 });
+    expect(response.total).toBe(1);
     expect(buildAllSearchDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries the build after a failed one instead of caching the failure", async () => {
+    buildAllSearchDocuments.mockRejectedValueOnce(new Error("db closed"));
+
+    await expect(searchIndex.initSearchIndex()).rejects.toThrow("db closed");
+
+    buildAllSearchDocuments.mockResolvedValue([alphaDoc]);
+    await expect(searchIndex.searchDocuments("alpha", "all")).resolves.toMatchObject({ total: 1 });
+  });
+});
+
+describe("searchIndex mutations", () => {
+  it("upserted documents are searchable and removed ones are not", async () => {
+    await searchIndex.upsertSearchDocuments([alphaDoc]);
+    expect((await searchIndex.searchDocuments("alpha", "all")).total).toBe(1);
+
+    await searchIndex.removeSearchDocuments(["track:t1"]);
+    expect((await searchIndex.searchDocuments("alpha", "all")).total).toBe(0);
   });
 });
 
 describe("searchTracks hydration by id", () => {
-  it("plays the DB storagePath, not the frozen storagePath embedded in the index", async () => {
-    // The indexed document is stale: its embedded payload points at an old path
-    // (e.g. after a folder relink, or a REMOTE_HLS URL whose TTL expired).
-    const staleResults = [{
-      id: "track:t1",
-      type: "track",
-      title: "Alpha Song",
-      artist: "Old Artist",
-      album: "Old Album",
-      entityId: "t1",
-      score: 1,
-      duration: 100,
-      // Legacy frozen payload that MUST NOT be used for playback:
-      track: {
-        kind: "library",
-        id: "t1",
-        title: "Alpha Song",
-        artist: "Old Artist",
-        artistIds: [],
-        albumId: "al1",
-        albumName: "Old Album",
-        storagePath: "STALE/old.mp3",
-        source: TrackSource.LOCAL_INTERNAL,
-        state: TrackState.READY,
-        duration: 100,
-        isLiked: false,
-        playCount: 0,
-        addedAt: 1,
-      },
-    }] as unknown as SearchResultItem[];
-
+  it("plays the DB storagePath, not anything embedded in the index", async () => {
+    buildAllSearchDocuments.mockResolvedValue([alphaDoc]);
     repositories.trackRepository.findByIds.mockResolvedValue(ok([{
       id: "t1",
       title: "Alpha Song",
@@ -301,28 +110,13 @@ describe("searchTracks hydration by id", () => {
       { id: "al1", title: "Real Album", artistId: "a0", addedAt: 1, updatedAt: 1 },
     ]));
 
-    const worker = await initIndex();
-    const search = searchIndex.searchTracks("alpha", 0, undefined);
-
-    await vi.waitFor(() => {
-      expect(worker.posted.some(isSearchRequest)).toBe(true);
-    });
-    const request = worker.posted.find(isSearchRequest);
-    if (!request) throw new Error("no search request posted");
-    emitToWorker(worker, {
-      action: "results",
-      results: staleResults,
-      id: request.id,
-      total: 1,
-      totalDuration: 100,
-    });
-
-    const { tracks } = await search;
+    const { tracks, total, totalDuration } = await searchIndex.searchTracks("alpha", 0, undefined);
 
     expect(tracks).toHaveLength(1);
     expect(tracks[0].id).toBe("t1");
-    // The invariant: entity hydrated by id, so the path is current, not the frozen one.
     expect(tracks[0].storagePath).toBe("CURRENT/real.mp3");
+    expect(total).toBe(1);
+    expect(totalDuration).toBe(100);
     expect(repositories.trackRepository.findByIds).toHaveBeenCalledWith(["t1"]);
   });
 });

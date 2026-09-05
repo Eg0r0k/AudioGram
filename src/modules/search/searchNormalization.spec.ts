@@ -9,6 +9,16 @@ describe("search normalization", () => {
     expect(termProcessor("ТЁ")).toBe("те");
   });
 
+  it("folds latin diacritics so unaccented queries match", () => {
+    expect(normalizeSearchText("Motörhead & Beyoncé")).toBe("motorhead beyonce");
+    expect(termProcessor("Björk")).toBe("bjork");
+  });
+
+  it("keeps cyrillic й distinct from и while folding", () => {
+    expect(normalizeSearchText("Мой йогурт")).toBe("мой йогурт");
+    expect(unicodeTokenizer("Тёплый край")).toEqual(["теплый", "край"]);
+  });
+
   it("supports prefix search for normalized russian tokens", () => {
     const index = new MiniSearch({
       fields: ["title"],

@@ -1,13 +1,19 @@
 import { SEARCH_ASSOCIATION_GROUPS } from "./searchAssociations";
 
 const NON_ALPHANUMERIC_REGEX = /[^\p{L}\p{N}]+/gu;
+const COMBINING_MARK_REGEX = /\p{M}/gu;
+// NFD splits й into и + U+0306; recompose it before marks are stripped so
+// it stays a letter of its own (ё → е is intended, й → и is not).
+const DECOMPOSED_SHORT_I_REGEX = /\u0438\u0306/gu;
 
 const SEARCH_ASSOCIATIONS = createSearchAssociations();
 
 export function normalizeSearchText(value: string): string {
   return value
     .toLowerCase()
-    .replace(/ё/gu, "е")
+    .normalize("NFD")
+    .replace(DECOMPOSED_SHORT_I_REGEX, "й")
+    .replace(COMBINING_MARK_REGEX, "")
     .replace(NON_ALPHANUMERIC_REGEX, " ")
     .trim();
 }

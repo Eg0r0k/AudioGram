@@ -87,10 +87,15 @@ const {
 // swipe is the neighbour sliding in, and it fades in anyway. A synchronous
 // decode of full-size album art landed in the frame that switched tracks —
 // 15 ms of an 80 ms frame on a phone.
+//
+// Each slot keeps its own compositor layer: the arc's per-frame y/rotate and
+// opacity writes otherwise repaint the full-size art into the strip's tiles
+// on every frame of the drag (20–40 ms GPU raster tasks on a phone).
+const SLOT_LAYER = "will-change-[transform,opacity]";
 const COVER_SLOT_CLASS: Record<SwipeSlotRole, string> = {
-  previous: "pointer-events-none absolute top-0 right-[calc(100%+32px)] size-full rounded-2xl bg-muted overflow-hidden shadow-lg",
-  center: "relative z-10 size-full rounded-2xl bg-muted overflow-hidden shadow-lg",
-  next: "pointer-events-none absolute top-0 left-[calc(100%+32px)] size-full rounded-2xl bg-muted overflow-hidden shadow-lg",
+  previous: `pointer-events-none absolute top-0 right-[calc(100%+32px)] size-full rounded-2xl bg-muted overflow-hidden shadow-lg ${SLOT_LAYER}`,
+  center: `relative z-10 size-full rounded-2xl bg-muted overflow-hidden shadow-lg ${SLOT_LAYER}`,
+  next: `pointer-events-none absolute top-0 left-[calc(100%+32px)] size-full rounded-2xl bg-muted overflow-hidden shadow-lg ${SLOT_LAYER}`,
 };
 
 const ARC_ANGLE = 12;

@@ -723,7 +723,6 @@ export const usePlayerStore = defineStore("player", () => {
 }, {
   persist: {
     key: "lyra-player",
-    // The position changes on every timeupdate; coalesce the writes.
     storage: createDebouncedLocalStorage(500),
     pick: [
       "volume",

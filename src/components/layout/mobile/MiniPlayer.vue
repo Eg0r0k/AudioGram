@@ -38,6 +38,7 @@
           :background="cardBackground"
           :gradient-color="gradientColor"
           :show-progress="slot.role === 'center'"
+          :marquee="slot.role === 'center'"
         >
           <template
             v-if="slot.role === 'center'"
@@ -87,6 +88,8 @@ const rightPanel = useRightPanelStore();
 const wrapperRef = useTemplateRef<HTMLDivElement>("wrapperRef");
 const { width: wrapperWidth } = useElementSize(wrapperRef);
 
+const props = withDefaults(defineProps<{ live?: boolean }>(), { live: true });
+
 const emit = defineEmits<{
   click: [];
 }>();
@@ -124,7 +127,7 @@ const {
   startDrag,
   handleDragStart,
   handleDragEnd: finishTrackDrag,
-} = useTrackSwipe({ width: () => wrapperWidth.value + CARD_GAP });
+} = useTrackSwipe({ width: () => wrapperWidth.value + CARD_GAP, active: () => props.live });
 
 // Up is a short, stiff tug (the full player opens on release anyway); down is
 // locked because the bottom nav sits right under the card.

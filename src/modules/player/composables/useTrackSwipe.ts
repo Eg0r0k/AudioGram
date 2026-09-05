@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { animate, useDragControls, useMotionValue, useReducedMotion, type PanInfo } from "motion-v";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useQueueStore } from "@/modules/queue/store/queue.store";
@@ -28,6 +28,13 @@ interface TrackSwipeOptions {
   offsetThreshold?: number;
   /** Release velocity (px/s) that turns a short flick into a track change. */
   velocityThreshold?: number;
+  /**
+   * Whether the strip is on screen. Covered by an overlay it keeps its last
+   * picture: the queue can move on any number of times underneath without
+   * a re-keyed render or a slide for each, and it re-anchors without motion
+   * once it is visible again.
+   */
+  active?: () => boolean;
 }
 
 // Zero-size constraints keep the strip anchored at its origin; all visible
@@ -75,13 +82,20 @@ export const useTrackSwipe = (options: TrackSwipeOptions) => {
     if (viewAnchor.value && !isSameTrack(track, viewAnchor.value)) viewAnchor.value = null;
   });
 
-  const slots = computed<SwipeSlot[]>(() => {
+  // Bumped when a covered strip catches up: every slot then gets a fresh DOM
+  // node. Re-anchoring reuses nodes only when the offset shift accompanies it
+  // (see the watch below); at rest a node handed a different role keeps the
+  // opacity of its old one, motion leaves a swapped style value unapplied.
+  const generation = ref(0);
+
+  const liveSlots = computed<SwipeSlot[]>(() => {
     const center = neighbors.anchorItem.value;
     const centerTrack = center?.track ?? playerStore.currentTrack;
     if (!centerTrack) return [];
     const centerId = center?.id ?? `${centerTrack.kind}:${centerTrack.id}`;
     const previous = neighbors.previousItem.value;
     const next = neighbors.nextItem.value;
+    const suffix = generation.value === 0 ? "" : `~${generation.value}`;
     const list: SwipeSlot[] = [];
 
     if (previous) {
@@ -91,24 +105,48 @@ export const useTrackSwipe = (options: TrackSwipeOptions) => {
         role: "previous",
         track: previous.track,
         coverUrl: neighbors.previousCoverUrl.value,
-        key: alsoNext ? `${previous.id}:previous` : previous.id,
+        key: (alsoNext ? `${previous.id}:previous` : previous.id) + suffix,
       });
     }
-    list.push({ role: "center", track: centerTrack, coverUrl: neighbors.anchorCoverUrl.value, key: centerId });
+    list.push({ role: "center", track: centerTrack, coverUrl: neighbors.anchorCoverUrl.value, key: `${centerId}${suffix}` });
     if (next) {
-      list.push({ role: "next", track: next.track, coverUrl: neighbors.nextCoverUrl.value, key: next.id });
+      list.push({ role: "next", track: next.track, coverUrl: neighbors.nextCoverUrl.value, key: `${next.id}${suffix}` });
     }
     return list;
   });
 
   const x = useMotionValue(0);
   const isDragging = ref(false);
+  const isActive = () => options.active?.() ?? true;
+
+  const slots = shallowRef<SwipeSlot[]>(liveSlots.value);
+  let wasActive = isActive();
 
   // Pre-flush, so the offset shift lands in the same paint as the re-keyed
   // DOM. Only a move to an adjacent entry animates; an arbitrary jump (queue
-  // panel, shuffle) just re-renders.
+  // panel, shuffle) just re-renders, and so does whatever happened while the
+  // strip was covered.
   const keyOf = (list: SwipeSlot[], role: SwipeSlotRole) => list.find(slot => slot.role === role)?.key;
-  watch(slots, (current, previous) => {
+  const sameKeys = (a: SwipeSlot[], b: SwipeSlot[]) =>
+    a.length === b.length && a.every((slot, index) => slot.key === b[index]?.key);
+  watch([liveSlots, isActive], ([current, active]) => {
+    const resumed = active && !wasActive;
+    wasActive = active;
+    if (!active) return;
+    const previous = slots.value;
+    if (current === previous) return;
+    if (resumed) {
+      if (sameKeys(current, previous)) {
+        slots.value = current;
+        return;
+      }
+      // Re-runs this watch with the re-keyed list, which then renders as an
+      // arbitrary jump.
+      x.jump(0);
+      generation.value++;
+      return;
+    }
+    slots.value = current;
     const center = keyOf(current, "center");
     if (center === keyOf(previous, "center")) return;
     let shift = 0;
@@ -123,8 +161,10 @@ export const useTrackSwipe = (options: TrackSwipeOptions) => {
     animate(x, 0, SLIDE_TRANSITION);
   });
 
+  // From the picture on screen, not the live queue: a covered strip must not
+  // re-render for a neighbour it is not showing yet.
   const canGo = (direction: SwipeDirection) =>
-    direction === 1 ? neighbors.nextItem.value !== null : neighbors.previousItem.value !== null;
+    slots.value.some(slot => slot.role === (direction === 1 ? "next" : "previous"));
 
   const horizontalElastic = computed(() => ({
     left: canGo(1) ? ELASTIC_FREE : ELASTIC_STIFF,

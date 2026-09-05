@@ -18,6 +18,11 @@ const POSITION_DRIFT_TOLERANCE_S = 1.5;
 const ANDROID_ARTWORK_SIZE = 512;
 // Longer than the cover slide (useTrackSwipe's SLIDE_TRANSITION).
 const ARTWORK_ENCODE_DELAY_MS = 400;
+// MIUI's media notification takes the art that comes with a text change and
+// ignores a later artwork-only update: a title pushed ahead of its art left
+// the placeholder up for the whole track. Metadata waits for the current
+// owner's artwork this long and goes out with it in one push.
+export const ARTWORK_WAIT_MS = 1500;
 
 /**
  * Native bridge injected by MainActivity on Android (Tauri). The WebView
@@ -102,7 +107,7 @@ export const useMediaSession = () => {
 
   const { libraryTrack } = useCurrentPlayerTrack();
 
-  const { url: coverBlobUrl, blob: coverBlob } = useTrackCover(libraryTrack);
+  const { url: coverBlobUrl, blob: coverBlob, isLoading: coverLoading } = useTrackCover(libraryTrack);
   const coverOwnerId = computed(() => {
     const owner = trackCoverOwner(libraryTrack.value);
     return owner ? `${owner.ownerType}:${owner.ownerId}` : null;
@@ -205,8 +210,33 @@ export const useMediaSession = () => {
   // hasn't resolved yet, and pushing whatever blob is currently around pins
   // the previous art on the lock screen; the cache makes "matches this track"
   // checkable.
-  let artworkOwnerId: string | null = null;
+  const artworkOwnerId = ref<string | null>(null);
   let artworkBase64 = "";
+  let artworkWaitTimer: ReturnType<typeof setTimeout> | null = null;
+  // Owner whose artwork wait ran out: its metadata goes without art.
+  let artworkWaitExpiredFor: string | null = null;
+
+  // True once the artwork question for the current owner is settled: encoded
+  // for it, or known to have no cover.
+  const artworkReady = computed(() => {
+    const owner = coverOwnerId.value;
+    if (owner === null || artworkOwnerId.value === owner) return true;
+    return !coverLoading.value && coverBlob.value === null;
+  });
+
+  const cancelArtworkWait = () => {
+    if (artworkWaitTimer !== null) clearTimeout(artworkWaitTimer);
+    artworkWaitTimer = null;
+  };
+
+  const startArtworkWait = () => {
+    if (artworkWaitTimer !== null) return;
+    artworkWaitTimer = setTimeout(() => {
+      artworkWaitTimer = null;
+      artworkWaitExpiredFor = coverOwnerId.value;
+      updateAndroidMetadata();
+    }, ARTWORK_WAIT_MS);
+  };
 
   const updateAndroidMetadata = () => {
     if (!androidBridge) return;
@@ -229,7 +259,14 @@ export const useMediaSession = () => {
     const track = player.currentTrack;
     if (!track) return;
 
-    const artwork = coverOwnerId.value !== null && coverOwnerId.value === artworkOwnerId
+    if (!artworkReady.value && artworkWaitExpiredFor !== coverOwnerId.value) {
+      metadataStale = true;
+      startArtworkWait();
+      return;
+    }
+    cancelArtworkWait();
+
+    const artwork = coverOwnerId.value !== null && coverOwnerId.value === artworkOwnerId.value
       ? artworkBase64
       : "";
 
@@ -454,6 +491,7 @@ export const useMediaSession = () => {
     if (androidBridge) {
       window.removeEventListener("audiogram-media-action", handleAndroidAction);
       cancelBridgeFlush();
+      cancelArtworkWait();
       androidBridge.release();
     }
   });
@@ -533,16 +571,28 @@ export const useMediaSession = () => {
       const token = ++androidArtworkToken;
       // Decoding and re-encoding the cover is main-thread work that would
       // otherwise land inside the cover slide that follows a track change;
-      // the notification can show its art a moment later.
-      if (blob) await new Promise(resolve => setTimeout(resolve, ARTWORK_ENCODE_DELAY_MS));
+      // the notification can show its art a moment later. Skipped from the
+      // notification, there is no slide to protect.
+      if (blob && document.visibilityState !== "hidden") {
+        await new Promise(resolve => setTimeout(resolve, ARTWORK_ENCODE_DELAY_MS));
+      }
       if (token !== androidArtworkToken) return;
       const encoded = blob ? await coverArtworkBase64(blob) : "";
       if (token !== androidArtworkToken) return;
-      artworkOwnerId = blob && owner ? owner : null;
+      artworkOwnerId.value = blob && owner ? owner : null;
       artworkBase64 = encoded;
       updateAndroidMetadata();
     },
   );
+
+  watch(coverOwnerId, () => {
+    cancelArtworkWait();
+    artworkWaitExpiredFor = null;
+  });
+
+  watch(artworkReady, (ready) => {
+    if (ready) updateAndroidMetadata();
+  });
 
   watch(
     () => queue.repeatMode,

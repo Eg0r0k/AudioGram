@@ -11,9 +11,7 @@ export interface SelectionDragOptions {
   idDataKey?: string;
   indexDataKey?: string;
   ignoreSelector?: string;
-  /** Задержка long-press до входа в выделение на таче. */
   longPressMs?: number;
-  /** Элемент для автоскролла при drag; по умолчанию ближайший скроллируемый предок. */
   scrollEl?: HTMLElement;
 }
 

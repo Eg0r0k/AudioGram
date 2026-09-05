@@ -11,6 +11,10 @@ export interface SearchDocument {
   entityId: string;
   coverPath?: string;
   duration?: number;
+  year?: number;
+  /** Track file name without extension: a fallback for files with bare tags. */
+  fileName?: string;
+  description?: string;
 }
 
 export interface SearchResultItem {
@@ -30,16 +34,16 @@ export interface GroupedResults {
   groups: Record<SearchEntityType, SearchResultItem[]>;
 }
 
-export type WorkerRequest
-  = | { action: "build"; documents: SearchDocument[] }
-    | { action: "search"; query: string; id: number; limit?: number; offset?: number; filter?: SearchFilter }
-    | { action: "add"; documents: SearchDocument[] }
-    | { action: "remove"; ids: string[] };
+export interface SearchResponse {
+  results: SearchResultItem[];
+  total: number;
+  totalDuration: number;
+}
 
-export type WorkerResponse
-  = | { action: "ready"; count: number }
-    | { action: "results"; results: SearchResultItem[]; id: number; total: number; totalDuration: number }
-    | { action: "error"; message: string; id?: number };
+export interface SearchOptions {
+  limit?: number;
+  offset?: number;
+}
 
 export function createEmptyGroups(): Record<SearchEntityType, SearchResultItem[]> {
   return {

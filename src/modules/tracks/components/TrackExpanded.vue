@@ -36,7 +36,7 @@
             <span :class="[styles.index, canSwapIndexOnHover && 'index-hover-idle']">{{ index }}</span>
             <span
               v-if="canSwapIndexOnHover"
-              class="index-hover-icon absolute inset-0 flex items-center justify-center"
+              class="index-hover-icon absolute size-4 flex items-center justify-center"
             >
               <IconPause
                 v-if="isCurrentTrack && isPlaying"

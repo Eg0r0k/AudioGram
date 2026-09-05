@@ -2,6 +2,14 @@ import { db } from "@/db";
 import type { AlbumEntity, ArtistEntity, PlaylistEntity, TrackEntity } from "@/db/entities";
 import type { SearchDocument } from "../types";
 
+const FILE_EXTENSION_REGEX = /\.[^./\\]+$/u;
+
+const fileNameOf = (storagePath: string | undefined): string | undefined => {
+  if (!storagePath) return undefined;
+  const base = storagePath.split(/[/\\]/u).pop();
+  return base ? base.replace(FILE_EXTENSION_REGEX, "") : undefined;
+};
+
 export function buildArtistDoc(artist: ArtistEntity): SearchDocument {
   return {
     id: `artist:${artist.id}`,
@@ -21,6 +29,7 @@ export function buildAlbumDoc(
     title: album.title,
     artist: artistMap.get(album.artistId)?.name,
     entityId: album.id,
+    year: album.year,
   };
 }
 
@@ -42,6 +51,8 @@ export function buildTrackDoc(
     album: album?.title ?? track.albumTitle,
     entityId: track.id,
     duration: track.duration,
+    year: album?.year,
+    fileName: fileNameOf(track.storagePath),
   };
 }
 
@@ -51,6 +62,7 @@ export function buildPlaylistDoc(playlist: PlaylistEntity): SearchDocument {
     type: "playlist",
     title: playlist.name,
     entityId: playlist.id,
+    description: playlist.description,
   };
 }
 
@@ -69,6 +81,8 @@ export async function buildTrackDocFromDb(track: TrackEntity): Promise<SearchDoc
     album: album?.title ?? track.albumTitle,
     entityId: track.id,
     duration: track.duration,
+    year: album?.year,
+    fileName: fileNameOf(track.storagePath),
   };
 }
 
@@ -81,6 +95,7 @@ export async function buildAlbumDocFromDb(album: AlbumEntity): Promise<SearchDoc
     title: album.title,
     artist: artist?.name,
     entityId: album.id,
+    year: album.year,
   };
 }
 
