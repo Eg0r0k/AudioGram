@@ -34,6 +34,7 @@ vi.mock("@/modules/search/service/buildDocuments", () => ({
   buildTrackDocFromDb: vi.fn(),
 }));
 
+import * as cache from "../cache";
 import { getAllTrackIds, setTracksLikedAndSync } from "../track.queries";
 
 describe("bulk track queries", () => {
@@ -70,7 +71,7 @@ describe("bulk track queries", () => {
 
   it("setTracksLikedAndSync(true) likes in one repository call and invalidates once", async () => {
     repositories.trackRepository.likeMany.mockResolvedValue(ok(2));
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const invalidate = vi.spyOn(cache, "invalidateForTrackMutation");
 
     const changed = await setTracksLikedAndSync(queryClient, [TrackId("a"), TrackId("b")], true);
 
@@ -78,7 +79,8 @@ describe("bulk track queries", () => {
     expect(repositories.trackRepository.likeMany).toHaveBeenCalledTimes(1);
     expect(repositories.trackRepository.likeMany.mock.calls[0][0]).toEqual(["a", "b"]);
     expect(repositories.trackRepository.unlikeMany).not.toHaveBeenCalled();
-    expect(invalidate).toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith(queryClient, { kind: "relations" });
   });
 
   it("setTracksLikedAndSync(false) unlikes", async () => {
@@ -92,7 +94,7 @@ describe("bulk track queries", () => {
   });
 
   it("setTracksLikedAndSync with no ids does nothing", async () => {
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const invalidate = vi.spyOn(cache, "invalidateForTrackMutation");
 
     expect(await setTracksLikedAndSync(queryClient, [], true)).toBe(0);
 

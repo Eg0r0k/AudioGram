@@ -346,10 +346,6 @@ export async function setTracksLikedAndSync(
     ? await unwrapResult(trackRepository.likeMany(ids, Date.now()))
     : await unwrapResult(trackRepository.unlikeMany(ids));
 
-  const idSet = new Set<string>(ids);
-  await queryClient.invalidateQueries({
-    predicate: query => query.queryKey[0] === "tracks" && idSet.has(query.queryKey[1] as string),
-  });
   await invalidateForTrackMutation(queryClient, { kind: "relations" });
   return changed;
 }
@@ -368,14 +364,20 @@ export async function deleteTracksAndSync(
 
   const txResult = await unitOfWork.runScoped(
     trackCascadeTables(),
-    async () => purgeTracksInTx(tracks, copies, now),
+    // The arrow must `await` inside its body: a bare passthrough settles the
+    // outer promise outside the Dexie transaction zone and throws
+    // PrematureCommitError. Do not "simplify" this back to a plain return.
+    async () => await purgeTracksInTx(tracks, copies, now),
   );
   if (txResult.isErr()) throw txResult.error;
   const removals = txResult.value;
 
   await syncAfterTrackPurge(queryClient, trackIds, removals, copies);
+  const idSet = new Set<string>(trackIds);
+  queryClient.removeQueries({
+    predicate: query => query.queryKey[0] === "tracks" && idSet.has(query.queryKey[1] as string),
+  });
   for (const id of trackIds) {
-    queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(id), exact: true });
     removeCoverCache("track", id);
   }
 
