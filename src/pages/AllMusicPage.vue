@@ -23,6 +23,7 @@
                 class="pl-3! text-base!"
                 :placeholder="t('search.mainPlaceholder')"
                 @keydown.stop
+                @keydown.esc="onSearchEscape"
               />
 
               <InputGroupAddon
@@ -141,6 +142,9 @@
                   :is-active="currentTrackId === item.id"
                   :is-selected="isSelected(item.id)"
                   :is-selecting="isSelectMode"
+                  :join-top="joinsSelectedNeighbour(index, -1)"
+                  :join-bottom="joinsSelectedNeighbour(index, 1)"
+                  selectable
                   @play="handlePlayTrack(index)"
                   @select="handleTrackSelect"
                   @contextmenu="handleContextMenu(item, index)"
@@ -262,6 +266,19 @@ const {
 });
 
 provideTrackSelectionEntry(enterSelection);
+
+const joinsSelectedNeighbour = (index: number, offset: -1 | 1) => {
+  const list: readonly (Track | undefined)[] = tracks.value;
+  const track = list[index];
+  const neighbour = index + offset >= 0 ? list[index + offset] : undefined;
+  return !!track && !!neighbour && isSelected(track.id) && isSelected(neighbour.id);
+};
+
+// The input stops keydown propagation so typing never hits global hotkeys,
+// which also hides Escape from the mode's window listener.
+const onSearchEscape = () => {
+  if (isSelectMode.value) exitSelection();
+};
 
 const {
   busy,

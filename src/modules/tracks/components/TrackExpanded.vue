@@ -8,6 +8,8 @@
       :data-track-id="track.id"
       :data-track-index="index - 1"
       :data-disabled="isDisabled || undefined"
+      :data-join-top="joinTop || undefined"
+      :data-join-bottom="joinBottom || undefined"
       :class="styles.root({ state: rowState })"
       @click="handleClick"
       @keypress.enter="handleClick"
@@ -269,6 +271,11 @@ interface Props {
   isActive?: boolean;
   isSelected?: boolean;
   isSelecting?: boolean;
+  /** Lets a modifier click start a selection; without it the click just plays. */
+  selectable?: boolean;
+  /** Squares the top / bottom corners so adjacent selected rows read as one block. */
+  joinTop?: boolean;
+  joinBottom?: boolean;
   isDisabled?: boolean;
   menuTarget?: TrackContext;
   /**
@@ -290,6 +297,9 @@ const props = withDefaults(defineProps<Props>(), {
   coverSrc: undefined,
   isSelected: false,
   isSelecting: false,
+  selectable: false,
+  joinTop: false,
+  joinBottom: false,
   isDisabled: false,
   menuTarget: "default",
   artistRoutes: undefined,
@@ -357,7 +367,7 @@ function handleClick(event: MouseEvent | KeyboardEvent) {
   if (props.isDisabled) return;
   if (event instanceof MouseEvent) {
     const isModifier = event.metaKey || event.ctrlKey || event.shiftKey;
-    if (isModifier || props.isSelecting) {
+    if (props.isSelecting || (isModifier && props.selectable)) {
       emit("select", props.track, event);
       return;
     }
@@ -422,6 +432,16 @@ function handleAlbumClick(event: MouseEvent) {
 
 .track-expanded-container {
   container-type: inline-size;
+}
+
+.track-expanded[data-join-top] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.track-expanded[data-join-bottom] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .index-col { grid-column: index; }

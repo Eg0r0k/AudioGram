@@ -42,8 +42,8 @@ const makeTrack = (id: string): Track => ({
   isLiked: false,
 });
 
-const renderRow = (isSelecting: boolean) => render(TrackExpanded, {
-  props: { track: makeTrack("t1"), index: 0, isSelecting },
+const renderRow = (isSelecting: boolean, extra: Record<string, unknown> = {}) => render(TrackExpanded, {
+  props: { track: makeTrack("t1"), index: 0, isSelecting, ...extra },
   global: {
     plugins: [createPinia(), i18n],
     directives: { ripple: {} },
@@ -92,5 +92,31 @@ describe("TrackExpanded in select mode", () => {
     await fireEvent.click(getByRole("button", { name: "Artist One" }));
 
     expect(pushMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ctrl-click plays on a page that did not opt into selection", async () => {
+    const { container, emitted } = renderRow(false);
+
+    await fireEvent.click(container.querySelector("[data-track-row]")!, { ctrlKey: true });
+
+    expect(emitted().play).toHaveLength(1);
+    expect(emitted().select).toBeUndefined();
+  });
+
+  it("ctrl-click selects on a selectable page", async () => {
+    const { container, emitted } = renderRow(false, { selectable: true });
+
+    await fireEvent.click(container.querySelector("[data-track-row]")!, { ctrlKey: true });
+
+    expect(emitted().select).toHaveLength(1);
+    expect(emitted().play).toBeUndefined();
+  });
+
+  it("marks joined corners so adjacent selected rows merge", () => {
+    const { container } = renderRow(true, { isSelected: true, joinTop: true, joinBottom: false });
+    const row = container.querySelector("[data-track-row]")!;
+
+    expect(row.hasAttribute("data-join-top")).toBe(true);
+    expect(row.hasAttribute("data-join-bottom")).toBe(false);
   });
 });
