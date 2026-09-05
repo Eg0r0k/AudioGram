@@ -47,7 +47,6 @@
           variant="ghost"
           size="icon-sm"
           class="rounded-full"
-          :class="action.destructive && 'text-destructive hover:text-destructive'"
           :aria-label="action.label"
           :title="action.label"
           :disabled="actionsDisabled"
@@ -97,6 +96,24 @@
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Motion
+        :initial="reduced ? false : { opacity: 0, y: 6 }"
+        :animate="{ opacity: 1, y: 0 }"
+        :transition="{ duration: 0.18, delay: visibleActions.length * 0.02, ease: EASE }"
+      >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="rounded-full text-destructive hover:text-destructive"
+          :aria-label="t('common.delete')"
+          :title="t('common.delete')"
+          :disabled="actionsDisabled"
+          @click="emit('delete')"
+        >
+          <IconTrash class="size-5" />
+        </Button>
+      </Motion>
 
       <DropdownMenu @update:open="onPlaylistMenuOpen">
         <DropdownMenuTrigger as-child>
@@ -224,7 +241,6 @@ interface BarAction {
   label: string;
   icon: Component;
   run: () => void;
-  destructive?: boolean;
   wideOnly?: boolean;
 }
 
@@ -238,7 +254,6 @@ const actions = computed<BarAction[]>(() => [
     run: () => emit("toggleLike"),
     wideOnly: true,
   },
-  { key: "delete", label: t("common.delete"), icon: IconTrash, run: () => emit("delete"), destructive: true },
 ]);
 
 const visibleActions = computed(() =>

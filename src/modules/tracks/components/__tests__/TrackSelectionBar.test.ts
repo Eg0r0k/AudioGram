@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/vue";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "@/app/i18n";
 import TrackSelectionBar from "../TrackSelectionBar.vue";
 
@@ -12,6 +12,16 @@ vi.mock("@/modules/tracks/components/menu/composables/usePlaylistMenu", async ()
       isLoading: ref(false),
       handleCreatePlaylist: vi.fn(),
     }),
+  };
+});
+
+const { widthRef } = vi.hoisted(() => ({ widthRef: { value: 1000 } }));
+
+vi.mock("@vueuse/core", async (importOriginal) => {
+  const { ref } = await import("vue");
+  return {
+    ...(await importOriginal<typeof import("@vueuse/core")>()),
+    useElementSize: () => ({ width: widthRef, height: ref(0) }),
   };
 });
 
@@ -32,6 +42,10 @@ const renderBar = (props: Partial<InstanceType<typeof TrackSelectionBar>["$props
   });
 
 describe("TrackSelectionBar", () => {
+  beforeEach(() => {
+    widthRef.value = 1000;
+  });
+
   it("shows the plural count", () => {
     i18n.global.locale.value = "en";
     renderBar({ count: 3 });
@@ -83,11 +97,32 @@ describe("TrackSelectionBar", () => {
     const user = userEvent.setup();
     const { emitted } = renderBar({ count: 2, allLiked: true });
 
-    expect(screen.getByRole("button", { name: "Remove from favorites" })).toBeInTheDocument();
+    const likeButton = screen.getByRole("button", { name: "Remove from favorites" });
+    expect(likeButton).toBeInTheDocument();
+    expect(likeButton).toHaveAttribute("data-slot", "button");
     await user.click(screen.getByRole("button", { name: "Mix" }));
     await user.click(screen.getByRole("button", { name: "Play next" }));
 
     expect(emitted().addToPlaylist).toEqual([["pl-1"]]);
     expect(emitted().playNext).toHaveLength(1);
+  });
+
+  it("moves the Like and Playlist controls into the more menu when narrow", async () => {
+    i18n.global.locale.value = "en";
+    widthRef.value = 500;
+    const user = userEvent.setup();
+    const { emitted } = renderBar({ count: 2, allLiked: true });
+
+    expect(screen.queryByRole("button", { name: "Add to playlist" })).not.toBeInTheDocument();
+
+    const likeButtons = screen.getAllByRole("button", { name: "Remove from favorites" });
+    expect(likeButtons).toHaveLength(1);
+    expect(likeButtons[0]).not.toHaveAttribute("data-slot", "button");
+
+    await user.click(likeButtons[0]);
+    await user.click(screen.getByRole("button", { name: "Mix" }));
+
+    expect(emitted().toggleLike).toHaveLength(1);
+    expect(emitted().addToPlaylist).toEqual([["pl-1"]]);
   });
 });
