@@ -129,4 +129,19 @@ describe("useTrackSelectionMode", () => {
 
     expect(mode.isSelectMode.value).toBe(false);
   });
+
+  it("Escape leaves the mode alone while a reka overlay is open", () => {
+    const { mode } = setup();
+    mode.enter(TrackId("t1"));
+    const layer = document.createElement("div");
+    layer.setAttribute("data-dismissable-layer", "");
+    document.body.appendChild(layer);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(mode.isSelectMode.value).toBe(true);
+
+    layer.remove();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(mode.isSelectMode.value).toBe(false);
+  });
 });

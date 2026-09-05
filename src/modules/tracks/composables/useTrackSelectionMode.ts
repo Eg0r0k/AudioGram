@@ -73,6 +73,9 @@ export const useTrackSelectionMode = (
 
   onKeyStroke("Escape", (event) => {
     if (!isSelectMode.value) return;
+    // reka overlays (dropdown menus, dialogs) share this window Escape listener and
+    // don't preventDefault, so let an open overlay close first before exiting the mode.
+    if (document.querySelector("[data-dismissable-layer]")) return;
     event.preventDefault();
     exit();
   });
