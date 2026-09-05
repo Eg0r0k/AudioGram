@@ -8,7 +8,6 @@
     "progressTitle": "Importing tracks",
     "pause": "Pause",
     "resume": "Resume",
-    "summary": "{imported} imported · {failed} failed · {skipped} skipped",
     "visibleFiles": "Showing first {visible} of {total} files",
     "goToLibrary": "Go to library",
     "toast": {
@@ -28,7 +27,6 @@
       "skipped": "Skipped"
     },
     "a11y": {
-      "region": "Import progress",
       "pause": "Pause import",
       "resume": "Resume import",
       "indicatorRunning": "Import, {current} of {total}",

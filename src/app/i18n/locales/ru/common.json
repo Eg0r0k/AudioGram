@@ -8,7 +8,6 @@
     "progressTitle": "Импорт треков",
     "pause": "Пауза",
     "resume": "Продолжить",
-    "summary": "{imported} добавлено · {failed} с ошибкой · {skipped} пропущено",
     "visibleFiles": "Показаны только первые {visible} файлов из {total}",
     "goToLibrary": "Перейти в библиотеку",
     "toast": {
@@ -28,7 +27,6 @@
       "skipped": "Пропущено"
     },
     "a11y": {
-      "region": "Прогресс импорта",
       "pause": "Приостановить импорт",
       "resume": "Продолжить импорт",
       "indicatorRunning": "Импорт, {current} из {total}",
