@@ -172,6 +172,8 @@
       </InputGroup>
     </div>
 
+    <ImportIndicator v-if="!compact" />
+
     <AnimatePresence :initial="false">
       <Motion
         v-if="!isSearchOpen"
@@ -224,6 +226,7 @@ import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
+import ImportIndicator from "@/components/layout/sidebar/header/ImportIndicator.vue";
 import { sources } from "@/modules/sources";
 import { sourceUI } from "@/modules/sources/lib/source-ui";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";

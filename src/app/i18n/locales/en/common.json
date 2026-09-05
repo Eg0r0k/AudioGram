@@ -30,7 +30,10 @@
     "a11y": {
       "region": "Import progress",
       "pause": "Pause import",
-      "resume": "Resume import"
+      "resume": "Resume import",
+      "indicatorRunning": "Import, {current} of {total}",
+      "indicatorPaused": "Import paused",
+      "indicatorDone": "Import complete, open details"
     },
     "errorReason": {
       "default": "Import failed",

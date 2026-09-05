@@ -30,7 +30,10 @@
     "a11y": {
       "region": "Прогресс импорта",
       "pause": "Приостановить импорт",
-      "resume": "Продолжить импорт"
+      "resume": "Продолжить импорт",
+      "indicatorRunning": "Импорт, {current} из {total}",
+      "indicatorPaused": "Импорт приостановлен",
+      "indicatorDone": "Импорт завершён, открыть подробности"
     },
     "errorReason": {
       "default": "Ошибка импорта",
