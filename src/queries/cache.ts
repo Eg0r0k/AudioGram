@@ -894,7 +894,7 @@ export type TrackMutationCtx
     | { kind: "metadata"; artistIds: readonly ArtistId[]; albumIds: readonly AlbumId[] }
     | {
       kind: "removal";
-      albumId: AlbumId;
+      albumIds: readonly AlbumId[];
       artistIds: readonly ArtistId[];
       playlistIds: readonly PlaylistId[];
     };
@@ -927,7 +927,7 @@ export function invalidateForTrackMutation(
         ...affectedKeys.library.summary(),
         ...affectedKeys.albums.all(),
         ...affectedKeys.artists.all(),
-        ...affectedKeys.albums.pages([ctx.albumId], { totalDuration: true }),
+        ...affectedKeys.albums.pages(ctx.albumIds, { totalDuration: true }),
         ...affectedKeys.playlists.pages(ctx.playlistIds),
         ...affectedKeys.artists.pages(ctx.artistIds),
         ...affectedKeys.tracks.indexPages(),

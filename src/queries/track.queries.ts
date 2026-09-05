@@ -12,6 +12,7 @@ import { unitOfWork } from "@/db/unit-of-work";
 import { buildAlbumDocFromDb, buildArtistDoc, buildTrackDocFromDb } from "@/modules/search/service/buildDocuments";
 import {
   removeSearchDocuments,
+  searchDocuments,
   searchTracks as searchIndexedTracks,
   upsertSearchDocuments,
 } from "@/modules/search/service/searchIndex";
@@ -36,6 +37,12 @@ import {
   removeCoverCache,
 } from "./cache";
 import { unique, unwrapResult } from "./shared";
+import {
+  findOfflineCopiesOf,
+  purgeTracksInTx,
+  syncAfterTrackPurge,
+  trackCascadeTables,
+} from "./track-cascade";
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
 import { getAlbumByIdOrThrow } from "./album.queries";
 import { getArtistByIdOrThrow } from "./artist.queries";
@@ -308,6 +315,77 @@ export async function getTracksByIds(ids: TrackId[]): Promise<Track[]> {
   if (ids.length === 0) return [];
   const entities = await unwrapResult(trackRepository.findByIds(ids));
   return loadTrackRelations(entities);
+}
+
+/** Every track id matching the index page's sort + search, ids only. Search
+ *  results come back in score order — a selection set does not care. */
+export async function getAllTrackIds(sortKey: TrackSortKey, searchQuery = ""): Promise<TrackId[]> {
+  const q = searchQuery.trim();
+  if (q.length > 0) {
+    const response = await searchDocuments(q, "track", { offset: 0 });
+    return response.results.map(item => item.entityId as TrackId);
+  }
+  return unwrapResult(trackRepository.findAllIdsSorted(sortKey));
+}
+
+export async function getTracksByIdsSorted(ids: TrackId[], sortKey: TrackSortKey): Promise<Track[]> {
+  if (ids.length === 0) return [];
+  const entities = await unwrapResult(trackRepository.findSortedByIds(ids, sortKey));
+  return loadTrackRelations(entities);
+}
+
+/** One repository write for the whole batch, one invalidation for every list
+ *  that may move. Per-track cache patches are O(N·M) here, so none are made. */
+export async function setTracksLikedAndSync(
+  queryClient: QueryClient,
+  ids: TrackId[],
+  liked: boolean,
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const changed = liked
+    ? await unwrapResult(trackRepository.likeMany(ids, Date.now()))
+    : await unwrapResult(trackRepository.unlikeMany(ids));
+
+  const idSet = new Set<string>(ids);
+  await queryClient.invalidateQueries({
+    predicate: query => query.queryKey[0] === "tracks" && idSet.has(query.queryKey[1] as string),
+  });
+  await invalidateForTrackMutation(queryClient, { kind: "relations" });
+  return changed;
+}
+
+export async function deleteTracksAndSync(
+  queryClient: QueryClient,
+  ids: TrackId[],
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const tracks = await unwrapResult(trackRepository.findByIds(ids));
+  if (tracks.length === 0) return 0;
+
+  const trackIds = tracks.map(track => track.id);
+  const now = Date.now();
+  const copies = await findOfflineCopiesOf(trackIds);
+
+  const txResult = await unitOfWork.runScoped(
+    trackCascadeTables(),
+    async () => purgeTracksInTx(tracks, copies, now),
+  );
+  if (txResult.isErr()) throw txResult.error;
+  const removals = txResult.value;
+
+  await syncAfterTrackPurge(queryClient, trackIds, removals, copies);
+  for (const id of trackIds) {
+    queryClient.removeQueries({ queryKey: queryKeys.tracks.detail(id), exact: true });
+    removeCoverCache("track", id);
+  }
+
+  await invalidateForTrackMutation(queryClient, {
+    kind: "removal",
+    albumIds: unique(tracks.map(track => track.albumId).filter(Boolean)),
+    artistIds: unique(tracks.flatMap(track => track.artistIds)),
+    playlistIds: removals.map(removal => removal.next.id),
+  });
+  return trackIds.length;
 }
 
 // Region-scoped duration aggregate. Lives outside the infinite-query pages so the
@@ -672,7 +750,7 @@ export async function deleteTrackAndSync(
 
   await invalidateForTrackMutation(queryClient, {
     kind: "removal",
-    albumId: currentTrack.albumId,
+    albumIds: [currentTrack.albumId],
     artistIds: currentTrack.artistIds,
     playlistIds: nextPlaylists.map(playlist => playlist.id),
   });
