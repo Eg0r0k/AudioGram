@@ -17,6 +17,11 @@ export interface SelectionDragOptions {
   scrollEl?: HTMLElement;
 }
 
+export interface UseSelectionOptions {
+  /** false = ids that are not in `items` survive list updates (selection spanning unloaded pages). */
+  pruneToItems?: boolean;
+}
+
 export interface UseSelectionReturn<T extends Selectable> {
   selectedIds: ComputedRef<ReadonlySet<string>>;
   isSelecting: ComputedRef<boolean>;
@@ -26,6 +31,7 @@ export interface UseSelectionReturn<T extends Selectable> {
   selectRange: (anchorId: string, targetId: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
+  setSelectedIds: (ids: Iterable<string>) => void;
   handleSelect: (item: T, event: MouseEvent | KeyboardEvent) => void;
   attachDragListeners: (
     containerEl: HTMLElement,
@@ -35,7 +41,9 @@ export interface UseSelectionReturn<T extends Selectable> {
 
 export function useSelection<T extends Selectable>(
   items: Ref<T[]> | ComputedRef<T[]>,
+  options: UseSelectionOptions = {},
 ): UseSelectionReturn<T> {
+  const { pruneToItems = true } = options;
   const _selectedIds = ref<Set<string>>(new Set());
   const _lastToggledId = ref<string | null>(null);
 
@@ -93,6 +101,11 @@ export function useSelection<T extends Selectable>(
 
   function selectAll(): void {
     _selectedIds.value = new Set(items.value.map(item => item.id));
+    _lastToggledId.value = null;
+  }
+
+  function setSelectedIds(ids: Iterable<string>): void {
+    _selectedIds.value = new Set(ids);
     _lastToggledId.value = null;
   }
 
@@ -448,28 +461,30 @@ export function useSelection<T extends Selectable>(
   // walk is O(n) over the whole list, so skip it while nothing is selected —
   // the common state during refetches and infinite-query page loads. The
   // length source catches in-place removals on a mutable ref.
-  watch(
-    [items, () => items.value.length],
-    () => {
-      if (_selectedIds.value.size === 0 && _lastToggledId.value === null) return;
+  if (pruneToItems) {
+    watch(
+      [items, () => items.value.length],
+      () => {
+        if (_selectedIds.value.size === 0 && _lastToggledId.value === null) return;
 
-      const validIds = new Set<string>();
-      for (const item of items.value) validIds.add(item.id);
-      const next = new Set<string>();
+        const validIds = new Set<string>();
+        for (const item of items.value) validIds.add(item.id);
+        const next = new Set<string>();
 
-      for (const id of _selectedIds.value) {
-        if (validIds.has(id)) next.add(id);
-      }
+        for (const id of _selectedIds.value) {
+          if (validIds.has(id)) next.add(id);
+        }
 
-      if (next.size !== _selectedIds.value.size) {
-        _selectedIds.value = next;
-      }
+        if (next.size !== _selectedIds.value.size) {
+          _selectedIds.value = next;
+        }
 
-      if (_lastToggledId.value && !validIds.has(_lastToggledId.value)) {
-        _lastToggledId.value = null;
-      }
-    },
-  );
+        if (_lastToggledId.value && !validIds.has(_lastToggledId.value)) {
+          _lastToggledId.value = null;
+        }
+      },
+    );
+  }
 
   return {
     selectedIds,
@@ -480,6 +495,7 @@ export function useSelection<T extends Selectable>(
     selectRange,
     clearSelection,
     selectAll,
+    setSelectedIds,
     handleSelect,
     attachDragListeners,
   };

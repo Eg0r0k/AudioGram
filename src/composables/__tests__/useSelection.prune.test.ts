@@ -70,4 +70,27 @@ describe("useSelection — pruning on list change", () => {
 
     expect(selection.selectedCount.value).toBe(0);
   });
+
+  it("keeps ids outside the list when pruneToItems is false", async () => {
+    const items = ref<Row[]>(makeRows(3));
+    const selection = useSelection(items, { pruneToItems: false });
+    selection.toggleById("t0");
+    selection.toggleById("ghost");
+
+    items.value = makeRows(2);
+    await nextTick();
+
+    expect([...selection.selectedIds.value].sort()).toEqual(["ghost", "t0"]);
+  });
+
+  it("setSelectedIds replaces the whole selection in one step", () => {
+    const items = ref<Row[]>(makeRows(3));
+    const selection = useSelection(items, { pruneToItems: false });
+    selection.toggleById("t0");
+
+    selection.setSelectedIds(["a", "b", "c"]);
+
+    expect([...selection.selectedIds.value]).toEqual(["a", "b", "c"]);
+    expect(selection.selectedCount.value).toBe(3);
+  });
 });
