@@ -17,7 +17,7 @@
         @click="rightPanel.openImport()"
       >
         <svg
-          class="absolute inset-0.5 -rotate-90"
+          class="absolute inset-0.5 size-9 -rotate-90"
           viewBox="0 0 36 36"
           aria-hidden="true"
         >
