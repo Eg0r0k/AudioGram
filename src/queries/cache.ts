@@ -925,11 +925,11 @@ export function invalidateForTrackMutation(
     case "removal":
       return runInvalidations(queryClient, [
         ...affectedKeys.library.summary(),
+        // The albums/artists prefix filters above already match every per-id
+        // key; a whole-library delete would otherwise scan the cache once per id.
         ...affectedKeys.albums.all(),
         ...affectedKeys.artists.all(),
-        ...affectedKeys.albums.pages(ctx.albumIds, { totalDuration: true }),
         ...affectedKeys.playlists.pages(ctx.playlistIds),
-        ...affectedKeys.artists.pages(ctx.artistIds),
         ...affectedKeys.tracks.indexPages(),
       ]);
   }
