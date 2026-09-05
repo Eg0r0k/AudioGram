@@ -39,9 +39,10 @@
               <Button
                 variant="ghost"
                 size="icon-lg"
-                class="rounded-full"
+                class="relative rounded-full"
                 :aria-label="$t('nav.menu')"
               >
+                <ImportRing />
                 <IconDownload
                   v-if="hasActiveDownloads"
                   class="size-6 animate-pulse text-primary"
@@ -79,6 +80,18 @@
                     v-if="hasActiveDownloads"
                     class="ml-auto text-xs text-primary"
                   >{{ activeDownloadsCount }}</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  v-if="importOpen"
+                  @click="openImportPanel"
+                >
+                  <IconFileImport class="size-5.5" />
+                  {{ t("common.import.panelTitle") }}
+                  <span
+                    class="ml-auto text-xs"
+                    :class="importErrorCount > 0 && !importRunning ? 'text-destructive' : 'text-primary'"
+                  >{{ importMenuStatus }}</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
@@ -172,8 +185,6 @@
       </InputGroup>
     </div>
 
-    <ImportIndicator v-if="!compact" />
-
     <AnimatePresence :initial="false">
       <Motion
         v-if="!isSearchOpen"
@@ -214,6 +225,7 @@ import { useTheme } from "@/modules/settings/composables/useTheme";
 import { useSearch, type SearchSource } from "@/modules/search/composables/useSearch";
 import IconMenu2 from "~icons/tabler/menu-2";
 import IconDownload from "~icons/tabler/download";
+import IconFileImport from "~icons/tabler/file-import";
 import IconArrowLeft from "~icons/tabler/arrow-left";
 import IconBookmark from "~icons/tabler/bookmark";
 import IconChartBar from "~icons/tabler/chart-bar";
@@ -226,7 +238,8 @@ import IconSun from "~icons/tabler/sun";
 import IconMoon from "~icons/tabler/moon";
 import { routeLocation } from "@/app/router/route-locations";
 import PageSourceDropdown from "@/modules/sources/components/PageSourceDropdown.vue";
-import ImportIndicator from "@/components/layout/sidebar/header/ImportIndicator.vue";
+import ImportRing from "@/components/layout/sidebar/header/ImportRing.vue";
+import { useImport } from "@/modules/library/composables/useImport";
 import { sources } from "@/modules/sources";
 import { sourceUI } from "@/modules/sources/lib/source-ui";
 import { useDownloadsStore } from "@/modules/downloads/store/downloads.store";
@@ -280,6 +293,24 @@ const hasActiveDownloads = computed(() => activeDownloadsCount.value > 0);
 function openDownloadsPanel() {
   rightPanel.openDownloads();
 }
+
+const {
+  isOpen: importOpen,
+  isRunning: importRunning,
+  current: importCurrent,
+  total: importTotal,
+  errorCount: importErrorCount,
+} = useImport();
+
+const importMenuStatus = computed(() => {
+  if (importRunning.value) return t("common.import.progressLabel", { current: importCurrent.value, total: importTotal.value });
+  if (importErrorCount.value > 0) return t("common.import.menu.issues", { count: importErrorCount.value });
+  return t("common.import.menu.done");
+});
+
+const openImportPanel = () => {
+  rightPanel.openImport();
+};
 
 function selectSource(next: SearchSource) {
   setSource(next);

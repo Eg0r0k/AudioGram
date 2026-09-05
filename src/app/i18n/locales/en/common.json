@@ -10,6 +10,10 @@
     "resume": "Resume",
     "visibleFiles": "Showing first {visible} of {total} files",
     "goToLibrary": "Go to library",
+    "menu": {
+      "done": "Done",
+      "issues": "{count} failed"
+    },
     "toast": {
       "done": "Nothing imported | Imported {count} track | Imported {count} tracks",
       "doneWithIssues": "Imported {imported}, {issues} with issues",

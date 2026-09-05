@@ -10,6 +10,10 @@
     "resume": "Продолжить",
     "visibleFiles": "Показаны только первые {visible} файлов из {total}",
     "goToLibrary": "Перейти в библиотеку",
+    "menu": {
+      "done": "Готово",
+      "issues": "Ошибок: {count}"
+    },
     "toast": {
       "done": "Ничего не импортировано | Импортирован {count} трек | Импортировано {count} трека | Импортировано {count} треков",
       "doneWithIssues": "Импортировано {imported}, с проблемами: {issues}",
