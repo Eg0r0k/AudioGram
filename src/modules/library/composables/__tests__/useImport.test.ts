@@ -1,5 +1,7 @@
 import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "vue-sonner";
+import { i18n } from "@/app/i18n";
 import { invalidateLibraryData } from "@/queries/library.queries";
 import { musicLibraryEngine } from "@/services/importer.service";
 import { useImport } from "../useImport";
@@ -26,6 +28,18 @@ vi.mock("@/services/importer.service", () => ({
 
 vi.mock("@/modules/search/service/searchIndex", () => ({
   indexImportedTracks: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("vue-sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
+
+const rightPanelMocks = vi.hoisted(() => ({ openImport: vi.fn() }));
+vi.mock("@/modules/right-panel/store/right-panel.store", () => ({
+  useRightPanelStore: () => rightPanelMocks,
 }));
 
 function createFile(name: string) {
@@ -202,5 +216,85 @@ describe("useImport", () => {
 
     expect(importer.current.value).toBe(0);
     expect(importer.progress.value).toBe(0);
+  });
+});
+
+describe("useImport completion feedback", () => {
+  beforeEach(() => {
+    i18n.global.locale.value = "en";
+    vi.clearAllMocks();
+    useImport().reset();
+  });
+
+  const success = (fileName: string) => ({
+    trackId: fileName as never,
+    fileName,
+    title: fileName,
+    artist: "Artist",
+    album: "Album",
+  });
+
+  it("exposes live counts derived from the file list", async () => {
+    vi.mocked(musicLibraryEngine.importFiles).mockResolvedValue(createResult({
+      successful: [success("a.mp3")],
+      failed: [{ fileName: "b.mp3", error: { code: "PARSE_FAILED", message: "bad" } as never }],
+      skipped: 1,
+      total: 3,
+    }));
+
+    const importer = useImport();
+    await importer.importFiles([createFile("a.mp3"), createFile("b.mp3"), createFile("c.mp3")]);
+
+    expect(importer.liveCounts.value).toEqual({ ok: 1, error: 1, skipped: 1 });
+  });
+
+  it("raises a success toast when every file imported", async () => {
+    vi.mocked(musicLibraryEngine.importFiles).mockResolvedValue(createResult({
+      successful: [success("a.mp3"), success("b.mp3")],
+      total: 2,
+    }));
+
+    await useImport().importFiles([createFile("a.mp3"), createFile("b.mp3")]);
+
+    expect(toast.success).toHaveBeenCalledWith("Imported 2 tracks");
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("raises a warning toast whose action opens the import panel when files failed", async () => {
+    vi.mocked(musicLibraryEngine.importFiles).mockResolvedValue(createResult({
+      successful: [success("a.mp3")],
+      failed: [{ fileName: "b.mp3", error: { code: "PARSE_FAILED", message: "bad" } as never }],
+      total: 2,
+    }));
+
+    await useImport().importFiles([createFile("a.mp3"), createFile("b.mp3")]);
+
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.warning).toHaveBeenCalledOnce();
+    const [message, options] = vi.mocked(toast.warning).mock.calls[0] as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe("Imported 1, 1 with issues");
+    expect(options.action.label).toBe("Details");
+    options.action.onClick();
+    expect(rightPanelMocks.openImport).toHaveBeenCalledOnce();
+  });
+
+  it("raises no toast for a cancelled import", async () => {
+    const gate = createDeferred();
+    vi.mocked(musicLibraryEngine.importFiles).mockImplementation(async (_files, onProgress, control?: ImportControl) => {
+      onProgress?.(0, 1);
+      await gate.promise;
+      control?.isCancelled?.();
+      return createResult({ total: 1 });
+    });
+
+    const importer = useImport();
+    const run = importer.importFiles([createFile("a.mp3")]);
+    await flushPromises();
+    importer.cancelImport();
+    gate.resolve();
+    await run;
+
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

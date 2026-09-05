@@ -7,6 +7,11 @@
     "summary": "{imported} добавлено · {failed} с ошибкой · {skipped} пропущено",
     "visibleFiles": "Показаны только первые {visible} файлов из {total}",
     "goToLibrary": "Перейти в библиотеку",
+    "toast": {
+      "done": "Ничего не импортировано | Импортирован {count} трек | Импортировано {count} трека | Импортировано {count} треков",
+      "doneWithIssues": "Импортировано {imported}, с проблемами: {issues}",
+      "details": "Подробнее"
+    },
     "empty": "Здесь пусто",
     "counts": {
       "imported": "добавлено",

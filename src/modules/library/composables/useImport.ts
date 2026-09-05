@@ -8,6 +8,9 @@ import { filterFilesByExtension } from "@/lib/files/filterFiles";
 import { ACCEPTED_AUDIO_EXTENSIONS } from "@/lib/files/acceptedAudioExtensions";
 import { IS_TAURI } from "@/lib/environment/userAgent";
 import { requestFiles } from "@/lib/files/requestFiles";
+import { toast } from "vue-sonner";
+import { i18n } from "@/app/i18n";
+import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { ImportBatchResult, ImportErrorCode } from "@/services/types";
 
 export type ImportFileStatus = "pending" | "ok" | "error" | "skipped";
@@ -56,6 +59,24 @@ let activeImportId = 0;
 let pausePromise: Promise<void> | null = null;
 let pauseResolver: (() => void) | null = null;
 
+const notifyBatchFinished = (result: ImportBatchResult) => {
+  const { t } = i18n.global;
+  const issues = result.failed.length + result.skipped;
+  if (issues === 0) {
+    toast.success(t("common.import.toast.done", result.successful.length));
+    return;
+  }
+  toast.warning(
+    t("common.import.toast.doneWithIssues", { imported: result.successful.length, issues }),
+    {
+      action: {
+        label: t("common.import.toast.details"),
+        onClick: () => useRightPanelStore().openImport(),
+      },
+    },
+  );
+};
+
 export function useImport() {
   const queryClient = useQueryClient();
 
@@ -73,6 +94,16 @@ export function useImport() {
   const successCount = computed(() => state.value.result?.successful.length ?? 0);
   const errorCount = computed(() => state.value.result?.failed.length ?? 0);
   const skippedCount = computed(() => state.value.result?.skipped ?? 0);
+
+  const liveCounts = computed(() => {
+    const counts = { ok: 0, error: 0, skipped: 0 };
+    for (const file of state.value.files) {
+      if (file.status === "ok") counts.ok++;
+      else if (file.status === "error") counts.error++;
+      else if (file.status === "skipped") counts.skipped++;
+    }
+    return counts;
+  });
 
   function openSheet() {
     state.value.isOpen = true;
@@ -268,6 +299,7 @@ export function useImport() {
     }
 
     state.value.isRunning = false;
+    notifyBatchFinished(result);
   }
 
   /**
@@ -310,6 +342,7 @@ export function useImport() {
     successCount,
     errorCount,
     skippedCount,
+    liveCounts,
     openSheet,
     closeSheet,
     reset,

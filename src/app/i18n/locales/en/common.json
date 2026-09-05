@@ -7,6 +7,11 @@
     "summary": "{imported} imported · {failed} failed · {skipped} skipped",
     "visibleFiles": "Showing first {visible} of {total} files",
     "goToLibrary": "Go to library",
+    "toast": {
+      "done": "Nothing imported | Imported {count} track | Imported {count} tracks",
+      "doneWithIssues": "Imported {imported}, {issues} with issues",
+      "details": "Details"
+    },
     "empty": "Nothing here",
     "counts": {
       "imported": "imported",
