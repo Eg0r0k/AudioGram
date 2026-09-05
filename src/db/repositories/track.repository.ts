@@ -322,6 +322,17 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
     }
   }
 
+  /** Ids only, in the same order as `findAllSorted` — for whole-library selection. */
+  async findAllIdsSorted(sortKey: TrackSortKey): Promise<Result<TrackId[], Error>> {
+    try {
+      const ids = await this.getSortedCollection(sortKey).primaryKeys();
+      return ok(ids);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async findSortedByIds(ids: TrackId[], sortKey: TrackSortKey): Promise<Result<TrackEntity[], Error>> {
     try {
       if (ids.length === 0) {
@@ -392,6 +403,22 @@ class TrackRepository extends BaseRepository<TrackEntity, TrackId> {
         .anyOf(ids)
         .and(track => !track.likedAt)
         .modify({ likedAt });
+      return ok(count);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
+  /** Clears the like on every listed track that is liked, in one operation; returns how many changed. */
+  async unlikeMany(ids: TrackId[]): Promise<Result<number, Error>> {
+    try {
+      if (ids.length === 0) return ok(0);
+      const count = await this.table
+        .where("id")
+        .anyOf(ids)
+        .and(track => !!track.likedAt)
+        .modify({ likedAt: undefined });
       return ok(count);
     }
     catch (error) {
