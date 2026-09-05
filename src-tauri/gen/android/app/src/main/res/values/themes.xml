@@ -4,9 +4,10 @@
         <item name="android:windowBackground">@color/window_background</item>
     </style>
 
-    <style name="Theme.audiogram.Starting" parent="Theme.SplashScreen">
+    <style name="Theme.audiogram.Starting" parent="Theme.SplashScreen.IconBackground">
         <item name="windowSplashScreenBackground">@color/window_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
         <item name="postSplashScreenTheme">@style/Theme.audiogram</item>
     </style>
 </resources>
