@@ -509,6 +509,42 @@ describe("queue.store", () => {
       expect(store.insertMultipleNext([])).toEqual([]);
       expect(store.queue.map(item => item.track.id)).toEqual(["1"]);
     });
+
+    it("insertMultipleNext lands after the current entry in both orders while shuffled", () => {
+      const store = useQueueStore();
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-3" as any, track: createTrack("3"), source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedShuffled(store, true);
+      seedCurrentIndex(store, 1);
+      // Pull the playback order away from the original one so "after the
+      // current entry" cannot mean the same index in both.
+      store.moveTrack(0, 2);
+
+      expect(store.queue.map(item => item.track.id)).toEqual(["2", "3", "1"]);
+
+      store.insertMultipleNext([createTrack("a"), createTrack("b")]);
+
+      expect(store.isShuffled).toBe(true);
+      expect(store.queue.map(item => item.track.id)).toEqual(["2", "a", "b", "3", "1"]);
+      expect(store.originalQueue.map(item => item.track.id)).toEqual(["1", "2", "a", "b", "3"]);
+    });
+
+    it("insertMultipleNext lands at the head when there is no current track", () => {
+      const store = useQueueStore();
+      seedQueueItems(store, [
+        { id: "item-1" as any, track: createTrack("1"), source: { type: "manual" as const }, addedAt: Date.now() },
+        { id: "item-2" as any, track: createTrack("2"), source: { type: "manual" as const }, addedAt: Date.now() },
+      ]);
+      seedCurrentIndex(store, -1);
+
+      store.insertMultipleNext([createTrack("a"), createTrack("b")]);
+
+      expect(store.queue.map(item => item.track.id)).toEqual(["a", "b", "1", "2"]);
+      expect(store.originalQueue.map(item => item.track.id)).toEqual(["a", "b", "1", "2"]);
+    });
   });
 
   describe("removeFromQueue", () => {
