@@ -125,6 +125,19 @@ describe("TrackExpanded in select mode", () => {
     expect(container.querySelector("[data-cover-check]")).toBeNull();
   });
 
+  it("keeps showing the liked state while selecting, without the button", () => {
+    const { container } = renderRow(true, { track: { ...makeTrack("t1"), isLiked: true } });
+
+    expect(container.querySelector("[data-liked-indicator]")).not.toBeNull();
+    expect(container.querySelector("button[aria-label], [data-slot=button]")).toBeNull();
+  });
+
+  it("shows no liked indicator while selecting an unliked track", () => {
+    const { container } = renderRow(true);
+
+    expect(container.querySelector("[data-liked-indicator]")).toBeNull();
+  });
+
   it("marks joined corners so adjacent selected rows merge", () => {
     const { container } = renderRow(true, { isSelected: true, joinTop: true, joinBottom: false });
     const row = container.querySelector("[data-track-row]")!;

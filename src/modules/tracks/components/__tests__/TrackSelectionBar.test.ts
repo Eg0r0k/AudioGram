@@ -33,6 +33,10 @@ const stubs = {
   DropdownMenuItem: { template: "<button @click=\"$emit('select')\"><slot /></button>" },
   DropdownMenuSeparator: { template: "<hr />" },
   DropdownMenuLabel: { template: "<div><slot /></div>" },
+  TooltipProvider: { template: "<div><slot /></div>" },
+  Tooltip: { template: "<div><slot /></div>" },
+  TooltipTrigger: { template: "<div><slot /></div>" },
+  TooltipContent: true,
 };
 
 const renderBar = (props: Partial<InstanceType<typeof TrackSelectionBar>["$props"]> = {}) =>
@@ -105,6 +109,44 @@ describe("TrackSelectionBar", () => {
 
     expect(emitted().addToPlaylist).toEqual([["pl-1"]]);
     expect(emitted().playNext).toHaveLength(1);
+  });
+
+  it("shows play-next as its own button on wide layouts and drops the more menu", async () => {
+    i18n.global.locale.value = "en";
+    const user = userEvent.setup();
+    const { emitted } = renderBar({ count: 2 });
+
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Play next" }));
+
+    expect(emitted().playNext).toHaveLength(1);
+  });
+
+  it("keeps play-next in the more menu when narrow", async () => {
+    i18n.global.locale.value = "en";
+    widthRef.value = 500;
+    const user = userEvent.setup();
+    const { emitted } = renderBar({ count: 2 });
+
+    const playNext = screen.getByRole("button", { name: "Play next" });
+    expect(playNext).not.toHaveAttribute("data-slot", "button");
+    await user.click(playNext);
+
+    expect(emitted().playNext).toHaveLength(1);
+  });
+
+  it("moves select-all into the more menu when narrow so a long count cannot push the bar out", async () => {
+    i18n.global.locale.value = "en";
+    widthRef.value = 500;
+    const user = userEvent.setup();
+    const { emitted } = renderBar({ count: 1234, allSelected: false });
+
+    const selectAll = screen.getByRole("button", { name: "Select all" });
+    expect(selectAll).not.toHaveAttribute("data-slot", "button");
+    await user.click(selectAll);
+
+    expect(emitted().selectAll).toHaveLength(1);
+    expect(screen.getByText("1234")).toBeInTheDocument();
   });
 
   it("moves the Like and Playlist controls into the more menu when narrow", async () => {

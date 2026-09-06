@@ -161,7 +161,19 @@
       </div>
 
       <div :class="styles.lastCol">
-        <span :class="[styles.duration, isSelecting && '!block']">
+        <div
+          v-if="isSelecting && isLiked"
+          class="flex items-center gap-1"
+        >
+          <span class="flex size-8 items-center justify-center">
+            <IconLikedFilled
+              data-liked-indicator
+              class="size-5 text-primary"
+            />
+          </span>
+          <span class="hidden size-8 [@media(hover:none)]:block" />
+        </div>
+        <span :class="[styles.duration, !isSelecting && 'group-hover:hidden']">
           <!-- Remote YT rows can have unknown durations (0) — blank beats a fake 0:00. -->
           {{ track.duration > 0 ? formatDuration(track.duration) : "" }}
         </span>
@@ -272,7 +284,7 @@ const styles = {
   albumCol: "var1-col min-w-0 truncate pl-2 text-sm text-muted-foreground",
   dateCol: "var2-col min-w-0 truncate pl-2 text-sm text-muted-foreground",
   lastCol: "last-col relative flex items-center justify-end",
-  duration: "w-12 text-right text-sm font-medium text-muted-foreground group-hover:hidden [@media(hover:none)]:hidden",
+  duration: "w-12 text-right text-sm font-medium text-muted-foreground [@media(hover:none)]:hidden",
   actions: "absolute right-0 flex items-center gap-1",
 } as const;
 
