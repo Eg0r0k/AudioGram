@@ -87,6 +87,7 @@
   "close": "Close",
   "open": "Open",
   "retry": "Retry",
+  "undo": "Undo",
   "download": "Download",
   "copy": "Copy",
   "copied": "Copied",

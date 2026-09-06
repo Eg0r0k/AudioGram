@@ -11,10 +11,10 @@ import { useQueueStore } from "@/modules/queue/store/queue.store";
 import type { TrackSortKey } from "@/modules/tracks/types";
 import { addTracksToPlaylistAndSync } from "@/queries/playlist.queries";
 import {
-  deleteTracksAndSync,
   getTracksByIdsSorted,
   setTracksLikedAndSync,
 } from "@/queries/track.queries";
+import { useTrackDeletion } from "@/modules/tracks/composables/useTrackDeletion";
 import type { PlaylistId, TrackId } from "@/types/ids";
 
 export type BulkTrackAction = "play" | "playNext" | "addToQueue" | "toggleLike" | "addToPlaylist" | "delete";
@@ -31,6 +31,7 @@ export const useBulkTrackActions = (options: UseBulkTrackActionsOptions) => {
   const queryClient = useQueryClient();
   const queueStore = useQueueStore();
   const { t } = useI18n();
+  const { deleteWithUndo } = useTrackDeletion();
 
   const busy = ref(false);
 
@@ -110,15 +111,7 @@ export const useBulkTrackActions = (options: UseBulkTrackActionsOptions) => {
     if (!confirmed) return;
 
     await run("delete", async () => {
-      const idList = ids();
-      const idSet = new Set<string>(idList);
-      const queueItemIds = queueStore.queue
-        .filter(item => idSet.has(item.track.id))
-        .map(item => item.id);
-
-      const deleted = await deleteTracksAndSync(queryClient, idList);
-      if (queueItemIds.length > 0) await queueStore.removeMultiple(queueItemIds);
-      toast.success(t("library.selection.deleted", deleted));
+      await deleteWithUndo(ids(), deleted => t("library.selection.deleted", deleted));
     });
   };
 

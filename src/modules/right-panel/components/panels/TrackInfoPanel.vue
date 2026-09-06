@@ -218,22 +218,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { computed, ref } from "vue";
+import { skipToken, useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import { TrackSource, TrackState } from "@/db/entities";
 import { Button } from "@/components/ui/button";
 import Scrollable from "@/components/ui/scrollable/Scrollable.vue";
 import { formatDuration } from "@/lib/format/time";
-import { deleteTrackAndSync, getTrackEntityById } from "@/queries/track.queries";
+import { getLogger } from "@/lib/logger";
+import { getTrackEntityById } from "@/queries/track.queries";
+import { useTrackDeletion } from "@/modules/tracks/composables/useTrackDeletion";
 import DeleteTrackDialog, { type DeleteTrackConfirmation } from "@/components/dialogs/DeleteTrackDialog.vue";
 import { summonDialog } from "@/components/dialogs/summon";
 import { useGeneralSettings } from "@/modules/settings/store/general";
 import { offlineCopyQueries } from "@/queries/offlineCopy.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { isLibraryTrack, type Track } from "@/modules/player/types";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import type { RightPanelTrackInfoPayload } from "@/modules/right-panel/types";
 import DetailField from "@/modules/tracks/components/TrackDetailsField.vue";
@@ -265,8 +266,6 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const queryClient = useQueryClient();
-const queueStore = useQueueStore();
 const rightPanel = useRightPanelStore();
 
 const track = computed(() => props.payload.track);
@@ -296,12 +295,8 @@ const storagePathValue = computed(() =>
   libraryTrack.value?.storagePath || offlineCopy.value?.storagePath || "—",
 );
 
-const { mutateAsync: deleteTrack, isPending: isDeleting } = useMutation({
-  mutationFn: (currentTrack: Track) => deleteTrackAndSync(queryClient, currentTrack),
-  onError: () => {
-    toast.error(t("track.deleteFailed"));
-  },
-});
+const { deleteWithUndo } = useTrackDeletion();
+const isDeleting = ref(false);
 
 const formattedDuration = computed(() => {
   if (isLibraryTrack(track.value)) {
@@ -407,20 +402,18 @@ async function handleDelete(): Promise<void> {
 async function performDelete(): Promise<void> {
   if (!libraryTrack.value || isDeleting.value) return;
 
-  const currentTrack = libraryTrack.value;
-  const queueItemIds = queueStore.queue
-    .filter(item => item.track.id === currentTrack.id)
-    .map(item => item.id);
-
-  await deleteTrack(currentTrack);
-
-  if (queueItemIds.length > 0) {
-    // Awaited so the success toast and the panel close land after the queue
-    // has actually dropped the entries.
-    await queueStore.removeMultiple(queueItemIds);
+  isDeleting.value = true;
+  try {
+    const deleted = await deleteWithUndo([libraryTrack.value.id], () => t("track.deleted"));
+    if (deleted === 0) throw new Error("Track not found");
+    rightPanel.close();
   }
-
-  toast.success(t("track.deleted"));
-  rightPanel.close();
+  catch (error) {
+    getLogger().error(`[TrackInfoPanel] Deleting the track failed: ${String(error)}`);
+    toast.error(t("track.deleteFailed"));
+  }
+  finally {
+    isDeleting.value = false;
+  }
 }
 </script>

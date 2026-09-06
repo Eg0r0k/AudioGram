@@ -131,6 +131,16 @@ class CoverRepository {
     }
   }
 
+  async upsertMany(covers: CoverEntity[]): Promise<Result<void, Error>> {
+    try {
+      await db.covers.bulkPut(covers);
+      return ok(undefined);
+    }
+    catch (error) {
+      return err(toDbError(error));
+    }
+  }
+
   async deleteByOwner(
     ownerType: CoverOwnerType,
     ownerId: string,

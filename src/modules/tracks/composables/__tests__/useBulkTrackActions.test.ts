@@ -7,8 +7,8 @@ import { TrackId } from "@/types/ids";
 const queries = vi.hoisted(() => ({
   getTracksByIdsSorted: vi.fn(),
   setTracksLikedAndSync: vi.fn(),
-  deleteTracksAndSync: vi.fn(),
 }));
+const undoApi = vi.hoisted(() => ({ deleteTracksWithUndo: vi.fn() }));
 const playlistQueries = vi.hoisted(() => ({ addTracksToPlaylistAndSync: vi.fn() }));
 const dialog = vi.hoisted(() => ({ summonDialog: vi.fn() }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -22,6 +22,7 @@ const queue = vi.hoisted(() => ({
 }));
 
 vi.mock("@/queries/track.queries", () => queries);
+vi.mock("@/queries/track-undo", () => undoApi);
 vi.mock("@/queries/playlist.queries", () => playlistQueries);
 vi.mock("@/components/dialogs/summon", () => dialog);
 vi.mock("vue-sonner", () => ({ toast }));
@@ -140,21 +141,23 @@ describe("useBulkTrackActions", () => {
     await actions.deleteSelected();
 
     expect(dialog.summonDialog).toHaveBeenCalledWith(expect.anything(), { count: 1 }, { key: "delete-tracks" });
-    expect(queries.deleteTracksAndSync).not.toHaveBeenCalled();
+    expect(undoApi.deleteTracksWithUndo).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
   });
 
   it("deleteSelected deletes in one call, drops queue entries, reports done", async () => {
     dialog.summonDialog.mockResolvedValue(true);
-    queries.deleteTracksAndSync.mockResolvedValue(2);
+    undoApi.deleteTracksWithUndo.mockResolvedValue({ deleted: 2, restore: vi.fn(), finalize: vi.fn() });
     queue.queue = [{ id: "q1", track: makeTrack("t1") }, { id: "q2", track: makeTrack("zzz") }];
     const { actions, onDone } = setup(["t1", "t2"]);
 
     await actions.deleteSelected();
 
-    expect(queries.deleteTracksAndSync).toHaveBeenCalledWith({ tag: "qc" }, ["t1", "t2"]);
+    expect(undoApi.deleteTracksWithUndo).toHaveBeenCalledWith({ tag: "qc" }, ["t1", "t2"]);
     expect(queue.removeMultiple).toHaveBeenCalledWith(["q1"]);
-    expect(toast.success).toHaveBeenCalledWith("library.selection.deleted");
+    expect(toast.success).toHaveBeenCalledWith("library.selection.deleted", expect.objectContaining({
+      action: expect.objectContaining({ label: "common.undo" }),
+    }));
     expect(onDone).toHaveBeenCalledWith("delete");
   });
 

@@ -35,6 +35,7 @@ import {
   purgeTracksInTx,
   syncAfterTrackPurge,
   trackCascadeTables,
+  type TrackPurgeSyncOptions,
 } from "./track-cascade";
 import type { LikedTracksPageData, PaginatedTracksResult, TracksIndexPageData } from "./types";
 import { getAlbumByIdOrThrow } from "./album.queries";
@@ -344,6 +345,7 @@ export async function setTracksLikedAndSync(
 export async function deleteTracksAndSync(
   queryClient: QueryClient,
   ids: TrackId[],
+  options: TrackPurgeSyncOptions = {},
 ): Promise<number> {
   if (ids.length === 0) return 0;
   const tracks = await unwrapResult(trackRepository.findByIds(ids));
@@ -363,7 +365,7 @@ export async function deleteTracksAndSync(
   if (txResult.isErr()) throw txResult.error;
   const removals = txResult.value;
 
-  await syncAfterTrackPurge(queryClient, trackIds, removals, copies);
+  await syncAfterTrackPurge(queryClient, trackIds, removals, copies, [], options);
   const idSet = new Set<string>(trackIds);
   queryClient.removeQueries({
     predicate: query => query.queryKey[0] === "tracks" && idSet.has(query.queryKey[1] as string),

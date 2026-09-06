@@ -6,6 +6,7 @@ import { removeSearchDocuments } from "@/modules/search/service/searchIndex";
 import { cleanupAfterTrackRemoval } from "@/services/library-gc";
 import type { PlaylistId, TrackId } from "@/types/ids";
 import type { QueryClient } from "@tanstack/vue-query";
+import { queryKeys } from "@/queries/query-keys";
 import { removeTracksFromCaches, syncPlaylistCaches, syncPlaylistTrackRemoval } from "./cache";
 import { unwrapResult } from "./shared";
 
@@ -89,14 +90,27 @@ export const purgeTracksInTx = async (
  * search index. `skipPlaylistIds` drops playlists that were deleted alongside
  * the tracks — re-syncing their caches would resurrect them.
  */
+export interface TrackPurgeSyncOptions {
+  /** Leave the copy files on disk; the caller deletes them later (undo window). */
+  deferCopyFiles?: boolean;
+}
+
 export const syncAfterTrackPurge = async (
   queryClient: QueryClient,
   trackIds: readonly TrackId[],
   playlistRemovals: readonly PlaylistTrackRemoval[],
   copies: readonly OfflineCopyEntity[],
   skipPlaylistIds: readonly PlaylistId[] = [],
+  options: TrackPurgeSyncOptions = {},
 ) => {
-  await cleanupOfflineCopyFiles(copies);
+  if (options.deferCopyFiles) {
+    for (const copy of copies) {
+      queryClient.setQueryData(queryKeys.offlineCopies.detail(copy.trackId), null);
+    }
+  }
+  else {
+    await cleanupOfflineCopyFiles(copies);
+  }
 
   const skipped = new Set(skipPlaylistIds);
   for (const { next, removedIds } of playlistRemovals) {

@@ -123,6 +123,7 @@
   },
   "deleted": "Track deleted",
   "deleteFailed": "Failed to delete track",
+  "restoreFailed": "Failed to restore track",
   "deleteDialog": {
     "title": "Delete track?",
     "description": "\"{title}\" will be removed from the library along with its file. This cannot be undone.",
