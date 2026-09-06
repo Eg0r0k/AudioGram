@@ -33,6 +33,7 @@ vi.mock("@/modules/search/service/buildDocuments", () => ({
 import { db } from "@/db";
 import { coverCache } from "@/modules/covers/lib/cover-cache";
 import { deleteTracksWithUndo } from "../track-undo";
+import { queryKeys } from "../query-keys";
 
 const artistId = ArtistId("a-1");
 const albumId = AlbumId("al-1");
@@ -131,6 +132,18 @@ describe("deleteTracksWithUndo (integration)", () => {
 
     await undo.finalize();
     expect(storageMock.deleteFile).not.toHaveBeenCalled();
+  });
+
+  // The delete parks every copy's cache entry on null (the row is gone); a
+  // restore that only puts the rows back leaves the download button lit.
+  it("restore puts the offline copies back into the query cache", async () => {
+    const key = queryKeys.offlineCopies.detail(TrackId("t-1"));
+    const undo = await deleteTracksWithUndo(queryClient, [TrackId("t-1"), TrackId("t-2")]);
+    expect(queryClient.getQueryData(key)).toBeNull();
+
+    await undo.restore();
+
+    expect(queryClient.getQueryData(key)).toMatchObject({ storagePath: "offline/t-1.m4a" });
   });
 
   it("restores the album and artist the cascade took along with their covers", async () => {
