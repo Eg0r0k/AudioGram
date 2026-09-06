@@ -49,3 +49,18 @@ describe("invalidateForPlaylistMutation: trackAddition", () => {
     expect(isInvalidated(queryClient, paged)).toBe(true);
   });
 });
+
+describe("invalidateForTrackMutation: like", () => {
+  // The default (likedAt desc) page is patched in place; a sorted page cannot
+  // be — the row's position depends on the sort — so it is re-read instead.
+  it("marks the sorted liked pages stale and leaves the default one alone", async () => {
+    const sorted = queryKeys.tracks.likedPageInfinite("title_asc");
+    const byDefault = queryKeys.tracks.likedPageInfinite();
+    const queryClient = seed([sorted, byDefault]);
+
+    await invalidateForTrackMutation(queryClient, { kind: "like" });
+
+    expect(isInvalidated(queryClient, sorted)).toBe(true);
+    expect(isInvalidated(queryClient, byDefault)).toBe(false);
+  });
+});

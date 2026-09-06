@@ -33,6 +33,7 @@ const repositories = vi.hoisted(() => ({
     sumDurationByLiked: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
+    setLiked: vi.fn(),
   },
   coverRepository: {
     findByOwner: vi.fn(),
@@ -64,10 +65,12 @@ vi.mock("@/modules/search/service/buildDocuments", () => ({
 
 import { upsertSearchDocuments } from "@/modules/search/service/searchIndex";
 import { queryKeys } from "@/queries/query-keys";
+import * as cache from "../cache";
 import {
   getTracksIndexPageData,
   getLikedTracksPageData,
   getLikedTracksPaginated,
+  toggleTrackLikeAndSync,
   updateTrackMetadataAndSync,
 } from "../track.queries";
 
@@ -609,6 +612,47 @@ describe("track.queries", () => {
       );
       expect(result.trackNo).toBe(3);
       expect(result.diskNo).toBe(1);
+    });
+  });
+
+  describe("toggleTrackLikeAndSync", () => {
+    it("asks the sorted liked pages to re-read after the point-sync", async () => {
+      const queryClient = new QueryClient();
+      const invalidate = vi.spyOn(cache, "invalidateForTrackMutation").mockResolvedValue(undefined);
+      const entity = {
+        id: "t-1" as TrackId,
+        title: "One",
+        artistIds: ["a-1" as ArtistId],
+        albumId: "al-1" as AlbumId,
+        tagIds: [],
+        source: TrackSource.LOCAL_INTERNAL,
+        state: TrackState.READY,
+        storagePath: "p",
+        duration: 10,
+        format: {},
+        playCount: 0,
+        addedAt: 1,
+      } as TrackEntity;
+      repositories.trackRepository.findById.mockResolvedValue(ok(entity));
+      repositories.trackRepository.setLiked.mockResolvedValue(ok(undefined));
+      const track = {
+        id: entity.id,
+        kind: "library",
+        title: "One",
+        artist: "A",
+        artistIds: entity.artistIds,
+        albumId: entity.albumId,
+        albumName: "Al",
+        storagePath: "p",
+        source: entity.source,
+        state: entity.state,
+        duration: 10,
+        isLiked: false,
+      } as Track;
+
+      await toggleTrackLikeAndSync(queryClient, track);
+
+      expect(invalidate).toHaveBeenCalledWith(queryClient, { kind: "like" });
     });
   });
 });

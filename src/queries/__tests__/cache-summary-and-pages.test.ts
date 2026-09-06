@@ -95,3 +95,41 @@ describe("summary counts survive a point-sync", () => {
     expect(summaryOf(queryClient).likedCount).toBe(4);
   });
 });
+
+describe("liked infinite pages under a point-sync", () => {
+  const page = () => ({
+    pages: [{ tracks: [row("t-1", true), row("t-2", true)], nextOffset: 2, total: 5 }],
+    pageParams: [0],
+  });
+
+  it("a like prepended to the default liked page moves its nextOffset along", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.tracks.likedPageInfinite(), page());
+
+    syncTrackLikeCaches(queryClient, entity("t-9", 5), row("t-9", true));
+
+    const first = queryClient.getQueryData<ReturnType<typeof page>>(queryKeys.tracks.likedPageInfinite())!.pages[0];
+    expect(first.tracks.map(track => track.id)).toEqual(["t-9", "t-1", "t-2"]);
+    expect(first).toMatchObject({ nextOffset: 3, total: 6 });
+  });
+
+  it("a sorted liked page is left for invalidation, not patched", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.tracks.likedPageInfinite("title_asc"), page());
+
+    syncTrackLikeCaches(queryClient, entity("t-9", 5), row("t-9", true));
+
+    expect(queryClient.getQueryData(queryKeys.tracks.likedPageInfinite("title_asc"))).toEqual(page());
+  });
+
+  it("removing rows from the default liked page moves its nextOffset back", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.tracks.likedPageInfinite(), page());
+
+    removeTracksFromCaches(queryClient, ["t-1"]);
+
+    const first = queryClient.getQueryData<ReturnType<typeof page>>(queryKeys.tracks.likedPageInfinite())!.pages[0];
+    expect(first.tracks.map(track => track.id)).toEqual(["t-2"]);
+    expect(first).toMatchObject({ nextOffset: 1, total: 4 });
+  });
+});

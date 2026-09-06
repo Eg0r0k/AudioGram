@@ -521,6 +521,7 @@ export async function toggleTrackLikeAndSync(
   const nextTrack: Track = { ...track, isLiked: nextValue };
 
   syncTrackLikeCaches(queryClient, nextTrackEntity, nextTrack);
+  await invalidateForTrackMutation(queryClient, { kind: "like" });
 
   return nextTrack;
 }

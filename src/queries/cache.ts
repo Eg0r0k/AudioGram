@@ -12,9 +12,7 @@ import type { InfiniteData, QueryClient } from "@tanstack/vue-query";
 import { patchTrackEntityLike, patchTrackLike, removeById, upsertById } from "./shared";
 import type {
   AlbumPageData,
-  AlbumWithTrackCount,
   ArtistPageData,
-  ArtistWithTrackCount,
   LibrarySummaryData,
   LikedTracksPageData,
   PaginatedAlbumsResult,
@@ -64,6 +62,19 @@ function isPagedData(data: unknown): boolean {
   return Array.isArray((data as { pages?: unknown } | null | undefined)?.pages);
 }
 
+/**
+ * Pages are offset-paged over Dexie: a row added or dropped in place shifts
+ * everything after it, so the next fetch must start where the cached rows
+ * now end, not where the server said they ended.
+ */
+function recountOffsets<P extends { tracks: unknown[]; nextOffset: number | null }>(pages: P[]): P[] {
+  let offset = 0;
+  return pages.map((page) => {
+    offset += page.tracks.length;
+    return page.nextOffset === null ? page : { ...page, nextOffset: offset };
+  });
+}
+
 function mapInfiniteTrackPages(
   data: InfiniteData<PaginatedTracksResult>,
   mapTracks: (tracks: Track[]) => Track[],
@@ -91,11 +102,11 @@ function removeTracksFromInfinitePages(
 
   return {
     ...data,
-    pages: data.pages.map(page => ({
+    pages: recountOffsets(data.pages.map(page => ({
       ...page,
       tracks: page.tracks.filter(track => !trackIdSet.has(track.id)),
       total: Math.max(0, page.total - removedCount),
-    })),
+    }))),
   };
 }
 
@@ -123,7 +134,7 @@ function patchInfiniteLikedPages(
 
   return {
     ...data,
-    pages: data.pages.map((page, index) => {
+    pages: recountOffsets(data.pages.map((page, index) => {
       const withoutCurrent = page.tracks.filter(track => track.id !== nextTrack.id);
 
       return {
@@ -131,7 +142,7 @@ function patchInfiniteLikedPages(
         tracks: nextTrack.isLiked && index === 0 ? [nextTrack, ...withoutCurrent] : withoutCurrent,
         total: Math.max(0, page.total + totalDelta),
       };
-    }),
+    })),
   };
 }
 
@@ -522,6 +533,8 @@ export function syncTrackLikeCaches(
     }),
   );
 
+  // Only the default (likedAt desc) page knows where a liked row goes; the
+  // sorted pages are re-read — see invalidateForTrackMutation "like".
   setQueriesDataIfPresent<InfiniteData<PaginatedTracksResult>>(
     queryClient,
     {
@@ -529,7 +542,8 @@ export function syncTrackLikeCaches(
         query.queryKey[0] === "tracks"
         && query.queryKey[1] === "liked"
         && query.queryKey[2] === "page"
-        && query.queryKey[3] === "infinite",
+        && query.queryKey[3] === "infinite"
+        && query.queryKey.length === 4,
     },
     data => patchInfiniteLikedPages(data, nextTrack),
   );
@@ -824,6 +838,15 @@ const affectedKeys = {
     likedTotalDuration: (): InvalidationFilter[] => [
       { queryKey: queryKeys.tracks.likedTotalDuration() },
     ],
+    /** Liked pages under a sort key; the default page is patched in place instead. */
+    likedSortedPages: (): InvalidationFilter[] => [{
+      predicate: query =>
+        query.queryKey[0] === "tracks"
+        && query.queryKey[1] === "liked"
+        && query.queryKey[2] === "page"
+        && query.queryKey[3] === "infinite"
+        && query.queryKey.length > 4,
+    }],
   },
   albums: {
     all: (): InvalidationFilter[] => [{ queryKey: queryKeys.albums.all() }],
@@ -873,6 +896,7 @@ function runInvalidations(queryClient: QueryClient, filters: InvalidationFilter[
 
 export type TrackMutationCtx
   = | { kind: "relations" }
+    | { kind: "like" }
     | { kind: "metadata"; artistIds: readonly ArtistId[]; albumIds: readonly AlbumId[] }
     | {
       kind: "removal";
@@ -886,6 +910,8 @@ export function invalidateForTrackMutation(
   ctx: TrackMutationCtx,
 ): Promise<void> {
   switch (ctx.kind) {
+    case "like":
+      return runInvalidations(queryClient, affectedKeys.tracks.likedSortedPages());
     case "relations":
       // add-to-album / add-to-artist / bulk favorite: every list may move.
       return runInvalidations(queryClient, [
@@ -913,6 +939,9 @@ export function invalidateForTrackMutation(
         ...affectedKeys.artists.all(),
         ...affectedKeys.playlists.pages(ctx.playlistIds),
         ...affectedKeys.tracks.indexPages(),
+        // The point-patch above only reaches the default-sort liked page.
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.tracks.likedTotalDuration(),
       ]);
   }
 }
@@ -921,9 +950,6 @@ export type AlbumMutationCtx
   = | { kind: "titleChange" }
     | { kind: "removal"; artistId: ArtistId };
 
-        // The point-patch above only reaches the default-sort liked page.
-        ...affectedKeys.tracks.likedPages(),
-        ...affectedKeys.tracks.likedTotalDuration(),
 export function invalidateForAlbumMutation(
   queryClient: QueryClient,
   ctx: AlbumMutationCtx,

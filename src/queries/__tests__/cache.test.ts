@@ -246,7 +246,7 @@ describe("cache utils", () => {
       const calls = setQueriesDataMock(queryClient).mock.calls;
       const infiniteQueryCall = calls.find((call: unknown[]) => {
         const filters = call[0] as { predicate?: (query: { queryKey: (string | number)[] }) => boolean };
-        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite", 0] });
+        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite"] });
       });
 
       expect(infiniteQueryCall).toBeDefined();
@@ -301,7 +301,7 @@ describe("cache utils", () => {
 
       const infiniteQueryCall = setQueriesDataCalls.find((call) => {
         const filters = call.filters as { predicate?: (query: { queryKey: (string | number)[] }) => boolean };
-        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite", 0] });
+        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite"] });
       });
 
       expect(infiniteQueryCall).toBeDefined();
@@ -365,7 +365,7 @@ describe("cache utils", () => {
 
       const infiniteQueryCall = setQueriesDataCalls.find((call) => {
         const filters = call.filters as { predicate?: (query: { queryKey: (string | number)[] }) => boolean };
-        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite", 0] });
+        return filters?.predicate && filters.predicate({ queryKey: ["tracks", "liked", "page", "infinite"] });
       });
 
       expect(infiniteQueryCall).toBeDefined();
