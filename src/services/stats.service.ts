@@ -6,12 +6,34 @@ import { getLogger } from "@/lib/logger";
 
 const MIN_LISTEN_SECONDS = 10;
 const COMPLETE_THRESHOLD = 0.8;
+/**
+ * A track transition writes twice (the finished event, the started one); the
+ * listeners re-read every listen event on each notification, so playback
+ * notifications are coalesced into one trailing tick.
+ */
+export const STATS_NOTIFY_DELAY_MS = 300;
 
 class StatsService {
   // Stats-query invalidation subscribes here (main.ts); the service itself
   // must not touch the query cache.
   private readonly _changed = createEventHook<void>();
   readonly onChange = this._changed.on;
+  private _notifyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private _notifyLater(): void {
+    if (this._notifyTimer) clearTimeout(this._notifyTimer);
+    this._notifyTimer = setTimeout(() => {
+      this._notifyTimer = null;
+      this._changed.trigger().catch(error => getLogger().error(`[Stats] Change hook failed: ${String(error)}`));
+    }, STATS_NOTIFY_DELAY_MS);
+  }
+
+  /** A user edit is one write and is awaited by its caller: notify at once. */
+  private async _notifyNow(): Promise<void> {
+    if (this._notifyTimer) clearTimeout(this._notifyTimer);
+    this._notifyTimer = null;
+    await this._changed.trigger();
+  }
 
   private _pendingEvent: {
     eventId: string;
@@ -57,7 +79,7 @@ class StatsService {
         .catch(error => getLogger().error(`[Stats] Play count update failed for ${pending.trackId}: ${String(error)}`));
     }
 
-    this._changed.trigger().catch(error => getLogger().error(`[Stats] Change hook failed: ${String(error)}`));
+    this._notifyLater();
   }
 
   startListening(
@@ -83,7 +105,7 @@ class StatsService {
       trackDuration,
       completed: false,
       skipped: false,
-    }).then(() => this._changed.trigger()).catch(error => getLogger().error(`[Stats] Recording listen event for ${trackId} failed: ${String(error)}`));
+    }).then(() => this._notifyLater()).catch(error => getLogger().error(`[Stats] Recording listen event for ${trackId} failed: ${String(error)}`));
 
     this._pendingEvent = {
       eventId,
@@ -106,13 +128,13 @@ class StatsService {
   async removeFromHistory(trackId: TrackId): Promise<void> {
     const result = await statsRepository.deleteEventsForTrack(trackId);
     if (result.isErr()) throw result.error;
-    await this._changed.trigger();
+    await this._notifyNow();
   }
 
   async clearHistory(): Promise<void> {
     const result = await statsRepository.deleteAllEvents();
     if (result.isErr()) throw result.error;
-    await this._changed.trigger();
+    await this._notifyNow();
   }
 }
 export const statsService = new StatsService();

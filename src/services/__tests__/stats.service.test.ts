@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { statsService } from "@/services/stats.service";
+import { STATS_NOTIFY_DELAY_MS, statsService } from "@/services/stats.service";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
 
 const TRACK_ID = "track-1" as TrackId;
@@ -84,5 +84,44 @@ describe("statsService skip detection", () => {
     expect(event.skipped).toBe(false);
     expect(event.completed).toBe(true);
     expect((await db.tracks.get(TRACK_ID))?.playCount ?? 0).toBe(1);
+  });
+});
+
+describe("statsService change notifications", () => {
+  const settle = () => new Promise(resolve => setTimeout(resolve, STATS_NOTIFY_DELAY_MS + 20));
+
+  beforeEach(async () => {
+    await db.listenEvents.clear();
+    await statsService.stopListening(0, { skipped: true });
+    // A notification a previous test left ticking must not land in this count.
+    await settle();
+  });
+
+  // Every notification re-reads every listen event behind the mounted stats
+  // queries; a track transition (stop, then start) must cost one, not two.
+  it("collapses a track transition into one notification", async () => {
+    const onChange = vi.fn();
+    const { off } = statsService.onChange(onChange);
+
+    statsService.startListening(TRACK_ID, ARTIST_ID, ALBUM_ID, DURATION);
+    await flush();
+    await statsService.stopListening(120, { completed: true });
+    statsService.startListening("track-2" as TrackId, ARTIST_ID, ALBUM_ID, DURATION);
+    await flush();
+    await settle();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    off();
+    await statsService.stopListening(0, { skipped: true });
+  });
+
+  it("a history edit notifies before it resolves", async () => {
+    const onChange = vi.fn();
+    const { off } = statsService.onChange(onChange);
+
+    await statsService.removeFromHistory(TRACK_ID);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    off();
   });
 });
