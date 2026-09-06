@@ -51,6 +51,7 @@ export function releaseNotesQueryOptions(tag: string) {
     staleTime: Infinity,
     gcTime: 24 * 60 * 60 * 1000,
     retry: 2,
+    networkMode: "online",
   });
 }
 
@@ -67,6 +68,7 @@ export const latestTagQueryOptions = (channel: "stable") => {
     staleTime: 60 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
     retry: 1,
+    networkMode: "online",
   });
 };
 

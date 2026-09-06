@@ -3,6 +3,7 @@ import { skipToken, useInfiniteQuery } from "@tanstack/vue-query";
 import { getLogger } from "@/lib/logger";
 import { queryKeys } from "@/queries/query-keys";
 import { SourceQueryError } from "@/queries/shared";
+import { REMOTE_QUERY_OPTIONS } from "@/queries/source.queries";
 import { useSourceSearchPages } from "@/modules/sources/composables/useSourceCatalog";
 import type { SourcePage, SourceSearchHit, SourceSearchScope } from "@/modules/sources/types";
 import type { YtChip } from "@/modules/search/composables/useSearch";
@@ -18,8 +19,6 @@ import { ytErrorToSource } from "../lib/errors";
 // source. Both arrive here as pages of the same hit, so the list that
 // renders them stays one list.
 //
-
-const STALE_TIME_MS = 5 * 60_000;
 
 const SCOPE_OF: Record<Exclude<YtChip, "videos">, SourceSearchScope> = {
   all: "all",
@@ -42,7 +41,7 @@ export interface YtSearchResults {
 const useYtVideoPages = (query: Ref<string>) =>
   useInfiniteQuery(computed(() => ({
     queryKey: queryKeys.youtube.videoSearch(query.value),
-    staleTime: STALE_TIME_MS,
+    ...REMOTE_QUERY_OPTIONS,
     initialPageParam: "",
     queryFn: query.value
       ? async ({ pageParam }: { pageParam: string }): Promise<SourcePage<SourceSearchHit>> => {

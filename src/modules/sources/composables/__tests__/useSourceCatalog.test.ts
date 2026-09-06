@@ -22,14 +22,18 @@ const registry = vi.hoisted(() => ({ provider: null as unknown }));
 // query options import from — both resolve to the same module id.
 vi.mock("../../registry", () => ({ sources: { get: () => registry.provider } }));
 
-import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylistPages } from "../useSourceCatalog";
+import { useSourceAlbumsInfinite, useSourceArtists, useSourcePlaylistPages, useSourceSearchPages } from "../useSourceCatalog";
+import { queryKeys } from "@/queries/query-keys";
 import type { PlaylistId } from "@/types/ids";
+
+let lastQueryClient!: QueryClient;
 
 function mountComposable<T>(setup: () => T): T {
   let result!: T;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
   });
+  lastQueryClient = queryClient;
   mount(defineComponent({
     setup() {
       result = setup();
@@ -127,5 +131,30 @@ describe("useSourceCatalog", () => {
 
     expect(query.data.value).toBeUndefined();
     expect(providerMock.getPlaylistPage).not.toHaveBeenCalled();
+  });
+
+  // The app-wide default is "always" (Dexie must read offline); a remote
+  // feed still has to wait for the network, or it fails instantly offline.
+  it("keeps the infinite remote feeds waiting for the network", async () => {
+    providerMock.listAlbums.mockReturnValue(okAsync([]));
+    providerMock.getPlaylistPage.mockReturnValue(okAsync({ playlist: null, page: { items: [], cursor: null } }));
+    registry.provider = {
+      ...providerMock,
+      searchPage: vi.fn(() => okAsync({ items: [], cursor: null })),
+    };
+
+    mountComposable(() => {
+      useSourceAlbumsInfinite("nd", "alpha");
+      useSourcePlaylistPages("yt", "yt:PL1" as PlaylistId);
+      useSourceSearchPages("yt", "q", "all");
+    });
+    await flush();
+
+    const modeOf = (queryKey: readonly unknown[]) =>
+      lastQueryClient.getQueryCache().find({ queryKey })?.options.networkMode;
+
+    expect(modeOf(queryKeys.source.albumsInf("nd", "alpha"))).toBe("online");
+    expect(modeOf(queryKeys.source.playlistPages("yt", "yt:PL1" as PlaylistId))).toBe("online");
+    expect(modeOf(queryKeys.source.searchPages("yt", "all", "q"))).toBe("online");
   });
 });

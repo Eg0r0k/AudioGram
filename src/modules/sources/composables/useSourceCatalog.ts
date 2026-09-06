@@ -1,6 +1,6 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/vue-query";
-import { SOURCE_STALE_TIME, sourceQueries } from "@/queries/source.queries";
+import { REMOTE_QUERY_OPTIONS, sourceQueries } from "@/queries/source.queries";
 import { queryKeys } from "@/queries/query-keys";
 import { unwrapSourceResult } from "@/queries/shared";
 import type { AlbumId, ArtistId, PlaylistId } from "@/types/ids";
@@ -83,7 +83,7 @@ export function useSourcePlaylistPages(kind: KindInput, id: MaybeRefOrGetter<Pla
 
     return {
       queryKey: queryKeys.source.playlistPages(resolved, playlistId),
-      staleTime: SOURCE_STALE_TIME,
+      ...REMOTE_QUERY_OPTIONS,
       initialPageParam: null as string | null,
       queryFn: fetchPage && playlistId
         ? ({ pageParam }: { pageParam: string | null }) =>
@@ -117,7 +117,7 @@ export function useSourceSearchPages(
 
     return {
       queryKey: queryKeys.source.searchPages(resolved, wanted, query),
-      staleTime: SOURCE_STALE_TIME,
+      ...REMOTE_QUERY_OPTIONS,
       initialPageParam: null as string | null,
       queryFn: fetchPage && query
         ? ({ pageParam }: { pageParam: string | null }) =>
@@ -147,7 +147,7 @@ export function useSourceAlbumsInfinite(kind: KindInput, sort: MaybeRefOrGetter<
     const resolved = toValue(kind);
     return {
       queryKey: queryKeys.source.albumsInf(resolved, toValue(sort)),
-      staleTime: SOURCE_STALE_TIME,
+      ...REMOTE_QUERY_OPTIONS,
       initialPageParam: 0,
       queryFn: resolved && available.value
         ? ({ pageParam }: { pageParam: number }) =>

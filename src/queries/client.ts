@@ -45,3 +45,7 @@ export const queryClient = new QueryClient({
     },
   },
 });
+      // Reads are Dexie, not the network: the library default ("online")
+      // pauses every query while navigator.onLine is false. Remote sources
+      // opt back in with REMOTE_QUERY_OPTIONS.
+      networkMode: "always",

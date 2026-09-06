@@ -12,6 +12,12 @@ import { unwrapSourceResult } from "./shared";
 
 export const SOURCE_STALE_TIME = 5 * 60_000;
 
+/** The client default is `networkMode: "always"` (Dexie); a remote read waits for the network. */
+export const REMOTE_QUERY_OPTIONS = {
+  staleTime: SOURCE_STALE_TIME,
+  networkMode: "online",
+} as const;
+
 /**
  * Query roots a source's answers land under. The YouTube search pane predates
  * the shared source keys and still caches under its own root, so a source is
@@ -54,7 +60,7 @@ export const invalidateRemoteSources = async (client: QueryClient): Promise<void
 export const fetchSourcePlaylist = (client: QueryClient, kind: SourceKind, id: PlaylistId) =>
   client.fetchQuery({
     queryKey: queryKeys.source.playlist(kind, id),
-    staleTime: SOURCE_STALE_TIME,
+    ...REMOTE_QUERY_OPTIONS,
     queryFn: () => unwrapSourceResult(sources.get(kind).getPlaylist(id), kind),
   });
 
@@ -64,7 +70,7 @@ export function sourceQueries(kind: SourceKind | null) {
     artists: (available: boolean) =>
       queryOptions({
         queryKey: queryKeys.source.artists(kind),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && available
           ? () => unwrapSourceResult(sources.get(kind).listArtists(), kind)
           : skipToken,
@@ -73,7 +79,7 @@ export function sourceQueries(kind: SourceKind | null) {
     album: (id: AlbumId | null) =>
       queryOptions({
         queryKey: queryKeys.source.album(kind, id),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getAlbum(id), kind)
           : skipToken,
@@ -82,7 +88,7 @@ export function sourceQueries(kind: SourceKind | null) {
     artist: (id: ArtistId | null) =>
       queryOptions({
         queryKey: queryKeys.source.artist(kind, id),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getArtist(id), kind)
           : skipToken,
@@ -91,7 +97,7 @@ export function sourceQueries(kind: SourceKind | null) {
     playlists: (available: boolean) =>
       queryOptions({
         queryKey: queryKeys.source.playlists(kind),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && available
           ? () => unwrapSourceResult(sources.get(kind).listPlaylists(), kind)
           : skipToken,
@@ -100,7 +106,7 @@ export function sourceQueries(kind: SourceKind | null) {
     playlist: (id: PlaylistId | null) =>
       queryOptions({
         queryKey: queryKeys.source.playlist(kind, id),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && id
           ? () => unwrapSourceResult(sources.get(kind).getPlaylist(id), kind)
           : skipToken,
@@ -114,7 +120,7 @@ export function sourceQueries(kind: SourceKind | null) {
     playlistMeta: (id: PlaylistId | null) =>
       queryOptions({
         queryKey: queryKeys.source.playlistMeta(kind, id),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && id
           ? async (): Promise<SourcePlaylistDTO | null> => {
             const provider = sources.get(kind);
@@ -130,7 +136,7 @@ export function sourceQueries(kind: SourceKind | null) {
     search: (q: string, types: ("track" | "album" | "artist")[], limit: number) =>
       queryOptions({
         queryKey: queryKeys.source.search(kind, q),
-        staleTime: SOURCE_STALE_TIME,
+        ...REMOTE_QUERY_OPTIONS,
         queryFn: kind && q.trim()
           ? () => unwrapSourceResult(sources.get(kind).search(q, types, { offset: 0, limit }), kind)
           : skipToken,

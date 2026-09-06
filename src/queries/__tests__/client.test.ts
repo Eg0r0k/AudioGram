@@ -16,6 +16,14 @@ const shouldRetry = (failureCount: number, error: unknown): boolean => {
   return retryOption(failureCount, error as Error) as boolean;
 };
 
+describe("query network mode", () => {
+  it("runs local reads regardless of the browser's online state", () => {
+    // Dexie is not behind the network: with the library default ("online")
+    // every query pauses the moment navigator.onLine turns false.
+    expect(queryClient.getDefaultOptions().queries?.networkMode).toBe("always");
+  });
+});
+
 describe("query retry policy", () => {
   it("retries ordinary failures up to twice", () => {
     const error = new Error("socket hang up");
