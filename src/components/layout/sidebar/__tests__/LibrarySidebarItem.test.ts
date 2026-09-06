@@ -143,4 +143,16 @@ describe("LibrarySidebarItem", () => {
     expect(screen.queryByText("Road Trip")).toBeNull();
     expect(screen.queryByText(/12 tracks/)).toBeNull();
   });
+
+  it("puts the hover background on the hit-target row, not on the pointer-events-none item", async () => {
+    // A pointer-events-none element is never hit-tested, so it never matches :hover.
+    const { container } = await renderItem(createItem());
+
+    const row = screen.getByRole("button");
+    const item = container.querySelector("[data-slot=item]");
+    expect(item?.className).toContain("pointer-events-none");
+    expect(item?.className).not.toMatch(/(^|s)hover:bg-/);
+    expect(row.className).toContain("group/row");
+    expect(item?.className).toContain("group-hover/row:bg-accent/60");
+  });
 });

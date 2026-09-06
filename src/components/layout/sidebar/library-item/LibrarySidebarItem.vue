@@ -45,7 +45,7 @@ const handleClick = () => {
       <TooltipTrigger as-child>
         <div
           v-ripple
-          class="block rounded-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none focus-visible:border-ring cursor-pointer"
+          class="group/row block rounded-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none focus-visible:border-ring cursor-pointer"
           data-library-item
           :data-library-menu="canOpenLibraryMenu(item) ? undefined : 'none'"
           role="button"
@@ -64,8 +64,8 @@ const handleClick = () => {
               class="min-w-0 py-2 transition-colors pointer-events-none"
               :class="[
                 isExactActive && item.type !== 'folder'
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/95'
-                  : 'hover:bg-accent/60',
+                  ? 'bg-primary text-primary-foreground group-hover/row:bg-primary/95'
+                  : 'group-hover/row:bg-accent/60',
                 compact ? 'justify-center gap-0 px-2' : 'gap-3 px-3',
               ]"
             >
