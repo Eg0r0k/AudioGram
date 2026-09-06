@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clampChromaToGamut,
@@ -14,6 +14,7 @@ import {
 } from "../color-normalization";
 import {
   analyzeImageData,
+  analyzeWithCanvas,
   MIN_OPAQUE_PIXELS,
 } from "../canvas-analyzer";
 
@@ -176,5 +177,51 @@ describe("analyzeImageData (salient accent extraction)", () => {
     const accent = analyzeImageData(data, SIZE)!;
     expect(accent.C).toBe(0);
     expect(accent.L).toBeGreaterThan(0.5);
+  });
+});
+
+describe("analyzeWithCanvas request mode", () => {
+  // A CORS-mode load gets its own memory-cache entry, so a plain <img> of the
+  // same URL mounted later refetches and flashes blank for a frame.
+  const created: HTMLImageElement[] = [];
+  const RealImage = globalThis.Image;
+
+  const stubImage = () => {
+    created.length = 0;
+    vi.stubGlobal("Image", class {
+      crossOrigin: string | null = null;
+      onload: (() => void) | null = null;
+      onerror: ((e: unknown) => void) | null = null;
+      remove() {}
+      set src(_value: string) {
+        created.push(this as unknown as HTMLImageElement);
+        queueMicrotask(() => this.onerror?.(new Event("error")));
+      }
+    });
+  };
+
+  afterEach(() => {
+    vi.stubGlobal("Image", RealImage);
+    vi.restoreAllMocks();
+  });
+
+  const loadWith = async (url: string) => {
+    stubImage();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await analyzeWithCanvas(url);
+    return created[0]?.crossOrigin ?? null;
+  };
+
+  it("loads same-origin paths without CORS", async () => {
+    expect(await loadWith("/img/liked-fallback.svg")).toBeNull();
+  });
+
+  it("loads blob and data URLs without CORS", async () => {
+    expect(await loadWith("blob:http://localhost/abc")).toBeNull();
+    expect(await loadWith("data:image/png;base64,AAAA")).toBeNull();
+  });
+
+  it("loads cross-origin URLs anonymously", async () => {
+    expect(await loadWith("http://127.0.0.1:5555/cover/1")).toBe("anonymous");
   });
 });

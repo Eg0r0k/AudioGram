@@ -143,10 +143,20 @@ export function analyzeImageData(
   return bucketColor(buckets, best);
 }
 
+const isCrossOrigin = (url: string) => {
+  if (/^(?:blob|data):/i.test(url)) return false;
+  try {
+    return new URL(url, location.href).origin !== location.origin;
+  }
+  catch {
+    return false;
+  }
+};
+
 export async function analyzeWithCanvas(imageUrl: string): Promise<OKLCH | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (isCrossOrigin(imageUrl)) img.crossOrigin = "anonymous";
 
     const timeout = setTimeout(() => {
       console.warn("[ColorExtraction] Canvas analysis timeout");
