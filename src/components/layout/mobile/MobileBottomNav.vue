@@ -13,7 +13,10 @@
         variant="ghost"
         :class="itemClass(item)"
       >
-        <Link :to="item.to">
+        <Link
+          :to="item.to"
+          @click="leaveSearch"
+        >
           <component
             :is="isActive(item) ? item.activeIcon : item.icon"
             class="size-[22px]"
@@ -59,7 +62,7 @@ import IconLibraryFilled from "~icons/tabler/library-filled";
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
-const { requestSearchFocus, closeSearch, isSearchOpen } = useSearch();
+const { requestSearchFocus, closeSearch, clear, isSearchOpen } = useSearch();
 
 // Search has no page of its own — it lives in the sidebar the home route
 // renders on mobile. So this entry goes home and asks that field for focus.
@@ -68,10 +71,19 @@ const goToSearch = async () => {
   requestSearchFocus();
 };
 
+// The search state is module-level and outlives the home page, so a tab
+// switch has to drop it explicitly; otherwise the typed text greets the
+// user on the next visit.
+const leaveSearch = () => {
+  if (!isSearchOpen.value) return;
+  closeSearch();
+  clear();
+};
+
 // Home shares its route with the search panel, so navigating to it from
 // search would otherwise land on the panel rather than the home content.
 const goHome = async () => {
-  closeSearch();
+  leaveSearch();
   await router.push(routeLocation.home());
 };
 
