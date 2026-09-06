@@ -89,7 +89,7 @@
               :padding-top="8"
               :padding-bottom="8"
               :items="libraryItems"
-              :item-height="72"
+              :item-height="74"
               :get-item-key="getLibraryItemKey"
               animate-reorder
               @scroll="handleScroll"
