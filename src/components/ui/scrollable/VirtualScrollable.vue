@@ -80,9 +80,10 @@
 </template>
 
 <script setup lang="ts" generic="T">
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useVirtualizer, type VirtualItem } from "@tanstack/vue-virtual";
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, useTemplateRef, watch } from "vue";
 import { scrollableInjectionKey } from "./injection";
+import type { ScrollAnchor } from "./scroll-anchor";
 import { useSlideContentReady } from "@/components/transitions/slideContentReady";
 import { isScrollLockedByOverlay } from "./scroll-lock";
 import useScrollable from "./useScrollable";
@@ -102,6 +103,8 @@ interface Props {
   stickyOffset?: string;
   /** FLIP-slide rows to their new offsets when `items` reorders. */
   animateReorder?: boolean;
+  /** Keep the first visible row in place when `items` changes above it. */
+  keepScrollAnchor?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -117,6 +120,7 @@ const props = withDefaults(defineProps<Props>(), {
   paddingBottom: 0,
   stickyOffset: "0px",
   animateReorder: false,
+  keepScrollAnchor: false,
 });
 
 const emit = defineEmits<{
@@ -206,6 +210,22 @@ const measureElement = (el: Element | null) => {
   }
 };
 
+// One programmatic move must not read as a user scroll: no `scroll` emit,
+// no loadMore, no direction change downstream. The browser fires the event
+// before the next frame, so the frame callback only mops up a clamped move
+// that produced no event.
+let skipNextScroll = false;
+
+const setScrollPositionSilently = (offset: number) => {
+  const container = containerRef.value;
+  if (!container || container.scrollTop === offset) return;
+  skipNextScroll = true;
+  scrollable.setScrollPositionSilently(offset);
+  requestAnimationFrame(() => {
+    skipNextScroll = false;
+  });
+};
+
 const handleScroll = (e: Event) => {
   if (scrollDebounceTimer) {
     clearTimeout(scrollDebounceTimer);
@@ -213,6 +233,11 @@ const handleScroll = (e: Event) => {
   scrollDebounceTimer = setTimeout(() => {
     scrollable.updateThumb();
   }, 16);
+
+  if (skipNextScroll) {
+    skipNextScroll = false;
+    return;
+  }
 
   const target = e.target as HTMLElement;
   const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
@@ -280,6 +305,87 @@ const scrollToOffset = (offset: number, options?: { behavior?: "auto" | "smooth"
   virtualizer.value.scrollToOffset(offset, options);
 };
 
+const rowTop = (start: number) => start + effectivePaddingTop.value;
+
+const firstRowBelow = (measurements: readonly VirtualItem[], offset: number) => {
+  let low = 0;
+  let high = measurements.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (measurements[mid].end > offset) {
+      found = mid;
+      high = mid - 1;
+    }
+    else {
+      low = mid + 1;
+    }
+  }
+  return found;
+};
+
+const anchorsAt = (
+  measurements: readonly VirtualItem[],
+  keys: (string | number)[],
+  scrollTop: number,
+  viewportBottom: number,
+) => {
+  const first = firstRowBelow(measurements, scrollTop - effectivePaddingTop.value);
+  if (first === -1) return [];
+  const anchors: ScrollAnchor[] = [];
+  for (let index = first; index < measurements.length && index < keys.length; index++) {
+    const top = rowTop(measurements[index].start);
+    if (top >= viewportBottom && anchors.length > 0) break;
+    anchors.push({ key: keys[index], delta: scrollTop - top });
+  }
+  return anchors;
+};
+
+const getScrollAnchor = (): ScrollAnchor | null => {
+  const container = containerRef.value;
+  if (!container) return null;
+  const measurements = virtualizer.value.measurementsCache;
+  const anchors = anchorsAt(
+    measurements,
+    measurements.map(item => item.key as string | number),
+    container.scrollTop,
+    container.scrollTop,
+  );
+  return anchors.length > 0 ? anchors[0] : null;
+};
+
+const getOffsetForAnchor = (anchor: ScrollAnchor): number | null => {
+  const index = props.items.findIndex((_, i) => props.getItemKey(i) === anchor.key);
+  if (index === -1) return null;
+  virtualizer.value.getTotalSize();
+  const measurements = virtualizer.value.measurementsCache;
+  if (index >= measurements.length) return null;
+  return rowTop(measurements[index].start) + anchor.delta;
+};
+
+const captureAnchors = (keys: (string | number)[]) => {
+  const container = containerRef.value;
+  if (!container || container.scrollTop <= 0 || keys.length === 0) return null;
+  const anchors = anchorsAt(
+    virtualizer.value.measurementsCache,
+    keys,
+    container.scrollTop,
+    container.scrollTop + container.clientHeight,
+  );
+  return anchors.length > 0 ? anchors : null;
+};
+
+const restoreAnchors = (anchors: ScrollAnchor[]) => {
+  const container = containerRef.value;
+  if (!container) return;
+  for (const anchor of anchors) {
+    const offset = getOffsetForAnchor(anchor);
+    if (offset === null) continue;
+    if (Math.abs(offset - container.scrollTop) >= 1) setScrollPositionSilently(offset);
+    return;
+  }
+};
+
 // `items` changes for many reasons that need no work here: a query refetch
 // or a like toggle hands over a fresh array with the same rows. Only a count
 // change needs a re-measure (measure() drops every cached row size, so it is
@@ -289,7 +395,8 @@ let previousKeys: (string | number)[] = [];
 const currentKeys = () => props.items.map((_, index) => props.getItemKey(index));
 const keysChanged = (keys: (string | number)[]) =>
   keys.length !== previousKeys.length || keys.some((key, index) => key !== previousKeys[index]);
-if (props.animateReorder) previousKeys = currentKeys();
+const tracksKeys = props.animateReorder || props.keepScrollAnchor;
+if (tracksKeys) previousKeys = currentKeys();
 
 watch([() => props.items, () => props.items.length], ([, newLength], [, oldLength]) => {
   const lengthChanged = newLength !== oldLength;
@@ -298,14 +405,20 @@ watch([() => props.items, () => props.items.length], ([, newLength], [, oldLengt
   }
 
   let reordered = false;
-  if (props.animateReorder) {
+  let anchors: ScrollAnchor[] | null = null;
+  if (tracksKeys) {
+    if (props.keepScrollAnchor) anchors = captureAnchors(previousKeys);
     const keys = currentKeys();
-    reordered = keysChanged(keys);
+    const changed = keysChanged(keys);
     previousKeys = keys;
-    if (reordered) captureFlipSnapshot();
+    if (!changed) anchors = null;
+    if (props.animateReorder && changed) {
+      reordered = true;
+      captureFlipSnapshot();
+    }
   }
 
-  if (!lengthChanged && !reordered) return;
+  if (!lengthChanged && !reordered && !anchors) return;
 
   nextTick(() => {
     if (lengthChanged) {
@@ -313,6 +426,7 @@ watch([() => props.items, () => props.items.length], ([, newLength], [, oldLengt
       scrollable.updateThumb();
     }
     if (reordered) playFlip();
+    if (anchors) restoreAnchors(anchors);
   }).catch(() => {});
 });
 
@@ -427,6 +541,9 @@ defineExpose({
   stickyHeight,
   scrollToIndex,
   scrollToOffset,
+  setScrollPositionSilently,
+  getScrollAnchor,
+  getOffsetForAnchor,
   scrollToEnd: scrollable.scrollToEnd,
   scrollToStart: scrollable.scrollToStart,
   scrollPosition: scrollable.scrollPosition,

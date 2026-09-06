@@ -333,12 +333,18 @@ export default function useScrollable(
   }
 
   function setScrollPositionSilently(value: number) {
-    lastScrollPosition.value = value;
     const container = containerRef.value;
-    if (!container) return;
+    if (!container) {
+      lastScrollPosition.value = value;
+      return;
+    }
 
     container.removeEventListener("scroll", handleScroll);
-    scrollPosition.value = value;
+    container[props.value.scrollPosition] = value;
+    const applied = container[props.value.scrollPosition];
+    scrollPositionRef.value = applied;
+    lastScrollPosition.value = applied;
+    updateThumb(applied);
 
     requestAnimationFrame(() => {
       container.addEventListener("scroll", handleScroll, { passive: true });

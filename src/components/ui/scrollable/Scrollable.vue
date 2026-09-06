@@ -65,9 +65,28 @@ const scrollable = useScrollable(containerRef, {
 
 watch(isScrollLockedByOverlay, locked => scrollable.setScrollLocked(locked));
 
+// See VirtualScrollable: one programmatic move must not read as a user scroll.
+let skipNextScroll = false;
+
+const setScrollPositionSilently = (offset: number) => {
+  const container = containerRef.value;
+  if (!container) return;
+  const axis = props.direction === "vertical" ? "scrollTop" : "scrollLeft";
+  if (container[axis] === offset) return;
+  skipNextScroll = true;
+  scrollable.setScrollPositionSilently(offset);
+  requestAnimationFrame(() => {
+    skipNextScroll = false;
+  });
+};
+
 function handleScrollEmit(e: Event) {
-  emit("scroll", e);
   scrollable.updateThumb();
+  if (skipNextScroll) {
+    skipNextScroll = false;
+    return;
+  }
+  emit("scroll", e);
 }
 
 const wrapperClasses = computed(() => [
@@ -115,6 +134,7 @@ defineExpose({
   scrollToEnd: scrollable.scrollToEnd,
   scrollToStart: scrollable.scrollToStart,
   scrollPosition: scrollable.scrollPosition,
+  setScrollPositionSilently,
   isScrolledToEnd: scrollable.isScrolledToEnd,
   isScrolledToStart: scrollable.isScrolledToStart,
   container: containerRef,
