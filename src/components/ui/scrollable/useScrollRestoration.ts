@@ -13,11 +13,15 @@ import {
   type Ref,
 } from "vue";
 import { useRoute, onBeforeRouteLeave } from "vue-router";
+import type { ScrollAnchor } from "./scroll-anchor";
 
 type NumberLike = number | Ref<number>;
 
-interface ScrollRestorationTarget {
+export interface ScrollRestorationTarget {
   scrollPosition?: NumberLike;
+  getScrollAnchor?: () => ScrollAnchor | null;
+  getOffsetForAnchor?: (anchor: ScrollAnchor) => number | null;
+  setScrollPositionSilently?: (offset: number) => void;
   scrollTo?: (options: {
     position: number;
     behavior?: "instant" | "auto" | "smooth";
@@ -38,7 +42,12 @@ interface UseScrollRestorationOptions {
   deps?: MaybeRefOrGetter<unknown>;
 }
 
-const scrollStore = new Map<string, number>();
+interface SavedScroll {
+  offset: number;
+  anchor: ScrollAnchor | null;
+}
+
+const scrollStore = new Map<string, SavedScroll>();
 
 function getScrollPosition(value: NumberLike | undefined): number {
   if (typeof value === "number") return value;
@@ -70,11 +79,26 @@ export function useScrollRestoration(
     const target = targetRef.value;
     if (!target) return;
 
-    scrollStore.set(key, getScrollPosition(target.scrollPosition));
+    scrollStore.set(key, {
+      offset: getScrollPosition(target.scrollPosition),
+      anchor: target.getScrollAnchor?.() ?? null,
+    });
   };
 
-  const applyRestore = (target: ScrollRestorationTarget, offset: number) => {
+  // The anchor survives rows that changed height or arrived late; the raw
+  // offset is the fallback when its row is gone or the target is not virtual.
+  const applyRestore = (target: ScrollRestorationTarget, saved: SavedScroll) => {
     target.virtualizer?.measure?.();
+
+    const anchored = saved.anchor && target.getOffsetForAnchor
+      ? target.getOffsetForAnchor(saved.anchor)
+      : null;
+    const offset = anchored ?? saved.offset;
+
+    if (typeof target.setScrollPositionSilently === "function") {
+      target.setScrollPositionSilently(offset);
+      return;
+    }
 
     if (typeof target.scrollToOffset === "function") {
       target.scrollToOffset(offset, { behavior: "auto" });
