@@ -11,6 +11,7 @@ import MediaHeader from "../MediaHeader.vue";
 const togglePlay = vi.fn(async () => {});
 const mockPlayerState = reactive({
   isPlaying: false,
+  isLoading: false,
   showLoadingIndicator: false,
   togglePlay,
 });
@@ -47,6 +48,7 @@ describe("MediaHeader", () => {
   beforeEach(() => {
     togglePlay.mockClear();
     mockPlayerState.isPlaying = false;
+    mockPlayerState.isLoading = false;
     mockPlayerState.showLoadingIndicator = false;
     mockQueueState.queue = [];
     mockQueueState.currentIndex = -1;
@@ -71,6 +73,15 @@ describe("MediaHeader", () => {
 
     expect(togglePlay).toHaveBeenCalledTimes(1);
     expect(emitted().play).toBeUndefined();
+  });
+
+  it("keeps the pause icon while the entity is still loading, before the delayed indicator", () => {
+    mockQueueState.queue = [{ source: albumSource("album-1") }];
+    mockQueueState.currentIndex = 0;
+    mockPlayerState.isLoading = true;
+    renderHeader(albumSource("album-1"));
+
+    expect(screen.getByRole("button", { name: i18n.global.t("player.pause") })).toBeTruthy();
   });
 
   it("resumes the paused entity via togglePlay instead of restarting it", async () => {

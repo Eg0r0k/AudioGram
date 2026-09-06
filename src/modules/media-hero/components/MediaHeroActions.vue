@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center justify-center gap-3 @md:justify-start">
       <Button
         class="size-14 rounded-full "
-        :disabled="isLoading || !props.hasTracks"
+        :disabled="showLoadingIndicator || !props.hasTracks"
         @click="handlePlay"
       >
         <IconPause
@@ -72,7 +72,7 @@ const emit = defineEmits<{
 
 const playerStore = usePlayerStore();
 const queueStore = useQueueStore();
-const { isActiveSource, isPlaying, isLoading } = usePlaybackState(() => props.source);
+const { isActiveSource, isPlaying, isLoading, showLoadingIndicator } = usePlaybackState(() => props.source);
 const showPauseIcon = computed(() => isActiveSource.value && (isPlaying.value || isLoading.value));
 
 function handlePlay() {

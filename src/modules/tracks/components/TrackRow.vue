@@ -54,7 +54,7 @@
         />
 
         <span
-          v-else-if="isCurrentTrack && isPlaying && !isRowHovered"
+          v-else-if="showsPlayback && !isRowHovered"
           class="playing-pulse-dot"
         >
           <span />
@@ -63,7 +63,7 @@
         </span>
 
         <IconPause
-          v-else-if="isCurrentTrack && isPlaying && isRowHovered"
+          v-else-if="showsPlayback && isRowHovered"
           class="size-4 text-white drop-shadow-md"
         />
 
@@ -230,14 +230,14 @@ const isCurrentTrack = computed(() => {
 
   return playerStore.currentTrack?.id === props.track.id;
 });
-const isPlaying = computed(() => playerStore.isPlaying);
-// Spinner instead of play/pause while the clicked row is on its way to the
-// player: a YT search row spends its wait in yt_resolve (store.resolvingId,
-// before it ever becomes the current track), a library row in the player's
-// own loading phase.
+// The pause/pulse state holds through a start (immediate loading); the
+// spinner follows the store's delayed indicator so a fast local start never
+// flashes it. A YT search row spends its wait in yt_resolve before it ever
+// becomes the current track, so that one is checked separately.
+const showsPlayback = computed(() => isCurrentTrack.value && (playerStore.isPlaying || playerStore.isLoading));
 const isTrackLoading = computed(() => {
   if (ytPlayable.value && ytStore.resolvingId === ytPlayable.value.id) return true;
-  return isCurrentTrack.value && playerStore.status === "loading";
+  return isCurrentTrack.value && playerStore.showLoadingIndicator;
 });
 const showOverlay = computed(() => isCurrentTrack.value || isRowHovered.value);
 const isLiked = computed(() => props.track.isLiked);

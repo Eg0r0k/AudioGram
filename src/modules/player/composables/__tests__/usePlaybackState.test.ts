@@ -7,6 +7,7 @@ import type { AlbumId, PlaylistId, QueueItemId } from "@/types/ids";
 // keep its computeds re-evaluating on changes — no Pinia wiring needed.
 const mockPlayerState = reactive({
   isPlaying: false,
+  isLoading: false,
   showLoadingIndicator: false,
 });
 
@@ -36,6 +37,7 @@ function setCurrent(source: QueueSource) {
 describe("usePlaybackState", () => {
   beforeEach(() => {
     mockPlayerState.isPlaying = false;
+    mockPlayerState.isLoading = false;
     mockPlayerState.showLoadingIndicator = false;
     mockQueueState.queue = [];
     mockQueueState.currentIndex = -1;
@@ -79,6 +81,7 @@ describe("usePlaybackState", () => {
 
   it("only reports playing/loading while the source is active", () => {
     mockPlayerState.isPlaying = true;
+    mockPlayerState.isLoading = true;
     mockPlayerState.showLoadingIndicator = true;
 
     setCurrent(albumSource("album-1"));
@@ -87,8 +90,24 @@ describe("usePlaybackState", () => {
 
     expect(active.isPlaying.value).toBe(true);
     expect(active.isLoading.value).toBe(true);
+    expect(active.showLoadingIndicator.value).toBe(true);
     expect(inactive.isPlaying.value).toBe(false);
     expect(inactive.isLoading.value).toBe(false);
+    expect(inactive.showLoadingIndicator.value).toBe(false);
+  });
+
+  it("reports loading at once while the indicator waits for the store's delay", () => {
+    // A start loads for tens of milliseconds; the pause icon must hold through
+    // it, only spinners follow the delayed indicator.
+    mockPlayerState.isLoading = true;
+    setCurrent(albumSource("album-1"));
+    const { isLoading, showLoadingIndicator } = usePlaybackState(() => albumSource("album-1"));
+
+    expect(isLoading.value).toBe(true);
+    expect(showLoadingIndicator.value).toBe(false);
+
+    mockPlayerState.showLoadingIndicator = true;
+    expect(showLoadingIndicator.value).toBe(true);
   });
 
   it("tracks queue position changes through the source getter", () => {

@@ -30,7 +30,7 @@
         @click.prevent.stop="handlePlay"
       >
         <IconPause
-          v-if="isPlaying"
+          v-if="showPauseIcon"
           class="size-5 fill-current"
         />
         <IconPlay
@@ -105,7 +105,8 @@ const source = computed<QueueSource>(() =>
     ? { type: "playlist", playlistId: props.item.id as PlaylistId }
     : { type: "album", albumId: props.item.id as AlbumId }),
 );
-const { isActiveSource, isPlaying } = usePlaybackState(() => source.value);
+const { isActiveSource, isPlaying, isLoading } = usePlaybackState(() => source.value);
+const showPauseIcon = computed(() => isPlaying.value || isLoading.value);
 
 function handleClick() {
   router.push(props.item.to)

@@ -41,7 +41,7 @@
               class="index-hover-icon absolute size-4 flex items-center justify-center"
             >
               <IconPause
-                v-if="isCurrentTrack && isPlaying"
+                v-if="showPauseIcon"
                 class="size-4 text-foreground"
               />
               <IconPlay
@@ -73,7 +73,7 @@
                 !isSelecting && 'group-hover:opacity-100',
               ]"
             >
-              <template v-if="isCurrentTrack && isPlaying">
+              <template v-if="showPauseIcon">
                 <span class="playing-pulse-dot group-hover:hidden">
                   <span /><span /><span />
                 </span>
@@ -341,7 +341,9 @@ const coverUrl = useTrackRowCover(() => props.track, () => props.coverSrc);
 const isCurrentTrack = computed(
   () => props.isActive || playerStore.currentTrack?.id === props.track.id,
 );
-const isPlaying = computed(() => playerStore.isPlaying);
+// Immediate loading keeps the pause icon through a start; the delayed
+// indicator would let it flash back to play first.
+const showPauseIcon = computed(() => isCurrentTrack.value && (playerStore.isPlaying || playerStore.isLoading));
 const isActivePlayback = computed(() => props.isActive || isCurrentTrack.value);
 // Hover states are CSS (`group-hover`, `.index-hover-*`): a JS hover tracker
 // per row re-rendered the rows under the pointer on every scroll step.

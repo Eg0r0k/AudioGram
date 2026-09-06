@@ -15,7 +15,10 @@ export function usePlaybackState(source: () => QueueSource) {
   });
 
   const isPlaying = computed(() => isActiveSource.value && playerStore.isPlaying);
-  const isLoading = computed(() => isActiveSource.value && playerStore.showLoadingIndicator);
+  // Immediate: the pause icon must not flash back to play while a start is
+  // still loading. The delayed indicator is for spinners and disabling.
+  const isLoading = computed(() => isActiveSource.value && playerStore.isLoading);
+  const showLoadingIndicator = computed(() => isActiveSource.value && playerStore.showLoadingIndicator);
 
-  return { isActiveSource, isPlaying, isLoading };
+  return { isActiveSource, isPlaying, isLoading, showLoadingIndicator };
 }
