@@ -19,8 +19,11 @@
   <DialogSummonHost />
   <NetworkStatusToast />
   <Toaster
+    :visible-toasts="2"
     :expand="true"
-    position="top-center"
+    :position="isMobileLayout ? 'bottom-center' : 'top-center'"
+    :offset="toastOffset"
+    :mobile-offset="toastOffset"
     class="pointer-events-auto"
   />
 </template>
@@ -33,6 +36,7 @@ import { useRoute } from "vue-router";
 import DefaultLayout from "@/layouts/DefaultLayout.vue";
 import BlankLayout from "@/layouts/BlankLayout.vue";
 import MobileLayout from "@/layouts/MobileLayout.vue";
+import { mobileDockHeight } from "@/layouts/mobileDock";
 import type { OpenedFile } from "@/lib/files/fileOpener";
 import { listenForOpenedFiles } from "@/lib/files/fileOpener";
 import { useTheme } from "@/modules/settings/composables/useTheme";
@@ -93,6 +97,15 @@ const layouts: Record<string, VueComponent> = {
   blank: BlankLayout,
   mobile: MobileLayout,
 };
+
+// On a phone the top of the screen is the page header (back, sort), so toasts
+// go to the bottom, just above the mini-player + nav dock. On desktop they stay
+// on top, below the window toolbar (0px on the web).
+const toastOffset = computed(() =>
+  isMobileLayout.value
+    ? { bottom: mobileDockHeight.value + 12, left: 16, right: 16 }
+    : { top: "calc(var(--toolbar-height) + 12px)" },
+);
 
 const LayoutComponent = computed(() => {
   if (currentRoute.meta.layout === "blank") return BlankLayout;

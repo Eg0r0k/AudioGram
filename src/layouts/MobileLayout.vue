@@ -49,8 +49,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useTemplateRef, watch } from "vue";
+import { onUnmounted, ref, useTemplateRef, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
+import { mobileDockHeight } from "@/layouts/mobileDock";
 import { usePlayerStore } from "@/modules/player/store/player.store";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { registerOverlayBackHandler, useOverlayBackButton } from "@/composables/useOverlayBackButton";
@@ -81,6 +82,12 @@ const isFullPlayerOpen = ref(false);
 // runs) inside main's own stacking context, below the dock.
 const dockRef = useTemplateRef<HTMLDivElement>("dockRef");
 const { height: dockHeight } = useElementSize(dockRef, undefined, { box: "border-box" });
+watch(dockHeight, (height) => {
+  mobileDockHeight.value = height;
+}, { immediate: true });
+onUnmounted(() => {
+  mobileDockHeight.value = 0;
+});
 
 const closeFullPlayer = () => {
   isFullPlayerOpen.value = false;

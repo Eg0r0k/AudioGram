@@ -3,10 +3,10 @@ import type { ToasterProps } from "vue-sonner";
 import { Toaster as Sonner } from "vue-sonner";
 import { cn } from "@/lib/utils";
 
-import IconCheck from "~icons/tabler/check";
-import IconInfoCircle from "~icons/tabler/info-circle";
-import IconAlertTriangle from "~icons/tabler/alert-triangle";
-import IconCircleX from "~icons/tabler/circle-x";
+import IconCheck from "~icons/tabler/circle-check-filled";
+import IconInfoCircle from "~icons/tabler/info-circle-filled";
+import IconAlertTriangle from "~icons/tabler/alert-triangle-filled";
+import IconCircleX from "~icons/tabler/circle-x-filled";
 import IconLoader2 from "~icons/tabler/loader-2";
 import IconX from "~icons/tabler/x";
 
@@ -45,15 +45,17 @@ const props = defineProps<ToasterProps>();
 
 <style>
 .toaster {
-  --normal-bg: color-mix(in oklch, var(--popover) 70%, transparent) !important;
+  --normal-bg:  var(--popover)  !important;
 }
 
 [data-sonner-toast] {
+      padding: 10px 14px !important;
   gap: 16px !important;
-  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28) !important;
+  border: none !important;
+  /* backdrop-filter: blur(12px); */
+  /* -webkit-backdrop-filter: blur(12px); */
+  font-size: 12px !important;
+  /* box-shadow: 0 8px 24px rgb(0 0 0 / 0.28) !important; */
 }
 [data-sonner-toast] [data-button] {
   background: transparent !important;
@@ -61,11 +63,23 @@ const props = defineProps<ToasterProps>();
   box-shadow: none !important;
   padding: 0 0.625rem !important;
   height: 2rem !important;
-  font-size: 0.875rem !important;
+  font-size: 12px !important;
   border-radius: var(--radius-md) !important;
 }
 
 [data-sonner-toast] [data-button]:hover {
   background: color-mix(in oklch, var(--primary) 10%, transparent) !important;
+}
+
+@media (max-width: 1023px) {
+  [data-sonner-toast][data-styled="true"] {
+    gap: 10px !important;
+    font-size: 13px !important;
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.2) !important;
+  }
+  [data-sonner-toast] [data-icon] svg {
+    width: 18px;
+    height: 18px;
+  }
 }
 </style>
