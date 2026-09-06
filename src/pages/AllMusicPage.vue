@@ -124,6 +124,7 @@
           </div>
 
           <VirtualScrollable
+            ref="scrollableRef"
             :items="tracks"
             :get-item-key="getTrackKey"
             :item-height="56"
@@ -194,6 +195,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
+import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 import CrossfadeTransition from "@/components/transitions/CrossfadeTransition.vue";
 
 import TrackRowLoading from "@/modules/tracks/components/TrackRowLoading.vue";
@@ -349,6 +351,13 @@ async function handlePlayTrack(index: number) {
   const all = await getAllTracksForQueue(resolvedSortKey.value, normalizedSearchQuery.value);
   const fullIndex = all.findIndex(t => t.id === track.id);
 
+const scrollableRef = useTemplateRef("scrollableRef");
+
+useScrollRestoration(scrollableRef, {
+  key: () => `all-music:${resolvedSortKey.value}:${normalizedSearchQuery.value}`,
+  ready: () => !isLoading.value,
+  deps: () => tracks.value.length,
+});
   if (fullIndex === -1) {
     // Full-set fetch didn't contain the clicked track (e.g. a stale/partial search
     // result). Never waste the click — fall back to the loaded pages.

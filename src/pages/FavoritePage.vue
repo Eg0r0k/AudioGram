@@ -18,6 +18,7 @@
     <template v-else>
       <TrackContextMenu context="liked">
         <VirtualScrollable
+          ref="scrollableRef"
           :items="tracks"
           :get-item-key="getTrackKey"
           :item-height="56"
@@ -98,9 +99,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
 import { useRoute } from "vue-router";
 import VirtualScrollable from "@/components/ui/scrollable/VirtualScrollable.vue";
+import { useScrollRestoration } from "@/components/ui/scrollable/useScrollRestoration";
 import PageErrorState from "@/components/common/PageErrorState.vue";
 import MediaHero from "@/modules/media-hero/components/MediaHero.vue";
 import { Button } from "@/components/ui/button";
@@ -213,4 +215,13 @@ function handleAddToQueue() {
     type: "liked",
   });
 }
+
+const scrollableRef = useTemplateRef("scrollableRef");
+// Declared after the page state it reads: the hook evaluates `ready`
+// immediately, so placing this any earlier hits the temporal dead zone.
+useScrollRestoration(scrollableRef, {
+  key: () => `liked:${sortKey.value ?? "default"}`,
+  ready: () => !isLoading.value,
+  deps: () => tracks.value.length,
+});
 </script>
