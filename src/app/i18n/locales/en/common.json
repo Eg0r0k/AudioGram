@@ -4,9 +4,21 @@
     "toLibrary": "Import to library",
     "progressLabel": "{current} of {total}",
     "doneTitle": "Import complete",
-    "summary": "{imported} imported · {failed} failed · {skipped} skipped",
+    "panelTitle": "Import",
+    "progressTitle": "Importing tracks",
+    "pause": "Pause",
+    "resume": "Resume",
     "visibleFiles": "Showing first {visible} of {total} files",
     "goToLibrary": "Go to library",
+    "menu": {
+      "done": "Done",
+      "issues": "{count} failed"
+    },
+    "toast": {
+      "done": "Nothing imported | Imported {count} track | Imported {count} tracks",
+      "doneWithIssues": "Imported {imported}, {issues} with issues",
+      "details": "Details"
+    },
     "empty": "Nothing here",
     "counts": {
       "imported": "imported",
@@ -19,9 +31,11 @@
       "skipped": "Skipped"
     },
     "a11y": {
-      "region": "Import progress",
       "pause": "Pause import",
-      "resume": "Resume import"
+      "resume": "Resume import",
+      "indicatorRunning": "Import, {current} of {total}",
+      "indicatorPaused": "Import paused",
+      "indicatorDone": "Import complete, open details"
     },
     "errorReason": {
       "default": "Import failed",
@@ -49,6 +63,7 @@
   "save": "Save",
   "change": "Change",
   "cancel": "Cancel",
+  "done": "Done",
   "comingSoon": "Coming Soon",
   "continue": "Continue",
   "loading": "Loading",

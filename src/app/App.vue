@@ -15,7 +15,6 @@
   </component>
   <WhatsNewDialog />
   <ExternalLinkDialog />
-  <ImportProgressHost />
   <DialogSummonHost />
   <NetworkStatusToast />
   <Toaster
@@ -66,7 +65,6 @@ import { DialogSummonHost } from "@/components/dialogs/summon";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
 import { useNowPlayingTitle } from "@/modules/player/composables/useNowPlayingTitle";
 import { useExternalLinkInterceptor } from "@/composables/useExternalLinkInterceptor";
-import ImportProgressHost from "@/components/ImportProgressHost.vue";
 import { usePlayerStore } from "@/modules/player";
 import { useEventListener } from "@vueuse/core";
 import NetworkStatusToast from "@/components/NetworkStatusToast.vue";

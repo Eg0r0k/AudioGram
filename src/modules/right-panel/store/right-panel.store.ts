@@ -82,6 +82,10 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     open("downloads", undefined, { ...options, depth: options.depth ?? 0 });
   }
 
+  const openImport = (options: OpenRightPanelOptions = {}): void => {
+    open("import", undefined, { ...options, depth: options.depth ?? 0 });
+  };
+
   const openEntitySelect = (
     nextPayload: RightPanelPayloadMap["entity-select"],
     options: OpenRightPanelOptions = {},
@@ -180,6 +184,7 @@ export const useRightPanelStore = defineStore("right-panel", () => {
     openAddTracks,
     openChapters,
     openDownloads,
+    openImport,
     openEntitySelect,
     openFolderAdd,
     back,

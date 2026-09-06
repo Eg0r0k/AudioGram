@@ -37,6 +37,7 @@ import EditTrackPanel from "./panels/EditTrackPanel.vue";
 import AddTracksPanel from "@/modules/tracks/components/tracks-sheet/AddTracksPanel.vue";
 import ChaptersPanel from "./panels/ChaptersPanel.vue";
 import DownloadsPanel from "./panels/DownloadsPanel.vue";
+import ImportPanel from "./panels/ImportPanel.vue";
 import EntitySelectView from "./panels/EntitySelectView.vue";
 import FolderAddPanel from "./panels/FolderAddPanel.vue";
 const { isMobileLayout } = useDeviceLayout();
@@ -73,6 +74,8 @@ const activeComponent = computed(() => {
       return ChaptersPanel;
     case "downloads":
       return DownloadsPanel;
+    case "import":
+      return ImportPanel;
     case "entity-select":
       return EntitySelectView;
     case "folder-add":

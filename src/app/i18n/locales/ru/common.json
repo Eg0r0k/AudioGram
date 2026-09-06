@@ -4,9 +4,21 @@
     "toLibrary": "Импортировать в библиотеку",
     "progressLabel": "{current} из {total}",
     "doneTitle": "Импорт завершён",
-    "summary": "{imported} добавлено · {failed} с ошибкой · {skipped} пропущено",
+    "panelTitle": "Импорт",
+    "progressTitle": "Импорт треков",
+    "pause": "Пауза",
+    "resume": "Продолжить",
     "visibleFiles": "Показаны только первые {visible} файлов из {total}",
     "goToLibrary": "Перейти в библиотеку",
+    "menu": {
+      "done": "Готово",
+      "issues": "Ошибок: {count}"
+    },
+    "toast": {
+      "done": "Ничего не импортировано | Импортирован {count} трек | Импортировано {count} трека | Импортировано {count} треков",
+      "doneWithIssues": "Импортировано {imported}, с проблемами: {issues}",
+      "details": "Подробнее"
+    },
     "empty": "Здесь пусто",
     "counts": {
       "imported": "добавлено",
@@ -19,9 +31,11 @@
       "skipped": "Пропущено"
     },
     "a11y": {
-      "region": "Прогресс импорта",
       "pause": "Приостановить импорт",
-      "resume": "Продолжить импорт"
+      "resume": "Продолжить импорт",
+      "indicatorRunning": "Импорт, {current} из {total}",
+      "indicatorPaused": "Импорт приостановлен",
+      "indicatorDone": "Импорт завершён, открыть подробности"
     },
     "errorReason": {
       "default": "Ошибка импорта",
@@ -49,6 +63,7 @@
   "save": "Сохранить",
   "change": "Изменить",
   "cancel": "Отмена",
+  "done": "Готово",
   "continue": "Продолжить",
   "comingSoon": "Скоро...",
   "loading": "Загрузка",

@@ -8,4 +8,6 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="window_background">#FFFFFFFF</color>
+    <!-- Plate behind the splash icon, same as the app icon background. -->
+    <color name="splash_icon_background">#FF212121</color>
 </resources>
