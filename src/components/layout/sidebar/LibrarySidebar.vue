@@ -228,9 +228,12 @@ const {
 // Hardware back leaves an open sidebar folder before falling through to the
 // router. Inert on desktop: the coordinator only runs in MobileLayout. The
 // folder picker is a right-panel view and has its own back handler there.
+// Opening an entity from the folder is not a dismissal: back must land in
+// the folder again.
 registerOverlayBackHandler({
   depth: () => folderDepth.value,
   back: closeFolder,
+  survivesNavigation: true,
 });
 
 const { t } = useI18n();

@@ -17,6 +17,8 @@ function canMoveToFolder(item: LibraryItem): item is LibraryItem & { type: Folde
   return item.type === "artist" || item.type === "album" || item.type === "playlist";
 }
 
+export const activeSidebarFolderId = ref<string | null>(null);
+
 export function useLibrarySidebarFolders({
   folders,
   createFolder,
@@ -26,7 +28,7 @@ export function useLibrarySidebarFolders({
 }: UseLibrarySidebarFoldersOptions) {
   const { t } = useI18n();
 
-  const activeFolderId = ref<string | null>(null);
+  const activeFolderId = activeSidebarFolderId;
   const isFolderNameDialogOpen = ref(false);
   /** What the name dialog opens with; the dialog owns the edited value. */
   const folderName = ref("");

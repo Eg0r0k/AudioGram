@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "@/app/i18n";
 import type { SidebarFolderEntity } from "@/db/entities";
 import { useRightPanelStore } from "@/modules/right-panel/store/right-panel.store";
-import { useLibrarySidebarFolders } from "../useLibrarySidebarFolders";
+import { activeSidebarFolderId, useLibrarySidebarFolders } from "../useLibrarySidebarFolders";
 
 const folders: SidebarFolderEntity[] = [
   { id: "f1", name: "Rock", items: [{ type: "album", id: "al1" }], addedAt: 1, updatedAt: 1 } as unknown as SidebarFolderEntity,
@@ -34,7 +34,10 @@ const setup = () => {
 };
 
 describe("useLibrarySidebarFolders picker", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    activeSidebarFolderId.value = null;
+  });
 
   it("openFolderPicker enters the folder and opens the right panel bound to it", () => {
     const { api, rightPanel } = setup();
@@ -93,5 +96,17 @@ describe("useLibrarySidebarFolders picker", () => {
     api.openFolderPicker("f1");
     unmount();
     expect(rightPanel.isOpen).toBe(false);
+  });
+
+  it("the open folder survives a remount of the sidebar", () => {
+    // On a phone the sidebar is the home page: opening an artist from a
+    // folder unmounts it, and back must land in that folder again.
+    const first = setup();
+    first.api.openFolder("f1");
+    first.unmount();
+
+    const second = setup();
+    expect(second.api.activeFolder.value?.id).toBe("f1");
+    expect(second.api.folderDepth.value).toBe(1);
   });
 });

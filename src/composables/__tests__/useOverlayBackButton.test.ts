@@ -85,6 +85,11 @@ describe("useOverlayBackButton", () => {
   const panelBack = vi.fn(() => {
     panelDepth.value = Math.max(0, panelDepth.value - 1);
   });
+  // A sidebar folder: back closes it, but navigating away does not.
+  const keptFolderOpen = ref(false);
+  const keptFolderBack = vi.fn(() => {
+    keptFolderOpen.value = false;
+  });
 
   const mountHost = (options?: ComponentMountingOptions<unknown>) => {
     const Host = defineComponent({
@@ -93,6 +98,11 @@ describe("useOverlayBackButton", () => {
         registerOverlayBackHandler({ depth: () => (playerOpen.value ? 1 : 0), back: playerBack });
         registerOverlayBackHandler({ depth: () => panelDepth.value, back: panelBack });
         registerOverlayBackHandler({ depth: () => (searchOpen.value ? 1 : 0), back: searchBack });
+        registerOverlayBackHandler({
+          depth: () => (keptFolderOpen.value ? 1 : 0),
+          back: keptFolderBack,
+          survivesNavigation: true,
+        });
         return () => null;
       },
     });
@@ -105,9 +115,11 @@ describe("useOverlayBackButton", () => {
     playerOpen.value = false;
     searchOpen.value = false;
     panelDepth.value = 0;
+    keptFolderOpen.value = false;
     playerBack.mockClear();
     searchBack.mockClear();
     panelBack.mockClear();
+    keptFolderBack.mockClear();
 
     vi.spyOn(history, "state", "get").mockImplementation(() => stack[position]);
     pushStateSpy = vi.spyOn(history, "pushState").mockImplementation((state) => {
@@ -486,6 +498,62 @@ describe("useOverlayBackButton", () => {
     // Both sentinels consumed before the push landed on the base entry.
     expect(stack).toHaveLength(2);
     expect(position).toBe(1);
+  });
+
+  it("navigation keeps a surface that survives it, but still consumes its entry", async () => {
+    const fakeRouter = createFakeRouter();
+    mountHost(withRouter(fakeRouter));
+    keptFolderOpen.value = true;
+    await nextTick();
+    playerOpen.value = true;
+    await nextTick();
+    expect(position).toBe(2);
+
+    await fakeRouter.push("/artist/3");
+    expect(playerBack).toHaveBeenCalledTimes(1);
+    expect(keptFolderBack).not.toHaveBeenCalled();
+    expect(keptFolderOpen.value).toBe(true);
+    expect(stack[stack.length - 1]).toEqual({ current: "/artist/3" });
+    expect(stack).toHaveLength(2);
+    expect(position).toBe(1);
+  });
+
+  it("a survivor owns no entry after navigation until it closes and reopens", async () => {
+    const fakeRouter = createFakeRouter();
+    mountHost(withRouter(fakeRouter));
+    keptFolderOpen.value = true;
+    await nextTick();
+    playerOpen.value = true;
+    await nextTick();
+    await fakeRouter.push("/artist/3");
+    expect(stack).toHaveLength(2);
+
+    // Still open, still no entry: a back press here is the router's.
+    searchOpen.value = true;
+    await nextTick();
+    expect(stack).toHaveLength(3);
+    userBack();
+    expect(searchBack).toHaveBeenCalledTimes(1);
+    expect(keptFolderBack).not.toHaveBeenCalled();
+    expect(position).toBe(1);
+
+    keptFolderOpen.value = false;
+    await nextTick();
+    keptFolderOpen.value = true;
+    await nextTick();
+    expect(stack).toHaveLength(3);
+    expect(tagOf(stack[2])?.idx).toBe(1);
+  });
+
+  it("back still closes a surviving surface when nothing else is open", async () => {
+    mountHost();
+    keptFolderOpen.value = true;
+    await nextTick();
+    expect(position).toBe(1);
+
+    userBack();
+    expect(keptFolderBack).toHaveBeenCalledTimes(1);
+    expect(position).toBe(0);
   });
 
   it("navigation with a buried stack proceeds untouched", async () => {
