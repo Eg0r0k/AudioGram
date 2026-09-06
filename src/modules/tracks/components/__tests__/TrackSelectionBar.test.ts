@@ -50,10 +50,10 @@ describe("TrackSelectionBar", () => {
     widthRef.value = 1000;
   });
 
-  it("shows the plural count", () => {
+  it("names the count badge with the plural string", () => {
     i18n.global.locale.value = "en";
     renderBar({ count: 3 });
-    expect(screen.getByText("3 tracks selected")).toBeInTheDocument();
+    expect(screen.getByLabelText("3 tracks selected")).toHaveTextContent("3");
   });
 
   it("disables every action while nothing is selected but keeps select-all enabled", () => {

@@ -18,7 +18,10 @@
         >
           <IconX class="size-5" />
         </Button>
-        <Badge class="mx-2">
+        <Badge
+          class="mx-2"
+          :aria-label="t('library.selection.count', count)"
+        >
           {{ count }}
         </Badge>
 
