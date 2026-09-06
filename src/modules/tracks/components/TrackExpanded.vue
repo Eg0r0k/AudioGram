@@ -55,35 +55,49 @@
       <div :class="styles.firstCol">
         <div
           v-if="showCover"
-          class="relative z-10 size-10 shrink-0 overflow-hidden rounded bg-muted"
+          class="relative z-10 size-10 shrink-0"
         >
-          <NuxtImage
-
-            :src="coverUrl"
-            :alt="track.title"
-            :width="40"
-            :height="40"
-            fallback-src="/img/fallback.svg"
-            :class="styles.image"
-          />
-          <div
-            :class="[
-              styles.imageOverlay,
-              isCurrentTrack && !isSelecting ? 'opacity-100' : 'opacity-0',
-              !isSelecting && 'group-hover:opacity-100',
-            ]"
-          >
-            <template v-if="isCurrentTrack && isPlaying">
-              <span class="playing-pulse-dot group-hover:hidden">
-                <span /><span /><span />
-              </span>
-              <IconPause class="hidden size-4 text-white group-hover:block" />
-            </template>
-            <IconPlay
-              v-else
-              class="size-4 text-white"
+          <div class="relative size-full overflow-hidden rounded bg-muted">
+            <NuxtImage
+              :src="coverUrl"
+              :alt="track.title"
+              :width="40"
+              :height="40"
+              fallback-src="/img/fallback.svg"
+              :class="styles.image"
             />
+            <div
+              :class="[
+                styles.imageOverlay,
+                isCurrentTrack && !isSelecting ? 'opacity-100' : 'opacity-0',
+                !isSelecting && 'group-hover:opacity-100',
+              ]"
+            >
+              <template v-if="isCurrentTrack && isPlaying">
+                <span class="playing-pulse-dot group-hover:hidden">
+                  <span /><span /><span />
+                </span>
+                <IconPause class="hidden size-4 text-white group-hover:block" />
+              </template>
+              <IconPlay
+                v-else
+                class="size-4 text-white"
+              />
+            </div>
           </div>
+
+          <span
+            v-if="isSelecting"
+            data-cover-check
+            class="cover-check pointer-events-none absolute -right-1.5 -bottom-1.5 rounded-full bg-background p-0.5"
+          >
+            <Checkbox
+              :model-value="isSelected"
+              size="sm"
+              class="rounded-full"
+              tabindex="-1"
+            />
+          </span>
         </div>
 
         <div class="min-w-0 flex-1">
@@ -493,6 +507,9 @@ function handleAlbumClick(event: MouseEvent) {
   .var2-col { display: none; }
 }
 
+/* The selection checkbox lives in the index column; where that column is
+   gone it moves onto the cover's corner. */
+.cover-check { display: none; }
 @container (max-width: 620px) {
   .track-expanded {
     --grid-template-columns: var(--grid-template-columns-small) !important;
@@ -501,5 +518,6 @@ function handleAlbumClick(event: MouseEvent) {
   .index-col,
   .var1-col,
   .var2-col { display: none; }
+  .cover-check { display: flex; }
 }
 </style>

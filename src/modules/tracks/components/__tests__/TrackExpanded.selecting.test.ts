@@ -112,6 +112,19 @@ describe("TrackExpanded in select mode", () => {
     expect(emitted().play).toBeUndefined();
   });
 
+  it("puts a round checkbox on the cover while selecting, for layouts that hide the index column", () => {
+    const { container } = renderRow(true, { isSelected: true });
+    const badge = container.querySelector("[data-cover-check]")!;
+    const checkbox = badge.querySelector("[data-slot=checkbox]")!;
+    expect(checkbox.getAttribute("data-state")).toBe("checked");
+    expect(checkbox.className).toContain("rounded-full");
+  });
+
+  it("renders no cover checkbox outside select mode", () => {
+    const { container } = renderRow(false);
+    expect(container.querySelector("[data-cover-check]")).toBeNull();
+  });
+
   it("marks joined corners so adjacent selected rows merge", () => {
     const { container } = renderRow(true, { isSelected: true, joinTop: true, joinBottom: false });
     const row = container.querySelector("[data-track-row]")!;
