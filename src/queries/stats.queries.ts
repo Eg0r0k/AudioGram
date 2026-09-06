@@ -47,7 +47,9 @@ const eventsQuery = (since?: number) =>
     staleTime: STATS_STALE_TIME,
   });
 
-const eventsOf = (client: QueryClient, since?: number) => client.ensureQueryData(eventsQuery(since));
+// fetchQuery, not ensureQueryData: the events entry has no observer, so an
+// invalidation only marks it stale, and ensureQueryData hands stale data back.
+const eventsOf = (client: QueryClient, since?: number) => client.fetchQuery(eventsQuery(since));
 
 export const statsQueries = {
   events: eventsQuery,

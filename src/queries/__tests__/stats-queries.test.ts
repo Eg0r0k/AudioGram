@@ -5,7 +5,7 @@ import { db } from "@/db";
 import type { ListenEventEntity } from "@/db/entities";
 import { statsRepository } from "@/db/repositories/stats.repository";
 import type { AlbumId, ArtistId, TrackId } from "@/types/ids";
-import { statsQueries } from "../stats.queries";
+import { invalidateStatsQueries, statsQueries } from "../stats.queries";
 
 //
 // The stats page mounts ~8 aggregate queries for the same period. They must
@@ -59,6 +59,21 @@ describe("stats queries share one events read", () => {
     expect(total).toBe(150);
     expect(hourly.reduce((a, b) => a + b, 0)).toBe(150);
     expect(records.mostRepeatedTrackId).toBe("t1");
+  });
+
+  // The events entry has no observer of its own, so an invalidation only
+  // marks it stale; an aggregate that then reads it through the cache must
+  // still see the new events, or the stats page freezes for a gcTime.
+  it("re-reads the events once the stats were invalidated", async () => {
+    const read = vi.spyOn(statsRepository, "eventsSince");
+    await queryClient.fetchQuery(statsQueries.summary(900));
+    await db.listenEvents.add(event({ secondsListened: 50 }));
+
+    await invalidateStatsQueries(queryClient);
+    const summary = await queryClient.fetchQuery(statsQueries.summary(900));
+
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(summary.totalSeconds).toBe(200);
   });
 
   it("a different period is a different read", async () => {
