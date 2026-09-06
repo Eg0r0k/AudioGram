@@ -16,29 +16,29 @@ const props = defineProps<ToasterProps>();
 <template>
   <Sonner
     aria-live="polite"
-    :class="cn('toaster group', props.class)"
+    :class="cn('toaster group select-none', props.class)"
     :style="{ '--normal-text': 'var(--popover-foreground)', '--normal-border': 'var(--border)', '--border-radius': 'var(--radius)', }"
     v-bind="props"
   >
     <template #success-icon>
-      <IconCheck class="size-6" />
+      <IconCheck class="size-5" />
     </template>
     <template #info-icon>
-      <IconInfoCircle class="size-6" />
+      <IconInfoCircle class="size-5" />
     </template>
     <template #warning-icon>
-      <IconAlertTriangle class="size-6" />
+      <IconAlertTriangle class="size-5" />
     </template>
     <template #error-icon>
-      <IconCircleX class="size-6" />
+      <IconCircleX class="size-5" />
     </template>
     <template #loading-icon>
       <div>
-        <IconLoader2 class="size-6 animate-spin" />
+        <IconLoader2 class="size-5 animate-spin" />
       </div>
     </template>
     <template #close-icon>
-      <IconX class="size-6" />
+      <IconX class="size-5" />
     </template>
   </Sonner>
 </template>
@@ -50,11 +50,11 @@ const props = defineProps<ToasterProps>();
 
 [data-sonner-toast] {
       padding: 10px 14px !important;
-  gap: 16px !important;
+   gap: 10px !important;
   border: none !important;
   /* backdrop-filter: blur(12px); */
   /* -webkit-backdrop-filter: blur(12px); */
-  font-size: 12px !important;
+  font-size: 13px !important;
   /* box-shadow: 0 8px 24px rgb(0 0 0 / 0.28) !important; */
 }
 [data-sonner-toast] [data-button] {
