@@ -45,8 +45,7 @@ impl AudioCache {
     pub(crate) fn contains(&self, id: &str) -> bool {
         self.entries
             .lock()
-            .map(|entries| entries.0.contains_key(id))
-            .unwrap_or(false)
+            .is_ok_and(|entries| entries.0.contains_key(id))
     }
 
     /// Returns false when the track is over the per-track cap and was NOT

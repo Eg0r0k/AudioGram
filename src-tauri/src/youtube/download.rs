@@ -198,14 +198,12 @@ pub async fn yt_download<R: Runtime>(
                     }
                 }
             }
-            CommandEvent::Terminated(payload) => {
-                if payload.code != Some(0) {
-                    exit_error = Some(if last_error.is_empty() {
-                        format!("yt-dlp exited with code {:?}", payload.code)
-                    } else {
-                        last_error.clone()
-                    });
-                }
+            CommandEvent::Terminated(payload) if payload.code != Some(0) => {
+                exit_error = Some(if last_error.is_empty() {
+                    format!("yt-dlp exited with code {:?}", payload.code)
+                } else {
+                    last_error.clone()
+                });
             }
             _ => {}
         }

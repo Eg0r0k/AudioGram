@@ -118,8 +118,7 @@ fn parse_resolve_output(stdout: &str) -> Result<ResolvedStream, String> {
     let line = stdout
         .lines()
         .map(str::trim)
-        .filter(|line| line.starts_with('{'))
-        .next_back()
+        .rfind(|line| line.starts_with('{'))
         .ok_or_else(|| "no json in yt-dlp output".to_string())?;
     let info: ResolvedInfo =
         serde_json::from_str(line).map_err(|e| format!("yt-dlp json parse failed: {e}"))?;

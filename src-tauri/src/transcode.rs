@@ -129,10 +129,8 @@ fn scan_for_video<R: Read + Seek>(reader: &mut R, end: u64, depth: u8) -> std::i
                     return Ok(true);
                 }
             }
-            b"moov" | b"trak" | b"mdia" => {
-                if scan_for_video(reader, body_end, depth + 1)? {
-                    return Ok(true);
-                }
+            b"moov" | b"trak" | b"mdia" if scan_for_video(reader, body_end, depth + 1)? => {
+                return Ok(true);
             }
             _ => {}
         }

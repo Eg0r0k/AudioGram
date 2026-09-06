@@ -55,6 +55,7 @@ mod imp {
     use super::ThumbbarState;
     use tauri::AppHandle;
 
+    #[allow(clippy::unnecessary_wraps)]
     pub fn setup(_app: &tauri::App) -> tauri::Result<()> {
         Ok(())
     }
