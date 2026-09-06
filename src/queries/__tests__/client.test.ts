@@ -25,8 +25,8 @@ describe("query network mode", () => {
 });
 
 describe("query retry policy", () => {
-  it("retries ordinary failures up to twice", () => {
-    const error = new Error("socket hang up");
+  it("retries a transient source failure up to twice", () => {
+    const error = { kind: "NETWORK", message: "socket hang up" };
 
     expect(shouldRetry(0, error)).toBe(true);
     expect(shouldRetry(1, error)).toBe(true);
@@ -48,9 +48,13 @@ describe("query retry policy", () => {
     expect(shouldRetry(0, { kind: "CANCELLED", message: "aborted" })).toBe(false);
   });
 
-  it("treats a non-source error shape as retryable", () => {
-    expect(shouldRetry(0, null)).toBe(true);
-    expect(shouldRetry(0, "PARSE")).toBe(true);
-    expect(shouldRetry(0, { message: "no kind here" })).toBe(true);
+  // Everything that is not a source error comes from Dexie, and a Dexie read
+  // is deterministic: "Album not found" or a full quota answer the same way
+  // three seconds later — the page just shows its error state late.
+  it("never retries a failure that is not a source error", () => {
+    expect(shouldRetry(0, new Error("Album not found"))).toBe(false);
+    expect(shouldRetry(0, { code: "QUOTA", message: "Storage quota exceeded" })).toBe(false);
+    expect(shouldRetry(0, null)).toBe(false);
+    expect(shouldRetry(0, "PARSE")).toBe(false);
   });
 });

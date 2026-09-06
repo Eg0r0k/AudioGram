@@ -17,13 +17,18 @@ const TERMINAL_SOURCE_ERRORS = new Set<SourceErrorKind>([
   "CANCELLED",
 ]);
 
-const isTerminal = (error: unknown): boolean => {
+/**
+ * Only a source error can be transient. Everything else is Dexie, and a Dexie
+ * read answers the same way on every attempt — "not found" or a full quota
+ * would only reach the screen three seconds late.
+ */
+const isRetryableSourceError = (error: unknown): boolean => {
   if (typeof error !== "object" || error === null || !("kind" in error)) return false;
-  return TERMINAL_SOURCE_ERRORS.has((error as { kind: SourceErrorKind }).kind);
+  return !TERMINAL_SOURCE_ERRORS.has((error as { kind: SourceErrorKind }).kind);
 };
 
 const shouldRetry = (failureCount: number, error: unknown): boolean =>
-  !isTerminal(error) && failureCount < MAX_RETRIES;
+  isRetryableSourceError(error) && failureCount < MAX_RETRIES;
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -42,10 +47,10 @@ export const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5,
       retry: shouldRetry,
       refetchOnWindowFocus: false,
-    },
-  },
-});
       // Reads are Dexie, not the network: the library default ("online")
       // pauses every query while navigator.onLine is false. Remote sources
       // opt back in with REMOTE_QUERY_OPTIONS.
       networkMode: "always",
+    },
+  },
+});
