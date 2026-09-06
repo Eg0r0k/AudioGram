@@ -75,13 +75,12 @@ export async function invalidateLibraryData(queryClient: QueryClient) {
   coverCache.invalidateAll();
 }
 
+/**
+ * After a full database wipe. Every cached answer is wrong now, so all of
+ * them go — reset, not removed: removeQueries leaves a mounted observer
+ * holding the old rows, reset blanks it and re-reads the empty database.
+ */
 export async function clearLibraryData(queryClient: QueryClient) {
-  queryClient.removeQueries({ queryKey: queryKeys.library.summary() });
-  queryClient.removeQueries({ queryKey: queryKeys.artists.all() });
-  queryClient.removeQueries({ queryKey: queryKeys.albums.all() });
-  queryClient.removeQueries({ queryKey: queryKeys.playlists.all() });
-  queryClient.removeQueries({ queryKey: queryKeys.folders.all() });
-  queryClient.removeQueries({ queryKey: queryKeys.tracks.all() });
-
-  await invalidateLibraryData(queryClient);
+  await queryClient.resetQueries();
+  coverCache.invalidateAll();
 }

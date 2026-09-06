@@ -67,6 +67,7 @@ export const queryKeys = {
     detail: (trackId: TrackId) => ["trackChapters", trackId] as const,
   },
   offlineCopies: {
+    all: () => ["offlineCopies"] as const,
     detail: (trackId: TrackId) => ["offlineCopies", trackId] as const,
   },
   tags: {
@@ -75,6 +76,7 @@ export const queryKeys = {
     byTrack: (trackId: TrackId) => ["tags", "track", trackId] as const,
   },
   recommendations: {
+    all: () => ["recommendations"] as const,
     forTrack: (trackId: TrackId, cacheVersion: number, limit: number) =>
       ["recommendations", "forTrack", trackId, cacheVersion, limit] as const,
     analysisProgress: () => ["recommendations", "analysisProgress"] as const,

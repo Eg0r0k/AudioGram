@@ -4,6 +4,8 @@ import type { StorageInfo } from "../schema/storage";
 import { collectStorageInfo, clearAllData, clearFoldersData, clearLyricsData, clearOfflineData, clearTimingsData } from "@/services/storage-info.service";
 import { formatBytes } from "@/lib/format/memory";
 import { useLibraryStore } from "@/modules/library/store/library.store";
+import { clearLibraryData } from "@/queries/library.queries";
+import { queryKeys } from "@/queries/query-keys";
 
 export function useStorageSettings() {
   const info = ref<StorageInfo | null>(null);
@@ -82,19 +84,7 @@ export function useStorageSettings() {
     try {
       await clearAllData();
       libraryStore.clearPins();
-      const keys = [
-        ["library", "summary"],
-        ["artists"],
-        ["albums"],
-        ["playlists"],
-        ["tracks", "liked"],
-      ];
-      await Promise.all(
-        keys.map(key => queryClient.invalidateQueries({ queryKey: key })),
-      );
-      await Promise.all(
-        keys.map(key => queryClient.refetchQueries({ queryKey: key })),
-      );
+      await clearLibraryData(queryClient);
       await refresh();
     }
     finally {
@@ -106,7 +96,7 @@ export function useStorageSettings() {
     isClearing.value = true;
     try {
       await clearLyricsData();
-      await queryClient.invalidateQueries({ queryKey: ["tracks"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tracks.all() });
       await refresh();
     }
     finally {
@@ -118,8 +108,8 @@ export function useStorageSettings() {
     isClearing.value = true;
     try {
       await clearFoldersData();
-      await queryClient.invalidateQueries({ queryKey: ["folders"] });
-      await queryClient.invalidateQueries({ queryKey: ["library", "summary"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.all() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.library.summary() });
       await refresh();
     }
     finally {
@@ -131,7 +121,7 @@ export function useStorageSettings() {
     isClearing.value = true;
     try {
       await clearOfflineData();
-      await queryClient.invalidateQueries({ queryKey: ["offlineCopies"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.offlineCopies.all() });
       await refresh();
     }
     finally {
@@ -143,8 +133,8 @@ export function useStorageSettings() {
     isClearing.value = true;
     try {
       await clearTimingsData();
-      await queryClient.invalidateQueries({ queryKey: ["stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.stats.all() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.recommendations.all() });
       await refresh();
     }
     finally {

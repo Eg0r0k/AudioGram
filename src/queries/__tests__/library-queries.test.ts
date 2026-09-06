@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { QueryClient } from "@tanstack/vue-query";
+import { QueryClient, QueryObserver } from "@tanstack/vue-query";
+import { TrackId } from "@/types/ids";
 import {
   clearLibraryData,
   invalidateLibraryData,
@@ -29,35 +30,38 @@ describe("library.queries", () => {
   });
 
   describe("clearLibraryData", () => {
-    it("should remove all library queries", async () => {
-      await clearLibraryData(queryClient);
+    const flush = async () => {
+      for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 0));
+    };
 
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
+    // The whole database was wiped, so nothing cached is true any more —
+    // whatever it was keyed under. A mounted list must not keep showing the
+    // deleted rows: its query is reset and read again, not removed from under
+    // it (removeQueries leaves the observer holding the old data).
+    it("drops every cached answer and re-reads the observed ones", async () => {
+      const realClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const reads: number[] = [];
+      const observer = new QueryObserver(realClient, {
         queryKey: queryKeys.library.summary(),
+        queryFn: async () => {
+          reads.push(reads.length + 1);
+          return reads.length;
+        },
       });
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.artists.all(),
-      });
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.albums.all(),
-      });
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.playlists.all(),
-      });
-      expect(queryClient.removeQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.tracks.all(),
-      });
-    });
+      const unsubscribe = observer.subscribe(() => {});
+      await flush();
+      expect(observer.getCurrentResult().data).toBe(1);
+      realClient.setQueryData(queryKeys.trackChapters.detail(TrackId("t-1")), [{ time: 1 }]);
+      realClient.setQueryData(queryKeys.stats.streaks(), { current: 3 });
 
-    it("should invalidate queries after removing", async () => {
-      await clearLibraryData(queryClient);
+      await clearLibraryData(realClient);
+      await flush();
 
-      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.library.summary(),
-      });
-      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.artists.all(),
-      });
+      expect(observer.getCurrentResult().data).toBe(2);
+      expect(realClient.getQueryData(queryKeys.trackChapters.detail(TrackId("t-1")))).toBeUndefined();
+      expect(realClient.getQueryData(queryKeys.stats.streaks())).toBeUndefined();
+      expect(coverCache.invalidateAll).toHaveBeenCalled();
+      unsubscribe();
     });
   });
 
