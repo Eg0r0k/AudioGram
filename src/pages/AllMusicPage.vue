@@ -1,8 +1,8 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col bg-background">
-    <div class=" sm:px-6 px-4  pb-2">
+    <div class=" px-4  pb-2">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div class="flex  w-full flex-col pt-4 gap-3 sm:flex-row sm:items-center">
+        <div class="flex  w-full  pt-4 gap-3 flex-row sm:items-center">
           <Button
             variant="ghost"
             size="icon-lg"
@@ -101,7 +101,7 @@
                 :animate="SHOWN"
                 :exit="BAR_HIDDEN"
                 :transition="headerTransition"
-                class="absolute inset-0 bg-background"
+                class="absolute inset-0 border-b border-border/40"
               >
                 <TrackSelectionBar
                   :count="selectedCount"
@@ -215,7 +215,8 @@ import type { TrackSortKey } from "@/modules/tracks/types";
 import { useIndexTracksPage } from "@/modules/tracks/composables/useIndexTracksPage";
 import { getAllTrackIds, getAllTracksForQueue } from "@/queries/track.queries";
 import { useTrackMenu } from "@/modules/tracks/composables/useTrackMenu";
-import { useQueueStore } from "@/modules/queue/store/queue.store";
+import { useEntityPlayback } from "@/modules/queue/composables/useEntityPlayback";
+import type { QueueSource } from "@/modules/queue/types";
 import { usePlayerStore } from "@/modules/player";
 import type { Track } from "@/modules/player/types";
 import { useGoBack } from "@/composables/useGoBack";
@@ -241,7 +242,6 @@ const {
   isFetchingNextPage,
 } = useIndexTracksPage(sortKey, searchQuery);
 
-const queueStore = useQueueStore();
 const playerStore = usePlayerStore();
 const { openMenu } = useTrackMenu();
 
@@ -336,20 +336,20 @@ function handleContextMenu(track: Track, index: number) {
   openMenu(track, index, { target: "default" });
 }
 
-async function handlePlayTrack(index: number) {
-  const track = tracks.value[index] as Track | undefined;
-  if (!track) {
-    return;
-  }
+const queueSource = computed<QueueSource>(() =>
+  (normalizedSearchQuery.value ? { type: "search" } : { type: "allMedia" }),
+);
 
-  if (currentTrackId.value === track.id) {
-    await playerStore.togglePlay();
-    return;
-  }
+// The same rules as every other list page: a fully loaded list plays by row
+// index, a partial one is played from the full set in the same sort.
+const { playTrack: handlePlayTrack } = useEntityPlayback({
+  tracks,
+  source: queueSource,
+  isComplete: computed(() => !hasNextPage.value),
+  loadAll: () => getAllTracksForQueue(resolvedSortKey.value, normalizedSearchQuery.value),
+});
 
-  const context = normalizedSearchQuery.value ? { type: "search" } as const : { type: "manual" } as const;
-  const all = await getAllTracksForQueue(resolvedSortKey.value, normalizedSearchQuery.value);
-  const fullIndex = all.findIndex(t => t.id === track.id);
+const goBack = useGoBack();
 
 const scrollableRef = useTemplateRef("scrollableRef");
 
@@ -358,17 +358,4 @@ useScrollRestoration(scrollableRef, {
   ready: () => !isLoading.value,
   deps: () => tracks.value.length,
 });
-  if (fullIndex === -1) {
-    // Full-set fetch didn't contain the clicked track (e.g. a stale/partial search
-    // result). Never waste the click — fall back to the loaded pages.
-    console.warn(`[AllMusicPage] "${track.id}" missing from full queue set; using loaded pages.`);
-    await queueStore.setQueue(tracks.value, index, context);
-    return;
-  }
-
-  await queueStore.setQueue(all, fullIndex, context);
-}
-
-const goBack = useGoBack();
-
 </script>
