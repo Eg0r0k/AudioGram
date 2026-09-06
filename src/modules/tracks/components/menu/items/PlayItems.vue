@@ -3,7 +3,7 @@
     :is="Item"
     @click="emit('playNext')"
   >
-    <IconPlaylistAdd
+    <IconPlayerTrackNext
       class="size-5.5"
     />
     {{ $t('track.contextMenu.playNext') }}
@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { useTrackMenuComponents } from "../useTrackMenuComponents";
-import IconPlaylistAdd from "~icons/tabler/playlist-add";
+import IconPlayerTrackNext from "~icons/tabler/player-track-next";
 import IconListNumbers from "~icons/tabler/list-numbers";
 
 defineOptions({
