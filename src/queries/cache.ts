@@ -939,6 +939,9 @@ export type AlbumMutationCtx
   = | { kind: "titleChange" }
     | { kind: "removal"; artistId: ArtistId };
 
+        // The point-patch above only reaches the default-sort liked page.
+        ...affectedKeys.tracks.likedPages(),
+        ...affectedKeys.tracks.likedTotalDuration(),
 export function invalidateForAlbumMutation(
   queryClient: QueryClient,
   ctx: AlbumMutationCtx,
