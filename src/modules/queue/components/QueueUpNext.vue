@@ -11,6 +11,7 @@
       :overscan="4"
       :padding-bottom="8"
       :get-item-key="getItemKey"
+      keep-scroll-anchor
       class="queue-up-next-list flex-1 bg-card"
       :class="[isSettling && 'is-settling', drag && 'is-dragging']"
     >
