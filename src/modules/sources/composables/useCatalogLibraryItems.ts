@@ -118,5 +118,5 @@ export function useCatalogLibraryItems(
     });
   };
 
-  return { items, isLoading, loadMoreAlbums };
+  return { items, isLoading, isLoadingMore: albumsQuery.isFetchingNextPage, loadMoreAlbums };
 }

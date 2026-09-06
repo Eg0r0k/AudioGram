@@ -92,7 +92,9 @@
               :item-height="74"
               :get-item-key="getLibraryItemKey"
               animate-reorder
+              :loading="catalog.isLoadingMore.value"
               @scroll="handleScroll"
+              @load-more="catalog.loadMoreAlbums"
             >
               <template #default="{ item }">
                 <LibrarySidebarItem
@@ -331,10 +333,6 @@ function handleScroll(event: Event) {
   const scrollTop = target.scrollTop;
   const isAtBottom
     = target.scrollHeight - scrollTop - target.clientHeight < BOTTOM_THRESHOLD;
-
-  if (isAtBottom && isCatalog.value) {
-    catalog.loadMoreAlbums();
-  }
 
   if (scrollTop < 50 || isAtBottom) {
     isButtonVisible.value = true;
