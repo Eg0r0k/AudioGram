@@ -166,7 +166,10 @@ export function syncArtistCaches(queryClient: QueryClient, artist: ArtistEntity)
     queryKeys.library.summary(),
     data => ({
       ...data,
-      artists: upsertById(data.artists, artist as ArtistWithTrackCount),
+      artists: upsertById(data.artists, {
+        ...artist,
+        trackCount: data.artists.find(existing => existing.id === artist.id)?.trackCount ?? 0,
+      }),
     }),
   );
 }
@@ -209,7 +212,10 @@ export function syncAlbumCaches(queryClient: QueryClient, album: AlbumEntity) {
     queryKeys.library.summary(),
     data => ({
       ...data,
-      albums: upsertById(data.albums, album as AlbumWithTrackCount),
+      albums: upsertById(data.albums, {
+        ...album,
+        trackCount: data.albums.find(existing => existing.id === album.id)?.trackCount ?? 0,
+      }),
     }),
   );
 }
@@ -383,14 +389,6 @@ export function removeTracksFromCaches(
   setQueryDataIfPresent<TrackEntity[]>(queryClient, queryKeys.tracks.liked(), tracks =>
     tracks.filter(track => !trackIdSet.has(track.id)),
   );
-  setQueryDataIfPresent<LibrarySummaryData>(
-    queryClient,
-    queryKeys.library.summary(),
-    data => ({
-      ...data,
-      likedTracks: data.likedTracks.filter(track => !trackIdSet.has(track.id)),
-    }),
-  );
   setQueryDataIfPresent<LikedTracksPageData>(
     queryClient,
     queryKeys.tracks.likedPage(),
@@ -518,16 +516,10 @@ export function syncTrackLikeCaches(
   setQueryDataIfPresent<LibrarySummaryData>(
     queryClient,
     queryKeys.library.summary(),
-    (data) => {
-      const withoutCurrent = removeById(data.likedTracks, nextTrackEntity.id);
-
-      return {
-        ...data,
-        likedTracks: likedAt
-          ? sortLikedTracksDesc([nextTrackEntity, ...withoutCurrent])
-          : withoutCurrent,
-      };
-    },
+    data => ({
+      ...data,
+      likedCount: Math.max(0, data.likedCount + (likedAt ? 1 : -1)),
+    }),
   );
 
   setQueriesDataIfPresent<InfiniteData<PaginatedTracksResult>>(
@@ -700,16 +692,6 @@ export function syncTrackMetadataCaches(
     ),
   );
 
-  setQueryDataIfPresent<LibrarySummaryData>(
-    queryClient,
-    queryKeys.library.summary(),
-    data => ({
-      ...data,
-      likedTracks: data.likedTracks.map(track =>
-        track.id === nextTrackEntity.id ? nextTrackEntity : track,
-      ),
-    }),
-  );
   setQueryDataIfPresent<LikedTracksPageData>(
     queryClient,
     queryKeys.tracks.likedPage(),

@@ -14,12 +14,12 @@ import type { LibrarySummaryData } from "./types";
 export async function getLibrarySummary(): Promise<LibrarySummaryData> {
   // Playing from ND/YT browsing must not grow the library — shadow rows
   // (pinned = 0) are excluded by the pinned index.
-  const [artists, albums, playlists, folders, likedTracks] = await Promise.all([
+  const [artists, albums, playlists, folders, likedCount] = await Promise.all([
     unwrapResult(artistRepository.findPinned()),
     unwrapResult(albumRepository.findPinned()),
     unwrapResult(playlistRepository.findAll()),
     unwrapResult(folderRepository.findAll()),
-    unwrapResult(trackRepository.findLiked()),
+    unwrapResult(trackRepository.countLiked()),
   ]);
 
   const [albumTrackCounts, artistTrackCounts] = await Promise.all([
@@ -42,7 +42,7 @@ export async function getLibrarySummary(): Promise<LibrarySummaryData> {
     albums: albumsWithCounts,
     playlists,
     folders,
-    likedTracks,
+    likedCount,
   };
 }
 

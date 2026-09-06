@@ -64,7 +64,7 @@ export const useLibrary = () => {
   const albums = computed(() => data.value?.albums ?? []);
   const playlists = computed(() => data.value?.playlists ?? []);
   const folders = computed(() => data.value?.folders ?? []);
-  const likedTracks = computed(() => data.value?.likedTracks ?? []);
+  const likedCount = computed(() => data.value?.likedCount ?? 0);
 
   const artistMap = computed(() => {
     const map = new Map<string, string>();
@@ -80,7 +80,7 @@ export const useLibrary = () => {
     id: "liked",
     type: "liked",
     title: t("common.favorite"),
-    subtitle: t("common.trackCount", { count: likedTracks.value.length }),
+    subtitle: t("common.trackCount", { count: likedCount.value }),
     image: "/img/liked-fallback.svg",
     isPinned: true,
     isSystem: true,
